@@ -1,5 +1,5 @@
 // Path B — one Android Monkey run with a fixed seed, logcat monitor in parallel.
-//   adb shell monkey -p <pkg> -s <seed> --throttle <ms> --randomize-throttle 100 -vvv
+//   adb shell monkey -p <pkg> -s <seed> --throttle <ms> --randomize-throttle -vvv
 //         --ignore-crashes --ignore-timeouts --monitor-native-crashes <count>   > monkey.log
 // Crash verdict: logcat FATAL EXCEPTION / ANR in (week-2 LogcatMonitor) is primary; monkey.log
 // CRASH: / NOT RESPONDING: is the cross-check (see log-parser.ts).
@@ -46,7 +46,8 @@ export function monkeyArgs(o: Required<Pick<MonkeyOptions, 'packageName' | 'seed
     '-p', o.packageName,
     '-s', String(o.seed),
     '--throttle', String(o.throttle),
-    '--randomize-throttle', '100',
+    // Boolean flag: random delay in [0, throttle]. Takes no value — a value would be read as the event count.
+    '--randomize-throttle',
     '-vvv',
     ...(o.ignoreErrors === false ? [] : ['--ignore-crashes', '--ignore-timeouts', '--monitor-native-crashes']),
     String(o.eventCount),

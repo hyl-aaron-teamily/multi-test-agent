@@ -20,7 +20,7 @@ describe('monkey helpers', () => {
   it('builds a reproducible command', () => {
     const args = monkeyArgs({ packageName: 'com.example.app', seed: 12345, eventCount: 3000, throttle: 300 });
     expect(reproduceCommand(args, 'abc')).toBe(
-      'adb -s abc shell monkey -p com.example.app -s 12345 --throttle 300 --randomize-throttle 100 -vvv --ignore-crashes --ignore-timeouts --monitor-native-crashes 3000',
+      'adb -s abc shell monkey -p com.example.app -s 12345 --throttle 300 --randomize-throttle -vvv --ignore-crashes --ignore-timeouts --monitor-native-crashes 3000',
     );
   });
 

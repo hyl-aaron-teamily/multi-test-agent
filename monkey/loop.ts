@@ -79,6 +79,9 @@ export async function runMonkeyLoop(o: MonkeyLoopOptions): Promise<MonkeySummary
       `[monkey] round ${round}: seed=${seed} injected=${parsed.eventsInjected ?? '?'} crashes=${crashesDetected}` +
         (parsed.aborted ? ' (monkey aborted)' : ''),
     );
+    if (parsed.eventsInjected !== null && parsed.eventsInjected < o.eventCount && !crashesDetected) {
+      console.warn(`[monkey] WARNING: only ${parsed.eventsInjected}/${o.eventCount} events injected — check ${r.logPath}`);
+    }
     if (crashesDetected > 0 && o.failFast) break;
   }
   await forceStopApp(o.packageName, o.deviceId).catch(() => {});
