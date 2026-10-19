@@ -19,8 +19,8 @@ const TYPES: InteractiveElementType[] = ['button', 'input', 'list-item', 'tab', 
 const QUERY =
   '{type: "button" | "input" | "list-item" | "tab" | "switch" | "unknown", label: string, description: string}[], ' +
   'every interactive element currently visible on the screen (buttons, icon buttons, input boxes, ' +
-  'tappable list rows, bottom/top tabs, switches). label = the visible text, or a short inferred name ' +
-  'for icon-only controls; description = what tapping it most likely does in under 12 words. ' +
+  'tappable list rows, bottom/top tabs, switches). label = the visible text, or for icon-only controls ' +
+  'a name stating their purpose (e.g. "user avatar / profile", "back", "more options", "add"); description = what tapping it most likely does in under 12 words. ' +
   'Do not include plain text, images or the system status bar. At most 25 items.';
 
 /** Normalise whatever the model returned into a clean, de-duplicated list. Pure, exported for tests. */
