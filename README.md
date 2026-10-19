@@ -52,6 +52,10 @@ pnpm crash-check:android                  # 真机崩溃监控自检（am crash�
 pnpm report                               # allure generate → ./allure-report（需要 Java）
 pnpm exec allure open ./allure-report     # 打开报告
 pnpm typecheck                            # tsc --noEmit
+pnpm test:unit                            # W3：explore/ + monkey/ 纯函数单测（无需设备/模型）
+pnpm explore --package <pkg>              # W3 路径 A：AI 探索式遍历，见下文
+pnpm monkey --package <pkg> --seed 12345 --events 3000   # W3 路径 B：Monkey 压测
+pnpm report:problems                      # W3：合并两条路径 → midscene_run/problem-report.md
 ```
 
 报告：每个业务步骤是一个 Allure step，步骤结束（成功或失败）都附截图（Web 为整页截图，Android 为 `adb exec-out screencap -p`）；失败断言标在对应 step 上。用例结束还会把 Midscene 自带的 HTML 回放报告作为附件挂到 Allure。
@@ -113,6 +117,70 @@ HyperOS 适配：Android 版本不在「我的设备」页，流程会在需要�
 
 `midscene_run/` 已 git-ignore：截图含设备上的账号信息，不入库。
 
+## 第三周：通用探索 + Monkey + 问题报告
+
+### 路径 A — AI 探索（`pnpm explore`）
+
+```bash
+pnpm explore --package ai.teamily.mobile --steps 30 --focus "个人资料 profile, agent 智能体"
+EXPLORE_ENTRY="the user avatar at the top-left corner" pnpm explore --package ai.teamily.mobile
+```
+
+每步：确认 App 在前台（否则 force-stop + launch，最多 3 次，超出记为截断）→ `aiQuery` 列出可交互元素 → 生成状态指纹 → 选一个本状态未尝试且安全的元素 `aiTap` → 检查 logcat 监控 → 记录转换。
+状态指纹优先 `activity + AI 提取的页面标题` 的 md5（`stateFingerprintSource: "ai"`），标题为空/不稳定时退化为截图 md5 前 12 位 + 元素类型分布（`"screenshot-hash"`）。
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `EXPLORE_MAX_STEPS` / `--steps` | 50 | 单次最大操作数 |
+| `FAIL_FAST` / `--fail-fast` | false | 首个崩溃即停止 |
+| `EXPLORE_FOCUS` / `--focus` | - | 优先探索的关键词（同时作为 aiQuery 上下文） |
+| `EXPLORE_ENTRY` | - | 每次(重新)启动后先点的入口，自然语言描述 |
+| `EXPLORE_STATE_BUDGET` | 5 | 同一状态最多操作次数，超出按 Back 离开，扩大覆盖 |
+| `EXPLORE_ALLOW_MUTATION` | false | 允许操作输入框 / 开关 |
+| `EXPLORE_AVOID` | - | 追加的禁点正则 |
+
+**生产环境安全**：内置禁点表（支付/充值/套餐/账单/积分、发送、保存/提交/确认、删除/清空/退出登录、编辑/添加/创建/上传、置顶/免打扰/更改、分享/邀请、模板/建议…），输入框和开关默认不碰。被跳过的元素记在轨迹 `skippedUnsafe` 中。这是关键词启发式，不是保证：在生产账号上跑完仍应人工核对（见下方真机记录）。
+
+产物：`midscene_run/explore-traces/<ts>.json`（步骤、状态、结果 navigated/stayed/app-exited/crash/error、崩溃）、Midscene HTML 报告（每步截图，路径写在轨迹 `midsceneReport`）、崩溃现场 `midscene_run/crashes/<ts>/`（`context.json` 的 `source: "ai-explore"`，另附 `trace.json`）。
+
+### 路径 B — Monkey（`pnpm monkey`）
+
+```bash
+pnpm monkey --package com.miui.calculator --seed 12345 --events 3000
+MONKEY_ROUNDS=3 MONKEY_EVENT_COUNT=5000 pnpm monkey --package <pkg>   # 未给 seed 时随机生成并落盘
+```
+
+命令：`adb shell monkey -p <pkg> -s <seed> --throttle 300 --randomize-throttle -vvv --ignore-crashes --ignore-timeouts --monitor-native-crashes <count>`（`--randomize-throttle` 是无参开关）。Monkey 输出写 `monkey_run/<ts>-r<n>-s<seed>/monkey.log`；logcat 监控并行，崩溃以 logcat `FATAL EXCEPTION` / `ANR in` 为准，Monkey 日志 `CRASH:` / `NOT RESPONDING:` 按时间窗（±15s）交叉验证。
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `MONKEY_EVENT_COUNT` / `--events` | 5000 | 每轮事件数 |
+| `MONKEY_ROUNDS` / `--rounds` | 1 | 轮数；给定 seed 时第 n 轮用 seed+n-1 |
+| `MONKEY_SEED` / `--seed` | 随机 | 固定种子 |
+| `MONKEY_THROTTLE` / `--throttle` | 300 | 事件间隔 ms |
+| `FAIL_FAST` | false | 有崩溃即停后续轮次 |
+| `MONKEY_NATIVE_CRASHES` | true | `false` 时去掉 `--monitor-native-crashes`。该参数启动时会逐个扫描设备上已有 tombstone，测试机（32 个旧 tombstone）上约 3 分钟不注入事件 |
+
+汇总 `monkey_run/summary.json`：每轮 seed、注入数、`crashesDetected`、`firstCrashEventCount`、关联结果、可直接复制的 `reproduceCommand`。崩溃现场 `context.json` 的 `source: "monkey"`，附 seed 与复现命令。
+
+> ⚠️ Monkey 随机点击无法约束，不要对生产账号的 IM / 支付类 App 运行。本周 Teamily（生产环境）只跑路径 A；路径 B 用系统计算器验收。
+
+### 问题报告（`pnpm report:problems`）
+
+读最新 `midscene_run/explore-traces/*.json` 和 `monkey_run/summary.json`（也可 `--trace` / `--monkey` 指定），生成 `midscene_run/problem-report.md`：概览、两条路径的问题（截图 / logcat / 轨迹片段 / seed / 复现命令 / 堆栈摘要）、未复现与待观察项。与 Allure 报告、Midscene HTML 报告并列查看。
+
+### 真机记录（W3）
+
+| 项目 | 命令 | 结果 |
+|---|---|---|
+| Teamily AI 探索 | `pnpm explore --package ai.teamily.mobile --steps 25`（focus 个人资料 + agent） | ✅ 25 步 / 9 状态 / 未捕获崩溃，覆盖智能体列表、智能体团队、Agent 设置、技能库、群信息、排行榜、聊天记录 |
+| 个人资料探索 | `EXPLORE_ENTRY="the user avatar at the top-left corner of the home screen" pnpm explore ... --steps 20` | ✅ 20 步 / 7 状态 / 未捕获崩溃，覆盖个人资料、设置、编辑资料（只读）、收藏、点赞 |
+| Monkey | `pnpm monkey --package com.miui.calculator --seed 12345 --events 3000` | ✅ 3000/3000 注入，未捕获崩溃 |
+| Monkey 崩溃链路 | seed 777 / 300 事件 + 运行中 `am crash` | ✅ logcat 捕获，monkey.log 第 146 行交叉验证，报告标注为注入 |
+| 基线 | `pnpm test:web` / `pnpm test:android` | ✅ 1/1、5/5 |
+
+生产副作用与还原记录见 CHANGELOG「真机记录」。
+
 ## 目录结构
 
 ```
@@ -140,7 +208,20 @@ HyperOS 适配：Android 版本不在「我的设备」页，流程会在需要�
 │   └── android/
 │       ├── settings.about.spec.ts
 │       └── logcat-monitor.unit.spec.ts   # 离线单测（模拟 logcat 流）
+├── explore/                     # W3 路径 A
+│   ├── page-observer.ts         # aiQuery 可交互元素识别
+│   ├── state-tracker.ts         # 状态指纹 + 已探索记录
+│   ├── explore-loop.ts          # 有界探索循环、安全过滤、崩溃捕获
+│   ├── trace.ts                 # 轨迹导出
+│   └── unit.spec.ts
+├── monkey/                      # W3 路径 B（不依赖 Midscene）
+│   ├── runner.ts                # 单次 Monkey + logcat 并行
+│   ├── log-parser.ts            # monkey.log 解析 + 与 logcat 关联
+│   ├── loop.ts                  # 多轮 + summary.json
+│   └── unit.spec.ts
+├── report/problem-report.ts     # W3 统一问题报告
 ├── scripts/
+│   ├── explore.ts / monkey.ts   # W3 CLI
 │   ├── report.ts                # 检查 Java 后调用 allure generate
 │   ├── loop-android.ts          # 高频循环
 │   └── crash-check-android.ts   # 真机崩溃监控自检
@@ -160,7 +241,7 @@ ADB 通过 `child_process` 调用，没有引入 npm adb 封装库。
 
 ## 后续路线
 
-第三周：Monkey 随机压测（复用 logcat 监控与循环脚本）、WebView CDP 补充通道、轻量控制台。
+第三周已完成探索 + Monkey + 问题报告；第四周建议见 CHANGELOG。
 
 ## 参考工程使用清单
 
@@ -183,3 +264,14 @@ ADB 通过 `child_process` 调用，没有引入 npm adb 封装库。
 | `@midscene/android` / `@midscene/core` `.d.ts` | `getConnectedDevices(opts)` 返回 `{udid, state}[]`；`AndroidDeviceOpt.androidAdbPath`；`aiContexts.aiAct`（`aiActionContext` 已弃用） | |
 | `midscene-example/android/yaml-scripts-demo/` | 未使用 | YAML 用例不在本周范围 |
 | logcat 监控 | ref/ 中无现成实现 | 关键字按里程碑文档自行实现，思路参考 kaeawc/auto-mobile `LogcatCrashDetector`（未引入依赖） |
+
+### 第三周新增
+
+| ref / 来源 | 用在哪里 | 备注 |
+|---|---|---|
+| `midscene-example/android/javascript-sdk-demo/demo.ts` | `page-observer.ts` 的 `aiQuery` 形状字符串写法；`scripts/explore.ts` 纯脚本形态 | 主要参考 |
+| `@midscene/core` `agent.d.ts` | `aiQuery<T>` / `aiString` / `aiTap` / `aiInput(locate, {value})` / `reportFile` | |
+| `scripts/loop-android.ts`、`core/logcat-monitor.ts`（W2） | 探索与 Monkey 的 force-stop/launch、崩溃监控 | 复用，monitor 加 `extraContext` |
+| `ref/midscene-skills/skills/android-automation/` | **缺失**（`ref/` 下无 midscene-skills） | 未下载在线版；按 `.d.ts` 与可运行 demo 自行实现 observe → explore 循环，没有套用不存在的 explore API |
+| Android Monkey 官方文档 | 参数语义 | 文档未写清 `--randomize-throttle` 无值，真机日志纠正 |
+| Midscene「解析报告文件」 | 未用 | 报告只链接 Midscene HTML 路径，没有解析其中 JSON |

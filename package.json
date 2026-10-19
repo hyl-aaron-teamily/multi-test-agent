@@ -11,7 +11,11 @@
     "loop:android": "tsx scripts/loop-android.ts",
     "report": "tsx scripts/report.ts",
     "typecheck": "tsc --noEmit",
-    "crash-check:android": "tsx scripts/crash-check-android.ts"
+    "crash-check:android": "tsx scripts/crash-check-android.ts",
+    "explore": "tsx scripts/explore.ts",
+    "monkey": "tsx scripts/monkey.ts",
+    "report:problems": "tsx report/problem-report.ts",
+    "test:unit": "vitest run --project unit"
   },
   "devDependencies": {
     "@midscene/android": "1.16.0",
