@@ -6,11 +6,10 @@
 // read-only against production apps.
 // ref: midscene-example/android/javascript-sdk-demo/demo.ts (plain-script agent usage)
 // ref: scripts/loop-android.ts (week-2 monitor + force-stop/launch pattern)
-import { createHash } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AndroidAgent } from '@midscene/android';
-import { adb, forceStopApp, launchApp, screencap } from '../core/adb';
+import { adb, forceStopApp, launchApp } from '../core/adb';
 import type { CrashEvent, LogcatMonitor } from '../core/logcat-monitor';
 import { elementKey, type InteractiveElement, observeInteractiveElements } from './page-observer';
 import { captureState, currentActivity, type FingerprintSource, StateTracker } from './state-tracker';
@@ -42,6 +41,8 @@ export interface ExploreOptions {
   avoid: RegExp;
   allowMutation: boolean;
   maxRelaunches?: number;
+  /** Max actions in one state before leaving it with BACK (keeps coverage broad). Default 5. */
+  stateBudget?: number;
 }
 
 export interface ExploreResult {
@@ -58,7 +59,6 @@ export const DEFAULT_AVOID =
 
 const NAV_HINT = /进入|打开|查看|详情|设置|更多|资料|主页|列表|open|view|detail|setting|more|profile|list|page|tab|navigate|go to/i;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const md5 = (b: Buffer) => createHash('md5').update(b).digest('hex');
 
 /** Unsafe = matches the avoid pattern, or is an input / switch (state-changing) while mutation is off. Pure. */
 export function isUnsafe(el: InteractiveElement, avoid: RegExp, allowMutation: boolean): boolean {
@@ -101,6 +101,8 @@ export async function exploreApp(agent: AndroidAgent, monitor: LogcatMonitor, op
   const focusTerms = (opts.focus ?? '').toLowerCase().split(/[,，\s/|]+/).filter(Boolean);
   const steps: TraceStep[] = [];
   const maxRelaunches = opts.maxRelaunches ?? 3;
+  const stateBudget = opts.stateBudget ?? 5;
+  const actionsInState = new Map<string, number>();
   let relaunches = 0;
   let truncatedReason: string | undefined;
 
@@ -140,7 +142,16 @@ export async function exploreApp(agent: AndroidAgent, monitor: LogcatMonitor, op
     const candidates = untried
       .filter((e) => !unsafe.includes(e))
       .sort((a, b) => scoreElement(b, focusTerms) - scoreElement(a, focusTerms));
-    const el = candidates[0];
+    const spent = actionsInState.get(state.stateId) ?? 0;
+    actionsInState.set(state.stateId, spent + 1);
+    // Over budget → treat as exhausted so we go BACK and look elsewhere.
+    const el = spent < stateBudget ? candidates[0] : undefined;
+
+    // Previous step's real outcome: did we end up in a different state?
+    const prev = steps[steps.length - 1];
+    if (prev && (prev.result === 'navigated' || prev.result === 'stayed') && prev.stateId !== '-') {
+      prev.result = prev.stateId === state.stateId ? 'stayed' : 'navigated';
+    }
 
     const record: TraceStep = {
       step,
@@ -155,7 +166,6 @@ export async function exploreApp(agent: AndroidAgent, monitor: LogcatMonitor, op
       ...(unsafe.length ? { skippedUnsafe: unsafe.map((e) => e.label) } : {}),
     };
     const crashesBefore = monitor.crashes.length;
-    const shotBefore = md5(state.screenshot);
 
     try {
       if (!el) {
@@ -183,7 +193,8 @@ export async function exploreApp(agent: AndroidAgent, monitor: LogcatMonitor, op
     } else if (!(await isForeground(pkg, udid))) {
       record.result = 'app-exited';
     } else if (record.result !== 'error') {
-      record.result = md5(await screencap(udid)) !== shotBefore ? 'navigated' : 'stayed';
+      // Provisional; corrected at the next observation by comparing state IDs.
+      record.result = 'navigated';
     }
     steps.push(record);
     console.log(

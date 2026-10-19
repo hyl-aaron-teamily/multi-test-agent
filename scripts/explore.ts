@@ -3,6 +3,7 @@
 //   pnpm explore --package ai.teamily.mobile
 //   pnpm explore --package <pkg> --steps 20 --focus "profile, agent"
 //   EXPLORE_MAX_STEPS=50  FAIL_FAST=true  EXPLORE_FOCUS="..."  EXPLORE_ALLOW_MUTATION=true
+//   EXPLORE_STATE_BUDGET=5  # actions per state before BACK
 //   EXPLORE_AVOID="regex"   # extra pattern of labels never to touch (added to the built-in list)
 //
 // Output: midscene_run/explore-traces/<ts>.json, Midscene HTML report (per-step screenshots),
@@ -31,6 +32,7 @@ const focus = values.focus ?? process.env.EXPLORE_FOCUS;
 const extraAvoid = process.env.EXPLORE_AVOID?.trim();
 const avoid = extraAvoid ? new RegExp(`${DEFAULT_AVOID.source}|${extraAvoid}`, 'i') : DEFAULT_AVOID;
 const allowMutation = process.env.EXPLORE_ALLOW_MUTATION === 'true';
+const stateBudget = Number(process.env.EXPLORE_STATE_BUDGET ?? 5);
 
 if (!pkg) {
   console.error('Usage: pnpm explore --package <installed.package.name>  (or APP_PACKAGE=...)');
@@ -52,7 +54,7 @@ async function main() {
 
   let result;
   try {
-    result = await exploreApp(agent, monitor, { packageName: pkg!, udid, maxSteps, failFast, focus, avoid, allowMutation });
+    result = await exploreApp(agent, monitor, { packageName: pkg!, udid, maxSteps, failFast, focus, avoid, allowMutation, stateBudget });
   } finally {
     await monitor.stop();
     await agent.destroy().catch(() => {});
