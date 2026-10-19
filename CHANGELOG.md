@@ -8,6 +8,8 @@
 - logcat 崩溃监控（FATAL EXCEPTION / ANR / beginning of crash，`core/logcat-monitor.ts`）及离线单测
 - 高频循环执行与 force-stop 状态重置（`pnpm loop:android`，`LOOP_COUNT` / `APP_PACKAGE` / `FAIL_FAST` / `CRASH_AT_ITERATION`，输出 `midscene_run/loop-summary.json`）
 - 崩溃现场自动保存（截图 + logcat 片段 + 迭代序号，`midscene_run/crashes/<timestamp>/`）
+- 真机崩溃监控自检 `pnpm crash-check:android`；循环脚本 `FLOW=launch` 无 AI 模式
+- 真机验证（Xiaomi 2211133C / Android 16）：崩溃捕获、10 轮循环、fail-fast 均通过；AI 流程待模型凭据
 - 环境侦察与最小依赖方案（`env-report.md`、`env-plan.md`，adb 通过 winget 安装）
 
 ### Changed

@@ -32,6 +32,7 @@ AI 驱动的自动化测试脚手架：**Midscene（AI 视觉定位/断言）+ P
 | `LOOP_COUNT` | 否 | 循环次数，默认 10 |
 | `FAIL_FAST` | 否 | `true` 时首次捕获崩溃即停止循环 |
 | `CRASH_AT_ITERATION` | 否 | 崩溃监控自检：在第 N 轮流程中执行 `adb shell am crash <pkg>` |
+| `FLOW` | 否 | 循环模式：`ai`（默认，跑 AI 流程，需要模型凭据）或 `launch`（只做 force-stop + 启动 + 前台检查，无需凭据） |
 
 缺少必要条件时用例会**失败并给出可读报错**，不会跳过或伪造 AI 步骤：
 - `[waiting for credentials] Midscene model config missing: ...`
@@ -47,6 +48,7 @@ pnpm test                                 # 跑全部用例（web + android 两�
 pnpm test:web                             # 只跑 Web
 pnpm test:android                         # 只跑 Android（含 logcat 监控离线单测）
 pnpm loop:android                         # Android 高频循环，见下文
+pnpm crash-check:android                  # 真机崩溃监控自检（am crash），无需模型凭据
 pnpm report                               # allure generate → ./allure-report（需要 Java）
 pnpm exec allure open ./allure-report     # 打开报告
 pnpm typecheck                            # tsc --noEmit
@@ -78,6 +80,7 @@ pnpm loop:android                                   # 10 轮
 pnpm loop:android --count 50 --fail-fast            # 或 LOOP_COUNT=50 FAIL_FAST=true
 APP_PACKAGE=com.example.app pnpm loop:android       # 其他 App：每轮做一次 aiAssert 前台检查
 CRASH_AT_ITERATION=3 pnpm loop:android --count 5    # 第 3 轮人为触发崩溃，验证监控
+FLOW=launch pnpm loop:android                       # 无 AI：只验证 force-stop/启动/崩溃捕获，无需凭据
 ```
 
 每轮开头 `adb shell am force-stop <pkg>` + `monkey -p <pkg> -c android.intent.category.LAUNCHER 1`，然后跑流程。结束时打印并写入 `midscene_run/loop-summary.json`：`totalRuns`、`crashesDetected`、`failedRuns`、`firstCrashIteration`、各轮结果。退出码：有失败轮次为 1。
@@ -92,6 +95,18 @@ midscene_run/crashes/<timestamp>/
 ├── logcat.txt       # 命中前 200 行 + 命中后最多 200 行 + `adb logcat -b crash -d`
 └── context.json     # iteration, udid, packageName, step, timestamp, keywords, matchesPackage
 ```
+
+### 5. 真机验证记录（Xiaomi 2211133C / Android 16 / udid `4f2ebdf2`）
+
+| 项 | 命令 | 结果 |
+|---|---|---|
+| 设备发现、启动、截图 | `getAndroidDevice` / `launchApp` / `screencap` | ✅ 自动发现 `4f2ebdf2`，设置页 `com.android.settings/.MainSettings` 置顶，截图为有效 PNG |
+| 崩溃监控 | `pnpm crash-check:android` | ✅ 捕获 `FATAL EXCEPTION: main` / `Process: com.android.settings:remote`，现场写入 `midscene_run/crashes/<timestamp>/` |
+| 高频循环 | `FLOW=launch CRASH_AT_ITERATION=3 pnpm loop:android` | ✅ totalRuns 10、crashesDetected 1、failedRuns 1、firstCrashIteration 3 |
+| fail-fast | `FLOW=launch CRASH_AT_ITERATION=2 pnpm loop:android --count 5 --fail-fast` | ✅ 第 2 轮捕获后停止 |
+| AI 原生流程 | `pnpm test:android` / `pnpm loop:android`（FLOW=ai） | ⛔ 未执行：缺少模型凭据，用例报 `[waiting for credentials]` |
+
+`midscene_run/` 已 git-ignore：截图含设备上的账号信息，不入库。
 
 ## 目录结构
 
@@ -122,7 +137,8 @@ midscene_run/crashes/<timestamp>/
 │       └── logcat-monitor.unit.spec.ts   # 离线单测（模拟 logcat 流）
 ├── scripts/
 │   ├── report.ts                # 检查 Java 后调用 allure generate
-│   └── loop-android.ts          # 高频循环
+│   ├── loop-android.ts          # 高频循环
+│   └── crash-check-android.ts   # 真机崩溃监控自检
 └── ref/                         # 只读参考工程（git-ignored，不参与构建）
 ```
 
