@@ -32,15 +32,20 @@ export async function runSettingsAboutFlow(
     );
   });
 
-  await step('3. Wait for the About page', async () => {
+  await step('3. Wait for the About page (open the specs sub page if needed)', async () => {
     await agent.aiWaitFor('The About phone / device information page is shown, listing items such as device name, model or Android version', {
       timeoutMs: 30_000,
     });
+    // Some skins (e.g. Xiaomi HyperOS 「我的设备」) only show the Android version on a sub page;
+    // aiQuery cannot navigate, so open it here when needed.
+    await agent.aiAct(
+      'If an "Android version" / "Android 版本" value is already visible, do nothing. Otherwise scroll down and open the entry that lists all specs, such as "全部参数与信息", "All specs" or "Software information", until the Android version is visible.',
+    );
   });
 
   const info = await step('4. Extract device name and Android version', async () => {
     const result = await agent.aiQuery<AboutPhoneInfo>(
-      '{deviceName: string, androidVersion: string}, deviceName is the device or model name shown on this page; androidVersion is the Android version number (e.g. "14"). If the version is only on a sub page, open it first.',
+      '{deviceName: string, androidVersion: string}, deviceName is the device or model name shown on this page; androidVersion is the Android version number (e.g. "14"). Use an empty string only if the value is truly not on screen.',
     );
     return result;
   });
