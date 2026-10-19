@@ -10,7 +10,8 @@
     "test:android": "vitest run --project android",
     "loop:android": "tsx scripts/loop-android.ts",
     "report": "tsx scripts/report.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "crash-check:android": "tsx scripts/crash-check-android.ts"
   },
   "devDependencies": {
     "@midscene/android": "1.16.0",

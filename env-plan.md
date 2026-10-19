@@ -44,3 +44,13 @@ Commands that change the system are listed here **before** they run, with their 
 - adb: available (see path above). Shells opened before the install do not see it on PATH, so set `MIDSCENE_ADB_PATH` in `.env` to the full path, or open a new terminal.
 - Device: **none connected**. To proceed: enable Developer options and USB debugging on the phone, connect it by USB, accept the "Allow USB debugging" prompt on the device screen, then run `adb devices -l` again. If it shows `unauthorized`, tap Allow on the phone; do not work around it with `adb kill-server` loops.
 - Blocker recorded: device-dependent DoD items (3, 4, 5 on a real device) cannot run until a device is attached.
+
+### Device connected (2026-10-19, later session)
+
+| # | Command | Changes system? | Result |
+|---|---|---|---|
+| 4 | `adb devices -l` | no | `4f2ebdf2  device product:fuxi model:2211133C device:fuxi transport_id:1` (authorized) |
+| 5 | `adb shell getprop ro.build.version.release` / `ro.product.cpu.abi` | no | `16` / `arm64-v8a` (Xiaomi 2211133C, HyperOS) |
+| 6 | `adb logcat -c -b crash` | yes (clears the device crash log buffer, one-off manual test) | ok |
+| 7 | `adb shell am crash com.android.settings` | yes (crashes the Settings process, it restarts on next launch) | `FATAL EXCEPTION: main` / `Process: com.android.settings:remote` in crash buffer |
+| 8 | `pnpm crash-check:android` | yes (same `am crash`) | crash scene written to `midscene_run/crashes/2026-10-19T09-15-55-946Z/` |
