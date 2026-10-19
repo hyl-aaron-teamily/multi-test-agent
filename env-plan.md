@@ -35,3 +35,12 @@ Commands that change the system are listed here **before** they run, with their 
 
 | # | Command | Changes system? | Result |
 |---|---|---|---|
+| 1 | `winget install --id Google.PlatformTools -e --scope user --accept-source-agreements --accept-package-agreements` | yes (user-scope install of Android platform-tools) | exit 0. Installed to `%LOCALAPPDATA%MicrosoftWinGetPackagesGoogle.PlatformTools_Microsoft.Winget.Source_8wekyb3d8bbweplatform-tools`; winget added the `adb` alias and updated user PATH (new shells only). |
+| 2 | `adb version` | no | `Android Debug Bridge version 1.0.41`, `Version 37.0.1-15733141` |
+| 3 | `adb devices -l` | no | `List of devices attached` followed by an empty list: **no device connected** |
+
+### Status after install
+
+- adb: available (see path above). Shells opened before the install do not see it on PATH, so set `MIDSCENE_ADB_PATH` in `.env` to the full path, or open a new terminal.
+- Device: **none connected**. To proceed: enable Developer options and USB debugging on the phone, connect it by USB, accept the "Allow USB debugging" prompt on the device screen, then run `adb devices -l` again. If it shows `unauthorized`, tap Allow on the phone; do not work around it with `adb kill-server` loops.
+- Blocker recorded: device-dependent DoD items (3, 4, 5 on a real device) cannot run until a device is attached.
