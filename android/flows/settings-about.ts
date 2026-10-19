@@ -23,7 +23,10 @@ export async function runSettingsAboutFlow(
   udid: string,
 ): Promise<AboutPhoneInfo> {
   await step('1. Settings home is shown', async () => {
-    await agent.aiAssert('This is the system Settings app home screen: there is a "Settings" title or a settings search box');
+    // Wait, not assert: right after a cold launch the first frames are blank.
+    await agent.aiWaitFor('This is the system Settings app home screen: there is a "Settings" title or a settings search box', {
+      timeoutMs: 20_000,
+    });
   });
 
   await step('2. Open "About phone"', async () => {
