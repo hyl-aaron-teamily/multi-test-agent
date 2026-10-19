@@ -33,6 +33,10 @@ async function stackSummary(dir: string): Promise<string> {
   return i < 0 ? '(no stack in logcat.txt)' : lines.slice(i, i + 8).join('\n');
 }
 
+/** `adb shell am crash` self-checks are not product bugs; say so in the report. */
+const injectedNote = (stack: string | undefined) =>
+  stack?.includes('CrashedByAdbException') ? '（`am crash` 人为注入的自检崩溃，非产品缺陷）' : '';
+
 export function renderExplore(t: ExploreTrace | undefined, stacks: Record<string, string>): string[] {
   if (!t) return ['## 路径 A 发现的问题', '', '- 未找到探索轨迹（尚未运行 `pnpm explore`）', ''];
   const md: string[] = ['## 路径 A 发现的问题', ''];
@@ -43,7 +47,7 @@ export function renderExplore(t: ExploreTrace | undefined, stacks: Record<string
     const trail = t.steps.slice(Math.max(0, idx - 4), idx + 1);
     md.push(
       `### 问题 ${i + 1}`,
-      `- 类型：${c.keywords.includes('FATAL EXCEPTION') ? '崩溃' : c.keywords.includes('ANR in') ? 'ANR' : '崩溃信号'} (${c.keywords.join(', ')})`,
+      `- 类型：${c.keywords.includes('FATAL EXCEPTION') ? '崩溃' : c.keywords.includes('ANR in') ? 'ANR' : '崩溃信号'} (${c.keywords.join(', ')})${injectedNote(stacks[c.dir])}`,
       `- 状态 ID：\`${step?.stateId ?? '?'}\`（指纹来源 ${step?.stateFingerprintSource ?? '?'}，页面 "${step?.stateTitle ?? ''}"）`,
       '- 操作轨迹片段：',
       ...trail.map((s) => `  - #${s.step} [${s.stateTitle || s.stateId}] ${s.action} ${s.element ? `"${s.element.label}"` : ''} → ${s.result}`),
@@ -77,7 +81,7 @@ export function renderMonkey(m: MonkeySummary | undefined, stacks: Record<string
       const lc = c.logcat!;
       md.push(
         `### 问题 ${n}`,
-        `- 类型：${lc.keywords.includes('ANR in') && !lc.keywords.includes('FATAL EXCEPTION') ? 'ANR' : 'CRASH'} (${lc.keywords.join(', ')})`,
+        `- 类型：${lc.keywords.includes('ANR in') && !lc.keywords.includes('FATAL EXCEPTION') ? 'ANR' : 'CRASH'} (${lc.keywords.join(', ')})${injectedNote(stacks[lc.dir])}`,
         `- 复现 seed：${r.seed}`,
         `- 复现命令：\`${r.reproduceCommand}\``,
         `- Monkey 日志：${c.monkey ? `\`${rel(r.logPath)}\` 第 ${c.monkey.line} 行 \`${c.monkey.text}\`（event #${c.monkey.eventCount ?? '?'}）` : c.note}`,
