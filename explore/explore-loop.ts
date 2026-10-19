@@ -57,7 +57,7 @@ export interface ExploreResult {
 }
 
 export const DEFAULT_AVOID =
-  /支付|付款|充值|购买|订阅|会员|钱包|红包|转账|发送|发消息|保存|提交|确认|确定|删除|移除|退出|注销|清空|清除|拨打|通话|举报|拉黑|分享|邀请|添加|安装|上传|创建|新建|编辑|修改|置顶|免打扰|关注|开关|启用|模板|建议|pay|purchase|buy|subscri|wallet|recharge|top.?up|send|save|submit|confirm|delete|remove|log.?out|sign.?out|clear|call|report|block|share|invite|install|add|upload|create|edit|pin|mute|follow|toggle|enable|template|suggest|prompt/i;
+  /支付|付款|充值|购买|订阅|会员|钱包|红包|转账|发送|发消息|保存|提交|确认|确定|删除|移除|退出|注销|清空|清除|拨打|通话|举报|拉黑|分享|邀请|添加|安装|上传|创建|新建|编辑|修改|置顶|免打扰|关注|开关|启用|模板|建议|套餐|账单|赚钱|积分|联盟|计费|更改|更换|pay|purchase|buy|subscri|wallet|recharge|top.?up|send|save|submit|confirm|delete|remove|log.?out|sign.?out|clear|call|report|block|share|invite|install|add|upload|create|edit|pin|mute|follow|toggle|enable|template|suggest|prompt|billing|bplanb|credit|cash|earn|affiliate|change/i;
 
 const NAV_HINT = /进入|打开|查看|详情|设置|更多|资料|主页|列表|open|view|detail|setting|more|profile|list|page|tab|navigate|go to/i;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));

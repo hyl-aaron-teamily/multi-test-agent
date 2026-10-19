@@ -27,6 +27,10 @@ describe('explore pure helpers', () => {
     expect(isUnsafe({ type: 'input', label: 'Message', description: '' }, DEFAULT_AVOID, false)).toBe(true);
     expect(isUnsafe({ type: 'switch', label: '免打扰', description: '' }, /$^/, false)).toBe(true);
     expect(isUnsafe({ type: 'button', label: '添加成员', description: '' }, DEFAULT_AVOID, true)).toBe(true);
+    for (const label of ['套餐与账单', '创作赚钱', '更改语言', 'Monthly review template']) {
+      expect(isUnsafe({ type: 'list-item', label, description: label.includes('template') ? 'prompt template' : '' }, DEFAULT_AVOID, false)).toBe(true);
+    }
+    expect(isUnsafe({ type: 'tab', label: '收藏', description: '查看收藏' }, DEFAULT_AVOID, false)).toBe(false);
     expect(isUnsafe({ type: 'tab', label: 'Agents', description: 'open agent list' }, DEFAULT_AVOID, false)).toBe(false);
   });
 
