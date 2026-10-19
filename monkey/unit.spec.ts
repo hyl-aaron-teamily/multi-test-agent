@@ -8,6 +8,7 @@ const LOG = `:Monkey: seed=12345 count=3000
     // Sending event #100
     //[calendar_time:2026-10-19 17:55:10.000  system_uptime:11000]
     // Sending event #200
+:Sending Touch (ACTION_DOWN): 0:(1.0,2.0)
 // CRASH: com.example.app (pid 4242)
 // Short Msg: java.lang.NullPointerException
 // Long Msg: java.lang.NullPointerException: boom
@@ -28,8 +29,9 @@ describe('monkey helpers', () => {
     const p = parseMonkeyLog(LOG);
     expect(p.eventsInjected).toBe(3000);
     expect(p.finished).toBe(true);
+    expect(parseMonkeyLog(':Switch: x\n:Sending Trackball\n// CRASH: a (pid 1)').signals[0].eventCount).toBe(2);
     expect(p.signals.map((s) => s.kind)).toEqual(['CRASH', 'ANR']);
-    expect(p.signals[0]).toMatchObject({ packageName: 'com.example.app', shortMsg: 'java.lang.NullPointerException', eventCount: 200, line: 6 });
+    expect(p.signals[0]).toMatchObject({ packageName: 'com.example.app', shortMsg: 'java.lang.NullPointerException', eventCount: 200, line: 7 });
   });
 
   it('correlates logcat crashes, logcat wins when monkey is silent', () => {

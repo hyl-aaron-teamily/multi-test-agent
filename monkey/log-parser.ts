@@ -16,7 +16,7 @@ export interface MonkeySignal {
   packageName: string | null;
   shortMsg: string | null;
   longMsg: string | null;
-  /** Last "Sending event #N" seen before the signal. */
+  /** Approx. index of the last injected event before the signal (max of "Sending event #N" and line count). */
   eventCount: number | null;
   /** Last calendar_time / system_uptime seen before the signal. */
   calendarTime: string | null;
@@ -38,9 +38,12 @@ export function parseMonkeyLog(text: string): ParsedMonkeyLog {
   let lastCal: string | null = null;
   let lastUptime: number | null = null;
   let eventsInjected: number | null = null;
+  // "Sending event #N" only every 100 events; also count individual ":Sending"/":Switch" lines.
+  let sent = 0;
 
   lines.forEach((raw, i) => {
     const line = raw.trim();
+    if (/^:(Sending|Switch)/.test(line)) sent++;
     const ev = line.match(/Sending event #(\d+)/);
     if (ev) lastEvent = Number(ev[1]);
     const t = line.match(/calendar_time:([\d-]+ [\d:.]+)\s+system_uptime:(\d+)/);
@@ -74,7 +77,7 @@ export function parseMonkeyLog(text: string): ParsedMonkeyLog {
       packageName: pkg,
       shortMsg: pick('// Short Msg:'),
       longMsg: pick('// Long Msg:'),
-      eventCount: lastEvent,
+      eventCount: lastEvent === null && sent === 0 ? null : Math.max(lastEvent ?? 0, sent),
       calendarTime: lastCal,
       systemUptime: lastUptime,
     });

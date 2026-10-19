@@ -2,6 +2,7 @@
 //
 //   pnpm monkey --package com.miui.calculator --seed 12345 --events 3000
 //   MONKEY_EVENT_COUNT=5000  MONKEY_ROUNDS=3  MONKEY_THROTTLE=300  FAIL_FAST=true
+//   MONKEY_NATIVE_CRASHES=false   # drop --monitor-native-crashes (it first scans old tombstones)
 //
 // Output: monkey_run/<ts>-r<round>-s<seed>/monkey.log, monkey_run/summary.json,
 // crash scenes in midscene_run/crashes/<ts>/ (context.json source = "monkey").
@@ -47,6 +48,7 @@ runMonkeyLoop({
   rounds: int(values.rounds ?? process.env.MONKEY_ROUNDS, 'rounds') ?? 1,
   throttle: int(values.throttle ?? process.env.MONKEY_THROTTLE, 'throttle') ?? 300,
   failFast: values['fail-fast'] ?? process.env.FAIL_FAST === 'true',
+  monitorNativeCrashes: process.env.MONKEY_NATIVE_CRASHES !== 'false',
 })
   .then((summary) => {
     process.exitCode = summary.rounds.some((r) => r.crashesDetected > 0) ? 1 : 0;

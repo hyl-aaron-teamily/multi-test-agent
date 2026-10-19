@@ -43,6 +43,7 @@ export interface MonkeyLoopOptions {
   rounds: number;
   throttle: number;
   failFast: boolean;
+  monitorNativeCrashes?: boolean;
 }
 
 export async function runMonkeyLoop(o: MonkeyLoopOptions): Promise<MonkeySummary> {
@@ -55,7 +56,7 @@ export async function runMonkeyLoop(o: MonkeyLoopOptions): Promise<MonkeySummary
     const seed = o.seed !== undefined ? o.seed + (round - 1) : randomSeed();
     const outputDir = join(MONKEY_RUN_DIR, `${startedAt.replace(/[:.]/g, '-')}-r${round}-s${seed}`);
     await forceStopApp(o.packageName, o.deviceId);
-    const r = await runMonkey({ packageName: o.packageName, deviceId: o.deviceId, seed, eventCount: o.eventCount, throttle: o.throttle, outputDir });
+    const r = await runMonkey({ packageName: o.packageName, deviceId: o.deviceId, seed, eventCount: o.eventCount, throttle: o.throttle, outputDir, monitorNativeCrashes: o.monitorNativeCrashes });
     const parsed = await parseMonkeyLogFile(r.logPath);
     const own = r.crashes.filter((c) => c.matchesPackage);
     const correlated = correlate(own, parsed);

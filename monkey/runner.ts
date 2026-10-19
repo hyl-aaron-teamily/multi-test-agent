@@ -20,6 +20,8 @@ export interface MonkeyOptions {
   outputDir: string;
   /** Default true: keep injecting after a crash/ANR (logcat still captures it). */
   ignoreErrors?: boolean;
+  /** Default true. --monitor-native-crashes scans existing tombstones at start (minutes on some devices). */
+  monitorNativeCrashes?: boolean;
 }
 
 export interface MonkeyResult {
@@ -40,7 +42,7 @@ export function randomSeed(): number {
 }
 
 /** `monkey` arguments (after `adb shell`). Pure, exported for tests and the repro command. */
-export function monkeyArgs(o: Required<Pick<MonkeyOptions, 'packageName' | 'seed' | 'eventCount' | 'throttle'>> & { ignoreErrors?: boolean }): string[] {
+export function monkeyArgs(o: Required<Pick<MonkeyOptions, 'packageName' | 'seed' | 'eventCount' | 'throttle'>> & { ignoreErrors?: boolean; monitorNativeCrashes?: boolean }): string[] {
   return [
     'monkey',
     '-p', o.packageName,
@@ -49,7 +51,8 @@ export function monkeyArgs(o: Required<Pick<MonkeyOptions, 'packageName' | 'seed
     // Boolean flag: random delay in [0, throttle]. Takes no value — a value would be read as the event count.
     '--randomize-throttle',
     '-vvv',
-    ...(o.ignoreErrors === false ? [] : ['--ignore-crashes', '--ignore-timeouts', '--monitor-native-crashes']),
+    ...(o.ignoreErrors === false ? [] : ['--ignore-crashes', '--ignore-timeouts']),
+    ...(o.monitorNativeCrashes === false ? [] : ['--monitor-native-crashes']),
     String(o.eventCount),
   ];
 }
@@ -65,7 +68,7 @@ export async function runMonkey(options: MonkeyOptions): Promise<MonkeyResult> {
   const outputDir = resolve(options.outputDir);
   await mkdir(outputDir, { recursive: true });
   const logPath = join(outputDir, 'monkey.log');
-  const args = monkeyArgs({ packageName: options.packageName, seed, eventCount, throttle, ignoreErrors: options.ignoreErrors });
+  const args = monkeyArgs({ packageName: options.packageName, seed, eventCount, throttle, ignoreErrors: options.ignoreErrors, monitorNativeCrashes: options.monitorNativeCrashes });
   const repro = reproduceCommand(args, options.deviceId);
   const startedAt = new Date();
   console.log(`[monkey] seed=${seed} events=${eventCount} throttle=${throttle}ms → ${logPath}`);
