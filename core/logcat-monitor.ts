@@ -48,6 +48,8 @@ export interface LogcatMonitorOptions {
   /** Root folder for crash scenes. Default: midscene_run/crashes */
   outputDir?: string;
   onCrash?: (event: CrashEvent) => void | Promise<void>;
+  /** Extra fields merged into every context.json (e.g. `{ source: 'monkey' }`). */
+  extraContext?: Record<string, unknown>;
   /** Test seam: read lines from this stream instead of spawning `adb logcat`. */
   source?: Readable;
   /** Test seam: replace screencap / crash-buffer dump. */
@@ -130,6 +132,7 @@ export function startLogcatMonitor(options: LogcatMonitorOptions = {}): LogcatMo
       join(dir, 'context.json'),
       JSON.stringify(
         {
+          ...options.extraContext,
           iteration: event.context.iteration ?? null,
           udid: options.udid ?? null,
           packageName: options.packageName ?? null,

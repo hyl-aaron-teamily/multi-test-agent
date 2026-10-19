@@ -33,6 +33,14 @@ export default defineConfig({
           hookTimeout: 120_000,
         },
       },
+      {
+        // Week 3: pure helpers of explore/ and monkey/ (no device, no model).
+        extends: true,
+        test: {
+          name: 'unit',
+          include: ['explore/**/*.spec.ts', 'monkey/**/*.spec.ts'],
+        },
+      },
     ],
   },
 });
