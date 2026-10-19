@@ -1,0 +1,14 @@
+{
+  // ref: midscene-example/playwright-with-vitest-demo/tsconfig.json
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["tests", "fixtures", "scripts", "vitest.config.ts"]
+}
