@@ -96,7 +96,10 @@ midscene_run/crashes/<timestamp>/
 └── context.json     # iteration, udid, packageName, step, timestamp, keywords, matchesPackage
 ```
 
-### 5. 真机验证记录（Xiaomi 2211133C / Android 16 / udid `4f2ebdf2`）
+### 5. 真机验证记录
+
+HyperOS 适配：Android 版本不在「我的设备」页，流程会在需要时打开「全部参数与信息」再读取。
+（Xiaomi 2211133C / Android 16 / udid `4f2ebdf2`）
 
 | 项 | 命令 | 结果 |
 |---|---|---|
@@ -104,7 +107,9 @@ midscene_run/crashes/<timestamp>/
 | 崩溃监控 | `pnpm crash-check:android` | ✅ 捕获 `FATAL EXCEPTION: main` / `Process: com.android.settings:remote`，现场写入 `midscene_run/crashes/<timestamp>/` |
 | 高频循环 | `FLOW=launch CRASH_AT_ITERATION=3 pnpm loop:android` | ✅ totalRuns 10、crashesDetected 1、failedRuns 1、firstCrashIteration 3 |
 | fail-fast | `FLOW=launch CRASH_AT_ITERATION=2 pnpm loop:android --count 5 --fail-fast` | ✅ 第 2 轮捕获后停止 |
-| AI 原生流程 | `pnpm test:android` / `pnpm loop:android`（FLOW=ai） | ⛔ 未执行：缺少模型凭据，用例报 `[waiting for credentials]` |
+| AI 原生流程 | `pnpm test:android` | ✅ 5/5 通过（qwen3-vl-plus）：设置首页 →「我的设备」→「全部参数与信息」→ aiQuery 读出设备名与 Android 16，并与 `getprop` 一致；Allure 每步附截图 |
+| AI 高频循环 | `CRASH_AT_ITERATION=2 pnpm loop:android --count 3` | ✅ 第 1、3 轮完整流程通过，第 2 轮崩溃被捕获：totalRuns 3、crashesDetected 1、failedRuns 1、firstCrashIteration 2 |
+| Web 基线 | `pnpm test:web` | ✅ 通过（连续多次） |
 
 `midscene_run/` 已 git-ignore：截图含设备上的账号信息，不入库。
 
@@ -151,10 +156,7 @@ ADB 通过 `child_process` 调用，没有引入 npm adb 封装库。
 ## 版本管理与合并状态
 
 - `main`：第一周基线。`feat/w2-android-adb`：第二周全部工作，子功能分支 `feat/w2-logcat-monitor` 已合回并删除。
-- **合并状态：`feat/w2-android-adb` 尚未合并回 `main`。** 规则要求合并前 `pnpm test:web` 全部通过；当前没有模型凭据，Web 用例停在 `[waiting for credentials]`（与第一周基线相同），因此未合并。填好 `.env` 并确认后执行：
-  ```bash
-  pnpm test:web && git checkout main && git merge --no-ff feat/w2-android-adb
-  ```
+- **合并状态：已合并。** `pnpm test:web` 通过后，`feat/w2-android-adb` 以 `--no-ff` 合并回 `main`。
 
 ## 后续路线
 
