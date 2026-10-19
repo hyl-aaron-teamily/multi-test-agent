@@ -25,6 +25,8 @@ describe('explore pure helpers', () => {
     expect(isUnsafe({ type: 'button', label: 'Top up', description: 'recharge balance' }, DEFAULT_AVOID, false)).toBe(true);
     expect(isUnsafe({ type: 'button', label: 'Log out', description: '' }, DEFAULT_AVOID, false)).toBe(true);
     expect(isUnsafe({ type: 'input', label: 'Message', description: '' }, DEFAULT_AVOID, false)).toBe(true);
+    expect(isUnsafe({ type: 'switch', label: '免打扰', description: '' }, /$^/, false)).toBe(true);
+    expect(isUnsafe({ type: 'button', label: '添加成员', description: '' }, DEFAULT_AVOID, true)).toBe(true);
     expect(isUnsafe({ type: 'tab', label: 'Agents', description: 'open agent list' }, DEFAULT_AVOID, false)).toBe(false);
   });
 

@@ -2,7 +2,7 @@
 //   per step: ensure foreground → observe elements → fingerprint state → pick an untried, safe
 //   element (navigation-looking first) → aiTap → check the logcat monitor → record the transition.
 // Safety: elements whose label/description match `avoid` (payment, send, save, delete, logout…)
-// are never touched, and text input is skipped unless allowInput — so the explorer can run
+// are never touched, and inputs / switches are skipped unless allowMutation — so the explorer can run
 // read-only against production apps.
 // ref: midscene-example/android/javascript-sdk-demo/demo.ts (plain-script agent usage)
 // ref: scripts/loop-android.ts (week-2 monitor + force-stop/launch pattern)
@@ -40,7 +40,7 @@ export interface ExploreOptions {
   /** Free text: what to prefer, e.g. "profile, agent". Also passed to aiQuery as context. */
   focus?: string;
   avoid: RegExp;
-  allowInput: boolean;
+  allowMutation: boolean;
   maxRelaunches?: number;
 }
 
@@ -54,15 +54,15 @@ export interface ExploreResult {
 }
 
 export const DEFAULT_AVOID =
-  /支付|付款|充值|购买|订阅|会员|钱包|红包|转账|发送|发消息|保存|提交|确认|确定|删除|移除|退出|注销|清空|清除|拨打|通话|举报|拉黑|分享|邀请|pay|purchase|buy|subscri|wallet|recharge|top.?up|send|save|submit|confirm|delete|remove|log.?out|sign.?out|clear|call|report|block|share|invite/i;
+  /支付|付款|充值|购买|订阅|会员|钱包|红包|转账|发送|发消息|保存|提交|确认|确定|删除|移除|退出|注销|清空|清除|拨打|通话|举报|拉黑|分享|邀请|添加|安装|上传|创建|新建|编辑|修改|置顶|免打扰|关注|开关|pay|purchase|buy|subscri|wallet|recharge|top.?up|send|save|submit|confirm|delete|remove|log.?out|sign.?out|clear|call|report|block|share|invite|install|add|upload|create|edit|pin|mute|follow|toggle/i;
 
 const NAV_HINT = /进入|打开|查看|详情|设置|更多|资料|主页|列表|open|view|detail|setting|more|profile|list|page|tab|navigate|go to/i;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const md5 = (b: Buffer) => createHash('md5').update(b).digest('hex');
 
-/** Unsafe = matches the avoid pattern, or is an input while input is disabled. Pure. */
-export function isUnsafe(el: InteractiveElement, avoid: RegExp, allowInput: boolean): boolean {
-  if (el.type === 'input' && !allowInput) return true;
+/** Unsafe = matches the avoid pattern, or is an input / switch (state-changing) while mutation is off. Pure. */
+export function isUnsafe(el: InteractiveElement, avoid: RegExp, allowMutation: boolean): boolean {
+  if ((el.type === 'input' || el.type === 'switch') && !allowMutation) return true;
   return avoid.test(`${el.label} ${el.description}`);
 }
 
@@ -135,7 +135,7 @@ export async function exploreApp(agent: AndroidAgent, monitor: LogcatMonitor, op
 
     // 4. Untried + safe, best first.
     const untried = tracker.unexplored(state.stateId, elements);
-    const unsafe = untried.filter((e) => isUnsafe(e, opts.avoid, opts.allowInput));
+    const unsafe = untried.filter((e) => isUnsafe(e, opts.avoid, opts.allowMutation));
     for (const e of unsafe) tracker.markExplored(state.stateId, elementKey(e));
     const candidates = untried
       .filter((e) => !unsafe.includes(e))
