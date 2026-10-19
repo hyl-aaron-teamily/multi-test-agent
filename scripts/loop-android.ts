@@ -7,6 +7,8 @@
 //   FAIL_FAST=true                         # stop at the first captured crash
 //   CRASH_AT_ITERATION=3                   # crash-monitor self-check: `adb shell am crash <pkg>`
 //                                          # mid-flow on iteration 3 to prove capture works
+//   FLOW=launch / --flow launch            # no AI: force-stop + launch + foreground check only
+//                                          # (runs without model credentials)
 //
 // Writes midscene_run/loop-summary.json and prints it.
 // A standalone script (not a Vitest spec) so long loops do not block the test report.
@@ -19,7 +21,7 @@ import type { AndroidAgent } from '@midscene/android';
 import { SETTINGS_PACKAGE, runSettingsAboutFlow, type StepRunner } from '../android/flows/settings-about';
 import { adb } from '../core/adb';
 import { type CrashEvent, startLogcatMonitor } from '../core/logcat-monitor';
-import { createAndroidAgent, forceStopApp, launchApp } from '../fixtures/android';
+import { createAndroidAgent, forceStopApp, getAndroidDevice, launchApp } from '../fixtures/android';
 
 const { values } = parseArgs({
   options: {
@@ -27,6 +29,7 @@ const { values } = parseArgs({
     package: { type: 'string', short: 'p' },
     device: { type: 'string', short: 'd' },
     'fail-fast': { type: 'boolean' },
+    flow: { type: 'string' },
   },
 });
 
@@ -35,8 +38,13 @@ const appPackage = values.package ?? process.env.APP_PACKAGE ?? SETTINGS_PACKAGE
 const deviceId = values.device ?? process.env.DEVICE_ID?.trim() ?? undefined;
 const failFast = values['fail-fast'] ?? process.env.FAIL_FAST === 'true';
 const crashAt = process.env.CRASH_AT_ITERATION ? Number(process.env.CRASH_AT_ITERATION) : undefined;
+const flow = (values.flow ?? process.env.FLOW ?? 'ai') as 'ai' | 'launch';
 const SUMMARY_FILE = resolve('midscene_run/loop-summary.json');
 
+if (flow !== 'ai' && flow !== 'launch') {
+  console.error(`FLOW / --flow must be "ai" or "launch", got "${flow}"`);
+  process.exit(2);
+}
 if (!Number.isInteger(loopCount) || loopCount < 1) {
   console.error(`LOOP_COUNT / --count must be a positive integer, got "${values.count ?? process.env.LOOP_COUNT}"`);
   process.exit(2);
@@ -57,6 +65,16 @@ async function runSmokeFlow(agent: AndroidAgent, step: StepRunner): Promise<void
   });
 }
 
+/** FLOW=launch: no AI, just confirm the app reached the foreground after launch. */
+async function runLaunchCheck(step: StepRunner, udid: string): Promise<void> {
+  await step('1. App reached the foreground', async () => {
+    await new Promise((r) => setTimeout(r, 3_000));
+    const activities = await adb(['shell', 'dumpsys', 'activity', 'activities'], udid);
+    const top = activities.split('\n').find((l) => /topResumedActivity|mResumedActivity/.test(l)) ?? '';
+    if (!top.includes(appPackage)) throw new Error(`${appPackage} is not the resumed activity: ${top.trim() || '<none>'}`);
+  });
+}
+
 async function writeSummary(summary: object) {
   await mkdir(resolve('midscene_run'), { recursive: true });
   await writeFile(SUMMARY_FILE, `${JSON.stringify(summary, null, 2)}\n`);
@@ -66,17 +84,25 @@ async function writeSummary(summary: object) {
 
 async function main() {
   const startedAt = new Date().toISOString();
-  let ctx;
+  let agent: AndroidAgent | undefined;
+  let udid: string;
   try {
-    ctx = await createAndroidAgent(deviceId, {
-      groupName: `Android loop: ${appPackage}`,
-      reportFileName: `android-loop-${appPackage}-${Date.now()}`,
-    });
+    if (flow === 'launch') {
+      udid = deviceId ?? (await getAndroidDevice()).udid;
+    } else {
+      const ctx = await createAndroidAgent(deviceId, {
+        groupName: `Android loop: ${appPackage}`,
+        reportFileName: `android-loop-${appPackage}-${Date.now()}`,
+      });
+      agent = ctx.agent;
+      udid = ctx.udid;
+    }
   } catch (err) {
     console.error((err as Error).message);
     await writeSummary({
       startedAt,
       appPackage,
+      flow,
       totalRuns: 0,
       crashesDetected: 0,
       failedRuns: 0,
@@ -85,8 +111,7 @@ async function main() {
     });
     process.exit(1);
   }
-  const { agent, udid } = ctx;
-  console.log(`[loop] device ${udid}, package ${appPackage}, ${loopCount} iterations, failFast=${failFast}`);
+  console.log(`[loop] device ${udid}, package ${appPackage}, flow=${flow}, ${loopCount} iterations, failFast=${failFast}`);
 
   const crashes: CrashEvent[] = [];
   const monitor = startLogcatMonitor({
@@ -124,7 +149,8 @@ async function main() {
             adb(['shell', 'am', 'crash', appPackage], udid).catch((e) => console.error(`am crash failed: ${e.message}`));
           }, 3_000);
         }
-        if (appPackage === SETTINGS_PACKAGE) await runSettingsAboutFlow(agent, step, udid);
+        if (!agent) await runLaunchCheck(step, udid);
+        else if (appPackage === SETTINGS_PACKAGE) await runSettingsAboutFlow(agent, step, udid);
         else await runSmokeFlow(agent, step);
       } catch (err) {
         error = (err as Error).message;
@@ -147,7 +173,7 @@ async function main() {
     }
   } finally {
     await monitor.stop();
-    await agent.destroy();
+    await agent?.destroy();
   }
 
   const firstCrash = crashes[0];
@@ -156,13 +182,14 @@ async function main() {
     finishedAt: new Date().toISOString(),
     udid,
     appPackage,
+    flow,
     requestedRuns: loopCount,
     totalRuns: results.length,
     crashesDetected: crashes.length,
     failedRuns: results.filter((r) => r.status === 'failed').length,
     firstCrashIteration: firstCrash?.context.iteration ?? null,
     crashDirs: crashes.map((c) => c.dir),
-    midsceneReport: agent.reportFile ?? null,
+    midsceneReport: agent?.reportFile ?? null,
     iterations: results,
   };
   await writeSummary(summary);
