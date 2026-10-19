@@ -35,7 +35,7 @@ Commands that change the system are listed here **before** they run, with their 
 
 | # | Command | Changes system? | Result |
 |---|---|---|---|
-| 1 | `winget install --id Google.PlatformTools -e --scope user --accept-source-agreements --accept-package-agreements` | yes (user-scope install of Android platform-tools) | exit 0. Installed to `%LOCALAPPDATA%MicrosoftWinGetPackagesGoogle.PlatformTools_Microsoft.Winget.Source_8wekyb3d8bbweplatform-tools`; winget added the `adb` alias and updated user PATH (new shells only). |
+| 1 | `winget install --id Google.PlatformTools -e --scope user --accept-source-agreements --accept-package-agreements` | yes (user-scope install of Android platform-tools) | exit 0. Installed to `%LOCALAPPDATA%\Microsoft\WinGet\Packages\Google.PlatformTools_Microsoft.Winget.Source_8wekyb3d8bbwe\platform-tools\adb.exe`; winget added the `adb` alias and updated user PATH (new shells only). |
 | 2 | `adb version` | no | `Android Debug Bridge version 1.0.41`, `Version 37.0.1-15733141` |
 | 3 | `adb devices -l` | no | `List of devices attached` followed by an empty list: **no device connected** |
 
