@@ -43,6 +43,8 @@ export interface ExploreOptions {
   maxRelaunches?: number;
   /** Max actions in one state before leaving it with BACK (keeps coverage broad). Default 5. */
   stateBudget?: number;
+  /** Optional natural-language entry point tapped after every (re)launch, e.g. "the top-left avatar". */
+  entry?: string;
 }
 
 export interface ExploreResult {
@@ -55,7 +57,7 @@ export interface ExploreResult {
 }
 
 export const DEFAULT_AVOID =
-  /支付|付款|充值|购买|订阅|会员|钱包|红包|转账|发送|发消息|保存|提交|确认|确定|删除|移除|退出|注销|清空|清除|拨打|通话|举报|拉黑|分享|邀请|添加|安装|上传|创建|新建|编辑|修改|置顶|免打扰|关注|开关|pay|purchase|buy|subscri|wallet|recharge|top.?up|send|save|submit|confirm|delete|remove|log.?out|sign.?out|clear|call|report|block|share|invite|install|add|upload|create|edit|pin|mute|follow|toggle/i;
+  /支付|付款|充值|购买|订阅|会员|钱包|红包|转账|发送|发消息|保存|提交|确认|确定|删除|移除|退出|注销|清空|清除|拨打|通话|举报|拉黑|分享|邀请|添加|安装|上传|创建|新建|编辑|修改|置顶|免打扰|关注|开关|启用|模板|建议|pay|purchase|buy|subscri|wallet|recharge|top.?up|send|save|submit|confirm|delete|remove|log.?out|sign.?out|clear|call|report|block|share|invite|install|add|upload|create|edit|pin|mute|follow|toggle|enable|template|suggest|prompt/i;
 
 const NAV_HINT = /进入|打开|查看|详情|设置|更多|资料|主页|列表|open|view|detail|setting|more|profile|list|page|tab|navigate|go to/i;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -106,7 +108,14 @@ export async function exploreApp(agent: AndroidAgent, monitor: LogcatMonitor, op
   let relaunches = 0;
   let truncatedReason: string | undefined;
 
-  await relaunch(pkg, udid);
+  const start = async () => {
+    await relaunch(pkg, udid);
+    if (opts.entry) {
+      await agent.aiTap(opts.entry).catch((e: Error) => console.warn(`[explore] entry tap failed: ${e.message.split('\n')[0]}`));
+      await sleep(2_000);
+    }
+  };
+  await start();
 
   for (let step = 1; step <= opts.maxSteps; step++) {
     const at = new Date().toISOString();
@@ -119,7 +128,7 @@ export async function exploreApp(agent: AndroidAgent, monitor: LogcatMonitor, op
         break;
       }
       relaunches++;
-      await relaunch(pkg, udid);
+      await start();
       steps.push({ step, at, stateId: '-', stateTitle: '', stateFingerprintSource: 'screenshot-hash', activity: '', element: null, action: 'relaunch', result: 'navigated' });
       console.log(`[explore] step ${step}: app not in foreground → relaunched (${relaunches}/${maxRelaunches})`);
       continue;
