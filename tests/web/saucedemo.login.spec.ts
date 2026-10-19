@@ -47,7 +47,10 @@ describe('saucedemo login', () => {
       expect(info.title).toBe('Products');
       expect(info.productCount).toBeGreaterThanOrEqual(6);
 
-      await agent.aiAssert('The page title is "Products" and at least 6 products are listed');
+      // "page title" alone is ambiguous: the model reads the "Swag Labs" app header as the title.
+      await agent.aiAssert(
+        'The section heading next to the sort dropdown reads "Products", and at least 6 product cards are listed',
+      );
 
       // Deterministic anchor: AI covers the long tail, native locator guards the core fact.
       expect(await page.locator('.inventory_item').count()).toBeGreaterThanOrEqual(6);
