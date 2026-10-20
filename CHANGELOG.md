@@ -1,5 +1,30 @@
 # Changelog
 
+## [Unreleased] — W4 平台 alpha：自然语言任务 + 控制台 + 设备池 + CI
+
+### Added
+- 自然语言测试任务 `pnpm mission "<需求>"`（`mission/`）：模型把需求转成计划（意图、目标区域、入口、场景动作、检查项、是否测帧率、建议上限），模型不可用时用关键词规划；按轮执行（冷/热启动交替 → 入口 → 场景 → 随机探索 → 检查 → 视觉异常探测 → gfxinfo 卡顿统计）；产出 `midscene_run/missions/<id>/report.md`。
+- 上限机制：步数上限、时长上限、平台硬上限（`MISSION_STEP_CAP` 300 / `MISSION_MINUTES_CAP` 120）、看门狗（到时 +2 分钟强制写部分报告退出）、单条 aiAct 规划轮数 15、控制台服务端按任务硬超时杀进程树。
+- 统一 CLI `pnpm autotest mission|explore|monkey|web:smoke|devices|report`（不经 shell 转发，自然语言参数在 Windows 下不被拆坏）。
+- Web 控制台 `pnpm platform`（`node:http` + 单页 HTML，端口 3210）：设备、任务提交（含三个示例需求）、最近任务、实时日志、报告渲染（含问题截图）、取消。
+- 设备池 `platform/devices.yaml`（`maxConcurrent`、`scheduling.strategy`）+ adb 心跳 + 占用/释放，状态落盘 `platform/state/`。
+- CI `.github/workflows/ai-test.yml`：PR 跑 typecheck + 单测 + Web 冒烟；每日/手动跑固定 seed Monkey，无设备时跳过。
+- 单测 18 条（explore / monkey / mission / platform）。
+
+### Changed
+- 全面放开测试：输入、开关、发送、编辑都允许；只保留真实付款确认和退出登录/注销账号的硬拦截。
+
+### Fixed（真机暴露）
+- aiAct 规划轮数 8 不够复合场景动作（"连续发 3-5 条消息"）→ 15。
+- 检查项误报：动态描述（"快速滑动时列表持续可见"）无法从截图判断 → 规划要求状态型检查，执行器丢弃模型判定为不可截图验证的检查。
+- 到达时长上限被标成"外部中止" → 标为"时长上限"。
+- `bin/autotest` 在 Windows 用 shell 转发时，带引号的需求被 cmd 拆坏。
+
+### 验证
+- 控制台：设备列表显示真机 idle、占位模拟器 offline；提交 mission 后再提交 monkey，monkey 排队，mission 08:35:09.108 结束、monkey 08:35:09.153 开始（`maxConcurrent: 1` 串行），两个报告链接均返回 200。
+- `maxConcurrent: 2` 并行：只有单元测试验证（无第二台在线设备、本机无模拟器），未在真机上验证。
+- CI：仅 YAML 解析与结构检查，未在真实 GitHub runner / act 上执行。
+
 ## [Unreleased] — W3 通用探索 + Monkey + 问题报告
 
 ### Added
