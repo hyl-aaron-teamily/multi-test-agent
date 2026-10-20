@@ -116,9 +116,10 @@ export async function runMission(agent: AndroidAgent, monitor: LogcatMonitor, pl
 
   const trail = () => steps.slice(-8).map((s) => `#${s.step} [${s.phase}] ${s.action}${s.ok ? '' : ' ✗'}`);
   const budgetLeft = (): boolean => {
+    // Deadline first: the watchdog's abort at the deadline is a time limit, not a cancel.
+    if (Date.now() >= o.deadline) return (stopReason = 'max-minutes'), false;
     if (o.shouldAbort?.()) return (stopReason = 'aborted'), false;
     if (steps.length >= plan.maxSteps) return (stopReason = 'max-steps'), false;
-    if (Date.now() >= o.deadline) return (stopReason = 'max-minutes'), false;
     return true;
   };
   const shoot = async (name: string) => {
