@@ -1,6 +1,7 @@
 // Android UI client: no model calls on the hot path.
 //   open   : warm-launch the app, tap the conversation row found in the accessibility tree
-//   send   : tap the EditText, `input text`, tap the send button (located once, then cached)
+//   send   : focus the composer once, clear + type via yadb (IME-proof), read the composer back,
+//            then tap the send button (located once with the keyboard hidden, then cached)
 //   watch  : poll `uiautomator dump` and report tokens found in text / content-desc attributes
 // Polling is the resolution limit (one dump ≈ 1–3 s on the test phone); it is measured and reported,
 // and each sighting is timestamped at the middle of the dump window.
@@ -216,7 +217,9 @@ export class AndroidClient implements UiClient {
         try {
           const { nodes, at } = await this.dump();
           // Top-to-bottom = display order, so tokens found in one poll are reported in screen order.
+          // The composer holds the message before it is sent: never count it as a bubble.
           const hits = nodes
+            .filter((n) => !/EditText/.test(n.cls))
             .flatMap((n) => [leadingToken(n.text, runId), leadingToken(n.desc, runId)].filter((t): t is string => !!t).map((t) => ({ t, y: n.y1 })))
             .sort((a, b) => a.y - b.y);
           for (const h of hits) if (!seen.has(h.t)) (seen.add(h.t), onSeen(h.t, at));
@@ -237,6 +240,7 @@ export class AndroidClient implements UiClient {
     const { nodes } = await this.dump();
     const byToken = new Map<string, Box[]>();
     for (const n of nodes) {
+      if (/EditText/.test(n.cls)) continue;
       const t = leadingToken(n.text, runId) ?? leadingToken(n.desc, runId);
       if (t) byToken.set(t, [...(byToken.get(t) ?? []), n]);
     }

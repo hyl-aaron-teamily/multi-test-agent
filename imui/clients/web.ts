@@ -90,12 +90,14 @@ export class WebClient implements UiClient {
       // Only text that STARTS with a token: replies quoting a token are not our messages.
       const re = new RegExp('^(imui-${runId}-[0-9]+)(?![A-Za-z0-9_-])');
       const seen = new Set();
+      // Text being typed into the composer is not a message yet.
+      const inComposer = (n) => !!(n.parentElement && n.parentElement.closest('[contenteditable="true"], textarea'));
       const leafTexts = (node) => {
-        if (node.nodeType === 3) return [node.textContent];
+        if (node.nodeType === 3) return inComposer(node) ? [] : [node.textContent];
         if (node.nodeType !== 1) return [];
         const out = [];
         const w = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-        while (w.nextNode()) out.push(w.currentNode.textContent);
+        while (w.nextNode()) if (!inComposer(w.currentNode)) out.push(w.currentNode.textContent);
         return out;
       };
       const scan = (node) => {
@@ -130,7 +132,8 @@ export class WebClient implements UiClient {
       // Text nodes that START with a token = one per rendered bubble (quotes in replies excluded).
       const out = [];
       const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
-      while (w.nextNode()) if (re.test((w.currentNode.textContent || '').trim())) out.push(w.currentNode.textContent.trim());
+      const inComposer = (n) => !!(n.parentElement && n.parentElement.closest('[contenteditable="true"], textarea'));
+      while (w.nextNode()) if (!inComposer(w.currentNode) && re.test((w.currentNode.textContent || '').trim())) out.push(w.currentNode.textContent.trim());
       return out;
     })()`)) as string[];
     const counts = new Map<string, number>();
