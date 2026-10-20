@@ -15,7 +15,10 @@
     "explore": "tsx scripts/explore.ts",
     "monkey": "tsx scripts/monkey.ts",
     "report:problems": "tsx report/problem-report.ts",
-    "test:unit": "vitest run --project unit"
+    "test:unit": "vitest run --project unit",
+    "autotest": "tsx bin/autotest.ts",
+    "platform": "tsx platform/server.ts",
+    "mission": "tsx scripts/mission.ts"
   },
   "devDependencies": {
     "@midscene/android": "1.16.0",
