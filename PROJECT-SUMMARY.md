@@ -30,6 +30,16 @@
 
 **生产副作用**（W3，均已人工还原）：Teamily Agent「免打扰」被打开、Personal AI 翻译语言被改为 English、输入框被模板填充（未发送）。W4 全面放开后测试中发送过若干测试消息到账号自己的 Personal AI 会话（含一条 43 秒的语音）。
 
+### 1.2 im-loadtest 界面层移植（imui）
+
+im-loadtest 只测服务端；imui 用相同的命令、参数、指标口径、SLO 和退出码，补齐 Web 与移动端界面层的消息收发测试。
+
+- **已在真机验证**：Android（Teamily 生产账号自己的 Personal AI 会话）60 秒 run，3 条发出、3 条回显，echo p99 3.6 秒，PASS。
+- **已完成**：离线自测 6/6 通过；控制台任务全链路跑通。
+- **未完成**：观察端投递和 Web 真机需要第二个客户端或 chat-web 登录态，尚未验证。
+
+详见 `docs/imui.md`。
+
 ## 2. 部署
 
 ### 2.1 环境要求
@@ -78,6 +88,7 @@ pnpm autotest devices
 pnpm autotest report                  # 合并 explore + monkey → problem-report.md
 pnpm autotest mission --plan midscene_run/missions/<id>/plan.json      # 复用计划重跑（命中缓存）
 pnpm autotest replay midscene_run/missions/<id>/replay-1/replay.json --times 3
+pnpm autotest imui <config|discover|login|probe|run|selftest> ...   # im-loadtest 界面层移植
 pnpm platform                         # Web 控制台 http://localhost:3210
 ```
 

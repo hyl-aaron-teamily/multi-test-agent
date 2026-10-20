@@ -1,5 +1,27 @@
 # Changelog
 
+## [Unreleased] — imui：im-loadtest 的 Web / 移动端界面层移植
+
+### Added
+- `imui`（`pnpm autotest imui config|discover|login|probe|run|selftest`）：命令、参数（`--duration --rate --ramp --drain --msg-types --payload-bytes --json --env --yes-prod`）、指标口径、SLO 和退出码对齐 im-loadtest 的 imload，测量层从协议换成界面。
+- 指标：`ui_echo_ms`（对应 send_ack_ms）、`ui_e2e_ms`（对应 end_to_end_ms）、按观察客户端计的投递 / 丢失；新增 imload 没有的重复气泡、乱序显示、自身气泡未出现。
+- Android 客户端：读无障碍树、用 yadb 输入，全程不调模型；Web 客户端：Playwright + 保存的登录态 + MutationObserver。
+- 离线自测：本机假聊天页注入延迟 / 丢失 / 重复 / 自动回复引用 / 乱序，6/6 检出。
+- 控制台新增「IM 消息压测（界面层）」任务类型。
+- 文档 `docs/imui.md`：逐项功能对照、实现方式、真机结果、限制。
+
+### Fixed（真机暴露，均在 Teamily 生产账号自己的 Personal AI 会话中复现并修复）
+- 中文九宫格输入法把 `adb input text` 转成拼音 → 改用 yadb；yadb 是在光标处追加，且 RN 输入框不响应退格 / Ctrl+A → 用 yadb `-keyboardClear` 清空。
+- 输入框为空时，发送按钮的位置就是录音键，一次盲点开始了录音（已删除，未发送）→ 发送前必须读回输入框确认内容，发送后确认输入框已清空。
+- 输入法窗口遮住了算出的发送位置（打开过剪贴板面板）→ 输入后先收键盘再点。
+- 多行时输入框右上角出现"展开"图标，表情面板在输入框下方 → 发送按钮只在紧贴输入框下沿的工具栏行里找。
+- 长消息发出后输入框缩回一行，旧中心点落在聊天气泡上 → 每次按当前位置聚焦。
+- 观察循环和发送核验并发 dump 同一文件，读到旧快照 → 每台设备串行 dump、分文件。
+- 输入框里还没发出的 token 被当成气泡（回显 121ms，低于观察分辨率）→ 排除输入框。
+- 回显 16–22 秒的假象：发送流程本身约 13–20 秒，记的是注册时刻而不是按下时刻 → 改用 `onPress` 回调；修正后 p99 3.6 秒。
+- 部分滚出屏幕的长气泡被算成 2 个 → 每个气泡按 TextView 计数。
+- Personal AI 回复引用 token 被算成重复 → 只认以 token 开头的气泡。
+
 ## [Unreleased] — W4 平台 alpha：自然语言任务 + 控制台 + 设备池 + CI
 
 ### Added

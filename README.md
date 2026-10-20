@@ -284,6 +284,18 @@ devices:
 
 - **验证状态**：只做了 YAML 解析与结构检查，**尚未在真实 GitHub runner 或 `act` 上执行**（本机 Docker 未启动，actionlint 也未运行）。
 
+## IM 消息收发界面层测试（imui，移植自 im-loadtest）
+
+im-loadtest 的 imload 按协议压服务端；imui 用同样的命令、参数、指标、SLO 和退出码，改在真实客户端（Android App / chat-web）的界面上发送和观察：`ui_echo_ms`（按发送 → 自己界面出现）、`ui_e2e_ms`（→ 观察端界面出现）、投递 / 丢失、重复气泡、乱序。
+
+```bash
+pnpm autotest imui selftest
+pnpm autotest imui probe --client "android:4f2ebdf2@aaron+test3's Personal AI"
+pnpm autotest imui run   --client "android:<udid>@<会话>" [--client "web:test@<会话>"] --duration 60 --rate 0.1 --yes-prod
+```
+
+控制台里对应「IM 消息压测（界面层）」任务。完整的功能对照、实现方式、真机结果和限制见 [docs/imui.md](docs/imui.md)。
+
 ## 目录结构
 
 ```
@@ -335,6 +347,13 @@ devices:
 │   ├── device-pool.ts           # devices.yaml + adb 心跳 + 占用/释放
 │   ├── devices.yaml
 │   └── adb-devices.ts
+├── imui/                        # im-loadtest 的界面层移植（见 docs/imui.md）
+│   ├── metrics.ts               # 移植 imload/metrics.py：分位数、投递、SLO + 重复/乱序
+│   ├── runner.ts                # ramp → 稳定发送 → drain
+│   ├── clients/android.ts       # 无障碍树 + yadb，不调模型
+│   ├── clients/web.ts           # Playwright + 登录态 + MutationObserver
+│   ├── selftest.ts, fixtures/fake-chat.html
+│   └── report.ts, tokens.ts, unit.spec.ts
 ├── bin/autotest.ts              # W4 统一 CLI
 ├── .github/workflows/ai-test.yml
 ├── scripts/
