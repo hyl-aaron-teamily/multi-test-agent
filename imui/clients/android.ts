@@ -4,8 +4,9 @@
 //   watch  : poll `uiautomator dump` and report tokens found in text / content-desc attributes
 // Polling is the resolution limit (one dump ≈ 1–3 s on the test phone); it is measured and reported,
 // and each sighting is timestamped at the middle of the dump window.
-import { adb, launchApp } from '../../core/adb';
-import { bubbleClusters, extractTokens, type Box } from '../tokens';
+import { AndroidDevice } from '@midscene/android';
+import { adb, launchApp, resolveAdbPath } from '../../core/adb';
+import { bubbleClusters, type Box, leadingToken } from '../tokens';
 import type { SeenHandler, UiClient } from './types';
 
 interface UiNode extends Box {
@@ -44,6 +45,8 @@ export class AndroidClient implements UiClient {
   private watching = false;
   private loop?: Promise<void>;
   private dumpMs: number[] = [];
+  private focused = false;
+  private device?: AndroidDevice;
 
   constructor(
     readonly udid: string,
@@ -65,7 +68,13 @@ export class AndroidClient implements UiClient {
   async listConversations(): Promise<string[]> {
     await launchApp(this.pkg, this.udid);
     await sleep(3_000);
-    const { nodes } = await this.dump();
+    let { nodes } = await this.dump();
+    // The app may resume inside a chat: back out until there is no composer.
+    for (let i = 0; i < 3 && nodes.some((n) => /EditText/.test(n.cls)); i++) {
+      await adb(['shell', 'input', 'keyevent', '4'], this.udid);
+      await sleep(1_500);
+      ({ nodes } = await this.dump());
+    }
     // Conversation titles are the first text of each tappable row; keep distinct, readable ones.
     return [...new Set(nodes.filter((n) => n.text && n.text.length > 1 && !/^\d{1,2}[:/]\d{2}/.test(n.text)).map((n) => n.text))].slice(0, 40);
   }
@@ -100,11 +109,31 @@ export class AndroidClient implements UiClient {
     throw new Error(`${this.id}: conversation "${conversation}" not found on screen (open it once manually or check the name with \`imui discover\`)`);
   }
 
+  /** Text entry through Midscene's yadb helper: bypasses the IME (a Chinese keyboard turns
+   *  `adb input text` letters into pinyin candidates). No model is involved. */
+  private async typeText(text: string): Promise<void> {
+    if (!this.device) {
+      const adbPath = resolveAdbPath();
+      this.device = new AndroidDevice(this.udid, adbPath === 'adb' ? {} : { androidAdbPath: adbPath });
+    }
+    await this.device.execYadb(text);
+  }
+
   async send(text: string): Promise<number> {
     if (!this.input) throw new Error(`${this.id}: open() first`);
-    const c = center(this.input);
-    await adb(['shell', 'input', 'tap', String(c.x), String(c.y)], this.udid);
-    await adb(['shell', 'input', 'text', text.replace(/ /g, '%s')], this.udid);
+    if (!this.focused) {
+      // First send: focus the composer once; the keyboard then moves the layout, so re-read it.
+      const c = center(this.input);
+      await adb(['shell', 'input', 'tap', String(c.x), String(c.y)], this.udid);
+      await sleep(1_000);
+      const { nodes } = await this.dump();
+      this.input = nodes.find((n) => /EditText/.test(n.cls)) ?? this.input;
+      this.focused = true;
+    }
+    // Clear leftovers (drafts, a failed previous attempt), then type.
+    await adb(['shell', 'input', 'keycombination', '113', '29'], this.udid).catch(() => {});
+    await adb(['shell', 'input', 'keyevent', '67'], this.udid);
+    await this.typeText(text);
     if (!this.sendBtn) {
       // The send button only appears once there is text: locate it now, then reuse the position.
       const { nodes } = await this.dump();
@@ -128,7 +157,7 @@ export class AndroidClient implements UiClient {
           const { nodes, at } = await this.dump();
           // Top-to-bottom = display order, so tokens found in one poll are reported in screen order.
           const hits = nodes
-            .flatMap((n) => extractTokens(`${n.text} ${n.desc}`, runId).map((t) => ({ t, y: n.y1 })))
+            .flatMap((n) => [leadingToken(n.text, runId), leadingToken(n.desc, runId)].filter((t): t is string => !!t).map((t) => ({ t, y: n.y1 })))
             .sort((a, b) => a.y - b.y);
           for (const h of hits) if (!seen.has(h.t)) (seen.add(h.t), onSeen(h.t, at));
         } catch {
@@ -146,7 +175,10 @@ export class AndroidClient implements UiClient {
   async duplicates(runId: string): Promise<number> {
     const { nodes } = await this.dump();
     const byToken = new Map<string, Box[]>();
-    for (const n of nodes) for (const t of extractTokens(`${n.text} ${n.desc}`, runId)) byToken.set(t, [...(byToken.get(t) ?? []), n]);
+    for (const n of nodes) {
+      const t = leadingToken(n.text, runId) ?? leadingToken(n.desc, runId);
+      if (t) byToken.set(t, [...(byToken.get(t) ?? []), n]);
+    }
     let extra = 0;
     for (const boxes of byToken.values()) extra += Math.max(0, bubbleClusters(boxes) - 1);
     return extra;

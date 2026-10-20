@@ -13,6 +13,15 @@ export function extractTokens(text: string, runId: string): string[] {
   return text.match(re) ?? [];
 }
 
+/**
+ * The token a bubble *starts with*, if any. Our messages always begin with their token; replies
+ * that quote it (auto-reply bots, e.g. "收到：imui-x-1") must not count as sightings or duplicates —
+ * the UI-level twin of imload's unexpected_pushes from perfbot. Pure.
+ */
+export function leadingToken(text: string, runId: string): string | undefined {
+  return new RegExp(`^(imui-${runId}-[0-9]+)(?![A-Za-z0-9_-])`).exec(text.trim())?.[1];
+}
+
 /** Message body for a type. `long` pads to payloadBytes with ASCII filler. */
 export function messageBody(token: string, msgType: string, payloadBytes: number): string {
   if (msgType === 'long') {

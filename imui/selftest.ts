@@ -28,6 +28,7 @@ const CASES: Case[] = [
   },
   { name: 'drop every 3rd', query: 'drop=3', expect: (r) => (r.delivery.lost === 2 ? null : `lost=${r.delivery.lost}, expected 2`) },
   { name: 'duplicate every 2nd', query: 'dup=2', expect: (r) => (r.duplicates === 3 ? null : `duplicates=${r.duplicates}, expected 3`) },
+  { name: 'auto-reply quotes', query: 'quote=1', expect: (r) => (r.duplicates === 0 && r.delivery.lost === 0 ? null : `dup=${r.duplicates} lost=${r.delivery.lost}, expected 0/0`) },
   { name: 'reorder', query: 'swap=1', expect: (r) => (r.outOfOrder >= 1 ? null : `outOfOrder=${r.outOfOrder}, expected >=1`) },
 ];
 

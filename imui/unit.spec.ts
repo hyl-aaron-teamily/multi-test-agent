@@ -1,7 +1,7 @@
 // Pure checks for imui (ported metrics + token helpers). No device, browser or model.
 import { describe, expect, it } from 'vitest';
 import { percentile, UiMetrics } from './metrics';
-import { bubbleClusters, extractTokens, makeToken } from './tokens';
+import { bubbleClusters, extractTokens, leadingToken, makeToken } from './tokens';
 
 describe('imui metrics (port of imload/metrics.py)', () => {
   it('percentile uses linear interpolation like imload', () => {
@@ -59,6 +59,12 @@ describe('imui tokens', () => {
     const t = makeToken('r7k2', 12);
     expect(t).toMatch(/^imui-r7k2-12$/);
     expect(extractTokens(`hi ${t} and imui-r7k2-3x imui-zz-4 `, 'r7k2')).toEqual(['imui-r7k2-12']);
+  });
+
+  it('only counts bubbles that start with the token (quoting replies excluded)', () => {
+    expect(leadingToken('imui-ab12-3 abcdef', 'ab12')).toBe('imui-ab12-3');
+    expect(leadingToken('收到：imui-ab12-3', 'ab12')).toBeUndefined();
+    expect(leadingToken('imui-ab12-3x', 'ab12')).toBeUndefined();
   });
 
   it('collapses nested accessibility nodes of one bubble', () => {

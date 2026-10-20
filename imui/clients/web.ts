@@ -6,7 +6,7 @@
 //            (event-driven, resolution ≈ 0; browser Date.now shares the host clock)
 import { existsSync } from 'node:fs';
 import { type Browser, type BrowserContext, chromium, type Page } from 'playwright';
-import { extractTokens } from '../tokens';
+import { leadingToken } from '../tokens';
 import type { SeenHandler, UiClient } from './types';
 
 export interface WebClientOptions {
@@ -87,21 +87,30 @@ export class WebClient implements UiClient {
     // Injected as a string: tsx/esbuild would otherwise insert `__name(...)` helpers that do not
     // exist in the page.
     void page.evaluate(`(() => {
-      const re = new RegExp('imui-${runId}-[0-9]+(?![A-Za-z0-9_-])', 'g');
+      // Only text that STARTS with a token: replies quoting a token are not our messages.
+      const re = new RegExp('^(imui-${runId}-[0-9]+)(?![A-Za-z0-9_-])');
       const seen = new Set();
-      const scan = (text) => {
-        const found = (text || '').match(re);
-        if (!found) return;
+      const leafTexts = (node) => {
+        if (node.nodeType === 3) return [node.textContent];
+        if (node.nodeType !== 1) return [];
+        const out = [];
+        const w = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+        while (w.nextNode()) out.push(w.currentNode.textContent);
+        return out;
+      };
+      const scan = (node) => {
+        const found = leafTexts(node).map((t) => (re.exec((t || '').trim()) || [])[1]).filter(Boolean);
+        if (!found.length) return;
         const fresh = found.filter((t) => !seen.has(t));
         if (!fresh.length) return;
         for (const t of fresh) seen.add(t);
         window.__imuiSeen(fresh, Date.now());
       };
-      scan(document.body.innerText);
+      scan(document.body);
       const obs = new MutationObserver((records) => {
         for (const r of records) {
-          if (r.type === 'characterData') scan(r.target.textContent);
-          for (const n of r.addedNodes) scan(n.textContent);
+          if (r.type === 'characterData') scan(r.target);
+          for (const n of r.addedNodes) scan(n);
         }
       });
       obs.observe(document.body, { childList: true, subtree: true, characterData: true });
@@ -117,14 +126,15 @@ export class WebClient implements UiClient {
   async duplicates(runId: string): Promise<number> {
     if (!this.page) return 0;
     const texts = (await this.page.evaluate(`(() => {
-      const re = new RegExp('imui-${runId}-[0-9]+(?![A-Za-z0-9_-])');
-      // Innermost elements containing a token = one per rendered bubble.
-      return [...document.querySelectorAll('body *')]
-        .filter((el) => re.test(el.textContent || '') && ![...el.children].some((c) => re.test(c.textContent || '')))
-        .map((el) => el.textContent || '');
+      const re = new RegExp('^imui-${runId}-[0-9]+(?![A-Za-z0-9_-])');
+      // Text nodes that START with a token = one per rendered bubble (quotes in replies excluded).
+      const out = [];
+      const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      while (w.nextNode()) if (re.test((w.currentNode.textContent || '').trim())) out.push(w.currentNode.textContent.trim());
+      return out;
     })()`)) as string[];
     const counts = new Map<string, number>();
-    for (const t of texts.flatMap((x) => extractTokens(x, runId))) counts.set(t, (counts.get(t) ?? 0) + 1);
+    for (const t of texts.map((x) => leadingToken(x, runId)).filter((x): x is string => !!x)) counts.set(t, (counts.get(t) ?? 0) + 1);
     return [...counts.values()].reduce((n, c) => n + Math.max(0, c - 1), 0);
   }
 
