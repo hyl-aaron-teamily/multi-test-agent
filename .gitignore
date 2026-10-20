@@ -10,3 +10,4 @@ ref/
 # local adb install (see env-plan.md)
 tools/
 monkey_run/
+platform/state/
