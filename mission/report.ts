@@ -44,6 +44,7 @@ function renderFinding(f: Finding, i: number, root: string): string[] {
     `- 类型：\`${f.kind}\`；第 ${f.round} 轮，第 ${f.step} 步，${f.at}`,
     `- 详情：${f.detail || '-'}`,
     f.screenshot ? `- 截图：![finding](${rel(root, f.screenshot)})` : '- 截图：无',
+    f.replayDir ? `- 即时重放：\`${rel(root, f.replayDir)}/\`（README.md、replay.json、录屏片段）；重放命令见其中 README` : '',
     f.crashDir ? `- 崩溃现场：\`${rel(root, f.crashDir)}\`（screenshot.png / logcat.txt / context.json）` : '',
     '- 复现路径（发现前最后 8 步）：',
     '',

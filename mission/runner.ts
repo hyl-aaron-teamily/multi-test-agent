@@ -10,11 +10,13 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AndroidAgent } from '@midscene/android';
-import { adb, forceStopApp, launchApp, screencap } from '../core/adb';
+import { adb, launchApp, screencap } from '../core/adb';
 import type { CrashEvent, LogcatMonitor } from '../core/logcat-monitor';
 import { scoreElement } from '../explore/explore-loop';
 import { elementKey, observeInteractiveElements } from '../explore/page-observer';
 import { currentActivity } from '../explore/state-tracker';
+import { executeOp, type ReplayOp, sliceFromLastLaunch, writeBundle } from '../replay/ops';
+import type { ScreenRecorder } from '../replay/screen-recorder';
 import type { MissionPlan } from './planner';
 
 export type FindingKind = 'crash' | 'anr' | 'app-exit' | 'check-failed' | 'visual' | 'jank' | 'action-failed';
@@ -31,6 +33,8 @@ export interface Finding {
   crashDir?: string;
   /** Last actions before the finding — the reproduction path. */
   trail: string[];
+  /** Instant-replay bundle (ops since last launch + pre-event video). */
+  replayDir?: string;
 }
 
 export interface MissionStep {
@@ -42,6 +46,8 @@ export interface MissionStep {
   ok: boolean;
   ms: number;
   error?: string;
+  /** Replayable form of the action (absent for checks). */
+  op?: ReplayOp;
 }
 
 export interface RoundStat {
@@ -81,6 +87,9 @@ export interface RunOptions {
   hardBlock?: RegExp;
   /** Filled in place while running, so a watchdog can report partial results. */
   live?: MissionResult;
+  /** Ring screen recorder; its newest segments go into each finding's replay bundle. */
+  recorder?: ScreenRecorder;
+  missionId?: string;
 }
 
 export const HARD_BLOCK = /确认支付|立即支付|确认付款|立即购买|pay now|confirm payment|place order|退出登录|注销账号|删除账号|log ?out|sign ?out|delete account/i;
@@ -141,6 +150,28 @@ export async function runMission(agent: AndroidAgent, monitor: LogcatMonitor, pl
     };
     findings.push(finding);
     console.log(`[mission] ⚠ finding #${n} [${f.severity}] ${f.kind}: ${f.title}`);
+    // Instant replay: what was done since the last launch + the video of the last minute or so.
+    try {
+      const dir = join(o.outDir, `replay-${n}`);
+      const videos = o.recorder ? await o.recorder.snapshot(dir) : [];
+      await writeBundle(dir, {
+        version: 1,
+        source: 'mission',
+        missionId: o.missionId ?? '',
+        packageName: pkg,
+        udid: udid ?? null,
+        createdAt: finding.at,
+        finding: { kind: f.kind, title: f.title, detail: f.detail, crashDir: f.crashDir },
+        ops: sliceFromLastLaunch(steps),
+        videos,
+        recorder: o.recorder?.describe() ?? null,
+        replayCommand: `pnpm autotest replay ${join(dir, 'replay.json').replace(/\\/g, '/')} --times 3`,
+      });
+      finding.replayDir = dir;
+      console.log(`[mission] replay bundle → ${dir}${videos.length ? ` (${videos.length} video segment(s))` : ''}`);
+    } catch (err) {
+      console.warn(`[mission] replay bundle failed: ${(err as Error).message}`);
+    }
     if (plan.stopOnFirstFinding) {
       stopReason = 'finding';
     }
@@ -148,12 +179,14 @@ export async function runMission(agent: AndroidAgent, monitor: LogcatMonitor, pl
   const stopped = () => stopReason === 'finding' || stopReason === 'aborted';
 
   /** One bounded action; afterwards check crash / exit. Returns false when the mission must stop. */
-  const act = async (phase: MissionStep['phase'], action: string, fn: () => Promise<unknown>): Promise<boolean> => {
+  const act = async (phase: MissionStep['phase'], action: string, what: ReplayOp | (() => Promise<unknown>)): Promise<boolean> => {
+    const op = typeof what === 'function' ? undefined : what;
+    const fn = op ? () => executeOp(agent, op, pkg, udid) : (what as () => Promise<unknown>);
     if (!budgetLeft()) return false;
     const crashesBefore = monitor.crashes.length;
     const t0 = Date.now();
     monitor.setContext({ iteration: round, step: `${phase}: ${action}` });
-    const rec: MissionStep = { step: steps.length + 1, round, at: new Date().toISOString(), phase, action, ok: true, ms: 0 };
+    const rec: MissionStep = { step: steps.length + 1, round, at: new Date().toISOString(), phase, action, ok: true, ms: 0, ...(op ? { op } : {}) };
     try {
       await fn();
     } catch (err) {
@@ -250,13 +283,6 @@ export async function runMission(agent: AndroidAgent, monitor: LogcatMonitor, pl
     }
   };
 
-  const systemAction = async (action: string) => {
-    await adb(['shell', 'input', 'keyevent', '3'], udid); // HOME
-    await sleep(3_000);
-    await launchApp(pkg, udid); // brings the existing task to front
-    await sleep(2_000);
-    void action;
-  };
 
   try {
     while (!stopped() && budgetLeft()) {
@@ -268,18 +294,14 @@ export async function runMission(agent: AndroidAgent, monitor: LogcatMonitor, pl
 
       // Alternate cold and warm starts: intermittent bugs often depend on process state.
       const cold = round % 2 === 1;
-      if (!(await act('launch', cold ? 'cold start (force-stop + launch)' : 'warm start (launch)', async () => {
-        if (cold) await forceStopApp(pkg, udid);
-        await launchApp(pkg, udid);
-        await sleep(cold ? 5_000 : 2_500);
-      }))) break;
+      if (!(await act('launch', cold ? 'cold start (force-stop + launch)' : 'warm start (launch)', { kind: 'launch', cold }))) break;
       if (plan.measureJank) await adb(['shell', 'dumpsys', 'gfxinfo', pkg, 'reset'], udid).catch(() => {});
 
-      if (plan.entryInstruction && !(await act('entry', plan.entryInstruction, () => agent.aiAct(plan.entryInstruction)))) break;
+      if (plan.entryInstruction && !(await act('entry', plan.entryInstruction, { kind: 'aiAct', prompt: plan.entryInstruction }))) break;
 
       for (const s of plan.scenario) {
         if (hardBlock.test(s)) continue;
-        const ok = BACKGROUND.test(s) ? await act('system', s, () => systemAction(s)) : await act('scenario', s, () => agent.aiAct(s));
+        const ok = BACKGROUND.test(s) ? await act('system', s, { kind: 'background', ms: 3_000 }) : await act('scenario', s, { kind: 'aiAct', prompt: s });
         if (!ok) break;
       }
       if (stopped() || !budgetLeft()) break;
@@ -290,7 +312,7 @@ export async function runMission(agent: AndroidAgent, monitor: LogcatMonitor, pl
         const els = (await observeInteractiveElements(agent, `the tester is checking: ${plan.targetArea}`).catch(() => []))
           .filter((e) => !hardBlock.test(`${e.label} ${e.description}`) && !tried.has(elementKey(e)));
         if (!els.length) {
-          await act('explore', 'back (nothing new here)', () => adb(['shell', 'input', 'keyevent', '4'], udid));
+          await act('explore', 'back (nothing new here)', { kind: 'key', code: 4 });
           continue;
         }
         // Mostly the best-scoring element, sometimes a random one, to vary the path between rounds.
@@ -298,12 +320,12 @@ export async function runMission(agent: AndroidAgent, monitor: LogcatMonitor, pl
         const el = Math.random() < 0.7 ? els[0] : els[Math.floor(Math.random() * els.length)];
         tried.add(elementKey(el));
         const locate = `the ${el.type} "${el.label}"`;
-        if (el.type === 'input') await act('explore', `type into ${locate}`, () => agent.aiInput(locate, { value: `autotest ${new Date().toLocaleTimeString()}` }));
-        else await act('explore', `tap ${locate}`, () => agent.aiTap(locate));
+        if (el.type === 'input') await act('explore', `type into ${locate}`, { kind: 'aiInput', locate, value: `autotest ${new Date().toLocaleTimeString()}` });
+        else await act('explore', `tap ${locate}`, { kind: 'aiTap', locate });
       }
       if (stopped() || !budgetLeft()) break;
 
-      if (plan.entryInstruction) await act('entry', `return to ${plan.targetArea}`, () => agent.aiAct(`make sure the ${plan.targetArea} screen is shown; navigate back to it if not`));
+      if (plan.entryInstruction) await act('entry', `return to ${plan.targetArea}`, { kind: 'aiAct', prompt: `make sure the ${plan.targetArea} screen is shown; navigate back to it if not` });
       await runChecks();
 
       if (plan.measureJank) {
