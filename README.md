@@ -218,6 +218,38 @@ APP_HINT="一句话介绍 App 的导航结构" pnpm mission "..."             # 
 
 产物：`midscene_run/missions/<id>/`：`plan.json`、`mission.json`、`report.md`、`finding-*.png`；崩溃现场仍在 `midscene_run/crashes/<ts>/`（`context.json.source = "mission"`）。
 
+### 加速与即时重放（W4 补充）
+
+**Midscene 缓存**：mission 默认开启 `AgentOpt.cache`（read-write，缓存 ID = 包名 + 入口与场景动作的哈希，文件在 `midscene_run/cache/`）。`MISSION_CACHE=off` 关闭，`MISSION_CACHE_ID` 指定共享 ID。
+
+- 模型每次规划出的提示词都不同，缓存只有在**复用同一计划**时才能命中：`pnpm autotest mission --plan midscene_run/missions/<id>/plan.json`。
+- 同一次运行内新写入的记录不会被匹配，第 2 轮不会变快；要到下一次运行才生效。
+- Android 上只缓存 aiAct 的规划（`type: plan`），元素定位仍要调模型。
+- 实测（Teamily「排查下消息列表的问题」同一计划第 1 轮，入口 + 6 个场景动作）：无缓存 207.8 秒，有缓存 88.7 秒，约 −57%。
+
+**即时重放**：
+
+- mission 的每个动作都以可重放的操作记录（启动、aiAct、aiTap、aiInput、按键、切后台），同时运行环形录屏。
+- 发现问题时生成 `midscene_run/missions/<id>/replay-<n>/`，包含：
+  - `replay.json`：从最近一次启动到出问题的操作序列和时间偏移
+  - `video-*.mp4|mkv`：出问题前约 90 秒的录屏
+  - `README.md`：操作时间表、崩溃现场路径、重放命令
+- 重放：
+
+```bash
+pnpm autotest replay midscene_run/missions/<id>/replay-1/replay.json --times 3 [--keep-timing]
+```
+
+逐次重放并检测崩溃 / ANR / 进程消失，结果写入 `replay-result.json`。复现过返回退出码 1，未复现返回 0。
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `MISSION_RECORD` | on | `off` 关闭录屏 |
+| `MISSION_RECORDER` | auto | `scrcpy`（主机端录制，mkv，需安装 scrcpy 或设置 `SCRCPY_PATH`）/ `screenrecord`（手机自带，无需安装） |
+| `MISSION_RECORD_SEGMENT` / `MISSION_RECORD_KEEP` | 30 / 3 | 每段秒数 / 保留段数 |
+
+scrcpy 尚未在本机安装：winget 源连不上，直接下载被拦截。当前实际使用的是手机自带的 `screenrecord`。安装 scrcpy 后会自动改用它。
+
 ### Web 控制台（`pnpm platform` → http://localhost:3210）
 
 单个 `node:http` 服务 + 单页 HTML（无前端构建链），三个区域：

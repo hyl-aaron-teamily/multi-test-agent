@@ -11,6 +11,9 @@
 - CI `.github/workflows/ai-test.yml`：PR 跑 typecheck + 单测 + Web 冒烟；每日/手动跑固定 seed Monkey，无设备时跳过。
 - 单测 18 条（explore / monkey / mission / platform）。
 
+- Midscene 缓存（`AgentOpt.cache`）+ `--plan` 复用计划：同一计划第 1 轮入口 + 6 个场景动作 207.8 秒 → 88.7 秒（−57%）。Android 上只缓存规划，不缓存定位。
+- 即时重放：动作统一走可重放的结构化操作；发现问题时导出 `replay-<n>/`（操作序列 + 3×30 秒环形录屏 + README），`pnpm autotest replay` 按序重放 N 次并判定是否复现。真机验证：运行中用 `am crash` 注入崩溃，生成含 3 段录屏的 replay 包；重放 1 次，结论"未复现 0/1"（注入崩溃本就不会复现）。
+
 ### Changed
 - 全面放开测试：输入、开关、发送、编辑都允许；只保留真实付款确认和退出登录/注销账号的硬拦截。
 
@@ -21,6 +24,8 @@
 - `bin/autotest` 在 Windows 用 shell 转发时，带引号的需求被 cmd 拆坏。
 
 ### 已知限制
+- scrcpy 未安装（winget 源不可达），录屏退回手机自带 `screenrecord`。
+- 运行中的计划缓存要到下次运行才能命中；每次重新规划会产生新提示词，只有 `--plan` 复用时才有加速。
 - 并发的 explore/monkey 任务共用 `monkey_run/summary.json`、`midscene_run/problem-report.md`，控制台里的报告可能串到另一任务的汇总（mission 报告按任务 ID 隔离，不受影响）。
 - AI 动作慢（单步 3–160 秒），偶发问题需要较长时长上限；高频输入 + 即时重放未实现。
 
