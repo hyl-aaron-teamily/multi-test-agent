@@ -26,7 +26,7 @@ export interface PoolDevice {
   lastSeen?: string;
 }
 
-export const CONFIG_FILE = resolve('platform/devices.yaml');
+export const CONFIG_FILE = resolve(process.env.PLATFORM_DEVICES_FILE ?? 'platform/devices.yaml');
 export const STATE_FILE = resolve('platform/state/devices.json');
 
 /** Pure: YAML text → normalised config. Undeclared pool = every adb device. */
