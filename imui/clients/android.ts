@@ -238,14 +238,19 @@ export class AndroidClient implements UiClient {
 
   async duplicates(runId: string): Promise<number> {
     const { nodes } = await this.dump();
-    const byToken = new Map<string, Box[]>();
+    const byToken = new Map<string, UiNode[]>();
     for (const n of nodes) {
       if (/EditText/.test(n.cls)) continue;
       const t = leadingToken(n.text, runId) ?? leadingToken(n.desc, runId);
       if (t) byToken.set(t, [...(byToken.get(t) ?? []), n]);
     }
     let extra = 0;
-    for (const boxes of byToken.values()) extra += Math.max(0, bubbleClusters(boxes) - 1);
+    for (const ns of byToken.values()) {
+      // One TextView per rendered bubble; wrapper Views can report bounds that do not overlap it
+      // (seen for bubbles partly scrolled off the top), so count TextViews when there are any.
+      const tv = ns.filter((n) => /TextView/.test(n.cls));
+      extra += Math.max(0, (tv.length ? tv.length : bubbleClusters(ns)) - 1);
+    }
     return extra;
   }
 
