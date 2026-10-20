@@ -9,9 +9,9 @@
 | W1 Web 基线 | Midscene `PlaywrightAgent` + Vitest + Allure，saucedemo 5 步登录用例 | ✅ `pnpm test:web` 1/1 |
 | W2 Android ADB | 设备发现、`AndroidAgent`、系统设置 5 步原生流程、logcat 崩溃监控、高频循环 | ✅ `pnpm test:android` 5/5 |
 | W3 通用探索 + Monkey | AI 探索式遍历、Monkey 固定 seed 压测、统一问题报告 | ✅ |
-| W4 平台 alpha | 自然语言测试任务、统一 CLI、Web 控制台、设备池、CI | ✅ 验收 6 项完成（并行与 CI 有前提，见 §6） |
+| W4 平台 alpha | 自然语言测试任务、统一 CLI、Web 控制台、设备池、CI；补充 Midscene 缓存、`--plan` 复用、即时重放 | ✅ 验收 6 项完成（并行与 CI 有前提，见 §6） |
 
-单测：18 条（explore / monkey / mission / platform），`pnpm test:unit` 全部通过。
+单测：20 条（explore / monkey / mission / platform / replay），`pnpm test:unit` 全部通过。
 代码规模：TypeScript + 控制台 HTML 约 3800 行。
 
 ### 1.1 真机结果（Xiaomi 2211133C / Android 16，Teamily AI 生产环境）
@@ -22,6 +22,8 @@
 | W3 Monkey（计算器 seed 12345 / 3000 事件） | 未捕获崩溃；`am crash` 注入自检被 logcat 捕获并与 monkey.log 关联 |
 | W4「聊天时偶发闪退，你试试能不能重现」 | 未复现崩溃；报出 1 条检查失败，经截图核实为误报，已修复判定逻辑 |
 | W4「左侧栏新加了个功能，看看使用流畅度和功能完整性」 | 10 分钟时长上限到点停止，未发现问题 |
+| W4 缓存实测（同一计划重跑） | 第 1 轮入口 + 6 个场景动作 207.8 秒 → 88.7 秒（−57%） |
+| W4 即时重放（`am crash` 注入） | 生成含 3 段录屏的 replay 包；`autotest replay` 重放 1 次，结论"未复现 0/1"（符合预期） |
 | W4「排查下消息列表的问题」（2 次） | 第 1 次自动报出"行对齐/截断"（误报），同一截图中**人工确认一个真实问题**；第 2 次 25 步上限停止，未发现 |
 
 **发现的问题**：会话列表中 Health Assistant 的最后一条消息是「WEB 交付物」富卡片，会话内渲染正常，但列表预览只显示占位符「[自定义消息]」，看不出内容。平台随后在视觉探测中加入"未渲染占位文本"规则，但重跑时该行不在画面内，**自动发现尚未验证**。
@@ -74,6 +76,8 @@ pnpm autotest monkey  --package <pkg> --seed 12345 --events 3000
 pnpm autotest web:smoke
 pnpm autotest devices
 pnpm autotest report                  # 合并 explore + monkey → problem-report.md
+pnpm autotest mission --plan midscene_run/missions/<id>/plan.json      # 复用计划重跑（命中缓存）
+pnpm autotest replay midscene_run/missions/<id>/replay-1/replay.json --times 3
 pnpm platform                         # Web 控制台 http://localhost:3210
 ```
 
@@ -97,6 +101,8 @@ pnpm platform                         # Web 控制台 http://localhost:3210
 | 产物 | 路径 |
 |---|---|
 | 自然语言任务 | `midscene_run/missions/<id>/`：`plan.json`、`mission.json`、`report.md`、`finding-*.png` |
+| 即时重放包 | `midscene_run/missions/<id>/replay-<n>/`：`replay.json`、`README.md`、`video-*.mp4`、`replay-result.json` |
+| Midscene 缓存 | `midscene_run/cache/*.cache.yaml` |
 | 崩溃现场 | `midscene_run/crashes/<ts>/`（`context.json.source` = `ai-explore` / `monkey` / `mission`） |
 | 探索轨迹 | `midscene_run/explore-traces/<ts>.json` |
 | Midscene 每步回放 | `midscene_run/report/*.html` |
@@ -193,7 +199,8 @@ W4 验收（详见 CHANGELOG）：
 
 已知限制：
 
-- **AI 动作慢**：单步 3–160 秒。偶发问题需要较长的时长上限；高频输入加即时重放未实现，对生产账号做高频自动发送也不合适，需要测试账号或测试环境。
+- **AI 动作慢**：单步 3–160 秒。缓存只在复用计划时生效，且 Android 上只缓存规划不缓存定位，提速约一半。高频输入压测未实现（拟用 Fastbot，需要测试账号）。
+- **录屏引擎**：scrcpy 未安装，目前用手机自带的 `screenrecord`，单段最长 180 秒、清晰度较低。
 - **误报**：两次真机误报（动态检查、省略号截断）已修正，视觉判断仍可能误报，报告需人工复核截图。
 - **并发产物串号**：并发的 explore/monkey 任务共用 `monkey_run/summary.json` 和 `problem-report.md`，控制台报告可能串号；mission 报告按任务 ID 隔离，不受影响。
 - **重启丢任务**：控制台重启后，运行中的任务会标为 failed，不会恢复。
@@ -210,7 +217,7 @@ W4 验收（详见 CHANGELOG）：
 
 ## 7. 下一步建议
 
-1. 准备 Teamily 测试账号或测试环境后，实现高频输入压测和即时重放（事件日志、环形录屏、崩溃前 60 秒导出、按时序重放）。
+1. 接入 Fastbot 作为 Monkey 的智能替代（仓库已下载中），配合测试账号做高频压测；崩溃同样导出到即时重放包。
 2. 每次检查前先把目标区域滚回顶部，并对整页截长图，让列表类问题（如「[自定义消息]」预览）能被稳定拍到。
 3. 按任务 ID 隔离 explore/monkey 的产物目录，消除并发报告串号。
 4. 接入 WebView CDP（Teamily 的 WEB 交付物、技能库页面），复用 mission 的检查与报告出口。
