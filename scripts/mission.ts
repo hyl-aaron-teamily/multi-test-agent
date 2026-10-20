@@ -11,6 +11,7 @@
 // writing whatever was collected.
 // Output: midscene_run/missions/<id>/{mission.json, report.md, finding-*.png}; last line prints the report path.
 import 'dotenv/config';
+import { createHash } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -19,6 +20,7 @@ import { createAndroidAgent } from '../fixtures/android';
 import { LIMIT_CAPS, planMission } from '../mission/planner';
 import { type MissionRecord, verdictOf, writeMissionReport } from '../mission/report';
 import { type MissionResult, runMission } from '../mission/runner';
+import { ScreenRecorder } from '../replay/screen-recorder';
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,
@@ -86,11 +88,32 @@ async function main() {
   }, plan.maxMinutes * 60_000);
   watchdog.unref();
 
+  // Midscene plan/locate cache: rounds repeat the same entry + scenario prompts, so from round 2 on
+  // (and on later runs of the same plan) those steps replay without model calls.
+  const cacheId =
+    process.env.MISSION_CACHE_ID ??
+    `mission-${pkg}-${createHash('md5').update(JSON.stringify([plan.entryInstruction, plan.scenario])).digest('hex').slice(0, 10)}`;
+  const useCache = process.env.MISSION_CACHE !== 'off';
   const { agent, udid } = await createAndroidAgent(values.device ?? process.env.DEVICE_ID?.trim(), {
     groupName: `Mission: ${plan.title}`,
     reportFileName: `mission-${id}`,
+    ...(useCache ? { cache: { id: cacheId, strategy: 'read-write' as const } } : {}),
   });
+  console.log(`[mission] cache ${useCache ? `on (id=${cacheId})` : 'off'}`);
   const monitor = startLogcatMonitor({ udid, packageName: pkg, extraContext: { source: 'mission', missionId: id, request } });
+  // Dashcam for instant replay: newest segments are copied into each finding's replay bundle.
+  const recorder =
+    process.env.MISSION_RECORD === 'off'
+      ? undefined
+      : new ScreenRecorder({
+          udid,
+          workDir: join(dir, '.rec'),
+          segmentSec: Number(process.env.MISSION_RECORD_SEGMENT ?? 30),
+          keep: Number(process.env.MISSION_RECORD_KEEP ?? 3),
+          engine: (process.env.MISSION_RECORDER as 'scrcpy' | 'screenrecord' | 'auto' | undefined) ?? 'auto',
+        });
+  recorder?.start();
+  console.log(`[mission] recorder ${recorder ? recorder.describe() : 'off'}`);
 
   // Shared with the runner, so the hard-timeout path reports what was collected so far.
   let result: MissionResult = { steps: [], rounds: [], findings: [], stopReason: 'aborted', crashes: [] };
@@ -117,15 +140,17 @@ async function main() {
   finalize = write;
 
   try {
-    result = await runMission(agent, monitor, plan, { packageName: pkg, udid, outDir: dir, deadline, shouldAbort: () => aborted, live: result });
+    result = await runMission(agent, monitor, plan, { packageName: pkg, udid, outDir: dir, deadline, shouldAbort: () => aborted, live: result, recorder, missionId: id });
   } catch (err) {
     result.stopReason = 'error';
     result.stopDetail = (err as Error).message;
   } finally {
     clearTimeout(watchdog);
     await monitor.stop();
+    await recorder?.stop();
   }
   await write();
+  if (useCache) await agent.flushCache().catch((e: Error) => console.warn(`[mission] cache flush failed: ${e.message}`));
   await agent.destroy().catch(() => {});
   process.exitCode = result.findings.length ? 1 : 0;
 }

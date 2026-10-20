@@ -71,6 +71,8 @@ export interface AndroidAgentOptions {
   /** Midscene report grouping, e.g. the test or loop name. */
   groupName?: string;
   reportFileName?: string;
+  /** Midscene plan/locate cache (AgentOpt.cache). Omitted = no cache, same as before. */
+  cache?: { id: string; strategy?: 'read-only' | 'read-write' | 'write-only'; cacheDir?: string };
 }
 
 /** Credentials → device → connected AndroidDevice + AndroidAgent. */
@@ -107,6 +109,7 @@ export async function createAndroidAgent(
     aiContexts: { aiAct: POPUP_CONTEXT },
     groupName: options.groupName,
     reportFileName: options.reportFileName?.replace(/[^\w.-]+/g, '_'),
+    ...(options.cache ? { cache: options.cache } : {}),
   });
   await device.connect();
   return { udid, device, agent };
