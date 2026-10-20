@@ -100,7 +100,7 @@ export class ScreenRecorder {
   private async cutCurrent(): Promise<void> {
     if (!this.child) return;
     const closed = new Promise<void>((r) => this.child?.once('close', () => r()));
-    if (this.engine === 'screenrecord') await adb(['shell', 'pkill -INT screenrecord'], this.o.udid).catch(() => {});
+    if (this.engine === 'screenrecord') await adb(['shell', 'pkill -INT -f autotest_rec_'], this.o.udid).catch(() => {});
     else this.child.kill('SIGINT');
     await Promise.race([closed, sleep(5_000)]);
     if (this.child) this.child.kill();
