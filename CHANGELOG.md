@@ -20,9 +20,15 @@
 - 到达时长上限被标成"外部中止" → 标为"时长上限"。
 - `bin/autotest` 在 Windows 用 shell 转发时，带引号的需求被 cmd 拆坏。
 
+### 已知限制
+- 并发的 explore/monkey 任务共用 `monkey_run/summary.json`、`midscene_run/problem-report.md`，控制台里的报告可能串到另一任务的汇总（mission 报告按任务 ID 隔离，不受影响）。
+- AI 动作慢（单步 3–160 秒），偶发问题需要较长时长上限；高频输入 + 即时重放未实现。
+
 ### 验证
 - 控制台：设备列表显示真机 idle、占位模拟器 offline；提交 mission 后再提交 monkey，monkey 排队，mission 08:35:09.108 结束、monkey 08:35:09.153 开始（`maxConcurrent: 1` 串行），两个报告链接均返回 200。
-- `maxConcurrent: 2` 并行：只有单元测试验证（无第二台在线设备、本机无模拟器），未在真机上验证。
+- `maxConcurrent: 2` 并行：同一台小米手机用 USB（`4f2ebdf2`）+ adb over Wi‑Fi（`192.168.1.23:5555`）两个连接充当两台设备（本机无模拟器），两个 Monkey 任务 09:05:53.907 / 09:05:53.915 同时开始，09:08:58 / 09:09:01 结束，均 completed。**不是两台物理设备**。
+- 基线：`test:web` 1/1；`test:android` 首次 1 条失败（未留日志）、重跑 5/5；`autotest explore` 3 步、`autotest monkey` 300 事件均正常。
+- 真机发现问题：Teamily 会话列表中 Health Assistant 的最后一条消息是「WEB 交付物」富卡片，会话内渲染正常，但列表预览只显示占位符「[自定义消息]」。由「排查下消息列表的问题」任务的截图人工确认（该任务自动报出的条目是"行对齐/截断"，属误报），视觉探测随后加入"未渲染占位文本"规则。
 - CI：仅 YAML 解析与结构检查，未在真实 GitHub runner / act 上执行。
 
 ## [Unreleased] — W3 通用探索 + Monkey + 问题报告

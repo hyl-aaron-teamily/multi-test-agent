@@ -248,6 +248,8 @@ devices:
 - `pull_request`：typecheck + 单测 + Web 冒烟（未配置模型 secret 时告警跳过），上传 Allure 结果与 Midscene 报告。
 - 每日 `schedule` / 手动 `workflow_dispatch`：固定 seed 的 Android Monkey，跑在 `vars.ANDROID_RUNNER` 指定的 runner 上；runner 无 adb 设备时以 notice 跳过，不失败。
 - Secrets：`MIDSCENE_MODEL_BASE_URL`、`MIDSCENE_MODEL_API_KEY`；Variables：`MIDSCENE_MODEL_NAME`、`MIDSCENE_MODEL_FAMILY`、`ANDROID_RUNNER`。
+![控制台](docs/console.png)
+
 - **验证状态**：只做了 YAML 解析与结构检查，**尚未在真实 GitHub runner 或 `act` 上执行**（本机 Docker 未启动，actionlint 也未运行）。
 
 ## 目录结构
@@ -358,3 +360,22 @@ ADB 通过 `child_process` 调用，没有引入 npm adb 封装库。
 | `ref/midscene-skills/skills/android-automation/` | **缺失**（`ref/` 下无 midscene-skills） | 未下载在线版；按 `.d.ts` 与可运行 demo 自行实现 observe → explore 循环，没有套用不存在的 explore API |
 | Android Monkey 官方文档 | 参数语义 | 文档未写清 `--randomize-throttle` 无值，真机日志纠正 |
 | Midscene「解析报告文件」 | 未用 | 报告只链接 Midscene HTML 路径，没有解析其中 JSON |
+
+### 第四周新增
+
+| 参考源 | 用在哪里 | 备注 |
+|---|---|---|
+| lycoding/auto-test-platform（Gitee） | 设备池「注册 / 心跳 / 占用 / 释放」模型、Master（server）+ Worker（子进程）分层 | 只参考架构，未查看/引入其 Java/Python 代码 |
+| Midscene 设备池配置格式 | `devices.yaml` 的 `devices` / `scheduling.strategy` / `maxConcurrent` 字段命名 | 只借字段格式，调度由本项目实现 |
+| `@midscene/shared` env 类型定义 | `MIDSCENE_REPLANNING_CYCLE_LIMIT`、`MIDSCENE_REPORT_QUIET`、`MIDSCENE_PLANNING_MODEL_*` | |
+| `ref/midscene-example/.github/workflows/` | **缺失** | CI 按 Midscene 文档的环境变量约定编写 |
+| `midscene.config.ts` 的 `setup` / `nodes` | 未使用 | 并行通过子进程实现，未改 Midscene 内部 |
+
+## 距离完整实现的自我评估（W4）
+
+| 维度 | 状态 | 依据 |
+|---|---|---|
+| WebView | 未开始 | 没有 CDP 通道；WebView 内页面只能靠截图视觉操作（如 Teamily 的 WEB 交付物卡片），无法读 DOM / 控制台 |
+| 小程序 | 未开始 | 无任何接入代码 |
+| 报告看板 | 有雏形 | 控制台能列任务、渲染单个 Markdown 报告和截图；无跨任务趋势、状态转换图、崩溃聚类 |
+| 生产级调度 | 有雏形 | 有设备池、FIFO 队列、并发上限、心跳、硬超时、取消；无持久化队列恢复（重启即失败）、无多机 Worker、无鉴权、无重试/优先级，并发任务共享部分产物文件 |
