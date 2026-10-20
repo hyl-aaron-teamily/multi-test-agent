@@ -1,0 +1,10 @@
+# Device pool. Format modelled on Midscene's device-pool config (devices list + scheduling + maxConcurrent).
+# A device is "offline" unless `adb devices` lists it as "device"; tasks only run on idle online devices.
+maxConcurrent: 1
+scheduling:
+  strategy: first-idle   # first-idle | round-robin
+devices:
+  - udid: 4f2ebdf2
+    name: Xiaomi 2211133C (Android 16)
+  - udid: emulator-5554
+    name: placeholder emulator (offline unless started)
