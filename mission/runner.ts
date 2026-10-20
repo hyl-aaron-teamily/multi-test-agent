@@ -177,6 +177,10 @@ export async function runMission(agent: AndroidAgent, monitor: LogcatMonitor, pl
     }
   };
   const stopped = () => stopReason === 'finding' || stopReason === 'aborted';
+  const relaunchAfterDeath = async () => {
+    await launchApp(pkg, udid).catch(() => {});
+    await sleep(5_000);
+  };
 
   /** One bounded action; afterwards check crash / exit. Returns false when the mission must stop. */
   const act = async (phase: MissionStep['phase'], action: string, what: ReplayOp | (() => Promise<unknown>)): Promise<boolean> => {
@@ -211,6 +215,8 @@ export async function runMission(agent: AndroidAgent, monitor: LogcatMonitor, pl
         crashDir: c.dir,
         screenshot: join(c.dir, 'screenshot.png'),
       });
+      // Bring the app back so a --keep-going run continues instead of re-reporting the dead process.
+      if (!stopped()) await relaunchAfterDeath();
       return !stopped();
     }
     if (phase !== 'launch' && !(await currentActivity(udid)).startsWith(`${pkg}/`)) {
@@ -218,6 +224,7 @@ export async function runMission(agent: AndroidAgent, monitor: LogcatMonitor, pl
       const alive = (await adb(['shell', 'pidof', pkg], udid).catch(() => '')).trim();
       if (!alive) {
         await addFinding({ kind: 'app-exit', severity: 'high', title: `进程消失（无 Java 崩溃日志）：${action}`, detail: 'App 进程在动作后不存在，logcat 未出现 FATAL EXCEPTION，疑似 native 崩溃或被系统杀死' });
+        if (!stopped()) await relaunchAfterDeath();
         return !stopped();
       }
       await adb(['shell', 'input', 'keyevent', '4'], udid).catch(() => {});

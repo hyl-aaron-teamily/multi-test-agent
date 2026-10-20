@@ -66,7 +66,8 @@ async function main() {
   const plan: MissionPlan = values.plan ? JSON.parse(await readFile(resolve(values.plan), 'utf8')) : await planMission(request!, { packageName: pkg, appHint });
   plan.maxSteps = Math.min(LIMIT_CAPS.maxSteps, userSteps ?? plan.maxSteps);
   plan.maxMinutes = Math.min(LIMIT_CAPS.maxMinutes, userMinutes ?? plan.maxMinutes);
-  if (values['keep-going']) plan.stopOnFirstFinding = false;
+  // Not inherited from a reused plan.json: only this run's flag decides.
+  plan.stopOnFirstFinding = !values['keep-going'];
   await writeFile(join(dir, 'plan.json'), `${JSON.stringify(plan, null, 2)}\n`);
   console.log(`[mission] plan (${plan.plannedBy}): ${plan.title} — intent=${plan.intent}, area=${plan.targetArea}, limits=${plan.maxSteps} steps / ${plan.maxMinutes} min`);
   if (values['plan-only']) {

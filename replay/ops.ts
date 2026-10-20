@@ -95,7 +95,7 @@ export async function writeBundle(dir: string, bundle: ReplayBundle): Promise<st
     '',
     `- 任务：${bundle.missionId}，App \`${bundle.packageName}\`，${bundle.createdAt}`,
     `- 详情：${bundle.finding.detail || '-'}`,
-    bundle.finding.crashDir ? `- 崩溃现场：\`${bundle.finding.crashDir.replace(/\\/g, '/')}\`` : '',
+    bundle.finding.crashDir ? `- 崩溃现场：\`${bundle.finding.crashDir.replace(/\\/g, '/')}\`` : null,
     `- 录屏（${bundle.recorder ?? '未开启'}）：${bundle.videos.length ? bundle.videos.map((v) => `\`${v}\``).join('、') : '无'}`,
     `- 重放：\`${bundle.replayCommand}\``,
     '',
@@ -103,7 +103,7 @@ export async function writeBundle(dir: string, bundle: ReplayBundle): Promise<st
     '|---|---|---|',
     ...bundle.ops.map((o) => `| +${(o.t / 1000).toFixed(1)}s | ${o.label.replace(/\|/g, '/').slice(0, 90)} | ${o.ok ? '✓' : '✗'} |`),
     '',
-  ].filter((l) => l !== '');
+  ].filter((l) => l !== null);
   await writeFile(join(dir, 'README.md'), md.join('\n'));
   return file;
 }
