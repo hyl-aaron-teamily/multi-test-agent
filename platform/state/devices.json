@@ -1,0 +1,32 @@
+{
+  "updatedAt": "2026-10-20T08:11:10.390Z",
+  "config": {
+    "maxConcurrent": 2,
+    "strategy": "first-idle",
+    "devices": [
+      {
+        "udid": "a"
+      },
+      {
+        "udid": "b"
+      }
+    ]
+  },
+  "devices": [
+    {
+      "udid": "a",
+      "name": "a",
+      "adbState": "device",
+      "status": "idle",
+      "lastSeen": "2026-10-20T08:11:10.390Z"
+    },
+    {
+      "udid": "b",
+      "name": "b",
+      "adbState": "absent",
+      "status": "busy",
+      "taskId": "t2",
+      "lastSeen": "2026-10-20T08:11:10.386Z"
+    }
+  ]
+}
