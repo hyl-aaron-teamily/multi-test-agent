@@ -237,7 +237,9 @@ export async function runMission(agent: AndroidAgent, monitor: LogcatMonitor, pl
     await act('check', 'visual sanity probe', async () => {
       problem = await agent.aiQuery<{ hasProblem: boolean; kind: string; description: string }>(
         '{hasProblem: boolean, kind: string, description: string}, does the screen show a visible defect: an error/toast saying something failed, ' +
-          'a blank/white area where content should be, an endless loading spinner, overlapping or cut-off text, a broken image, or an empty list that should have items? ' +
+          'a blank/white area where content should be, an endless loading spinner, overlapping text, a broken image, an empty list that should have items, ' +
+          'or raw/unrendered placeholder text shown to the user instead of real content (e.g. "[自定义消息]", "[custom message]", "{{name}}", "null", "undefined", "[object Object]")? ' +
+          'Ellipsis truncation of long names and content hidden under a floating bar while scrolled are normal. ' +
           'kind = short category, description = what exactly (Chinese). Normal empty states with explanatory text are NOT defects.',
       );
     });
