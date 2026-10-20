@@ -11,6 +11,8 @@ import type { SeenHandler, UiClient } from './types';
 
 interface UiNode extends Box {
   text: string;
+  /** Placeholder; an empty EditText reports its hint as `text`. */
+  hint: string;
   desc: string;
   cls: string;
   clickable: boolean;
@@ -28,7 +30,7 @@ export function parseNodes(xml: string, pkg: string): UiNode[] {
     const b = attr(n, 'bounds').match(/\[(\d+),(\d+)\]\[(\d+),(\d+)\]/);
     if (!b) continue;
     const [x1, y1, x2, y2] = b.slice(1).map(Number);
-    out.push({ x1, y1, x2, y2, text: unescape(attr(n, 'text')), desc: unescape(attr(n, 'content-desc')), cls: attr(n, 'class'), clickable: attr(n, 'clickable') === 'true' });
+    out.push({ x1, y1, x2, y2, text: unescape(attr(n, 'text')), hint: unescape(attr(n, 'hint')), desc: unescape(attr(n, 'content-desc')), cls: attr(n, 'class'), clickable: attr(n, 'clickable') === 'true' });
   }
   return out;
 }
@@ -55,9 +57,23 @@ export class AndroidClient implements UiClient {
     this.id = `android:${udid}`;
   }
 
-  async dump(): Promise<{ nodes: UiNode[]; at: number }> {
+  private dumpLock: Promise<unknown> = Promise.resolve();
+  private dumpSeq = 0;
+
+  /**
+   * One uiautomator dump at a time per device: the watcher and the send check used to run
+   * concurrently on the same file, and one could read the other's older snapshot.
+   */
+  dump(): Promise<{ nodes: UiNode[]; at: number }> {
+    const run = this.dumpLock.then(() => this.dumpOnce(), () => this.dumpOnce());
+    this.dumpLock = run.catch(() => {});
+    return run;
+  }
+
+  private async dumpOnce(): Promise<{ nodes: UiNode[]; at: number }> {
     const t0 = Date.now();
-    const xml = await adb(['shell', 'uiautomator dump /sdcard/imui_ui.xml >/dev/null 2>&1; cat /sdcard/imui_ui.xml'], this.udid, 20_000);
+    const f = `/sdcard/imui_ui_${this.dumpSeq++ % 4}.xml`;
+    const xml = await adb(['shell', `rm -f ${f}; uiautomator dump ${f} >/dev/null 2>&1; cat ${f}`], this.udid, 20_000);
     const t1 = Date.now();
     this.dumpMs.push(t1 - t0);
     if (this.dumpMs.length > 50) this.dumpMs.shift();
@@ -116,31 +132,75 @@ export class AndroidClient implements UiClient {
       const adbPath = resolveAdbPath();
       this.device = new AndroidDevice(this.udid, adbPath === 'adb' ? {} : { androidAdbPath: adbPath });
     }
-    await this.device.execYadb(text);
+    if (text) await this.device.execYadb(text);
+  }
+
+  private async keyboardShown(): Promise<boolean> {
+    const out = await adb(['shell', 'dumpsys', 'input_method'], this.udid).catch(() => '');
+    return /mInputShown=true/.test(out);
+  }
+
+  /** Dump with retries: uiautomator refuses while the UI animates ("could not get idle state"). */
+  private async dumpRetry(tries = 4): Promise<UiNode[] | undefined> {
+    for (let i = 0; i < tries; i++) {
+      try {
+        const { nodes } = await this.dump();
+        if (nodes.length) return nodes;
+      } catch {
+        this.idleFailures++;
+      }
+      await sleep(700);
+    }
+    return undefined;
+  }
+
+  idleFailures = 0;
+
+  /**
+   * Layout is pinned to "keyboard hidden" (the keyboard moves the composer and the send button).
+   * The send button is only tapped after the composer is verified to contain this message: in this
+   * app the same spot is the voice-record button when the composer is empty.
+   */
+  private async clearComposer(): Promise<void> {
+    if (!this.device) await this.typeText(''); // creates the device
+    await this.device!.ensureYadb();
+    await adb(['shell', 'app_process -Djava.class.path=/data/local/tmp/yadb /data/local/tmp com.ysbing.yadb.Main -keyboardClear'], this.udid);
   }
 
   async send(text: string): Promise<number> {
     if (!this.input) throw new Error(`${this.id}: open() first`);
     if (!this.focused) {
-      // First send: focus the composer once; the keyboard then moves the layout, so re-read it.
       const c = center(this.input);
-      await adb(['shell', 'input', 'tap', String(c.x), String(c.y)], this.udid);
-      await sleep(1_000);
-      const { nodes } = await this.dump();
-      this.input = nodes.find((n) => /EditText/.test(n.cls)) ?? this.input;
+      await adb(['shell', 'input', 'tap', String(c.x), String(c.y)], this.udid); // focus
+      await sleep(800);
       this.focused = true;
     }
-    // Clear leftovers (drafts, a failed previous attempt), then type.
-    await adb(['shell', 'input', 'keycombination', '113', '29'], this.udid).catch(() => {});
-    await adb(['shell', 'input', 'keyevent', '67'], this.udid);
+    if (await this.keyboardShown()) {
+      await adb(['shell', 'input', 'keyevent', '4'], this.udid); // hide keyboard, focus stays
+      await sleep(600);
+    }
+    // yadb appends at the cursor and this RN input ignores DEL / Ctrl+A, so clear with yadb's own
+    // -keyboardClear (what Midscene uses under the always-yadb IME strategy), then type and verify.
+    await this.clearComposer();
     await this.typeText(text);
+    const head = text.slice(0, 24);
+    let nodes: UiNode[] | undefined;
+    let edit: UiNode | undefined;
+    for (let i = 0; i < 3; i++) {
+      await sleep(800);
+      nodes = await this.dumpRetry();
+      edit = nodes?.find((n) => /EditText/.test(n.cls));
+      if (edit?.text.trim().startsWith(head)) break;
+    }
+    if (!edit || !edit.text.trim().startsWith(head)) {
+      throw new Error(`composer check failed (${!nodes ? 'UI never idle' : `composer has "${(edit?.text ?? '').slice(0, 24)}"`}); not tapping send`);
+    }
     if (!this.sendBtn) {
-      // The send button only appears once there is text: locate it now, then reuse the position.
-      const { nodes } = await this.dump();
-      const cand = nodes
-        .filter((n) => n.clickable && !/EditText/.test(n.cls) && n.y1 >= this.input!.y1 - 40 && n.x2 - n.x1 < 300)
+      // Bottom-right control below/next to the composer = send (it appears once there is text).
+      const cand = nodes!
+        .filter((n) => n.clickable && !/EditText/.test(n.cls) && n.y1 >= edit.y1 - 40 && n.x2 - n.x1 < 300)
         .sort((a, b) => b.x2 - a.x2 || b.y2 - a.y2);
-      if (!cand.length) throw new Error(`${this.id}: send button not found next to the composer`);
+      if (!cand.length) throw new Error('send button not found next to the composer');
       this.sendBtn = center(cand[0]);
     }
     const at = Date.now();
@@ -161,6 +221,7 @@ export class AndroidClient implements UiClient {
             .sort((a, b) => a.y - b.y);
           for (const h of hits) if (!seen.has(h.t)) (seen.add(h.t), onSeen(h.t, at));
         } catch {
+          this.idleFailures++; // usually "could not get idle state" while the UI animates
           await sleep(500);
         }
       }

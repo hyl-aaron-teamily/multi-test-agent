@@ -9,6 +9,8 @@ export interface UiClient {
   readonly kind: 'android' | 'web';
   /** Observation resolution in ms (Android polling); 0 = event-driven. */
   readonly resolutionMs: number;
+  /** Observation attempts that failed (Android: UI never idle while animating). */
+  readonly idleFailures?: number;
   /** Launch / load and open `conversation`. Resolves when the composer is usable. */
   open(conversation: string): Promise<void>;
   /** Type `text` and press send. Returns host epoch ms of the send press. */

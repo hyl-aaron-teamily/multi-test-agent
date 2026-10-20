@@ -164,7 +164,7 @@ async function main(): Promise<number> {
       env,
       prod: touchesProd,
       startedAt: new Date(Date.now() - report.wallSeconds * 1000).toISOString(),
-      clients: all.map((c) => ({ id: c.id, kind: c.kind, resolutionMs: c.resolutionMs })),
+      clients: all.map((c) => ({ id: c.id, kind: c.kind, resolutionMs: c.resolutionMs, idleFailures: c.idleFailures ?? 0 })),
       senders: senders.map((s) => s.id),
       flags: { duration: num('duration'), rate: num('rate'), ramp: num('ramp'), drain: num('drain'), msgTypes, payloadBytes: num('payload-bytes') },
       metrics: report,
