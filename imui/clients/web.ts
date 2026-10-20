@@ -69,12 +69,13 @@ export class WebClient implements UiClient {
     await this.composer(page).waitFor({ state: 'visible', timeout: 30_000 });
   }
 
-  async send(text: string): Promise<number> {
+  async send(text: string, onPress?: (at: number) => void): Promise<number> {
     const page = await this.ensurePage();
     const box = this.composer(page);
     await box.click();
     await page.keyboard.insertText(text);
     const at = Date.now();
+    onPress?.(at);
     await page.keyboard.press('Enter');
     return at;
   }

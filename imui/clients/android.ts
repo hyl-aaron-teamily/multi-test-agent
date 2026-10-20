@@ -48,7 +48,6 @@ export class AndroidClient implements UiClient {
   private watching = false;
   private loop?: Promise<void>;
   private dumpMs: number[] = [];
-  private focused = false;
   private device?: AndroidDevice;
 
   constructor(
@@ -79,8 +78,15 @@ export class AndroidClient implements UiClient {
     this.dumpMs.push(t1 - t0);
     if (this.dumpMs.length > 50) this.dumpMs.shift();
     this.resolutionMs = Math.round(this.dumpMs.reduce((a, b) => a + b, 0) / this.dumpMs.length);
-    return { nodes: parseNodes(xml, this.pkg), at: Math.round((t0 + t1) / 2) };
+    const nodes = parseNodes(xml, this.pkg);
+    const at = Math.round((t0 + t1) / 2);
+    // Every dump (also the ones taken by send()) feeds the watcher: more samples, finer resolution.
+    if (process.env.IMUI_DEBUG) console.log(`[imui:debug] ${this.id} dump ${t0 % 100000}→${t1 % 100000} (${t1 - t0}ms) nodes=${nodes.length}`);
+    this.observe?.(nodes, at);
+    return { nodes, at };
   }
+
+  private observe?: (nodes: UiNode[], at: number) => void;
 
   async listConversations(): Promise<string[]> {
     await launchApp(this.pkg, this.udid);
@@ -157,33 +163,38 @@ export class AndroidClient implements UiClient {
 
   idleFailures = 0;
 
-  /**
-   * Layout is pinned to "keyboard hidden" (the keyboard moves the composer and the send button).
-   * The send button is only tapped after the composer is verified to contain this message: in this
-   * app the same spot is the voice-record button when the composer is empty.
-   */
   private async clearComposer(): Promise<void> {
     if (!this.device) await this.typeText(''); // creates the device
     await this.device!.ensureYadb();
     await adb(['shell', 'app_process -Djava.class.path=/data/local/tmp/yadb /data/local/tmp com.ysbing.yadb.Main -keyboardClear'], this.udid);
   }
 
-  async send(text: string): Promise<number> {
+  /**
+   * Type with the keyboard UP (the RN input is focused), then hide it before tapping: with the
+   * keyboard up the IME window overlays the app and covers the computed send position (one run
+   * opened the IME clipboard panel instead). The send button is located from the same dump that
+   * verifies the composer, and only tapped once the composer holds this message — in this app the
+   * same spot is the voice-record button when the composer is empty.
+   */
+  async send(text: string, onPress?: (at: number) => void): Promise<number> {
     if (!this.input) throw new Error(`${this.id}: open() first`);
-    if (!this.focused) {
-      const c = center(this.input);
-      await adb(['shell', 'input', 'tap', String(c.x), String(c.y)], this.udid); // focus
-      await sleep(800);
-      this.focused = true;
+    // Focus the composer at its CURRENT position: it shrinks back to one line after a long message
+    // is sent, so an old centre can land on a chat bubble instead.
+    for (let i = 0; i < 2 && !(await this.keyboardShown()); i++) {
+      const now: UiNode | Box = (await this.dumpRetry())?.find((n) => /EditText/.test(n.cls)) ?? this.input;
+      this.input = now;
+      const c = center(now);
+      await adb(['shell', 'input', 'tap', String(c.x), String(c.y)], this.udid);
+      await sleep(900);
     }
-    if (await this.keyboardShown()) {
-      await adb(['shell', 'input', 'keyevent', '4'], this.udid); // hide keyboard, focus stays
-      await sleep(600);
-    }
-    // yadb appends at the cursor and this RN input ignores DEL / Ctrl+A, so clear with yadb's own
-    // -keyboardClear (what Midscene uses under the always-yadb IME strategy), then type and verify.
+    // yadb pastes at the cursor and this RN input ignores DEL / Ctrl+A: clear with yadb's own
+    // -keyboardClear (what Midscene uses under the always-yadb IME strategy), then type.
     await this.clearComposer();
     await this.typeText(text);
+    if (await this.keyboardShown()) {
+      await adb(['shell', 'input', 'keyevent', '4'], this.udid); // hide keyboard; text stays
+      await sleep(700);
+    }
     const head = text.slice(0, 24);
     let nodes: UiNode[] | undefined;
     let edit: UiNode | undefined;
@@ -196,33 +207,46 @@ export class AndroidClient implements UiClient {
     if (!edit || !edit.text.trim().startsWith(head)) {
       throw new Error(`composer check failed (${!nodes ? 'UI never idle' : `composer has "${(edit?.text ?? '').slice(0, 24)}"`}); not tapping send`);
     }
-    if (!this.sendBtn) {
-      // Bottom-right control below/next to the composer = send (it appears once there is text).
-      const cand = nodes!
-        .filter((n) => n.clickable && !/EditText/.test(n.cls) && n.y1 >= edit.y1 - 40 && n.x2 - n.x1 < 300)
-        .sort((a, b) => b.x2 - a.x2 || b.y2 - a.y2);
-      if (!cand.length) throw new Error('send button not found next to the composer');
-      this.sendBtn = center(cand[0]);
-    }
+    this.input = edit;
+    // Send = right-most control in the toolbar row BELOW the composer text. Multi-line text adds an
+    // "expand editor" icon at the composer's top-right, which must not be mistaken for send.
+    const cand = nodes!
+      // Only the toolbar row hugging the composer's bottom edge: panels (emoji/stickers) open
+      // further below, and the expand icon sits inside the text area above edit.y2.
+      .filter((n) => n.clickable && !/EditText/.test(n.cls) && n.x2 - n.x1 < 300 && n.y1 >= edit.y2 - 20 && n.y1 <= edit.y2 + 150)
+      .sort((a, b) => b.x2 - a.x2);
+    if (!cand.length) throw new Error('send button not found next to the composer');
+    this.sendBtn = center(cand[0]);
     const at = Date.now();
+    onPress?.(at);
     await adb(['shell', 'input', 'tap', String(this.sendBtn.x), String(this.sendBtn.y)], this.udid);
+    // A real send empties the composer. If our text is still there, the tap hit something else:
+    // stop here rather than tapping around (and forget the cached position).
+    await sleep(600);
+    const after = (await this.dumpRetry(2))?.find((n) => /EditText/.test(n.cls));
+    if (after && after.text !== after.hint && after.text.trim().startsWith(head)) {
+      this.sendBtn = undefined;
+      throw new Error('send tap did not take (composer still holds the message)');
+    }
     return at;
   }
 
   startWatch(runId: string, onSeen: SeenHandler): void {
     this.watching = true;
     const seen = new Set<string>();
+    this.observe = (nodes, at) => {
+      // The composer holds the message before it is sent: never count it as a bubble.
+      // Top-to-bottom = display order, so tokens found in one dump are reported in screen order.
+      const hits = nodes
+        .filter((n) => !/EditText/.test(n.cls))
+        .flatMap((n) => [leadingToken(n.text, runId), leadingToken(n.desc, runId)].filter((t): t is string => !!t).map((t) => ({ t, y: n.y1 })))
+        .sort((a, b) => a.y - b.y);
+      for (const h of hits) if (!seen.has(h.t)) (seen.add(h.t), onSeen(h.t, at));
+    };
     this.loop = (async () => {
       while (this.watching) {
         try {
-          const { nodes, at } = await this.dump();
-          // Top-to-bottom = display order, so tokens found in one poll are reported in screen order.
-          // The composer holds the message before it is sent: never count it as a bubble.
-          const hits = nodes
-            .filter((n) => !/EditText/.test(n.cls))
-            .flatMap((n) => [leadingToken(n.text, runId), leadingToken(n.desc, runId)].filter((t): t is string => !!t).map((t) => ({ t, y: n.y1 })))
-            .sort((a, b) => a.y - b.y);
-          for (const h of hits) if (!seen.has(h.t)) (seen.add(h.t), onSeen(h.t, at));
+          await this.dump();
         } catch {
           this.idleFailures++; // usually "could not get idle state" while the UI animates
           await sleep(500);
@@ -234,6 +258,7 @@ export class AndroidClient implements UiClient {
   async stopWatch(): Promise<void> {
     this.watching = false;
     await this.loop;
+    this.observe = undefined;
   }
 
   async duplicates(runId: string): Promise<number> {

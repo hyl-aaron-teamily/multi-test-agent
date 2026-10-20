@@ -13,8 +13,12 @@ export interface UiClient {
   readonly idleFailures?: number;
   /** Launch / load and open `conversation`. Resolves when the composer is usable. */
   open(conversation: string): Promise<void>;
-  /** Type `text` and press send. Returns host epoch ms of the send press. */
-  send(text: string): Promise<number>;
+  /**
+   * Type `text` and press send. `onPress(at)` is called right before the send press, so metrics
+   * get the exact moment even when send() itself keeps working afterwards (verification dumps
+   * that may already observe the echo). Returns the same epoch ms.
+   */
+  send(text: string, onPress?: (at: number) => void): Promise<number>;
   /** Start reporting first appearance of this run's tokens. */
   startWatch(runId: string, onSeen: SeenHandler): void;
   stopWatch(): Promise<void>;

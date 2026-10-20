@@ -27,7 +27,11 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function runUiLoad(plan: RunPlan, log: (s: string) => void = console.log): Promise<UiMetrics> {
   const m = new UiMetrics();
-  for (const c of plan.clients) c.startWatch(plan.runId, (token, at) => m.seen(c.id, token, at));
+  for (const c of plan.clients)
+    c.startWatch(plan.runId, (token, at) => {
+      if (process.env.IMUI_DEBUG) log(`[imui:debug] ${c.id} saw ${token} at ${at % 100000}`);
+      m.seen(c.id, token, at);
+    });
   const t0 = Date.now();
   let seq = 0;
   let budget = plan.maxMessages;
@@ -48,8 +52,8 @@ export async function runUiLoad(plan: RunPlan, log: (s: string) => void = consol
       // Registered before the send completes, like imload (send time = press of the send button).
       m.registerSend(token, mySeq, s.id, msgType, Date.now(), plan.observersFor(s));
       try {
-        const pressedAt = await s.send(messageBody(token, msgType, plan.payloadBytes));
-        m.markPressed(token, pressedAt);
+        const pressedAt = await s.send(messageBody(token, msgType, plan.payloadBytes), (at) => m.markPressed(token, at));
+        if (process.env.IMUI_DEBUG) log(`[imui:debug] ${s.id} pressed ${token} at ${pressedAt % 100000}`);
         log(`[imui] ${s.id} → ${token} (${msgType})`);
       } catch (err) {
         m.discard(token, `${s.id}: ${(err as Error).message.split('\n')[0].slice(0, 80)}`);
