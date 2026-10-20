@@ -11,3 +11,4 @@ ref/
 tools/
 monkey_run/
 platform/state/
+.playwright-mcp/
