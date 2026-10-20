@@ -99,6 +99,12 @@ export class UiMetrics {
     this.sent++;
   }
 
+  /** Exact moment the send button was pressed (registerSend may run slightly earlier). */
+  markPressed(token: string, at: number): void {
+    const e = this.inFlight.get(token);
+    if (e && e.echoAt === undefined && !e.receivedBy.size) e.sentAt = at;
+  }
+
   /** A send that never left the UI (input/tap failed): not counted as sent nor lost. */
   discard(token: string, reason: string): void {
     if (this.inFlight.delete(token)) this.sent--;

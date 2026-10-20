@@ -7,6 +7,7 @@
 //   pnpm autotest devices [--json]
 //   pnpm autotest report
 //   pnpm autotest replay <replay.json> [--times 3] [--keep-timing]
+//   pnpm autotest imui <config|discover|login|probe|run|selftest> ...   (UI-level im-loadtest)
 import 'dotenv/config';
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
@@ -20,6 +21,7 @@ const SCRIPTS: Record<string, string> = {
   monkey: 'scripts/monkey.ts',
   report: 'report/problem-report.ts',
   replay: 'scripts/replay.ts',
+  imui: 'scripts/imui.ts',
 };
 
 function run(bin: string, args: string[]): Promise<number> {
@@ -47,7 +49,7 @@ async function main(): Promise<number> {
     else for (const d of devices) console.log(`${d.udid.padEnd(20)} ${d.state.padEnd(13)} ${d.model ?? ''}`);
     return 0;
   }
-  console.error('Usage: pnpm autotest <mission|explore|monkey|replay|web:smoke|devices|report> [...args]');
+  console.error('Usage: pnpm autotest <mission|explore|monkey|replay|imui|web:smoke|devices|report> [...args]');
   return 2;
 }
 

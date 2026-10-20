@@ -1,0 +1,158 @@
+// Android UI client: no model calls on the hot path.
+//   open   : warm-launch the app, tap the conversation row found in the accessibility tree
+//   send   : tap the EditText, `input text`, tap the send button (located once, then cached)
+//   watch  : poll `uiautomator dump` and report tokens found in text / content-desc attributes
+// Polling is the resolution limit (one dump ≈ 1–3 s on the test phone); it is measured and reported,
+// and each sighting is timestamped at the middle of the dump window.
+import { adb, launchApp } from '../../core/adb';
+import { bubbleClusters, extractTokens, type Box } from '../tokens';
+import type { SeenHandler, UiClient } from './types';
+
+interface UiNode extends Box {
+  text: string;
+  desc: string;
+  cls: string;
+  clickable: boolean;
+}
+
+const attr = (n: string, k: string) => n.match(new RegExp(`\\s${k}="([^"]*)"`))?.[1] ?? '';
+const unescape = (s: string) => s.replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+
+/** Pure: uiautomator XML → nodes of `pkg`. */
+export function parseNodes(xml: string, pkg: string): UiNode[] {
+  const out: UiNode[] = [];
+  for (const m of xml.matchAll(/<node\b[^>]*>/g)) {
+    const n = m[0];
+    if (attr(n, 'package') !== pkg) continue;
+    const b = attr(n, 'bounds').match(/\[(\d+),(\d+)\]\[(\d+),(\d+)\]/);
+    if (!b) continue;
+    const [x1, y1, x2, y2] = b.slice(1).map(Number);
+    out.push({ x1, y1, x2, y2, text: unescape(attr(n, 'text')), desc: unescape(attr(n, 'content-desc')), cls: attr(n, 'class'), clickable: attr(n, 'clickable') === 'true' });
+  }
+  return out;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const center = (b: Box) => ({ x: Math.round((b.x1 + b.x2) / 2), y: Math.round((b.y1 + b.y2) / 2) });
+
+export class AndroidClient implements UiClient {
+  readonly kind = 'android' as const;
+  readonly id: string;
+  resolutionMs = 0;
+  private input?: Box;
+  private sendBtn?: { x: number; y: number };
+  private watching = false;
+  private loop?: Promise<void>;
+  private dumpMs: number[] = [];
+
+  constructor(
+    readonly udid: string,
+    readonly pkg: string,
+  ) {
+    this.id = `android:${udid}`;
+  }
+
+  async dump(): Promise<{ nodes: UiNode[]; at: number }> {
+    const t0 = Date.now();
+    const xml = await adb(['shell', 'uiautomator dump /sdcard/imui_ui.xml >/dev/null 2>&1; cat /sdcard/imui_ui.xml'], this.udid, 20_000);
+    const t1 = Date.now();
+    this.dumpMs.push(t1 - t0);
+    if (this.dumpMs.length > 50) this.dumpMs.shift();
+    this.resolutionMs = Math.round(this.dumpMs.reduce((a, b) => a + b, 0) / this.dumpMs.length);
+    return { nodes: parseNodes(xml, this.pkg), at: Math.round((t0 + t1) / 2) };
+  }
+
+  async listConversations(): Promise<string[]> {
+    await launchApp(this.pkg, this.udid);
+    await sleep(3_000);
+    const { nodes } = await this.dump();
+    // Conversation titles are the first text of each tappable row; keep distinct, readable ones.
+    return [...new Set(nodes.filter((n) => n.text && n.text.length > 1 && !/^\d{1,2}[:/]\d{2}/.test(n.text)).map((n) => n.text))].slice(0, 40);
+  }
+
+  async open(conversation: string): Promise<void> {
+    await launchApp(this.pkg, this.udid);
+    await sleep(3_000);
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { nodes } = await this.dump();
+      const edit = nodes.find((n) => /EditText/.test(n.cls));
+      // Already inside the right conversation?
+      if (edit && nodes.some((n) => n.text === conversation && n.y2 < 400)) {
+        this.input = edit;
+        return;
+      }
+      const row = nodes.find((n) => n.text === conversation && n.y1 > 250);
+      if (row) {
+        const c = center(row);
+        await adb(['shell', 'input', 'tap', String(c.x), String(c.y)], this.udid);
+        await sleep(2_500);
+        const after = await this.dump();
+        const e = after.nodes.find((n) => /EditText/.test(n.cls));
+        if (e) {
+          this.input = e;
+          return;
+        }
+      } else {
+        await adb(['shell', 'input', 'keyevent', '4'], this.udid); // maybe inside another chat
+        await sleep(1_500);
+      }
+    }
+    throw new Error(`${this.id}: conversation "${conversation}" not found on screen (open it once manually or check the name with \`imui discover\`)`);
+  }
+
+  async send(text: string): Promise<number> {
+    if (!this.input) throw new Error(`${this.id}: open() first`);
+    const c = center(this.input);
+    await adb(['shell', 'input', 'tap', String(c.x), String(c.y)], this.udid);
+    await adb(['shell', 'input', 'text', text.replace(/ /g, '%s')], this.udid);
+    if (!this.sendBtn) {
+      // The send button only appears once there is text: locate it now, then reuse the position.
+      const { nodes } = await this.dump();
+      const cand = nodes
+        .filter((n) => n.clickable && !/EditText/.test(n.cls) && n.y1 >= this.input!.y1 - 40 && n.x2 - n.x1 < 300)
+        .sort((a, b) => b.x2 - a.x2 || b.y2 - a.y2);
+      if (!cand.length) throw new Error(`${this.id}: send button not found next to the composer`);
+      this.sendBtn = center(cand[0]);
+    }
+    const at = Date.now();
+    await adb(['shell', 'input', 'tap', String(this.sendBtn.x), String(this.sendBtn.y)], this.udid);
+    return at;
+  }
+
+  startWatch(runId: string, onSeen: SeenHandler): void {
+    this.watching = true;
+    const seen = new Set<string>();
+    this.loop = (async () => {
+      while (this.watching) {
+        try {
+          const { nodes, at } = await this.dump();
+          // Top-to-bottom = display order, so tokens found in one poll are reported in screen order.
+          const hits = nodes
+            .flatMap((n) => extractTokens(`${n.text} ${n.desc}`, runId).map((t) => ({ t, y: n.y1 })))
+            .sort((a, b) => a.y - b.y);
+          for (const h of hits) if (!seen.has(h.t)) (seen.add(h.t), onSeen(h.t, at));
+        } catch {
+          await sleep(500);
+        }
+      }
+    })();
+  }
+
+  async stopWatch(): Promise<void> {
+    this.watching = false;
+    await this.loop;
+  }
+
+  async duplicates(runId: string): Promise<number> {
+    const { nodes } = await this.dump();
+    const byToken = new Map<string, Box[]>();
+    for (const n of nodes) for (const t of extractTokens(`${n.text} ${n.desc}`, runId)) byToken.set(t, [...(byToken.get(t) ?? []), n]);
+    let extra = 0;
+    for (const boxes of byToken.values()) extra += Math.max(0, bubbleClusters(boxes) - 1);
+    return extra;
+  }
+
+  async close(): Promise<void> {
+    await this.stopWatch();
+  }
+}
