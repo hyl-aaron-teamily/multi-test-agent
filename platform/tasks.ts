@@ -1,14 +1,14 @@
 // Task records (platform/state/tasks.json) + scheduler.
 // Each task is one child process `node tsx bin/autotest.ts <type> ... --device <udid>`; the pool decides
 // which device and how many at once. Queue is FIFO; a 2 s tick starts queued tasks when a device frees up.
-// Every task has a server-side hard limit too (mission: maxMinutes + 5; explore/monkey: TASK_HARD_MINUTES).
+// Every task has a server-side hard limit too (mission: maxMinutes + 5; others: TASK_HARD_MINUTES).
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createWriteStream, existsSync } from 'node:fs';
 import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { DevicePool } from './device-pool';
 
-export type TaskType = 'mission' | 'explore' | 'monkey';
+export type TaskType = 'mission' | 'explore' | 'monkey' | 'imui';
 export type TaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export interface TaskInput {
@@ -21,6 +21,12 @@ export interface TaskInput {
   seed?: number; // monkey
   events?: number; // monkey
   steps?: number; // explore
+  conversation?: string; // imui: conversation name on the device (and on web)
+  web?: 'test' | 'prod'; // imui: also watch from chat-web with this env's saved login
+  duration?: number; // imui
+  rate?: number; // imui, msgs/s per sender
+  msgTypes?: string; // imui
+  yesProd?: boolean; // imui: explicit production confirmation
 }
 
 export interface Task extends TaskInput {
@@ -44,15 +50,30 @@ const TSX = resolve('node_modules/tsx/dist/cli.mjs');
 /** Pure: validate a POST body. Returns an error string or the clean input. */
 export function validateTaskInput(b: any): TaskInput | string {
   if (!b || typeof b !== 'object') return 'body must be JSON';
-  if (!['mission', 'explore', 'monkey'].includes(b.type)) return 'type must be mission | explore | monkey';
+  if (!['mission', 'explore', 'monkey', 'imui'].includes(b.type)) return 'type must be mission | explore | monkey | imui';
   const pkg = String(b.package ?? '').trim();
   if (!/^[a-zA-Z][\w]*(\.[\w]+)+$/.test(pkg)) return 'package must be an Android package name';
   if (b.type === 'mission' && !String(b.request ?? '').trim()) return 'mission needs a natural-language request';
+  if (b.type === 'imui') {
+    const conv = String(b.conversation ?? '').trim();
+    if (!conv) return 'imui needs the conversation to send into (no default chat)';
+    if (b.web && !['test', 'prod'].includes(b.web)) return 'web must be test or prod';
+    const rate = b.rate === undefined || b.rate === '' ? undefined : Number(b.rate);
+    if (rate !== undefined && !(rate > 0 && rate <= 2)) return 'rate must be in (0, 2]';
+    if (b.msgTypes && !/^(text|long)(,(text|long))*$/.test(String(b.msgTypes))) return 'msgTypes: text and/or long';
+  }
   const pos = (v: unknown) => (v === undefined || v === null || v === '' ? undefined : Number(v));
   const out: TaskInput = { type: b.type, package: pkg };
   if (b.device) out.device = String(b.device);
   if (b.request) out.request = String(b.request).slice(0, 500);
-  for (const k of ['maxSteps', 'maxMinutes', 'seed', 'events', 'steps'] as const) {
+  if (b.type === 'imui') {
+    out.conversation = String(b.conversation).trim().slice(0, 120);
+    if (b.web) out.web = b.web;
+    if (b.rate !== undefined && b.rate !== '') out.rate = Number(b.rate);
+    if (b.msgTypes) out.msgTypes = String(b.msgTypes);
+    out.yesProd = b.yesProd === true;
+  }
+  for (const k of ['maxSteps', 'maxMinutes', 'seed', 'events', 'steps', 'duration'] as const) {
     const n = pos(b[k]);
     if (n !== undefined) {
       if (!Number.isInteger(n) || n < 0) return `${k} must be a non-negative integer`;
@@ -64,6 +85,15 @@ export function validateTaskInput(b: any): TaskInput | string {
 
 /** Pure: CLI args for a task. */
 export function taskArgs(t: Task, udid: string): string[] {
+  if (t.type === 'imui') {
+    const a = ['bin/autotest.ts', 'imui', 'run', '--client', `android:${udid}@${t.conversation}`];
+    if (t.web) a.push('--client', `web:${t.web}@${t.conversation}`);
+    if (t.duration) a.push('--duration', String(t.duration));
+    if (t.rate) a.push('--rate', String(t.rate));
+    if (t.msgTypes) a.push('--msg-types', t.msgTypes);
+    if (t.yesProd) a.push('--yes-prod');
+    return a;
+  }
   const a = ['bin/autotest.ts', t.type];
   if (t.type === 'mission') a.push(t.request!, '--id', t.id);
   a.push('--package', t.package, '--device', udid);
@@ -174,7 +204,16 @@ export class TaskManager {
     t.finishedAt = new Date().toISOString();
     const out = join(STATE_DIR, 'reports', `${t.id}.md`);
     try {
-      if (t.type === 'mission') {
+      if (t.type === 'imui') {
+        const log = await readFile(t.logFile, 'utf8');
+        const file = log.match(/\[imui\] report → (.+\.md)/)?.[1]?.trim();
+        if (!file) throw new Error('imui wrote no report');
+        t.reportFile = file;
+        const head = log.match(/# imui run `\w+` — (PASS|FAIL)/)?.[1];
+        const sent = log.match(/\| 发送 \| (\d+) 条/)?.[1];
+        const echo = log.match(/ui_echo_ms[^|]*\| (\d+) \| [\d.]+ \| ([\d.]+)/);
+        t.verdict = `${head ?? '?'} · 发送 ${sent ?? '?'} 条${echo ? ` · echo p50 ${echo[2]}ms` : ''}${code === 1 ? ' · 配置/客户端错误' : ''}`;
+      } else if (t.type === 'mission') {
         const dir = resolve('midscene_run/missions', t.id);
         const rec = JSON.parse(await readFile(join(dir, 'mission.json'), 'utf8'));
         t.reportFile = join(dir, 'report.md');
@@ -191,9 +230,10 @@ export class TaskManager {
     } catch (err) {
       t.verdict ??= `no report (${(err as Error).message.split('\n')[0]})`;
     }
-    // Exit 1 from mission/explore/monkey means "found a problem", which is a completed run.
     const killed = t.verdict === 'cancelled by user';
-    t.status = killed ? 'cancelled' : code === 0 || (code === 1 && t.reportFile) ? 'completed' : 'failed';
+    // mission/explore/monkey: exit 1 = found a problem. imui (imload codes): 2 = SLO failed, 1 = error.
+    const ok = t.type === 'imui' ? (code === 0 || code === 2) && !!t.reportFile : code === 0 || (code === 1 && !!t.reportFile);
+    t.status = killed ? 'cancelled' : ok ? 'completed' : 'failed';
     await this.save();
   }
 }

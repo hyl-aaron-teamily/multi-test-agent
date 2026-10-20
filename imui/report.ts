@@ -16,7 +16,7 @@ export function renderReport(r: any): string {
     '',
     `| 项 | 值 |`,
     `|---|---|`,
-    `| 环境 | ${r.env}${r.prod ? '（含生产客户端）' : ''} |`,
+    `| 环境 | Web：${r.clients.some((c: any) => c.kind === 'web') ? r.env : '未使用'} · Android：${r.clients.some((c: any) => c.kind === 'android') ? (r.prod ? '按生产处理（IMUI_ANDROID_ENV，默认 prod）' : '测试') : '未使用'} |`,
     `| 客户端 | ${r.clients.map((c: any) => `${c.id}（${c.resolutionMs ? `观察分辨率≈${c.resolutionMs}ms` : '事件驱动'}${c.idleFailures ? `，界面不空闲读取失败 ${c.idleFailures} 次` : ''}）`).join('、')} |`,
     `| 发送方 | ${r.senders.join('、')} |`,
     `| 参数 | duration ${r.flags.duration}s · rate ${r.flags.rate}/s/sender · ramp ${r.flags.ramp}s · drain ${r.flags.drain}s · types ${r.flags.msgTypes.join(',')} · payload ${r.flags.payloadBytes}B |`,

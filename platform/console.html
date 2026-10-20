@@ -47,7 +47,7 @@
     <section style="margin-top:16px">
       <h2>新建任务</h2>
       <label>类型</label>
-      <select id="type"><option value="mission">自然语言任务（AI 生成计划并执行）</option><option value="explore">AI 探索</option><option value="monkey">Monkey 压测</option></select>
+      <select id="type"><option value="mission">自然语言任务（AI 生成计划并执行）</option><option value="explore">AI 探索</option><option value="monkey">Monkey 压测</option><option value="imui">IM 消息压测（界面层，移植自 im-loadtest）</option></select>
       <label>包名</label>
       <input id="package" value="ai.teamily.mobile">
       <div id="missionFields">
@@ -68,6 +68,18 @@
         <div><label>事件数</label><input id="events" type="number" placeholder="5000"></div>
       </div>
       <div id="exploreFields" class="hidden"><label>步数</label><input id="steps" type="number" placeholder="50"></div>
+      <div id="imuiFields" class="hidden">
+        <label>会话名称（设备上显示的名字，必填）</label><input id="conversation" placeholder="aaron+test3's Personal AI">
+        <div class="row">
+          <div><label>时长（秒）</label><input id="duration" type="number" placeholder="60"></div>
+          <div><label>每发送端速率（条/秒，≤2）</label><input id="rate" type="number" step="0.05" placeholder="0.3"></div>
+        </div>
+        <div class="row">
+          <div><label>消息类型</label><select id="msgTypes"><option value="text">text</option><option value="text,long">text,long</option><option value="long">long</option></select></div>
+          <div><label>Web 观察端</label><select id="web"><option value="">无</option><option value="test">chat-test（需先 imui login）</option><option value="prod">teamily.ai（需先 imui login）</option></select></div>
+        </div>
+        <label style="color:#cf222e"><input type="checkbox" id="yesProd" style="width:auto"> 确认对生产环境发送真实消息（--yes-prod，消息不会被删除）</label>
+      </div>
       <label>设备</label>
       <select id="device"><option value="">自动分配</option></select>
       <button class="primary" id="run">执行</button>
@@ -125,7 +137,7 @@ async function loadDevices() {
 async function loadTasks() {
   const list = await fetch('/api/tasks').then((x) => x.json());
   $('tasks').innerHTML = list.map((t) => `<tr>
-    <td><b>${esc(t.type)}</b> <span class="muted">${esc(t.package)}</span><div>${esc(t.request ?? (t.seed !== undefined ? 'seed ' + t.seed : ''))}</div><div class="muted">${esc(t.id)}</div></td>
+    <td><b>${esc(t.type)}</b> <span class="muted">${esc(t.package)}</span><div>${esc(t.request ?? t.conversation ?? (t.seed !== undefined ? 'seed ' + t.seed : ''))}</div><div class="muted">${esc(t.id)}</div></td>
     <td><span class="pill ${t.status}">${t.status}</span></td><td class="muted">${esc(t.assignedDevice ?? t.device ?? '')}</td>
     <td class="muted">${fmt(t.startedAt ?? t.createdAt)}<br>${t.finishedAt ? '→ ' + fmt(t.finishedAt) : ''}</td>
     <td>${esc(t.verdict ?? '')}</td><td><button data-open="${esc(t.id)}">查看</button></td></tr>`).join('') || '<tr><td colspan="6" class="muted">暂无任务</td></tr>';
@@ -158,11 +170,13 @@ $('type').onchange = () => {
   $('missionFields').classList.toggle('hidden', t !== 'mission');
   $('monkeyFields').classList.toggle('hidden', t !== 'monkey');
   $('exploreFields').classList.toggle('hidden', t !== 'explore');
+  $('imuiFields').classList.toggle('hidden', t !== 'imui');
 };
 $('run').onclick = async () => {
   $('formErr').textContent = '';
   const body = { type: $('type').value, package: $('package').value.trim(), device: $('device').value || undefined };
-  for (const k of ['request', 'maxSteps', 'maxMinutes', 'seed', 'events', 'steps']) { const v = $(k).value.trim(); if (v) body[k] = k === 'request' ? v : Number(v); }
+  for (const k of ['request', 'maxSteps', 'maxMinutes', 'seed', 'events', 'steps', 'duration', 'rate']) { const v = $(k).value.trim(); if (v) body[k] = k === 'request' ? v : Number(v); }
+  if (body.type === 'imui') { body.conversation = $('conversation').value.trim(); body.msgTypes = $('msgTypes').value; if ($('web').value) body.web = $('web').value; body.yesProd = $('yesProd').checked; }
   const r = await fetch('/api/tasks', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   const j = await r.json();
   if (!r.ok) { $('formErr').textContent = j.error; return; }

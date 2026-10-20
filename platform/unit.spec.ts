@@ -41,6 +41,17 @@ describe('platform', () => {
     expect(taskArgs(t, 'dev')).toEqual(['bin/autotest.ts', 'mission', '聊天 "闪退"', '--id', 't1', '--package', 'a.b', '--device', 'dev', '--max-minutes', '5']);
   });
 
+  it('imui tasks need a conversation and map to imui run with the pool device', () => {
+    expect(validateTaskInput({ type: 'imui', package: 'ai.teamily.mobile' })).toMatch(/conversation/);
+    expect(validateTaskInput({ type: 'imui', package: 'a.b', conversation: 'x', rate: 5 })).toMatch(/rate/);
+    const v = validateTaskInput({ type: 'imui', package: 'a.b', conversation: "A's AI", web: 'test', duration: 30, rate: 0.2, msgTypes: 'text,long', yesProd: true });
+    expect(typeof v).toBe('object');
+    expect(taskArgs({ ...(v as object), id: 't9' } as Task, 'dev1')).toEqual([
+      'bin/autotest.ts', 'imui', 'run', '--client', "android:dev1@A's AI", '--client', "web:test@A's AI",
+      '--duration', '30', '--rate', '0.2', '--msg-types', 'text,long', '--yes-prod',
+    ]);
+  });
+
   it('keeps /files inside midscene_run', () => {
     const root = resolve('midscene_run');
     expect(safeFilePath(root, 'missions/x/report.md')).toBe(`${root}${sep}missions${sep}x${sep}report.md`);
