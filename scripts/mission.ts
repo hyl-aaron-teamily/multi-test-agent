@@ -4,6 +4,7 @@
 //   pnpm mission "左侧栏新加了个功能，看看使用流畅度和功能完整性" --max-steps 60 --max-minutes 20
 //   --plan-only                 # print the generated plan, do not touch the device
 //   --keep-going                # do not stop at the first finding
+//   --plan <plan.json>          # rerun a previous mission's exact plan (no re-planning; Midscene cache hits)
 //
 // Limits (both enforced): MISSION_MAX_STEPS / --max-steps, MISSION_MAX_MINUTES / --max-minutes.
 // Defaults come from the plan (model suggestion), clamped by MISSION_STEP_CAP / MISSION_MINUTES_CAP.
@@ -12,12 +13,12 @@
 // Output: midscene_run/missions/<id>/{mission.json, report.md, finding-*.png}; last line prints the report path.
 import 'dotenv/config';
 import { createHash } from 'node:crypto';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { startLogcatMonitor } from '../core/logcat-monitor';
 import { createAndroidAgent } from '../fixtures/android';
-import { LIMIT_CAPS, planMission } from '../mission/planner';
+import { LIMIT_CAPS, type MissionPlan, planMission } from '../mission/planner';
 import { type MissionRecord, verdictOf, writeMissionReport } from '../mission/report';
 import { type MissionResult, runMission } from '../mission/runner';
 import { ScreenRecorder } from '../replay/screen-recorder';
@@ -33,10 +34,11 @@ const { values, positionals } = parseArgs({
     'keep-going': { type: 'boolean' },
     id: { type: 'string' },
     hint: { type: 'string' },
+    plan: { type: 'string' },
   },
 });
 
-const request = positionals.join(' ').trim() || process.env.MISSION_REQUEST?.trim();
+const request = positionals.join(' ').trim() || process.env.MISSION_REQUEST?.trim() || (values.plan ? `(rerun of ${values.plan})` : undefined);
 const pkg = values.package ?? process.env.APP_PACKAGE ?? 'ai.teamily.mobile';
 const appHint = values.hint ?? process.env.APP_HINT ?? (pkg === 'ai.teamily.mobile' ? 'Teamily AI: instant messaging app with AI agents; bottom tabs 聊天/智能体/发现/记忆/成果, top-left avatar opens the profile' : undefined);
 if (!request) {
@@ -61,7 +63,7 @@ async function main() {
   const startedAt = new Date();
   console.log(`[mission] ${id}: 「${request}」 → ${pkg}`);
 
-  const plan = await planMission(request!, { packageName: pkg, appHint });
+  const plan: MissionPlan = values.plan ? JSON.parse(await readFile(resolve(values.plan), 'utf8')) : await planMission(request!, { packageName: pkg, appHint });
   plan.maxSteps = Math.min(LIMIT_CAPS.maxSteps, userSteps ?? plan.maxSteps);
   plan.maxMinutes = Math.min(LIMIT_CAPS.maxMinutes, userMinutes ?? plan.maxMinutes);
   if (values['keep-going']) plan.stopOnFirstFinding = false;
@@ -82,6 +84,8 @@ async function main() {
     console.warn('[mission] deadline reached; waiting up to 2 min for the current action');
     setTimeout(async () => {
       console.error('[mission] hard timeout: current action did not return, writing partial report');
+      result.stopReason = 'max-minutes';
+      result.stopDetail = '看门狗：到达时长上限后当前动作 2 分钟仍未返回，强制结束（部分报告）';
       await finalize?.().catch(() => {});
       process.exit(3);
     }, 120_000).unref();
