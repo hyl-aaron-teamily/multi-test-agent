@@ -56,6 +56,9 @@ pnpm test:unit                            # W3：explore/ + monkey/ 纯函数单
 pnpm explore --package <pkg>              # W3 路径 A：AI 探索式遍历，见下文
 pnpm monkey --package <pkg> --seed 12345 --events 3000   # W3 路径 B：Monkey 压测
 pnpm report:problems                      # W3：合并两条路径 → midscene_run/problem-report.md
+pnpm autotest <mission|explore|monkey|web:smoke|devices|report>   # W4 统一入口
+pnpm mission "聊天时偶发闪退，你试试能不能重现" --package ai.teamily.mobile   # W4 自然语言任务
+pnpm platform                             # W4 Web 控制台 http://localhost:3210
 ```
 
 报告：每个业务步骤是一个 Allure step，步骤结束（成功或失败）都附截图（Web 为整页截图，Android 为 `adb exec-out screencap -p`）；失败断言标在对应 step 上。用例结束还会把 Midscene 自带的 HTML 回放报告作为附件挂到 Allure。
@@ -181,6 +184,72 @@ MONKEY_ROUNDS=3 MONKEY_EVENT_COUNT=5000 pnpm monkey --package <pkg>   # 未给 s
 
 生产副作用与还原记录见 CHANGELOG「真机记录」。
 
+## 第四周：自然语言任务 + Web 控制台 + 设备池 + CI（alpha）
+
+### 自然语言测试任务（`pnpm mission` / `pnpm autotest mission`）
+
+```bash
+pnpm mission "排查下消息列表的问题" --package ai.teamily.mobile
+pnpm mission "左侧栏新加了个功能，看看使用流畅度和功能完整性" --max-steps 60 --max-minutes 20
+pnpm mission "聊天时偶发闪退，你试试能不能重现" --plan-only      # 只看生成的计划，不动设备
+APP_HINT="一句话介绍 App 的导航结构" pnpm mission "..."             # 给规划器的 App 背景（含引号时用环境变量）
+```
+
+流程：**规划**（用 `MIDSCENE_MODEL_*` 同一个 OpenAI 兼容接口，把需求转成计划：意图 reproduce / investigate / evaluate、目标区域、入口指令、每轮场景动作、关注词、检查项、是否测帧率、建议上限；模型不可用时退化为关键词规划）→ **按轮执行** → **报告**。
+
+每轮：冷/热启动交替 → 进入目标区域 → 场景动作（`aiAct`，含后台/前台切换）→ 随机探索若干步（含输入、开关、发送）→ 检查项（`aiBoolean`，间隔 3 秒问两次都为否才算失败）→ 视觉异常探测（报错、白屏、无限加载、文字截断，两次确认）→ `dumpsys gfxinfo` 卡顿统计。
+
+发现类型：`crash` / `anr`（logcat）、`app-exit`（进程消失但无 Java 崩溃日志）、`check-failed`、`visual`、`jank`（卡顿帧比例 ≥ `MISSION_JANK_THRESHOLD`，默认 40%）、`action-failed`（同一动作连续 3 次失败）。默认发现第一个问题即停（`--keep-going` 关闭）。
+
+**上限机制**（针对偶发、复现条件模糊的问题）：
+
+| 机制 | 默认 | 说明 |
+|---|---|---|
+| 步数上限 `--max-steps` / `MISSION_MAX_STEPS` | 计划建议值（约 40–70） | 每个动作、检查都计 1 步 |
+| 时长上限 `--max-minutes` / `MISSION_MAX_MINUTES` | 计划建议值（约 15–20） | 到点后不再开始新动作 |
+| 平台硬上限 `MISSION_STEP_CAP` / `MISSION_MINUTES_CAP` | 300 步 / 120 分钟 | 计划和用户输入都会被截断到这里 |
+| 看门狗 | 时长上限 + 2 分钟 | 当前 AI 调用卡住时强制写出部分报告并退出（exit 3） |
+| 单条 `aiAct` 规划轮数 `MIDSCENE_REPLANNING_CYCLE_LIMIT` | 15 | 防止一条指令吃掉整个预算 |
+| 控制台服务端硬上限 | mission：时长上限 + 5 分钟；explore/monkey：`TASK_HARD_MINUTES`（60） | 杀掉整个子进程树 |
+
+没有发现问题时报告写「未复现」，并注明执行了多少步、因何停止，不把「未复现」当成「没问题」。
+
+**仍然硬拦截**（即使全面放开）：确认支付 / 立即购买等真实付款按钮，以及退出登录 / 注销 / 删除账号——前者花真钱，后者让后续测试全部失效。
+
+产物：`midscene_run/missions/<id>/`：`plan.json`、`mission.json`、`report.md`、`finding-*.png`；崩溃现场仍在 `midscene_run/crashes/<ts>/`（`context.json.source = "mission"`）。
+
+### Web 控制台（`pnpm platform` → http://localhost:3210）
+
+单个 `node:http` 服务 + 单页 HTML（无前端构建链），三个区域：
+
+- **设备**：`platform/devices.yaml` 声明的设备与 `adb devices -l` 合并，显示 idle / busy / offline 和占用任务。
+- **新建任务**：自然语言任务（带三个示例需求、步数/时长上限）、AI 探索、Monkey（seed / 事件数），可指定设备或自动分配。
+- **最近任务**：状态 queued → running → completed / failed / cancelled，查看实时日志、渲染后的报告（含问题截图）、取消任务。
+
+API：`GET /api/devices`、`GET|POST /api/tasks`、`GET /api/tasks/:id`、`/report`、`/log`、`POST /api/tasks/:id/cancel`、`GET /files/<midscene_run 下的路径>`（只读，禁止越界）。任务异步执行，接口立即返回 202 + 任务 ID，前端每 3 秒轮询。状态落盘 `platform/state/`（tasks.json、devices.json、logs/、reports/），不用数据库。
+
+### 设备池（`platform/devices.yaml`）
+
+```yaml
+maxConcurrent: 1          # 同时运行的任务数
+scheduling:
+  strategy: first-idle    # first-idle | round-robin
+devices:
+  - udid: 4f2ebdf2
+    name: Xiaomi 2211133C (Android 16)
+  - udid: emulator-5554
+    name: placeholder emulator
+```
+
+任务排队 FIFO；每 2 秒调度一次，取一台 idle 设备标记 busy，以子进程运行 `autotest <type> --device <udid>`，结束后释放。不声明 `devices` 时使用所有 adb 设备。
+
+### CI（`.github/workflows/ai-test.yml`）
+
+- `pull_request`：typecheck + 单测 + Web 冒烟（未配置模型 secret 时告警跳过），上传 Allure 结果与 Midscene 报告。
+- 每日 `schedule` / 手动 `workflow_dispatch`：固定 seed 的 Android Monkey，跑在 `vars.ANDROID_RUNNER` 指定的 runner 上；runner 无 adb 设备时以 notice 跳过，不失败。
+- Secrets：`MIDSCENE_MODEL_BASE_URL`、`MIDSCENE_MODEL_API_KEY`；Variables：`MIDSCENE_MODEL_NAME`、`MIDSCENE_MODEL_FAMILY`、`ANDROID_RUNNER`。
+- **验证状态**：只做了 YAML 解析与结构检查，**尚未在真实 GitHub runner 或 `act` 上执行**（本机 Docker 未启动，actionlint 也未运行）。
+
 ## 目录结构
 
 ```
@@ -220,6 +289,20 @@ MONKEY_ROUNDS=3 MONKEY_EVENT_COUNT=5000 pnpm monkey --package <pkg>   # 未给 s
 │   ├── loop.ts                  # 多轮 + summary.json
 │   └── unit.spec.ts
 ├── report/problem-report.ts     # W3 统一问题报告
+├── mission/                     # W4 自然语言任务
+│   ├── planner.ts               # 需求 → 计划（模型 + 关键词兜底，限额截断）
+│   ├── runner.ts                # 有界轮次执行、发现判定、卡顿统计
+│   ├── report.ts                # mission.json + report.md
+│   └── unit.spec.ts
+├── platform/                    # W4 平台层
+│   ├── server.ts                # node:http 控制台 + API
+│   ├── console.html             # 单页前端
+│   ├── tasks.ts                 # 任务记录、队列、子进程、硬超时
+│   ├── device-pool.ts           # devices.yaml + adb 心跳 + 占用/释放
+│   ├── devices.yaml
+│   └── adb-devices.ts
+├── bin/autotest.ts              # W4 统一 CLI
+├── .github/workflows/ai-test.yml
 ├── scripts/
 │   ├── explore.ts / monkey.ts   # W3 CLI
 │   ├── report.ts                # 检查 Java 后调用 allure generate

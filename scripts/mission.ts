@@ -71,7 +71,7 @@ async function main() {
   }
 
   // Bound every aiAct's internal re-planning so one instruction cannot eat the whole budget.
-  process.env.MIDSCENE_REPLANNING_CYCLE_LIMIT ??= '8';
+  process.env.MIDSCENE_REPLANNING_CYCLE_LIMIT ??= '15';
   const deadline = startedAt.getTime() + plan.maxMinutes * 60_000;
   let aborted = false;
   let finalize: (() => Promise<void>) | undefined;
