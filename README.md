@@ -1,5 +1,7 @@
 # multi-test-agent
 
+> 项目介绍页：[docs/intro.html](docs/intro.html)（浏览器直接打开；预览图 [docs/intro-preview.png](docs/intro-preview.png)）
+
 AI 驱动的自动化测试脚手架：**Midscene（AI 视觉定位/断言）+ Playwright / ADB（驱动）+ Vitest（运行器）+ Allure（报告）**。
 
 - **第一周（Web）**：用 https://www.saucedemo.com 的 5 步登录流程演示「AI 定位 + 结构化断言 + 失败可诊断」。

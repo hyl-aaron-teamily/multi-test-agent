@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teamily 客户端测试台 · 介绍</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23f6f4ef'/%3E%3Crect x='10' y='7' width='12' height='18' rx='3' fill='none' stroke='%236f9c6a' stroke-width='2.5'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── 与 im-loadtest 介绍页同一套设计令牌：纸质实验记录本 ── */
+:root{
+  --paper:#f4f1ea; --paper-warm:#efebe1; --card:#fffdf8; --card-sunk:#faf7f0;
+  --ink:#3c4743; --ink-strong:#2c3733; --ink-soft:#6f7c76; --ink-faint:#9aa49e;
+  --rule:#e2ddd1; --rule-soft:#ece8dd;
+  --sage:#6f9c6a; --sage-deep:#557f52; --sage-wash:#eef4ea;
+  --slate:#6d8fa8; --slate-wash:#eaf0f4; --ochre:#b58f3f; --ochre-wash:#f7f1de;
+  --clay:#b96b52; --clay-wash:#f8ede8;
+  --r-sm:8px; --r-md:13px; --r-lg:18px; --r-pill:999px;
+  --shadow-card:0 1px 2px rgba(60,71,67,.04),0 18px 44px -26px rgba(60,71,67,.34);
+  --shadow-soft:0 1px 1px rgba(60,71,67,.04),0 6px 16px -12px rgba(60,71,67,.18);
+  --serif:"Fraunces","Songti SC",Georgia,serif;
+  --sans:"Hanken Grotesk","PingFang SC","Microsoft YaHei",sans-serif;
+  --mono:"DM Mono",ui-monospace,Consolas,monospace;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0; color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+  background:
+    radial-gradient(1200px 680px at 86% -10%,#fbf8f1 0%,transparent 60%),
+    radial-gradient(820px 560px at 0% 106%,#f0ede3 0%,transparent 58%),
+    var(--paper);
+}
+.paper{position:fixed;inset:0;pointer-events:none;z-index:99;opacity:.28;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E");}
+a{color:var(--sage-deep);}
+.wrap{max-width:1120px;margin:0 auto;padding:0 26px;}
+
+.rise{opacity:0;transform:translateY(16px);transition:opacity .7s cubic-bezier(.22,.7,.2,1),transform .7s cubic-bezier(.22,.7,.2,1);}
+.rise.in{opacity:1;transform:none;}
+@media (prefers-reduced-motion:reduce){.rise{opacity:1;transform:none;transition:none;}}
+
+/* ── top nav ── */
+.nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(8px);
+  background:linear-gradient(180deg,rgba(244,241,234,.92),rgba(244,241,234,.66));
+  border-bottom:1px solid var(--rule-soft);}
+.nav .wrap{display:flex;align-items:center;justify-content:space-between;height:62px;}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand__mark{width:16px;height:24px;border-radius:5px;border:2.5px solid var(--sage);position:relative;}
+.brand__mark::after{content:"";position:absolute;left:3px;right:3px;bottom:3px;height:3px;border-radius:2px;background:var(--sage);}
+.brand b{font-family:var(--serif);font-weight:600;font-size:17px;color:var(--ink-strong);letter-spacing:.01em;}
+.nav__links{display:flex;gap:8px;align-items:center;}
+.nav__links a{padding:7px 14px;border-radius:var(--r-pill);text-decoration:none;color:var(--ink-soft);font-size:13.5px;}
+.nav__links a:hover{background:var(--card);color:var(--ink-strong);}
+.nav__cta{background:var(--sage)!important;color:#fff!important;box-shadow:var(--shadow-soft);padding:7px 14px;border-radius:var(--r-pill);}
+.nav__cmd{font-family:var(--mono);font-size:12px;cursor:default;}
+
+/* ── hero ── */
+.hero{padding:66px 0 40px;}
+.hero__tag{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:var(--r-pill);
+  background:var(--card);border:1px solid var(--rule);color:var(--ink-soft);font-size:12.5px;box-shadow:var(--shadow-soft);}
+.hero__tag i{width:7px;height:7px;border-radius:50%;background:var(--sage);}
+.hero h1{font-family:var(--serif);font-weight:600;font-size:clamp(34px,5vw,54px);line-height:1.12;
+  margin:20px 0 14px;color:var(--ink-strong);letter-spacing:-.01em;}
+.hero h1 em{font-style:italic;color:var(--sage-deep);}
+.hero p.lead{font-size:clamp(15px,1.7vw,18px);color:var(--ink-soft);max-width:680px;margin:0 0 26px;}
+.hero__actions{display:flex;gap:12px;flex-wrap:wrap;}
+.btn{display:inline-flex;align-items:center;gap:9px;padding:12px 22px;border-radius:var(--r-pill);
+  border:1px solid var(--rule);background:var(--card);color:var(--ink);font-family:var(--sans);
+  font-size:14px;font-weight:500;text-decoration:none;cursor:pointer;box-shadow:var(--shadow-soft);transition:.18s;}
+.btn:hover{transform:translateY(-1px);border-color:#d3ccbc;}
+.btn--primary{background:var(--sage);border-color:var(--sage-deep);color:#fff;
+  box-shadow:0 8px 24px -14px rgba(111,156,106,.7);}
+.btn--primary:hover{background:#7aa874;}
+.btn--cmd{cursor:default;}
+.btn kbd{font-family:var(--mono);font-size:12px;background:var(--card-sunk);border:1px solid var(--rule);border-radius:6px;padding:1px 6px;}
+.btn--cmd kbd{background:rgba(255,255,255,.2);border:0;color:#fff;}
+
+/* ── scaled-down mock console (首图) ── */
+.shot{margin-top:44px;border-radius:var(--r-lg);overflow:hidden;border:1px solid var(--rule);
+  background:var(--card);box-shadow:var(--shadow-card);}
+.shot__bar{display:flex;align-items:center;gap:8px;padding:11px 16px;border-bottom:1px solid var(--rule-soft);
+  background:linear-gradient(180deg,#fffefa,var(--card-sunk));}
+.shot__dot{width:11px;height:11px;border-radius:50%;background:#e3ddce;}
+.shot__dot:nth-child(2){background:#ecd7c0;}
+.shot__dot:nth-child(3){background:#d7e3cf;}
+.shot__title{margin-left:8px;font-size:12px;color:var(--ink-faint);font-family:var(--mono);}
+.mockframe{height:428px;overflow:hidden;position:relative;background:var(--paper);}
+.mock{width:143%;transform:scale(.7);transform-origin:top left;
+  display:grid;grid-template-columns:minmax(0,36%) 1fr;gap:14px;padding:16px;height:611px;}
+.mpane{background:var(--card);border:1px solid var(--rule-soft);border-radius:var(--r-lg);
+  box-shadow:var(--shadow-card);display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+.mhead{padding:13px 16px;border-bottom:1px solid var(--rule-soft);background:linear-gradient(180deg,#fffefa,var(--card-sunk));}
+.mhead h4{margin:0;font-family:var(--serif);font-weight:600;font-size:14px;color:var(--ink-strong);}
+.mhead p{margin:2px 0 0;font-size:11px;color:var(--ink-faint);}
+.mbody{padding:14px 16px;overflow:hidden;}
+.mlegend{display:flex;align-items:center;gap:8px;font-family:var(--serif);font-weight:600;font-size:12px;
+  color:var(--ink-strong);margin:0 0 10px;}
+.mlegend i{display:grid;place-items:center;width:20px;height:20px;border-radius:50%;background:var(--sage-wash);
+  border:1px solid #d8e5d3;color:var(--sage-deep);font-family:var(--mono);font-style:normal;font-size:9px;}
+.mop{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;padding:8px 12px;margin-bottom:5px;
+  border:1px solid var(--rule-soft);border-radius:var(--r-sm);background:var(--card-sunk);}
+.mop b{font-size:12.5px;font-weight:500;color:var(--ink-strong);}
+.mop span{display:block;font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);}
+.mop em{font-family:var(--mono);font-style:normal;font-size:9px;padding:2px 8px;border-radius:var(--r-pill);
+  border:1px solid var(--rule);color:var(--ink-soft);background:var(--card);}
+.mop.on{background:var(--sage-wash);border-color:#c3d9bd;box-shadow:inset 3px 0 0 var(--sage);}
+.mop.on b{color:#33502f;} .mop.on em{color:var(--sage-deep);border-color:#c3d9bd;background:#fff;}
+.mop.off em{color:var(--clay);border-color:#ecd3c9;}
+.mfield{margin:12px 0 0;}
+.mfield>span{display:block;font-size:10.5px;color:var(--ink-soft);margin-bottom:5px;}
+.minput{padding:8px 11px;border:1px solid var(--rule);border-radius:var(--r-sm);background:var(--card-sunk);
+  font-family:var(--mono);font-size:11px;color:var(--ink-soft);}
+.minput.area{min-height:52px;font-family:var(--sans);font-size:12px;color:var(--ink-strong);}
+.mchips{display:flex;gap:5px;margin-top:6px;flex-wrap:wrap;}
+.mchips span{font-size:10px;padding:3px 9px;border-radius:var(--r-pill);border:1px solid var(--rule);background:var(--card);color:var(--ink-soft);}
+.mrow{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.mprimary{margin-top:14px;padding:11px;text-align:center;border-radius:var(--r-pill);background:var(--sage);
+  color:#fff;font-weight:600;font-size:13px;box-shadow:0 8px 24px -14px rgba(111,156,106,.7);}
+.mgauges{display:grid;grid-template-columns:repeat(3,1fr) 1.4fr;gap:8px;margin-bottom:12px;}
+.mg{padding:9px 12px;border:1px solid var(--rule-soft);border-radius:var(--r-md);background:var(--card-sunk);}
+.mg span{display:block;font-size:9px;color:var(--ink-faint);}
+.mg b{display:block;font-family:var(--serif);font-weight:600;font-size:20px;color:var(--ink-strong);}
+.mg.wide b{font-family:var(--mono);font-size:14px;color:var(--sage-deep);}
+.mrec{display:grid;grid-template-columns:56px auto 1fr auto;gap:10px;align-items:baseline;padding:9px 13px;margin-bottom:6px;
+  border:1px solid var(--rule-soft);border-radius:var(--r-md);background:var(--card-sunk);}
+.mrec .t{font-family:var(--mono);font-size:10px;color:var(--ink-faint);}
+.mrec .tag{justify-self:start;font-family:var(--mono);font-size:9px;padding:2px 8px;border-radius:var(--r-pill);}
+.mrec .msg{font-size:12px;color:var(--ink-strong);}
+.mrec .lat{font-family:var(--mono);font-size:10.5px;color:var(--ink-soft);}
+.mrec.ok{background:#fbfdf9;border-color:#dfead9;} .mrec.ok .tag{background:var(--sage-wash);color:var(--sage-deep);}
+.mrec.recv{background:#fafcfd;border-color:#dde8ee;} .mrec.recv .tag{background:var(--slate-wash);color:#4c6c7e;} .mrec.recv .lat{color:#4c6c7e;}
+.mrec.info{background:#fefcf6;border-color:#eee2c8;} .mrec.info .tag{background:var(--ochre-wash);color:#7d6425;}
+.mrec.warn{background:#fdf8f6;border-color:#efd9cf;} .mrec.warn .tag{background:var(--clay-wash);color:#94503b;}
+
+/* ── section scaffold ── */
+section{padding:64px 0;}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--sage-deep);}
+.h2{font-family:var(--serif);font-weight:600;font-size:clamp(26px,3.4vw,36px);color:var(--ink-strong);margin:10px 0 12px;letter-spacing:-.01em;}
+.sub{color:var(--ink-soft);max-width:680px;margin:0 0 34px;}
+
+/* ── feature cards ── */
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:var(--r-lg);padding:22px;box-shadow:var(--shadow-soft);}
+.card .ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--sage-wash);
+  border:1px solid #d8e5d3;margin-bottom:14px;}
+.card .ic svg{width:20px;height:20px;stroke:var(--sage-deep);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.card h3{font-family:var(--serif);font-weight:600;font-size:18px;color:var(--ink-strong);margin:0 0 7px;}
+.card p{margin:0;font-size:14px;color:var(--ink-soft);}
+.card .cmd{display:block;margin-top:12px;font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);}
+.card--hero{grid-column:span 3;display:grid;grid-template-columns:1.1fr 1fr;gap:26px;align-items:center;
+  background:linear-gradient(120deg,#f2f7ee,var(--card));}
+.card--hero .big{font-family:var(--serif);font-weight:600;font-size:clamp(22px,2.6vw,30px);color:var(--ink-strong);line-height:1.2;}
+.pill-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+.pill{padding:6px 13px;border-radius:var(--r-pill);background:var(--card);border:1px solid var(--rule);font-size:12.5px;color:var(--ink-soft);font-family:var(--mono);}
+
+/* ── layers (与 im-loadtest 互补) ── */
+.layers{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid var(--rule);border-radius:var(--r-lg);
+  overflow:hidden;background:var(--card);box-shadow:var(--shadow-soft);}
+.layer{padding:22px 22px 24px;border-right:1px solid var(--rule-soft);}
+.layer:last-child{border-right:0;background:linear-gradient(160deg,#f2f7ee,var(--card));}
+.layer .who{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--ink-faint);text-transform:uppercase;}
+.layer h3{font-family:var(--serif);font-weight:600;font-size:19px;color:var(--ink-strong);margin:6px 0 4px;}
+.layer .q{font-size:13.5px;color:var(--sage-deep);margin:0 0 12px;}
+.layer ul{margin:0;padding-left:18px;color:var(--ink-soft);font-size:13.5px;}
+.layer li{margin:3px 0;}
+.map{margin-top:18px;border:1px solid var(--rule);border-radius:var(--r-lg);overflow:hidden;background:var(--card);box-shadow:var(--shadow-soft);}
+.map table{width:100%;border-collapse:collapse;font-size:13.5px;}
+.map th,.map td{padding:10px 16px;border-bottom:1px solid var(--rule-soft);text-align:left;vertical-align:top;}
+.map th{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--ink-faint);font-weight:500;background:var(--card-sunk);}
+.map tr:last-child td{border-bottom:0;}
+.map td:first-child{color:var(--ink-soft);width:34%;}
+.map td:last-child{color:var(--ink-strong);}
+
+/* ── carousel (最小实践) ── */
+.stage{background:var(--card);border:1px solid var(--rule);border-radius:var(--r-lg);box-shadow:var(--shadow-card);overflow:hidden;}
+.track-vp{overflow:hidden;}
+.track{display:flex;transition:transform .5s cubic-bezier(.22,.7,.2,1);}
+.slide{min-width:100%;display:grid;grid-template-columns:104px 1fr;gap:24px;padding:38px 40px;align-items:start;}
+.snum{font-family:var(--serif);font-weight:600;font-size:64px;line-height:1;color:var(--sage);opacity:.5;}
+.slide h3{font-family:var(--serif);font-weight:600;font-size:22px;color:var(--ink-strong);margin:2px 0 10px;}
+.slide p{margin:0 0 14px;color:var(--ink-soft);}
+.slide .demo{border:1px solid var(--rule-soft);border-radius:var(--r-md);background:var(--card-sunk);
+  padding:14px 16px;font-family:var(--mono);font-size:12.5px;color:var(--ink);line-height:1.85;overflow-x:auto;white-space:nowrap;}
+.slide .demo .k{color:var(--ink-faint);}
+.slide .demo .g{color:var(--sage-deep);}
+.slide .demo .b{color:#4c6c7e;}
+.slide .demo .r{color:#94503b;}
+.caro__foot{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-top:1px solid var(--rule-soft);background:var(--card-sunk);}
+.dots{display:flex;gap:8px;}
+.dot{width:9px;height:9px;border-radius:50%;background:#d7d1c3;border:0;cursor:pointer;padding:0;transition:.2s;}
+.dot.on{background:var(--sage);width:26px;border-radius:var(--r-pill);}
+.arrows{display:flex;gap:8px;}
+.arrow{width:38px;height:38px;border-radius:50%;border:1px solid var(--rule);background:var(--card);cursor:pointer;
+  display:grid;place-items:center;color:var(--ink-soft);transition:.18s;}
+.arrow:hover{border-color:#d3ccbc;color:var(--ink-strong);background:#fff;}
+.arrow svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+
+/* ── results ── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+.stat{padding:18px 20px;border:1px solid var(--rule);border-radius:var(--r-md);background:var(--card);box-shadow:var(--shadow-soft);}
+.stat span{display:block;font-size:12px;color:var(--ink-faint);}
+.stat b{display:block;font-family:var(--serif);font-weight:600;font-size:28px;line-height:1.25;color:var(--ink-strong);margin:4px 0 2px;}
+.stat b small{font-size:15px;color:var(--ink-soft);font-weight:500;}
+.stat p{margin:0;font-size:12.5px;color:var(--ink-soft);}
+.stat.hl{background:var(--sage-wash);border-color:#cadfc4;}
+.stat.hl b{color:var(--sage-deep);}
+.finding{margin-top:16px;display:grid;grid-template-columns:auto 1fr;gap:16px;align-items:start;padding:20px 22px;
+  border:1px solid #efd9cf;border-radius:var(--r-lg);background:linear-gradient(120deg,var(--clay-wash),var(--card));box-shadow:var(--shadow-soft);}
+.finding .m{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:#fff;border:1px solid #efd9cf;color:var(--clay);font-family:var(--serif);font-weight:600;}
+.finding b{color:var(--ink-strong);font-family:var(--serif);font-size:17px;font-weight:600;}
+.finding p{margin:4px 0 0;font-size:13.5px;color:var(--ink-soft);}
+
+/* ── boundaries ── */
+.limits{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.limit{display:flex;gap:13px;padding:18px 20px;border:1px solid var(--rule);border-radius:var(--r-md);background:var(--card);box-shadow:var(--shadow-soft);}
+.limit .m{flex:0 0 auto;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;
+  background:var(--ochre-wash);border:1px solid #e7dabb;color:#8a6c26;font-size:14px;}
+.limit b{color:var(--ink-strong);font-weight:600;}
+.limit p{margin:4px 0 0;font-size:13.5px;color:var(--ink-soft);}
+
+/* ── footer ── */
+footer{padding:44px 0 60px;border-top:1px solid var(--rule-soft);color:var(--ink-faint);font-size:13px;}
+footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+code{font-family:var(--mono);font-size:.9em;background:var(--card-sunk);border:1px solid var(--rule-soft);border-radius:5px;padding:1px 6px;color:var(--sage-deep);}
+
+@media(max-width:900px){
+  .mockframe{height:300px;}
+  .cards,.layers,.limits{grid-template-columns:1fr;} .card--hero{grid-column:auto;grid-template-columns:1fr;}
+  .layer{border-right:0;border-bottom:1px solid var(--rule-soft);}
+  .stats{grid-template-columns:1fr 1fr;}
+  .slide{grid-template-columns:1fr;gap:8px;padding:28px 24px;} .snum{font-size:44px;}
+  .nav__links a:not(.nav__cta){display:none;}
+}
+</style>
+</head>
+<body>
+<div class="paper" aria-hidden="true"></div>
+
+<nav class="nav">
+  <div class="wrap">
+    <div class="brand"><span class="brand__mark"></span><b>Teamily 客户端测试台</b></div>
+    <div class="nav__links">
+      <a href="#features">能力</a>
+      <a href="#layers">与 im-loadtest</a>
+      <a href="#practice">最小实践</a>
+      <a href="#results">真机实测</a>
+      <a href="#limits">边界</a>
+      <span class="nav__cta nav__cmd" title="在项目目录执行 pnpm platform 启动控制台">本地运行</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ════════════ hero ════════════ -->
+<header class="hero">
+  <div class="wrap">
+    <span class="hero__tag rise in"><i></i>真机 · 视觉 AI 驱动 · 不改 App 一行代码</span>
+    <h1 class="rise in">一句话描述问题，<br>让 AI 在<em>真机</em>上替你复现</h1>
+    <p class="lead rise in">输入「聊天时偶发闪退，你试试能不能重现」，测试台自动生成测试计划，在 Android 真机或浏览器上
+      <b>按步数与时长上限</b>反复操作；崩溃、ANR、界面异常、卡顿当场留证：截图、logcat、出事前 90 秒录屏，
+      并可一键重放。同时补齐 im-loadtest 测不到的那一层——<b>用户在界面上看到的消息收发</b>。</p>
+    <div class="hero__actions rise in">
+      <span class="btn btn--primary btn--cmd">本地启动 <kbd>pnpm platform</kbd></span>
+      <a class="btn" href="#practice">看最小实践</a>
+    </div>
+
+    <!-- 首图：缩放到 ~70% 的控制台示意（数据取自真机运行记录） -->
+    <div class="shot rise in" aria-label="控制台界面预览">
+      <div class="shot__bar">
+        <span class="shot__dot"></span><span class="shot__dot"></span><span class="shot__dot"></span>
+        <span class="shot__title">multi-test-agent · localhost:3210</span>
+      </div>
+      <div class="mockframe">
+        <div class="mock">
+          <!-- 左栏 -->
+          <div class="mpane">
+            <div class="mhead"><h4>设备与任务</h4><p>设备池按 maxConcurrent 调度，任务异步执行</p></div>
+            <div class="mbody">
+              <p class="mlegend"><i>01</i> 设备</p>
+              <div class="mop on"><div><b>Xiaomi 2211133C (Android 16)</b><span>4f2ebdf2 · adb device</span></div><em>busy</em></div>
+              <div class="mop off"><div><b>placeholder emulator</b><span>emulator-5554 · adb absent</span></div><em>offline</em></div>
+              <p class="mlegend" style="margin-top:14px"><i>02</i> 新建任务</p>
+              <div class="mfield"><span>类型 · 自然语言任务（AI 生成计划并执行）</span>
+                <div class="minput area">聊天时偶发闪退，你试试能不能重现</div>
+                <div class="mchips"><span>消息列表</span><span>左侧栏新功能</span><span>聊天闪退</span></div>
+              </div>
+              <div class="mfield mrow">
+                <div><span style="font-size:10.5px;color:var(--ink-soft)">步数上限</span><div class="minput">60</div></div>
+                <div><span style="font-size:10.5px;color:var(--ink-soft)">时长上限（分钟）</span><div class="minput">20</div></div>
+              </div>
+              <div class="mprimary">执行</div>
+            </div>
+          </div>
+          <!-- 右栏 -->
+          <div class="mpane">
+            <div class="mhead"><h4>任务日志</h4><p>实时输出，报告落盘到 midscene_run/missions/</p></div>
+            <div class="mbody">
+              <div class="mgauges">
+                <div class="mg"><span>轮次</span><b>2</b></div>
+                <div class="mg"><span>已执行步数</span><b>25 / 60</b></div>
+                <div class="mg"><span>发现</span><b>0</b></div>
+                <div class="mg wide"><span>剩余时长</span><b>11 min 12 s</b></div>
+              </div>
+              <div class="mrec info"><span class="t">16:07:55</span><span class="tag">plan</span><span class="msg">意图 reproduce · 区域 Personal AI 聊天页 · 7 个场景动作 · 5 项检查</span><span class="lat">model</span></div>
+              <div class="mrec ok"><span class="t">16:08:01</span><span class="tag">launch</span><span class="msg">冷启动 force-stop + launch</span><span class="lat">5.8 s</span></div>
+              <div class="mrec ok"><span class="t">16:08:22</span><span class="tag">entry</span><span class="msg">进入置顶会话 aaron+test3's Personal AI</span><span class="lat">20.9 s</span></div>
+              <div class="mrec recv"><span class="t">16:09:30</span><span class="tag">scenario</span><span class="msg">AI 回复加载中快速上下滑动消息列表</span><span class="lat">32.0 s</span></div>
+              <div class="mrec recv"><span class="t">16:11:04</span><span class="tag">system</span><span class="msg">切到后台 3 秒后切回前台</span><span class="lat">5.6 s</span></div>
+              <div class="mrec ok"><span class="t">16:12:40</span><span class="tag">check</span><span class="msg">聊天详情页正常显示消息列表和底部输入框 ✓</span><span class="lat">3.0 s</span></div>
+              <div class="mrec warn"><span class="t">16:13:02</span><span class="tag">jank</span><span class="msg">本轮卡顿帧 38 / 9279（0.41%），p99 25 ms</span><span class="lat">gfxinfo</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ════════════ features ════════════ -->
+<section id="features">
+  <div class="wrap">
+    <p class="eyebrow rise">Capabilities</p>
+    <h2 class="h2 rise">好用在哪</h2>
+    <p class="sub rise">偶发问题的复现条件往往说不清，甚至不一定能复现。测试台的做法是：让 AI 按计划换着花样反复试，同时给每一次尝试都设好上限、留好证据。</p>
+    <div class="cards">
+      <div class="card card--hero rise">
+        <div>
+          <div class="big">一句话需求 → 测试计划<br>→ 真机执行 → 报告</div>
+          <div class="pill-row">
+            <span class="pill">模型规划 + 关键词兜底</span>
+            <span class="pill">步数 / 时长双上限</span>
+            <span class="pill">冷热启动交替</span>
+            <span class="pill">发现即停</span>
+            <span class="pill">--plan 复用计划</span>
+          </div>
+        </div>
+        <p>规划器把需求拆成目标区域、入口、每轮场景动作（含切后台、快速连点、连发消息）、检查项和建议上限。
+          执行器按轮跑：启动 → 进入 → 场景 → 随机探索 → 检查 → 视觉探测 → 帧率统计。
+          检查项间隔 3 秒问两次都为否、且能从截图判断才算失败；没发现问题就如实写「未复现」。</p>
+      </div>
+
+      <div class="card rise">
+        <div class="ic"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg></div>
+        <h3>AI 探索遍历</h3>
+        <p>只给包名，AI 自己识别可交互元素、按界面状态去重、优先探索导航入口；有界步数，崩溃当场留证。</p>
+        <span class="cmd">pnpm autotest explore --package …</span>
+      </div>
+      <div class="card rise">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 17l4-6 4 3 4-7 4 5"/><path d="M4 20h16"/></svg></div>
+        <h3>Monkey 固定 seed</h3>
+        <p>伪随机事件流 + logcat 并行监控，崩溃与 Monkey 日志按时间窗交叉验证，复现命令可直接复制。</p>
+        <span class="cmd">pnpm autotest monkey --seed 12345</span>
+      </div>
+      <div class="card rise">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg></div>
+        <h3>即时重放</h3>
+        <p>每个动作按可重放格式记录，同时环形录屏；一旦出问题，导出出事前约 90 秒的视频与操作序列，按原顺序重放 N 次。</p>
+        <span class="cmd">pnpm autotest replay …/replay.json --times 3</span>
+      </div>
+      <div class="card rise">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M5 5h14v10H9l-4 4z"/><path d="M9 9h6M9 12h4"/></svg></div>
+        <h3>IM 界面层收发</h3>
+        <p>im-loadtest 的命令、指标与 SLO 搬到界面：真打字、真点发送，气泡在屏幕上出现才计时；补上重复气泡与乱序。</p>
+        <span class="cmd">pnpm autotest imui run --client …</span>
+      </div>
+      <div class="card rise">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg></div>
+        <h3>证据全落盘</h3>
+        <p>崩溃现场（截图 + logcat + context.json）、Midscene 每步回放、任务报告与录屏都在本地目录，控制台里直接打开。</p>
+        <span class="cmd">midscene_run/ · monkey_run/</span>
+      </div>
+      <div class="card rise">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="6" rx="1.5"/><rect x="4" y="14" width="16" height="6" rx="1.5"/><path d="M8 7h.01M8 17h.01"/></svg></div>
+        <h3>控制台 · 设备池 · CI</h3>
+        <p>单页控制台提交任务、看日志和报告；设备池排队与并发上限；GitHub Actions 跑冒烟和定时 Monkey。</p>
+        <span class="cmd">pnpm platform → localhost:3210</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ layers ════════════ -->
+<section id="layers">
+  <div class="wrap">
+    <p class="eyebrow rise">Complementary</p>
+    <h2 class="h2 rise">与 im-loadtest 互补：三层各测各的</h2>
+    <p class="sub rise">im-loadtest 绕过客户端直连协议，测的是服务端；它的 probe 测 Web SDK 是否算对。用户在屏幕上看到什么，此前没有工具测——这正是本项目补上的一层。</p>
+    <div class="layers rise">
+      <div class="layer">
+        <div class="who">im-loadtest · imload</div>
+        <h3>服务端链路</h3>
+        <p class="q">服务端扛不扛得住？</p>
+        <ul><li>协议直连：1003 发送 → 2001 推送</li><li>send_ack / end_to_end 分位数</li><li>多账号 × 多平台并发吞吐</li></ul>
+      </div>
+      <div class="layer">
+        <div class="who">im-loadtest · probe</div>
+        <h3>Web SDK 正确性</h3>
+        <p class="q">客户端算得对不对？</p>
+        <ul><li>浏览器内 wasm SDK</li><li>多层取同一事实做差分</li><li>二值不变量 PASS / FAIL</li></ul>
+      </div>
+      <div class="layer">
+        <div class="who">本项目 · imui / mission</div>
+        <h3>界面表现</h3>
+        <p class="q">用户看到的是否正常？</p>
+        <ul><li>真机 App 与 chat-web 界面</li><li>按发送 → 气泡出现的耗时</li><li>重复气泡、乱序、闪退、卡顿</li></ul>
+      </div>
+    </div>
+    <div class="map rise">
+      <table>
+        <tr><th>im-loadtest（imload）</th><th>本项目（imui）</th></tr>
+        <tr><td><code>config / discover / probe / run</code>，<code>--duration --rate --ramp --drain --msg-types --payload-bytes --json --yes-prod</code></td><td>同名命令与参数：<code>pnpm autotest imui …</code></td></tr>
+        <tr><td><code>send_ack_ms</code>：1003 回包</td><td><code>ui_echo_ms</code>：按下发送 → 自己界面出现气泡</td></tr>
+        <tr><td><code>end_to_end_ms</code>：2001 推送</td><td><code>ui_e2e_ms</code>：按下发送 → 观察端界面出现气泡</td></tr>
+        <tr><td>投递按连接计；推送只去重不计数</td><td>按观察客户端计；另统计重复气泡、乱序显示、自身气泡未出现</td></tr>
+        <tr><td>SLO 判定，退出码 0 / 2 / 1</td><td>相同</td></tr>
+        <tr><td><code>selftest.py</code>：假 UC + 假网关</td><td><code>imui selftest</code>：本机假聊天页注入延迟 / 丢失 / 重复 / 乱序 / 自动回复引用</td></tr>
+        <tr><td>webui 控制台</td><td>控制台里的「IM 消息压测（界面层）」任务</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ carousel: 最小实践 ════════════ -->
+<section id="practice">
+  <div class="wrap">
+    <p class="eyebrow rise">Minimal Path</p>
+    <h2 class="h2 rise">最小实践 · 五步复现偶发问题</h2>
+    <p class="sub rise">从零到「AI 在真机上替你跑完一轮复现，并给出带证据的报告」，最少五步。左右切换查看。</p>
+
+    <div class="stage rise" id="carousel">
+      <div class="track-vp">
+        <div class="track" id="track">
+          <div class="slide">
+            <div class="snum">01</div>
+            <div>
+              <h3>连上真机</h3>
+              <p>手机打开 USB 调试并授权；装好 platform-tools 后确认设备在线。</p>
+              <div class="demo"><span class="k">$</span> pnpm autotest devices<br>
+                4f2ebdf2　　　　<span class="g">device</span>　　2211133C</div>
+            </div>
+          </div>
+          <div class="slide">
+            <div class="snum">02</div>
+            <div>
+              <h3>配置视觉模型</h3>
+              <p>复制 <code>.env.example</code> 为 <code>.env</code>，填一个 OpenAI 兼容的视觉模型接口。规划与执行共用它。</p>
+              <div class="demo"><span class="k">MIDSCENE_MODEL_BASE_URL</span>=…<br>
+                <span class="k">MIDSCENE_MODEL_API_KEY</span>=…<br>
+                <span class="k">MIDSCENE_MODEL_NAME</span>=qwen3-vl-plus　<span class="k">MIDSCENE_MODEL_FAMILY</span>=qwen3-vl</div>
+            </div>
+          </div>
+          <div class="slide">
+            <div class="snum">03</div>
+            <div>
+              <h3>启动控制台</h3>
+              <p>浏览器打开后，左侧能看到设备状态；任务由设备池排队分配，不会抢同一台手机。</p>
+              <div class="demo"><span class="k">$</span> pnpm platform<br>
+                <span class="g">[platform]</span> console → http://localhost:3210　<span class="k">(maxConcurrent=1)</span></div>
+            </div>
+          </div>
+          <div class="slide">
+            <div class="snum">04</div>
+            <div>
+              <h3>用一句话提需求，设好上限</h3>
+              <p>选「自然语言任务」，填包名和需求，按需设步数与时长上限；不填就用计划建议值，平台硬上限 300 步 / 120 分钟。</p>
+              <div class="demo"><span class="k">需求</span>　聊天时偶发闪退，你试试能不能重现<br>
+                <span class="k">计划</span>　reproduce · 7 个场景动作 · 5 项检查 · 帧率采集<br>
+                <span class="k">上限</span>　60 步 / 20 分钟　<span class="k">看门狗</span> 到点 + 2 分钟强制写报告</div>
+            </div>
+          </div>
+          <div class="slide">
+            <div class="snum">05</div>
+            <div>
+              <h3>看报告，必要时重放</h3>
+              <p>报告给出结论、计划、每步轨迹、问题截图；出现崩溃时附 replay 包，可按原顺序重放验证。</p>
+              <div class="demo"><span class="r">⚠</span>　crash　闪退：<span class="k">…</span>　<span class="k">replay bundle → replay-1/ (3 video segments)</span><br>
+                <span class="k">$</span> pnpm autotest replay …/replay-1/replay.json --times 3<br>
+                <span class="g">[replay]</span> 未复现（0/1）：偶发问题，可加大 --times</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="caro__foot">
+        <div class="dots" id="dots"></div>
+        <div class="arrows">
+          <button class="arrow" id="prev" aria-label="上一步"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button class="arrow" id="next" aria-label="下一步"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ results ════════════ -->
+<section id="results">
+  <div class="wrap">
+    <p class="eyebrow rise">Field Notes</p>
+    <h2 class="h2 rise">真机实测</h2>
+    <p class="sub rise">Xiaomi 2211133C / Android 16，Teamily AI 生产环境，测试账号 aaron+test3。以下数字全部来自实际运行记录。</p>
+    <div class="stats">
+      <div class="stat rise"><span>AI 探索遍历</span><b>9 <small>个状态</small></b><p>6 轮、每轮 10–30 步，未捕获崩溃 / ANR</p></div>
+      <div class="stat rise"><span>Monkey 压测</span><b>3000 <small>事件</small></b><p>seed 12345 全部注入；注入崩溃被 logcat 捕获并与日志对上</p></div>
+      <div class="stat hl rise"><span>Midscene 缓存提速</span><b>−57%</b><p>同一计划第 1 轮：207.8 s → 88.7 s（<code>--plan</code> 复用）</p></div>
+      <div class="stat rise"><span>imui 界面回显</span><b>3.6 <small>s p99</small></b><p>60 秒 run，3 发 3 回显，SLO 6 s 判定 PASS</p></div>
+    </div>
+    <div class="finding rise">
+      <div class="m">!</div>
+      <div>
+        <b>发现的问题：会话列表把富卡片消息显示成「[自定义消息]」</b>
+        <p>Health Assistant 的最后一条是「WEB 交付物」卡片，进入会话渲染正常，但列表预览只有占位文字，看不出内容。
+          由「排查下消息列表的问题」任务的截图人工确认；之后视觉探测加入了「未渲染占位文本」规则，自动检出尚待验证。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ boundaries ════════════ -->
+<section id="limits">
+  <div class="wrap">
+    <p class="eyebrow rise">Boundaries</p>
+    <h2 class="h2 rise">能力边界</h2>
+    <p class="sub rise">测试台如实反映约束，不掩盖。用之前先知道这些。</p>
+    <div class="limits">
+      <div class="limit rise"><div class="m">◔</div><div><b>AI 动作慢</b>
+        <p>每步 3–160 秒。偶发问题需要给足时长上限；缓存只在复用同一计划时生效，Android 上只缓存规划、不缓存定位。</p></div></div>
+      <div class="limit rise"><div class="m">≡</div><div><b>界面层收发吞吐低</b>
+        <p>imui 在 Android 上约 20 秒一条（聚焦、清空、输入、核对、发送、确认），观察分辨率约 3 秒。要大流量请用 imload。</p></div></div>
+      <div class="limit rise"><div class="m">⇄</div><div><b>观察端投递尚未真机验证</b>
+        <p>需要第二个客户端：第二台手机、模拟器，或运行一次 <code>imui login</code> 手动登录 chat-web。Web 客户端目前只过了离线自测。</p></div></div>
+      <div class="limit rise"><div class="m">!</div><div><b>判定会有误报</b>
+        <p>视觉检查与禁点名单基于模型和关键词。两类真机误报已修正，报告仍需对照截图复核。</p></div></div>
+      <div class="limit rise"><div class="m">⚙</div><div><b>Monkey 不要对生产账号跑</b>
+        <p>随机点击无法约束，可能发消息、改设置。生产 App 请用自然语言任务或 AI 探索，Monkey 用测试账号。</p></div></div>
+      <div class="limit rise"><div class="m">◎</div><div><b>CI 与 WebView 未完成</b>
+        <p>工作流只做了语法检查，未在真实 runner 上跑过；WebView / 小程序没有接入，WebView 内容只能靠截图操作。</p></div></div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Teamily 客户端测试台 · multi-test-agent · 团队内部工具</span>
+    <span>启动：<code>pnpm platform</code> → <code>http://localhost:3210</code>　·　文档：<code>README.md</code> <code>docs/imui.md</code></span>
+  </div>
+</footer>
+
+<script>
+// ── carousel ──
+(function(){
+  const track = document.getElementById('track');
+  const slides = track ? track.children.length : 0;
+  const dotsBox = document.getElementById('dots');
+  let i = 0;
+  for (let k = 0; k < slides; k++){
+    const d = document.createElement('button');
+    d.className = 'dot' + (k === 0 ? ' on' : '');
+    d.setAttribute('aria-label', '第 ' + (k+1) + ' 步');
+    d.addEventListener('click', () => go(k));
+    dotsBox.appendChild(d);
+  }
+  function render(){
+    track.style.transform = `translateX(-${i*100}%)`;
+    [...dotsBox.children].forEach((d,k)=>d.classList.toggle('on', k===i));
+  }
+  // Manual only — no auto-advance; the ends do not wrap.
+  function go(n){ i = Math.max(0, Math.min(slides - 1, n)); render(); }
+  document.getElementById('next').addEventListener('click', ()=>go(i+1));
+  document.getElementById('prev').addEventListener('click', ()=>go(i-1));
+  document.addEventListener('keydown', e=>{
+    if (e.key==='ArrowRight') go(i+1);
+    if (e.key==='ArrowLeft')  go(i-1);
+  });
+})();
+
+// ── reveal on scroll ──
+(function(){
+  const els = document.querySelectorAll('.rise:not(.in)');
+  if (!('IntersectionObserver' in window)){ els.forEach(e=>e.classList.add('in')); return; }
+  const io = new IntersectionObserver((ents)=>{
+    ents.forEach(en=>{ if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target);} });
+  }, {threshold:.12});
+  els.forEach(e=>io.observe(e));
+})();
+</script>
+</body>
+</html>
