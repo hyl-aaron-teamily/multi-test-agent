@@ -48,7 +48,7 @@ Reply with ONE JSON object only, no markdown:
  "entryInstruction": one natural-language instruction to reach it from the app home screen ("" if home itself),
  "scenario": 3-8 concrete user actions to repeat each round, written as UI instructions,
  "focusTerms": 3-8 keywords (Chinese and English) of controls worth exploring there,
- "checks": 2-6 statements that must be TRUE on the target screen if it works (e.g. "the message list shows at least one conversation with a name and a preview"),
+ "checks": 2-6 statements that must be TRUE on the target screen if it works, each verifiable from ONE still screenshot taken after the actions (describe a visible state, never motion, timing or "while scrolling"; e.g. "the message list shows at least one conversation with a name and a preview"),
  "measureJank": true if fluency/smoothness/lag/performance is in question,
  "exploreStepsPerRound": 3-10,
  "maxSteps": suggested total actions (20-120),

@@ -219,6 +219,14 @@ export async function runMission(agent: AndroidAgent, monitor: LogcatMonitor, pl
         failed = await confirmFalse(check);
       });
       if (failed) {
+        // Statements about motion/timing cannot be judged from a still frame: drop instead of reporting.
+        const judgeable = await agent
+          .aiBoolean(`Can this statement be judged true or false from a single still screenshot (it describes a visible state, not motion or timing)? "${check}"`)
+          .catch(() => true);
+        if (!judgeable) {
+          console.log(`[mission] check skipped (not judgeable from a screenshot): ${check}`);
+          continue;
+        }
         await addFinding({ kind: 'check-failed', severity: 'medium', title: `检查未通过：${check}`, detail: '同一检查间隔 3 秒问两次均为否' });
         if (stopped()) return;
       }
