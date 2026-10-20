@@ -1,0 +1,111 @@
+# AI test CI.
+#  - pull_request: Web smoke (Midscene + Playwright + Vitest), Allure results uploaded.
+#  - schedule (daily) / manual: Android Monkey with a fixed seed. Needs a runner with an adb device
+#    (set repository variable ANDROID_RUNNER to a self-hosted runner label); without a device the job
+#    ends as "skipped" instead of failing.
+# Secrets: MIDSCENE_MODEL_BASE_URL, MIDSCENE_MODEL_API_KEY. Variables: MIDSCENE_MODEL_NAME, MIDSCENE_MODEL_FAMILY.
+# ref: Midscene CI docs (model env via secrets, MIDSCENE_REPORT_QUIET); ref/midscene-example has no .github/workflows.
+name: ai-test
+
+on:
+  pull_request:
+  schedule:
+    - cron: '0 18 * * *' # 02:00 Asia/Shanghai
+  workflow_dispatch:
+    inputs:
+      package:
+        description: Android package for Monkey
+        default: com.miui.calculator
+      seed:
+        description: Monkey seed
+        default: '12345'
+
+concurrency:
+  group: ai-test-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  MIDSCENE_MODEL_BASE_URL: ${{ secrets.MIDSCENE_MODEL_BASE_URL }}
+  MIDSCENE_MODEL_API_KEY: ${{ secrets.MIDSCENE_MODEL_API_KEY }}
+  MIDSCENE_MODEL_NAME: ${{ vars.MIDSCENE_MODEL_NAME }}
+  MIDSCENE_MODEL_FAMILY: ${{ vars.MIDSCENE_MODEL_FAMILY }}
+  MIDSCENE_REPORT_QUIET: 'true'
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm test:unit
+
+  web-smoke:
+    if: github.event_name != 'schedule'
+    needs: unit
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - name: Web smoke
+        run: |
+          if [ -z "$MIDSCENE_MODEL_API_KEY" ]; then
+            echo "::warning::MIDSCENE_MODEL_API_KEY secret not set; web smoke skipped"
+            exit 0
+          fi
+          pnpm autotest web:smoke
+      - if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-smoke-allure
+          path: |
+            allure-results/
+            midscene_run/report/
+          if-no-files-found: ignore
+
+  android-monkey:
+    if: github.event_name != 'pull_request'
+    runs-on: ${{ vars.ANDROID_RUNNER || 'ubuntu-latest' }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Detect adb device
+        id: dev
+        run: |
+          if command -v adb >/dev/null && adb devices | awk 'NR>1 && $2=="device"' | grep -q .; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::No adb device on this runner; Android Monkey skipped"
+          fi
+      - if: steps.dev.outputs.present == 'true'
+        uses: pnpm/action-setup@v4
+      - if: steps.dev.outputs.present == 'true'
+        uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - if: steps.dev.outputs.present == 'true'
+        run: pnpm install --frozen-lockfile
+      - name: Monkey (fixed seed)
+        if: steps.dev.outputs.present == 'true'
+        # exit 1 = crash found: keep the job red so it is noticed, artifacts still upload.
+        run: pnpm autotest monkey --package "${{ inputs.package || 'com.miui.calculator' }}" --seed "${{ inputs.seed || '12345' }}" --events 2000
+      - if: always() && steps.dev.outputs.present == 'true'
+        run: pnpm autotest report || true
+      - if: always() && steps.dev.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-monkey
+          path: |
+            midscene_run/crashes/
+            midscene_run/problem-report.md
+            monkey_run/
+          if-no-files-found: ignore
