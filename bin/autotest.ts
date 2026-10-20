@@ -22,7 +22,8 @@ const SCRIPTS: Record<string, string> = {
 
 function run(bin: string, args: string[]): Promise<number> {
   return new Promise((res) => {
-    const child = spawn(bin, args, { stdio: 'inherit', shell: process.platform === 'win32' });
+    // No shell: arguments with spaces/quotes (natural-language requests) pass through intact on Windows.
+    const child = spawn(process.execPath, [bin, ...args], { stdio: 'inherit' });
     child.on('close', (code) => res(code ?? 1));
     child.on('error', (e) => {
       console.error(e.message);
@@ -31,8 +32,8 @@ function run(bin: string, args: string[]): Promise<number> {
   });
 }
 
-const tsx = resolve('node_modules/.bin', process.platform === 'win32' ? 'tsx.cmd' : 'tsx');
-const vitest = resolve('node_modules/.bin', process.platform === 'win32' ? 'vitest.cmd' : 'vitest');
+const tsx = resolve('node_modules/tsx/dist/cli.mjs');
+const vitest = resolve('node_modules/vitest/vitest.mjs');
 
 async function main(): Promise<number> {
   if (cmd && SCRIPTS[cmd]) return run(tsx, [SCRIPTS[cmd], ...rest]);
