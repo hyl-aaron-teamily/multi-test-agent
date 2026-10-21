@@ -368,8 +368,9 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
             await writeFile(join(o.runDir, 'baseline.png'), png);
             results.push({ check: c, pass: !!box, detail: box ? `first jump shows the quoted original at ${JSON.stringify(box)} (accessibility check) — kept as reference` : 'first jump does NOT show the quoted original message' });
           } else if (baseline.box) {
+            // 0.35: the jump briefly highlights the target bubble (tint differs by capture moment); another screen scores ~0.7.
             const m = regionMatch(decodePng(png), baseline.img, baseline.box, 1, 900);
-            results.push({ check: c, pass: m.fraction <= 0.12, detail: `quoted original ${m.fraction <= 0.12 ? `visible (dy ${m.dy})` : `NOT on screen (${Math.round(m.fraction * 100)}% of its marks missing)`}` });
+            results.push({ check: c, pass: m.fraction <= 0.35, detail: `quoted original ${m.fraction <= 0.35 ? `visible (dy ${m.dy})` : `NOT on screen (${Math.round(m.fraction * 100)}% of its marks missing)`}` });
           } else results.push({ check: c, pass: false, detail: 'no reference: the first jump already failed' });
         }
       }

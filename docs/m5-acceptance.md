@@ -28,7 +28,7 @@ All runs below are against **production** (`https://teamily.ai/chat`, Android `a
 | 2336 | feature | desktop-web | 未实现 — profile / Artifacts / CloudDoc each keep their own 🔔, no unified center (screenshots) | `2336-2026-10-21T12-46-04-006Z` |
 | 2122 (single-account part) | feature | desktop-web | 未实现 — no Mentions/@me aggregate, no prominent badge on muted group; second-account part deferred per §A.2 | `2122-2026-10-21T12-00-39-790Z` |
 | 1329 s1 like | bug-intermittent | android-app (substitutes iOS, confirmed) | 未复现 — 30 min / 186 rounds | `1329-2026-10-21T12-51-17-047Z` |
-| 1329 s2 location link | bug-intermittent | android-app (substitutes iOS, confirmed) | 未复现 — 30 min / 278 rounds; first jump verified by accessibility read, later rounds compared to it | `1329-2026-10-21T14-54-17-540Z` |
+| 1329 s2 location link | bug-intermittent | android-app (substitutes iOS, confirmed) | 未复现 — 30 min / 278 rounds (CLI) and 268 rounds (console); first jump verified by accessibility read, later rounds compared to it | `1329-2026-10-21T14-54-17-540Z`, `1329-2026-10-21T16-46-03-066Z` |
 | 1329 s3 keyboard | bug-intermittent | android-app (substitutes iOS, confirmed via console checkbox) | 未复现 — 30 min / 390 steps, max interval 964 ms | `1329-2026-10-21T16-05-57-933Z` |
 | 1614 | server-side | — | 拒绝（§A.2） | `1614-2026-10-21T12-49-34-749Z` |
 | 1922 | not-executable | — | 拒绝（§A.2 / T4）. The file is not empty as the doc assumed (iOS second-line-clipped bug); refused per the doc by user decision, recorded in `platform/issue-overrides.yaml` | `1922-2026-10-21T12-49-32-533Z` |
@@ -46,7 +46,7 @@ iOS has no execution surface in this project (§0: one Android phone); §A.2 pre
 | 8.3 | ✅ | 2336, 2122 single-account part, one-time acceptance in production with missing items listed |
 | 8.3a | ✅ | targets picked by the model at preparation (reports: “准备阶段目标 … [model]”); calibration self-check automatic, review queue only for failures |
 | 8.3b | ✅ | `autotest accounts list|check`; leases by env/surface; credential scan 0 hits |
-| 8.4 | ✅ | console: 3 checkboxes unticked by default with reason, only ticked item ran (`--approve s3:android-app`, full 30 min run); CLI `--approve s1,s3` / `s2:mobile-web` runs; reports marked 替代 |
+| 8.4 | ✅ | console, full 30 min runs: only s3 ticked → `--approve s3:android-app` (`1329-2026-10-21T16-05-57-933Z`); only s2 ticked → `--approve s2:android-app` (`1329-2026-10-21T16-46-03-066Z`, 268 rounds, 0 hits, max interval 966 ms, 0 vision calls). Checkboxes start unticked and show the reason; CLI `--approve s1,s3` / `s2:mobile-web` runs; reports marked 替代 |
 | 8.5 | ✅ | crash bundle inside a 1329 run (T6 row): video playable, ≥30 s before trigger (153 s), windows aligned in incident.json, stack readable, step + action |
 | 8.6 | ✅ | T7 row |
 | 8.7 | ✅ | device-side pkill stop; 6-segment video ring; logs trimmed by time window |

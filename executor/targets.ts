@@ -143,7 +143,13 @@ export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, lo
       out.push({ id: t.id, kind: t.kind, point: { x: Math.round(c.box[0] + c.box[2] / 2), y: Math.round(c.box[1] + c.box[3] / 2) }, chosen: c.title, reason, by });
     } else if (t.kind === 'quote-card' && driver.surface === 'android-app') {
       // Quote cards are clickable groups labelled "<sender>, <quoted text>"; take the bottom-most one.
-      const q = (await quoteCards(driver as AndroidDriver, p)).at(-1);
+      let q = (await quoteCards(driver as AndroidDriver, p)).at(-1);
+      // The chat may reopen scrolled up: swipe toward the newest messages a few times (user action).
+      for (let k = 0; !q && k < 4; k++) {
+        await driver.swipe({ x: p.viewport.width / 2, y: p.viewport.height * 0.7 }, { x: p.viewport.width / 2, y: p.viewport.height * 0.3 }, 250);
+        await new Promise((r) => setTimeout(r, 1200));
+        q = (await quoteCards(driver as AndroidDriver, p)).at(-1);
+      }
       if (!q) throw new Error('prep: 前置条件不存在 — no quote card (reply with a quote) visible in this conversation');
       out.push({ id: t.id, kind: t.kind, point: { x: Math.round(q.box[0] + q.box[2] / 2), y: Math.round(q.box[1] + q.box[3] / 2) }, chosen: `quote of "${q.quoted.slice(0, 40)}"`, reason: 'bottom-most quote card on screen', by: 'rules' });
     } else {
