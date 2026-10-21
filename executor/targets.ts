@@ -58,6 +58,31 @@ export async function conversationCandidates(driver: Driver, p: Profile): Promis
   return out;
 }
 
+export interface QuoteCard {
+  box: Candidate['box'];
+  sender: string;
+  quoted: string;
+}
+
+/** Quote cards on the Android chat screen (preparation-time accessibility read). */
+export async function quoteCards(d: AndroidDriver, p: Profile): Promise<QuoteCard[]> {
+  await adb(['shell', 'uiautomator', 'dump', '/sdcard/autotest_ui.xml'], d.o.udid);
+  const nodes = parseNodes(await adb(['exec-out', 'cat', '/sdcard/autotest_ui.xml'], d.o.udid), d.o.packageName);
+  return nodes
+    .filter((n) => n.clickable && /^[^,]{1,60}, .+/.test(n.desc) && n.x1 > p.viewport.width * 0.2 && n.y1 > 300 && n.y2 < p.viewport.height - 300)
+    .map((n) => ({ box: [n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1] as Candidate['box'], sender: n.desc.split(', ')[0], quoted: n.desc.slice(n.desc.indexOf(', ') + 2).trim() }))
+    .sort((a, b) => a.box[1] - b.box[1]);
+}
+
+/** After a jump: is the quoted original shown as a message (text node outside any quote card)? */
+export async function quotedOriginalVisible(d: AndroidDriver, quoted: string): Promise<boolean> {
+  await adb(['shell', 'uiautomator', 'dump', '/sdcard/autotest_ui.xml'], d.o.udid);
+  const nodes = parseNodes(await adb(['exec-out', 'cat', '/sdcard/autotest_ui.xml'], d.o.udid), d.o.packageName);
+  const cards = nodes.filter((n) => n.clickable && /^[^,]{1,60}, .+/.test(n.desc));
+  const norm = (s: string) => s.replace(/\s+/g, ' ').trim().slice(0, 30);
+  return nodes.some((n) => n.text && norm(n.text) === norm(quoted) && !cards.some((c) => n.x1 >= c.x1 && n.x2 <= c.x2 && n.y1 >= c.y1 && n.y2 <= c.y2));
+}
+
 /** Pure fallback rules when no model is configured. */
 export function ruleChoice(kind: string, cands: Candidate[], taken: number[]): number {
   const free = cands.map((c, i) => ({ c, i })).filter(({ i }) => !taken.includes(i));
@@ -115,6 +140,11 @@ export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, lo
       taken.push(idx);
       const c = cands[idx];
       out.push({ id: t.id, kind: t.kind, point: { x: Math.round(c.box[0] + c.box[2] / 2), y: Math.round(c.box[1] + c.box[3] / 2) }, chosen: c.title, reason, by });
+    } else if (t.kind === 'quote-card' && driver.surface === 'android-app') {
+      // Quote cards are clickable groups labelled "<sender>, <quoted text>"; take the bottom-most one.
+      const q = (await quoteCards(driver as AndroidDriver, p)).at(-1);
+      if (!q) throw new Error('prep: 前置条件不存在 — no quote card (reply with a quote) visible in this conversation');
+      out.push({ id: t.id, kind: t.kind, point: { x: Math.round(q.box[0] + q.box[2] / 2), y: Math.round(q.box[1] + q.box[3] / 2) }, chosen: `quote of "${q.quoted.slice(0, 40)}"`, reason: 'bottom-most quote card on screen', by: 'rules' });
     } else {
       const msg = t.kind === 'like-action' || t.kind === 'reply-action' ? [...frozen, ...out].find((x) => x.kind === 'others-text-message') : undefined;
       if (msg) {

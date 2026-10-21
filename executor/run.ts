@@ -8,7 +8,7 @@
 //   verdict      : intermittent → 1 hit; always → 3 consecutive hits; limits / watchdog stop the run
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { decodePng, dHash } from '../core/image';
+import { decodePng, dHash, hamming } from '../core/image';
 import { AndroidDriver } from '../drivers/android';
 import { type Anomaly, type Driver, type Point, sleep } from '../drivers/types';
 import { WebDriver } from '../drivers/web';
@@ -24,7 +24,7 @@ import { HARD_LIMITS, type PlannedAction, type TestPlan } from '../platform/sche
 import { loadProfile, pointOf, type Profile, SkillStaleError } from '../skills/profile';
 import { type NodeContext, runNode } from '../skills/teamily/nodes';
 import { assertSkillFresh, type CheckResult, evaluateAi, evaluateVisual, visionAsker } from './checks';
-import { type FrozenTarget, pickTargets, visionLocator } from './targets';
+import { type FrozenTarget, pickTargets, quotedOriginalVisible, visionLocator } from './targets';
 import { type Conclusion, featureConclusion, VerdictTracker } from './verdict';
 
 export interface RunOptions {
@@ -291,7 +291,14 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     const frames: RoundFrame[] = [];
     const roundOpsFrom: number[] = [];
     let stop = '';
-    const visualChecks = plan.checks.filter((c) => c.kind === 'visual-region');
+    const visualChecks = plan.checks.filter((c) => c.kind === 'visual-region' || c.kind === 'baseline');
+    // 'baseline' check: round 1 verifies the landing screen once (accessibility read of the quoted original)
+    // and keeps it; later rounds must land on the same screen (hash of the content area).
+    let baseline: { hash: string; verified: boolean } | undefined;
+    const contentHash = (png: Buffer) => {
+      const img = decodePng(png);
+      return dHash(img, [0, Math.round(img.height * 0.12), img.width, Math.round(img.height * 0.68)]);
+    };
     for (let round = 1; !stop; round++) {
       d.round = round;
       if (plan.launch === 'each-iteration' && round > 1) {
@@ -351,6 +358,19 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       for (const c of plan.checks) {
         if (c.kind === 'visual-region' && png) results.push(await evaluateVisual(d, profile, c, ask, png));
         else if (c.kind === 'ai' && png && c.onlyOnAnomaly === false) results.push(await evaluateAi(c, ask));
+        else if (c.kind === 'baseline' && png) {
+          const h = contentHash(png);
+          if (!baseline) {
+            const quoted = res.targets.find((t) => t.kind === 'quote-card')?.chosen.match(/^quote of "(.*)"$/)?.[1] ?? '';
+            const ok = inner instanceof AndroidDriver && quoted ? await quotedOriginalVisible(inner, quoted) : false;
+            baseline = { hash: h, verified: ok };
+            await writeFile(join(o.runDir, 'baseline.png'), png);
+            results.push({ check: c, pass: ok, detail: ok ? 'first jump shows the quoted original (accessibility check) — screen kept as baseline' : 'first jump does NOT show the quoted original message' });
+          } else {
+            const dist = hamming(h, baseline.hash);
+            results.push({ check: c, pass: dist <= 10, detail: `landing screen vs baseline: ${dist} bits${dist <= 10 ? '' : ' — landed somewhere else'}` });
+          }
+        }
         else if (c.kind === 'crash' || c.kind === 'process-alive') {
           const bad = roundAnoms.find((x) => HARD.includes(x.kind));
           results.push({ check: c, pass: !bad, detail: bad ? bad.detail.slice(0, 200) : 'no crash / process exit in the log stream' });
@@ -400,7 +420,13 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     // Action interval = gap between consecutive input operations inside a round (the round-end
     // checkpoint is not an action, §C.2).
     const intervals: number[] = [];
-    for (let i = 1; i < d.ops.length; i++) if (d.ops[i].round > 0 && d.ops[i].round === d.ops[i - 1].round && d.ops[i].op !== 'launch') intervals.push(d.ops[i].at - d.ops[i - 1].at);
+    // The gap from the last action into the first afterCheck op spans the checkpoint: not an action interval.
+    const isAfter = (x: CoordOp) => (x.label ?? '').startsWith('after:');
+    for (let i = 1; i < d.ops.length; i++) {
+      const a = d.ops[i - 1];
+      const b = d.ops[i];
+      if (b.round > 0 && b.round === a.round && b.op !== 'launch' && !(isAfter(b) && !isAfter(a))) intervals.push(b.at - a.at);
+    }
     stats.avgIntervalMs = intervals.length ? Math.round(intervals.reduce((s, x) => s + x, 0) / intervals.length) : 0;
     stats.maxIntervalMs = intervals.length ? Math.max(...intervals) : 0;
     stats.intervalsOverCap = intervals.filter((x) => x > plan.limits.maxIntervalMs).length;

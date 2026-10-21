@@ -122,24 +122,18 @@ export function templateFor(text: string, category: TestPlan['category'], surfac
     };
   }
   if (/location link|jumps? to|定位|跳转|message link/.test(t)) {
-    // Precondition built through the UI: reply to an older message → the sent reply carries a quote block
-    // that links back to it. Then: tap the quote, expect the original message to be shown.
+    // A quote card (reply with quote) is a location link back to the quoted message. Round 1 checks the
+    // first jump really shows the quoted original and keeps that screen; later rounds must land there too.
     return {
-      title: '点消息定位（引用块）应跳到目标消息',
+      title: '点引用定位应稳定跳到被引用消息',
       targets: [
         { id: 'conv', kind: 'group-conversation', guidance: T['group-conversation'] },
-        { id: 'msg', kind: 'others-text-message', guidance: 'a plain text message sent by someone else, visible on screen now, containing NO link / URL / @mention (only ordinary words); the history has been scrolled up, so it is far from the latest messages' },
-        { id: 'reply', kind: 'reply-action', guidance: '长按消息后弹出菜单里的“回复 / Reply”项' },
-        { id: 'link', kind: 'message-link', guidance: 'the quote card directly ABOVE my latest sent green reply bubble: it has a vertical bar on its left and shows the original sender name and quoted text — tap the sender-name line of the card (NOT the green bubble, NOT any link text)', afterPrepare: true },
+        { id: 'link', kind: 'quote-card', guidance: '会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文）' },
       ],
-      // Scroll well up the history first, so the quoted message is far from the bottom where the reply lands.
-      setup: [node('teamily.openConversation', { target: 'conv' }, 900), a('scroll', { value: 'up', delayAfterMs: 700 }), a('scroll', { value: 'up', delayAfterMs: 700 }), a('scroll', { value: 'up', delayAfterMs: 700 }), a('scroll', { value: 'up', delayAfterMs: 900 })],
-      prepare: [{ type: 'longPress', element: 'target.msg', delayAfterMs: 900 }, { type: 'tap', element: 'target.reply', delayAfterMs: 800 }, node('teamily.sendMessage', { text: 'autotest 定位链接测试（引用回复）' }, 1000), a('wait', { value: '1000', delayAfterMs: 1000 })],
-      prepareCheck: { kind: 'ai', expect: 'The newest message at the bottom of the chat is a green bubble saying "autotest 定位链接测试（引用回复）" with a quote card (vertical bar, quoted sender and text) directly above it', want: 'present', onlyOnAnomaly: false },
-      actions: [{ type: 'tap', element: 'target.link', delayAfterMs: 1000 }, a('wait', { value: '800', delayAfterMs: 900 })],
-      checks: [{ kind: 'ai', expect: 'The chat has scrolled away from the latest messages: the newest "autotest 定位链接测试" reply bubble is NOT visible, and an older part of the conversation is shown (the quoted original message, often highlighted)', want: 'present', onlyOnAnomaly: false }],
-      // Back to the bottom where the reply (and its quote) is: reopen the conversation.
-      afterCheck: [...(surface === 'desktop-web' ? [] : [a('tap', { element: 'chat.back', delayAfterMs: 800 })]), node('teamily.openConversation', { target: 'conv' }, 1000)],
+      setup: [node('teamily.openConversation', { target: 'conv' }, 1000)],
+      actions: [{ type: 'tap', element: 'target.link', delayAfterMs: 1000 }, a('wait', { value: '1000', delayAfterMs: 1000 })],
+      checks: [{ kind: 'baseline', expect: '点引用块后跳到被引用的原消息（每轮落在同一位置）', want: 'present' }],
+      afterCheck: [...(surface === 'desktop-web' ? [] : [a('tap', { element: 'chat.back', delayAfterMs: 900 })]), node('teamily.openConversation', { target: 'conv' }, 1000), a('wait', { value: '1000', delayAfterMs: 1000 })],
     };
   }
   if (/keyboard|键盘/.test(t)) {

@@ -17,7 +17,7 @@ export const PlannedActionZ = z.object({
 });
 
 export const CheckPointZ = z.object({
-  kind: z.enum(['visual-region', 'crash', 'process-alive', 'console-error', 'page-error', 'ai']),
+  kind: z.enum(['visual-region', 'crash', 'process-alive', 'console-error', 'page-error', 'ai', 'baseline']),
   page: z.string().optional(),
   region: z.string().optional(),
   expect: z.string(),
