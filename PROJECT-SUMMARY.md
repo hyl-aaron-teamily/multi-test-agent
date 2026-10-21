@@ -213,7 +213,6 @@ W4 验收（详见 CHANGELOG）：
 - **AI 动作慢**：单步 3–160 秒。缓存只在复用计划时生效，且 Android 上只缓存规划不缓存定位，提速约一半。高频输入压测未实现（拟用 Fastbot，需要测试账号）。
 - **录屏引擎**：scrcpy 未安装，目前用手机自带的 `screenrecord`，单段最长 180 秒、清晰度较低。
 - **误报**：两次真机误报（动态检查、省略号截断）已修正，视觉判断仍可能误报，报告需人工复核截图。
-- **并发产物串号**：并发的 explore/monkey 任务共用 `monkey_run/summary.json` 和 `problem-report.md`，控制台报告可能串号；mission 报告按任务 ID 隔离，不受影响。
 - **重启丢任务**：控制台重启后，运行中的任务会标为 failed，不会恢复。
 - **偶发失败**：`test:android` 在 W4 验证中出现过 1 次失败（未留日志），重跑通过。
 
@@ -230,6 +229,5 @@ W4 验收（详见 CHANGELOG）：
 
 1. 接入 Fastbot 作为 Monkey 的智能替代（仓库已下载中），配合测试账号做高频压测；崩溃同样导出到即时重放包。
 2. 每次检查前先把目标区域滚回顶部，并对整页截长图，让列表类问题（如「[自定义消息]」预览）能被稳定拍到。
-3. 按任务 ID 隔离 explore/monkey 的产物目录，消除并发报告串号。
-4. 接入 WebView CDP（Teamily 的 WEB 交付物、技能库页面），复用 mission 的检查与报告出口。
-5. 在真实 GitHub runner 和自托管 Android runner 上跑通 CI。
+3. 接入 WebView CDP（Teamily 的 WEB 交付物、技能库页面），复用 mission 的检查与报告出口。
+4. 在真实 GitHub runner 和自托管 Android runner 上跑通 CI。

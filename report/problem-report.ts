@@ -3,6 +3,7 @@
 //
 //   pnpm report:problems                       # newest of each
 //   pnpm report:problems --trace <file> --monkey <summary.json>
+//   pnpm report:problems --only monkey --monkey <summary.json> --out <file.md>   # one path only (platform tasks)
 import { existsSync } from 'node:fs';
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
@@ -98,9 +99,21 @@ export function renderMonkey(m: MonkeySummary | undefined, stacks: Record<string
   return md;
 }
 
-export async function buildProblemReport(traceFile?: string, monkeyFile?: string): Promise<string> {
-  traceFile ??= await newest(resolve('midscene_run/explore-traces'), (f) => f.endsWith('.json'));
-  monkeyFile ??= existsSync(resolve('monkey_run/summary.json')) ? resolve('monkey_run/summary.json') : undefined;
+export interface ProblemReportOptions {
+  /** Explore trace. undefined = newest in midscene_run/explore-traces; null = leave path A out. */
+  trace?: string | null;
+  /** Monkey summary. undefined = monkey_run/summary.json; null = leave path B out. */
+  monkey?: string | null;
+  out?: string;
+}
+
+export async function buildProblemReport(opts: ProblemReportOptions = {}): Promise<string> {
+  const traceFile =
+    opts.trace === null ? undefined : (opts.trace ?? (await newest(resolve('midscene_run/explore-traces'), (f) => f.endsWith('.json'))));
+  const monkeyFile =
+    opts.monkey === null ? undefined : (opts.monkey ?? (existsSync(resolve('monkey_run/summary.json')) ? resolve('monkey_run/summary.json') : undefined));
+  const withA = opts.trace !== null;
+  const withB = opts.monkey !== null;
   const t = await readJson<ExploreTrace>(traceFile);
   const m = await readJson<MonkeySummary>(monkeyFile);
 
@@ -125,26 +138,41 @@ export async function buildProblemReport(traceFile?: string, monkeyFile?: string
     `生成时间：${new Date().toISOString()}`,
     '',
     '## 概览',
-    t
-      ? `- 路径 A（AI 探索，${t.package}）：共 ${t.steps.length} 步，覆盖 ${t.stateCount} 个状态，发现 ${aCrashes} 个崩溃/ANR、${aAnoms} 个页面异常/操作失败 — 轨迹 \`${rel(traceFile!)}\``
-      : '- 路径 A（AI 探索）：未运行',
-    m
-      ? `- 路径 B（Monkey，${m.package}）：seed=${m.rounds.map((r) => r.seed).join(',')}，事件数=${m.rounds.map((r) => r.eventsInjected ?? r.eventCount).join(',')}，发现 ${bCrashes} 个崩溃/ANR — 汇总 \`${rel(monkeyFile!)}\``
-      : '- 路径 B（Monkey）：未运行',
+    ...(!withA
+      ? []
+      : t
+        ? [`- 路径 A（AI 探索，${t.package}）：共 ${t.steps.length} 步，覆盖 ${t.stateCount} 个状态，发现 ${aCrashes} 个崩溃/ANR、${aAnoms} 个页面异常/操作失败 — 轨迹 \`${rel(traceFile!)}\``]
+        : ['- 路径 A（AI 探索）：未运行']),
+    ...(!withB
+      ? []
+      : m
+        ? [`- 路径 B（Monkey，${m.package}）：seed=${m.rounds.map((r) => r.seed).join(',')}，事件数=${m.rounds.map((r) => r.eventsInjected ?? r.eventCount).join(',')}，发现 ${bCrashes} 个崩溃/ANR — 汇总 \`${rel(monkeyFile!)}\``]
+        : ['- 路径 B（Monkey）：未运行']),
     '',
-    ...renderExplore(t, stacks),
-    ...renderMonkey(m, stacks),
+    ...(withA ? renderExplore(t, stacks) : []),
+    ...(withB ? renderMonkey(m, stacks) : []),
     '## 未复现 / 待观察',
     ...pending,
     '',
   ].join('\n');
-  await writeFile(OUT, md);
-  return OUT;
+  const out = opts.out ?? OUT;
+  await writeFile(out, md);
+  return out;
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  const { values } = parseArgs({ options: { trace: { type: 'string' }, monkey: { type: 'string' } } });
-  buildProblemReport(values.trace && resolve(values.trace), values.monkey && resolve(values.monkey))
+  const { values } = parseArgs({
+    options: { trace: { type: 'string' }, monkey: { type: 'string' }, only: { type: 'string' }, out: { type: 'string' } },
+  });
+  if (values.only && !['explore', 'monkey'].includes(values.only)) {
+    console.error(`--only must be explore or monkey, got "${values.only}"`);
+    process.exit(1);
+  }
+  buildProblemReport({
+    trace: values.only === 'monkey' ? null : values.trace && resolve(values.trace),
+    monkey: values.only === 'explore' ? null : values.monkey && resolve(values.monkey),
+    out: values.out && resolve(values.out),
+  })
     .then((f) => console.log(`problem report → ${f}`))
     .catch((e) => {
       console.error((e as Error).message);

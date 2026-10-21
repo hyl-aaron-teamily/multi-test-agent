@@ -4,7 +4,7 @@
 // Every task has a server-side hard limit too (mission: maxMinutes + 5; others: TASK_HARD_MINUTES).
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createWriteStream, existsSync } from 'node:fs';
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { DevicePool } from './device-pool';
 
@@ -220,11 +220,20 @@ export class TaskManager {
         t.verdict = rec.verdict;
         t.findings = rec.result.findings.length;
       } else {
-        // explore / monkey: build the W3 problem report from the artifacts this task just wrote.
-        await new Promise<void>((r) => spawn(process.execPath, [TSX, 'report/problem-report.ts'], { stdio: 'ignore' }).on('close', () => r()));
-        await copyFile(resolve('midscene_run/problem-report.md'), out);
-        t.reportFile = out;
+        // explore / monkey: W3 problem report from this task's own artifact only (the path printed in its log),
+        // never "newest trace / monkey_run/summary.json", which may belong to another task.
         const log = await readFile(t.logFile, 'utf8');
+        const artifact = (t.type === 'explore' ? log.match(/\[explore\] trace → (.+\.json)/) : log.match(/\[monkey\] run summary → (.+\.json)/))?.[1]?.trim();
+        if (!artifact) throw new Error(`${t.type} wrote no ${t.type === 'explore' ? 'trace' : 'summary'}`);
+        const args = ['report/problem-report.ts', '--only', t.type, t.type === 'explore' ? '--trace' : '--monkey', artifact, '--out', out];
+        const err = await new Promise<string>((r) => {
+          let stderr = '';
+          const p = spawn(process.execPath, [TSX, ...args], { stdio: ['ignore', 'ignore', 'pipe'] });
+          p.stderr.on('data', (d) => (stderr += d));
+          p.on('close', (c) => r(c === 0 ? '' : stderr.trim() || `report exit ${c}`));
+        });
+        if (err) throw new Error(err);
+        t.reportFile = out;
         t.verdict = log.match(/\[(?:explore|monkey)\] ((?:未捕获崩溃|\d+ crash).*)/)?.[1] ?? `exit ${code}`;
       }
     } catch (err) {

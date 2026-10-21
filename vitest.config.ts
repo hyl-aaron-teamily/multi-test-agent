@@ -38,7 +38,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'unit',
-          include: ['explore/**/*.spec.ts', 'monkey/**/*.spec.ts', 'mission/**/*.spec.ts', 'platform/**/*.spec.ts', 'replay/**/*.spec.ts', 'imui/**/*.spec.ts'],
+          include: ['explore/**/*.spec.ts', 'monkey/**/*.spec.ts', 'mission/**/*.spec.ts', 'platform/**/*.spec.ts', 'replay/**/*.spec.ts', 'imui/**/*.spec.ts', 'report/**/*.spec.ts'],
         },
       },
     ],

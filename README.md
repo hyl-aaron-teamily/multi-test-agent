@@ -172,7 +172,7 @@ MONKEY_ROUNDS=3 MONKEY_EVENT_COUNT=5000 pnpm monkey --package <pkg>   # 未给 s
 
 ### 问题报告（`pnpm report:problems`）
 
-读最新 `midscene_run/explore-traces/*.json` 和 `monkey_run/summary.json`（也可 `--trace` / `--monkey` 指定），生成 `midscene_run/problem-report.md`：概览、两条路径的问题（截图 / logcat / 轨迹片段 / seed / 复现命令 / 堆栈摘要）、未复现与待观察项。与 Allure 报告、Midscene HTML 报告并列查看。
+读最新 `midscene_run/explore-traces/*.json` 和 `monkey_run/summary.json`（也可 `--trace` / `--monkey` 指定；`--only explore|monkey` 只出一条路径，`--out` 改输出文件，控制台任务用这两个参数只报告本任务的产物），生成 `midscene_run/problem-report.md`：概览、两条路径的问题（截图 / logcat / 轨迹片段 / seed / 复现命令 / 堆栈摘要）、未复现与待观察项。与 Allure 报告、Midscene HTML 报告并列查看。
 
 ### 真机记录（W3）
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## [Unreleased] — 控制台报告隔离
+
+### Fixed
+- 控制台 explore / monkey 任务的报告混入其它任务的产物：任务结束时报告生成器不带参数运行，取的是全局最新的探索轨迹和 `monkey_run/summary.json`（例：计算器 monkey 任务的报告里出现 10-20 对 Teamily 的探索结果，标题变成两个包名）。现在平台从任务日志读出本任务的产物路径（explore：`[explore] trace →`；monkey：新增的 `[monkey] run summary →`，即按开始时间 + 设备命名的单次汇总），用 `--only <类型> --out <报告>` 生成只含这一条路径的报告。找不到产物或生成失败时任务记为无报告，不再拿别的任务的产物顶替。
+- `report/problem-report.ts` 新增 `--only explore|monkey`、`--out`；不带参数时行为不变。新增单测 3 条。
+
+### 验证
+- 计算器 monkey（seed 4242，200 事件）与 explore（2 步）经控制台排队串行执行，均 completed；两份报告分别只含路径 B / 路径 A，各自指向 `monkey_run/summary-2026-10-21T03-56-15-166Z-4f2ebdf2.json` 和本任务的轨迹。typecheck 通过，`test:unit` 31/31。
+
 ## [Unreleased] — imui：im-loadtest 的 Web / 移动端界面层移植
 
 ### Added
@@ -48,7 +57,7 @@
 ### 已知限制
 - scrcpy 未安装（winget 源不可达），录屏退回手机自带 `screenrecord`。
 - 运行中的计划缓存要到下次运行才能命中；每次重新规划会产生新提示词，只有 `--plan` 复用时才有加速。
-- 并发的 explore/monkey 任务共用 `monkey_run/summary.json`、`midscene_run/problem-report.md`，控制台里的报告可能串到另一任务的汇总（mission 报告按任务 ID 隔离，不受影响）。
+- ~~并发的 explore/monkey 任务共用 `monkey_run/summary.json`、`midscene_run/problem-report.md`，控制台里的报告可能串到另一任务的汇总~~（已修复，见「控制台报告隔离」；实际不并发时也会串）。
 - AI 动作慢（单步 3–160 秒），偶发问题需要较长时长上限；高频输入 + 即时重放未实现。
 
 ### 验证
