@@ -52,6 +52,12 @@ export class WebDriver implements Driver {
       this.context = await this.browser.newContext({ ...contextOptions(this.surface), ...(this.o.storageState ? { storageState: this.o.storageState } : {}) });
       this.page = await this.context.newPage();
       this.watch(this.page);
+      // A link that opens a new tab (e.g. a CloudDoc): the user now looks at that tab.
+      this.context.on('page', (np) => {
+        this.page = np;
+        this.watch(np);
+        this.cdp = undefined;
+      });
       this.host = new URL(this.o.url).host;
     }
     await this.p.goto(this.o.url, { waitUntil: 'domcontentloaded', timeout: 60_000 });
@@ -140,6 +146,14 @@ export class WebDriver implements Driver {
   }
 
   async back(): Promise<void> {
+    // In a tab the app opened, "back" closes it and returns to the opener (what a user does).
+    const pages = this.context?.pages() ?? [];
+    if (pages.length > 1 && this.page === pages[pages.length - 1]) {
+      await this.page.close().catch(() => {});
+      this.page = pages[pages.length - 2];
+      await this.page.bringToFront().catch(() => {});
+      return;
+    }
     await this.p.goBack({ timeout: 10_000 }).catch(() => {});
   }
 

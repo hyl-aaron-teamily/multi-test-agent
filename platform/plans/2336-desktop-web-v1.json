@@ -14,6 +14,7 @@
   "setup": [],
   "actions": [],
   "checks": [],
+  "afterCheck": [],
   "acceptance": [
     {
       "id": "no-separate-bell-profile",
@@ -72,9 +73,61 @@
       }
     },
     {
+      "id": "no-separate-bell-clouddoc",
+      "text": "CloudDoc / 交付物文档头部不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
+      "actions": [
+        {
+          "type": "node",
+          "node": {
+            "name": "teamily.openPage",
+            "input": {
+              "page": "artifacts"
+            }
+          },
+          "delayAfterMs": 1000
+        },
+        {
+          "type": "wait",
+          "value": "1000",
+          "delayAfterMs": 1000
+        },
+        {
+          "type": "tap",
+          "element": "artifacts.firstCard",
+          "delayAfterMs": 1000
+        },
+        {
+          "type": "wait",
+          "value": "1000",
+          "delayAfterMs": 1000
+        },
+        {
+          "type": "wait",
+          "value": "1000",
+          "delayAfterMs": 1000
+        },
+        {
+          "type": "wait",
+          "value": "1000",
+          "delayAfterMs": 1000
+        }
+      ],
+      "check": {
+        "kind": "visual-region",
+        "page": "clouddoc",
+        "region": "element:clouddoc.bell",
+        "expect": "CloudDoc 头部仍有独立 🔔",
+        "want": "absent"
+      }
+    },
+    {
       "id": "single-center",
       "text": "存在一个汇总所有模块通知、共享同一未读状态的通知中心入口",
       "actions": [
+        {
+          "type": "back",
+          "delayAfterMs": 1000
+        },
         {
           "type": "node",
           "node": {
@@ -88,7 +141,7 @@
       ],
       "check": {
         "kind": "ai",
-        "expect": "The screen shows ONE global notification center entry (e.g. a bell in the global navigation rail) that aggregates notifications from all modules",
+        "expect": "The far-left global navigation rail (the narrow icon column at the left edge) contains a bell-shaped (🔔) notification icon. Answer false if no bell-shaped icon is in that rail; gift, memory, download or other icons do not count",
         "want": "present",
         "onlyOnAnomaly": false
       }
@@ -105,6 +158,6 @@
   "provenance": {
     "generatedBy": "rules",
     "skillVersion": "2026.10.21-1",
-    "confirmedAt": "2026-10-21T11:59:12.909Z"
+    "confirmedAt": "2026-10-21T12:46:04.006Z"
   }
 }

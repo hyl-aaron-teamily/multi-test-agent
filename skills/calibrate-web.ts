@@ -240,6 +240,37 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
     await ref('artifacts', { bell: prof.elements['artifacts.bell']?.box && pad(prof.elements['artifacts.bell'].box, 6) });
     await selfCheck('artifacts.bell');
     await d.key('Escape');
+    // ---- CloudDoc (desktop): first card of the grid opens a document in a new tab
+    if (o.surface === 'desktop-web') {
+      // First card slot of the grid: a large labelled button in the content area (geometry, calibration-time only).
+      await p.waitForTimeout(3000);
+      let cardBox: Box | undefined;
+      for (const l of await p.locator('button[aria-label]').filter({ visible: true }).all()) {
+        const b = await box(l);
+        if (b && b[0] > 320 && b[2] > 200 && b[3] > 150 && (!cardBox || b[1] < cardBox[1] || (b[1] === cardBox[1] && b[0] < cardBox[0]))) cardBox = b;
+      }
+      put('artifacts.firstCard', cardBox);
+      if (prof.elements['artifacts.firstCard']) {
+        const e = prof.elements['artifacts.firstCard'];
+        await d.tap({ x: e.box[0] + e.box[2] / 2, y: e.box[1] + e.box[3] / 2 });
+        await p.waitForTimeout(9000);
+        const opened = d.p !== p;
+        e.selfCheck = opened ? 'pass' : 'fail';
+        e.note = opened ? `opened ${new URL(d.p.url()).pathname.split('/')[1]} in a new tab` : 'no new tab';
+        log(`  ${opened ? '✓' : '✗'} self-check artifacts.firstCard: ${e.note}`);
+        if (opened) {
+          const dp = d.p;
+          // The doc header bell sits between Help and the avatar; its accessible name is 权限申请 / 通知.
+          const bell = await first(dp, `button${label('通知')}`, `button${label('权限申请')}`, `button${label('Notifications')}`);
+          put('clouddoc.bell', bell && (await box(bell)));
+          await ref('clouddoc', { bell: prof.elements['clouddoc.bell']?.box && pad(prof.elements['clouddoc.bell'].box, 6) });
+          await selfCheck('clouddoc.bell');
+          await d.key('Escape');
+          await d.back();
+          await p.waitForTimeout(1500);
+        }
+      }
+    }
     // nav.chat last (navigates back home)
     await selfCheck('nav.chat');
   } finally {

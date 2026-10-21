@@ -3,7 +3,7 @@
   "name": "desktop-web@prod",
   "skillVersion": "2026.10.21-1",
   "env": "prod",
-  "calibratedAt": "2026-10-21T11:10:35.052Z",
+  "calibratedAt": "2026-10-21T12:38:33.073Z",
   "viewport": {
     "width": 1440,
     "height": 900
@@ -34,18 +34,18 @@
     "login.password": {
       "page": "login-password",
       "box": [
-        533,
+        536,
         487,
         390,
         40
       ],
       "selfCheck": "pass",
-      "note": "focus probe: 1564 px changed in element"
+      "note": "focus probe: 1492 px changed in element"
     },
     "login.continue": {
       "page": "login-password",
       "box": [
-        542,
+        545,
         569,
         370,
         40
@@ -62,7 +62,7 @@
         36
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ97"
+      "note": "url changed, screen Δ26"
     },
     "nav.artifacts": {
       "page": "home",
@@ -73,7 +73,7 @@
         36
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ25"
+      "note": "url changed, screen Δ26"
     },
     "nav.me": {
       "page": "home",
@@ -138,7 +138,29 @@
         32
       ],
       "selfCheck": "pass",
-      "note": "screen Δ107"
+      "note": "screen Δ106"
+    },
+    "artifacts.firstCard": {
+      "page": "artifacts",
+      "box": [
+        353,
+        116,
+        323,
+        243
+      ],
+      "selfCheck": "pass",
+      "note": "opened docs in a new tab"
+    },
+    "clouddoc.bell": {
+      "page": "clouddoc",
+      "box": [
+        1284,
+        6,
+        32,
+        32
+      ],
+      "selfCheck": "pass",
+      "note": "no self-check (covered by flow)"
     }
   },
   "refs": {
@@ -242,6 +264,23 @@
       },
       "greys": {
         "bell": 247
+      }
+    },
+    "clouddoc": {
+      "image": "refs/desktop-web@prod/clouddoc.png",
+      "regions": {
+        "bell": [
+          1278,
+          0,
+          44,
+          44
+        ]
+      },
+      "hashes": {
+        "bell": "0000102828100000"
+      },
+      "greys": {
+        "bell": 251
       }
     }
   },

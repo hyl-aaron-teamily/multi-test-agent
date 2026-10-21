@@ -64,11 +64,21 @@ export function templateFor(text: string, category: TestPlan['category'], surfac
           actions: [node('teamily.openPage', { page: p }, 1000), a('wait', { value: '1000', delayAfterMs: 1000 })],
           check: { kind: 'visual-region' as const, page: p, region: 'element:' + `${p}.bell`, expect: `${p} 页头部仍有独立 🔔`, want: 'absent' as const },
         })),
+        ...(surface === 'desktop-web'
+          ? [
+              {
+                id: 'no-separate-bell-clouddoc',
+                text: 'CloudDoc / 交付物文档头部不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）',
+                actions: [node('teamily.openPage', { page: 'artifacts' }, 1000), a('wait', { value: '1000', delayAfterMs: 1000 }), { type: 'tap' as const, element: 'artifacts.firstCard', delayAfterMs: 1000 }, a('wait', { value: '1000', delayAfterMs: 1000 }), a('wait', { value: '1000', delayAfterMs: 1000 }), a('wait', { value: '1000', delayAfterMs: 1000 })],
+                check: { kind: 'visual-region' as const, page: 'clouddoc', region: 'element:clouddoc.bell', expect: 'CloudDoc 头部仍有独立 🔔', want: 'absent' as const },
+              },
+            ]
+          : []),
         {
           id: 'single-center',
           text: '存在一个汇总所有模块通知、共享同一未读状态的通知中心入口',
-          actions: [node('teamily.openPage', { page: 'chat' }, 1000)],
-          check: { kind: 'ai' as const, expect: 'The screen shows ONE global notification center entry (e.g. a bell in the global navigation rail) that aggregates notifications from all modules', want: 'present' as const, onlyOnAnomaly: false },
+          actions: [a('back', { delayAfterMs: 1000 }), node('teamily.openPage', { page: 'chat' }, 1000)],
+          check: { kind: 'ai' as const, expect: 'The far-left global navigation rail (the narrow icon column at the left edge) contains a bell-shaped (🔔) notification icon. Answer false if no bell-shaped icon is in that rail; gift, memory, download or other icons do not count', want: 'present' as const, onlyOnAnomaly: false },
         },
       ],
     };

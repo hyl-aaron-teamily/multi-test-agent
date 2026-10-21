@@ -31,6 +31,8 @@ export const ELEMENTS: ElementSpec[] = [
   { id: 'chat.send', page: 'chat', meaning: '发送按钮（输入内容后出现）', selfCheck: 'none', surfaces: ALL },
   { id: 'chat.back', page: 'chat', meaning: '聊天页返回会话列表（移动端）', selfCheck: 'navigate', surfaces: ['android-app', 'mobile-web'] },
   { id: 'profile.bell', page: 'profile', meaning: '个人主页头部右上角 🔔 通知入口', selfCheck: 'popup', surfaces: WEB },
+  { id: 'artifacts.firstCard', page: 'artifacts', meaning: 'Artifacts 网格第一个卡片位（打开任意文档 / CloudDoc，新标签页）', selfCheck: 'navigate', surfaces: ['desktop-web'] },
+  { id: 'clouddoc.bell', page: 'clouddoc', meaning: 'CloudDoc 文档头部右上角 🔔（帮助与头像之间；无通知时点击无可见变化，只作存在性检查）', selfCheck: 'none', surfaces: ['desktop-web'] },
   { id: 'artifacts.bell', page: 'artifacts', meaning: 'Artifacts 页主内容区右上角 🔔 通知入口', selfCheck: 'popup', surfaces: WEB },
 ];
 

@@ -206,19 +206,28 @@ export function regionDiffFraction(img: Rgba, ref: Rgba, box: Box, dy = 0): numb
     const o = (y * im.width + x) * 4;
     return im.data[o] * 0.299 + im.data[o + 1] * 0.587 + im.data[o + 2] * 0.114;
   };
-  // Background level = region median-ish (mean of samples); ink = 60 grey levels darker.
+  // Background = mean of the region; ink = at least half way from background to the darkest pixel
+  // (and ≥ 25 grey levels darker), so light-grey line icons count as marks too.
+  const stride = bw * bh < 6000 ? 1 : 2;
   let sum = 0;
   let cnt = 0;
-  for (let y = by; y < by + bh; y += 2) for (let x = bx; x < bx + bw; x += 2) (sum += grey(ref, x, y)), cnt++;
+  let min = 255;
+  for (let y = by; y < by + bh; y += stride)
+    for (let x = bx; x < bx + bw; x += stride) {
+      const g = grey(ref, x, y);
+      sum += g;
+      cnt++;
+      if (g < min) min = g;
+    }
   const bg = sum / Math.max(1, cnt);
+  const thr = bg - Math.max(25, (bg - min) * 0.5);
   let ink = 0;
   let miss = 0;
-  for (let y = by; y < by + bh; y += 2) {
-    for (let x = bx; x < bx + bw; x += 2) {
-      const r = grey(ref, x, y);
-      if (r > bg - 60) continue;
+  for (let y = by; y < by + bh; y += stride) {
+    for (let x = bx; x < bx + bw; x += stride) {
+      if (grey(ref, x, y) > thr) continue;
       ink++;
-      if (grey(img, x, y + dy) > r + 60) miss++;
+      if (grey(img, x, y + dy) > thr + 15) miss++;
     }
   }
   return ink >= 10 ? miss / ink : 1;

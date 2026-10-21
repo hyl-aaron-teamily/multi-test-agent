@@ -13,6 +13,8 @@ export const MATCH_DISTANCE = 12;
 export const MATCH_FRACTION = 0.12;
 /** Regions whose vertical position depends on content (the picker grows with the member count). */
 const SLIDING: Record<string, number> = { 'mention-picker/picker': 520, 'chat/composer': 1000 };
+/** Regions whose horizontal position depends on content (right-aligned toolbars that gain icons while loading). */
+const SLIDING_X: Record<string, number> = { 'clouddoc/element:clouddoc.bell': 160 };
 
 export interface CheckResult {
   check: CheckPoint;
@@ -49,7 +51,19 @@ function refImage(p: Profile, page: string): Rgba | undefined {
 }
 
 /** Pure: smallest differing-pixel fraction of the reference region within a vertical search window. */
-export function regionMatch(img: Rgba, ref: Rgba, box: Box, dpr: number, slide = 0): { fraction: number; dy: number } {
+export function regionMatch(img: Rgba, ref: Rgba, box: Box, dpr: number, slide = 0, slideX = 0): { fraction: number; dy: number; dx?: number } {
+  if (slideX) {
+    // Horizontal search: compare the reference crop against shifted windows of the screenshot.
+    let best = { fraction: 1, dy: 0, dx: 0 };
+    const stepX = Math.max(2, Math.round(2 * dpr));
+    for (let dx = -Math.round(slideX * dpr); dx <= Math.round(slideX * dpr); dx += stepX) {
+      const shifted = shiftX(img, dx);
+      const m = regionMatch(shifted, ref, box, dpr, slide);
+      if (m.fraction < best.fraction) best = { ...m, dx };
+      if (m.fraction === 0) break;
+    }
+    return best;
+  }
   const px = scaleBox(box, dpr);
   const step = Math.max(2, Math.round(4 * dpr));
   let best = { fraction: 1, dy: 0 };
@@ -65,6 +79,18 @@ export function regionMatch(img: Rgba, ref: Rgba, box: Box, dpr: number, slide =
     }
   }
   return best;
+}
+
+/** View of `img` moved left by dx (pixel x+dx shown at x); out-of-range columns are white. */
+function shiftX(img: Rgba, dx: number): Rgba {
+  const out = new Uint8Array(img.data.length).fill(255);
+  for (let y = 0; y < img.height; y++) {
+    const row = y * img.width * 4;
+    const from = Math.max(0, dx);
+    const to = Math.min(img.width, img.width + dx);
+    out.set(img.data.subarray(row + from * 4, row + to * 4), row + (from - dx) * 4);
+  }
+  return { width: img.width, height: img.height, data: out };
 }
 
 /** Element regions ("element:<id>") are hashed lazily from the page reference image. */
@@ -88,7 +114,7 @@ export async function evaluateVisual(driver: Driver, p: Profile, c: CheckPoint, 
   const img = decodePng(shot ?? (await driver.screenshot()));
   const refImg = refImage(p, c.page ?? '');
   if (!refImg) return { check: c, pass: null, detail: `reference image of ${c.page} missing` };
-  const m = regionMatch(img, refImg, ref.box, dprOf(p, img), SLIDING[`${c.page}/${c.region}`] ?? 0);
+  const m = regionMatch(img, refImg, ref.box, dprOf(p, img), SLIDING[`${c.page}/${c.region}`] ?? 0, SLIDING_X[`${c.page}/${c.region}`] ?? 0);
   const dist = Math.round(m.fraction * 100);
   const present = m.fraction <= MATCH_FRACTION;
   const pass = c.want === 'absent' ? !present : present;
@@ -99,10 +125,21 @@ export async function evaluateVisual(driver: Driver, p: Profile, c: CheckPoint, 
   return { check: c, pass: v, detail: `region differs (diff ${dist}%); vision says ${v ? 'expected state present (hash false alarm)' : 'expected state absent'}`, distance: dist, vision: true };
 }
 
-export async function evaluateAi(c: CheckPoint, ask?: VisionAsk): Promise<CheckResult> {
+export async function evaluateAi(c: CheckPoint, ask?: VisionAsk, votes = 3): Promise<CheckResult> {
   if (!ask) return { check: c, pass: null, detail: 'vision model not available — 未验证' };
-  const v = await ask(c.expect);
-  return { check: c, pass: v === null ? null : c.want === 'absent' ? !v : v, detail: v === null ? 'vision call failed — 未验证' : `vision: ${v}`, vision: true };
+  // One-off acceptance judgements: majority of `votes` independent answers (single answers flip).
+  const answers: (boolean | null)[] = [];
+  for (let i = 0; i < votes; i++) {
+    answers.push(await ask(c.expect));
+    const yes = answers.filter((x) => x === true).length;
+    const no = answers.filter((x) => x === false).length;
+    if (yes > votes / 2 || no > votes / 2) break;
+  }
+  const yes = answers.filter((x) => x === true).length;
+  const no = answers.filter((x) => x === false).length;
+  if (!yes && !no) return { check: c, pass: null, detail: 'vision call failed — 未验证', vision: true };
+  const v = yes > no;
+  return { check: c, pass: c.want === 'absent' ? !v : v, detail: `vision: ${v} (votes yes ${yes} / no ${no})`, vision: true };
 }
 
 /** SKILL staleness: the home navigation region must still match the reference. */
