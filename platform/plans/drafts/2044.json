@@ -1,0 +1,111 @@
+{
+  "issue": {
+    "id": "2044",
+    "title": "When a message whose content contains a Markdown link is quoted in a reply, the quote block preview on iOS renders the raw Markdown source instead of a parsed l",
+    "severity": "Medium",
+    "frequency": "Always",
+    "platforms": [
+      "ios"
+    ],
+    "summary": "When a message whose content contains a Markdown link is quoted in a reply, the quote block preview on iOS renders the raw Markdown source instead of a parsed link. The link is shown as '[https://github.com/TensorOpera-Inc/chat-web/pull/654](https://github.com/TensorOpera-Inc/chat-web/pull/654)', so the same URL appears twice. Reported by Aiden (seen in the group 'Payment & Team Subscriptions', Henry quoting a message from Tmly Quan). This is a regression-family sibling of #1896 but in a different render path (quote preview, not the message popup).",
+    "steps": [
+      "Send a message whose content contains a link that is stored as Markdown link syntax, e.g. a GitHub PR URL (in the evidence: a message from Tmly Quan containing https://github.com/TensorOpera-Inc/chat-web/pull/654).",
+      "Long-press that message and choose Quote/Reply, then send a reply (in the evidence: Henry replying with an image + text).",
+      "Open the conversation on the iOS app and look at the quote block shown above the reply bubble."
+    ],
+    "expected": "The quote block preview shows the quoted message as plain display text: the link appears only once (either the URL or its label, optionally as a link), with no Markdown syntax such as '[', '](' or ')'. The preview should match how the original message bubble renders the link.",
+    "actual": "The quote block preview prints the Markdown link source verbatim: '[https://github.com/TensorOpera-Inc/chat-web/pull/654](https://github.com/TensorOpera-Inc/chat-web/pull/654) 测...'. The URL is displayed twice (once as the label in brackets, once as the target in parentheses), taking two lines of the preview and truncating the actual quoted text.",
+    "featureArea": "Messaging / UI - Quote (reply) block preview, Markdown link rendering",
+    "context": "- **Feature area**: Messaging / UI - Quote (reply) block preview, Markdown link rendering\r\n- Reported by Aiden. cc @Diff-Jack (Jack) @cola-coding (Cora).\r\n- Location: the duplication is INSIDE the quote block (quoted preview), not in the reply body. The reply body text renders normally.\r\n- Type of duplication: raw Markdown link syntax '[text](url)' left unparsed (label == url, so the URL shows twice). It is NOT a plain-text URL being copied, and no 'mailto:' link is involved.\r\n- Related: #1896 (message popup renders a URL as duplicated '[link]link'). Same symptom family - Markdown link markup leaking into a read-only display surface - but a different render path: the quote preview appears to build its summary from the raw message content without a Markdown parse/strip step. Suggest fixing both with a shared 'markdown to plain preview text' helper used by quote preview, popup, conversation-list snippet and notifications.\r\n- Evidence screenshot (original): https://teamily-storage.becdn.net/im/images/6296335850356299/773dd378-7d4f-43bc-9280-19f3e2a75770.IMG_8054.jpg\r\n\r\n---",
+    "environment": "- **Platform / OS / Browser**: iOS app (confirmed from screenshot); Web / macOS / Android not verified - please check whether the quote preview component is shared",
+    "empty": false
+  },
+  "classification": {
+    "category": "bug-always",
+    "surfaces": [],
+    "reason": "Frequency: Always；步骤明确",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "status": "plannable",
+  "reason": "Frequency: Always；步骤明确",
+  "subcases": [
+    {
+      "sub": "main",
+      "title": "When a message whose content contains a Markdown link is quoted in a reply, the ",
+      "surface": "android-app",
+      "substitution": {
+        "from": "ios",
+        "to": "android-app",
+        "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。",
+        "alternatives": [
+          "android-app",
+          "mobile-web"
+        ]
+      },
+      "plan": {
+        "id": "2044-android-app-v1",
+        "issueRef": "2044",
+        "title": "按步骤执行并核对预期",
+        "category": "bug-always",
+        "surface": "android-app",
+        "issueSurfaces": [
+          "ios"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "conv",
+            "kind": "group-conversation",
+            "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+          }
+        ],
+        "setup": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "conv"
+              }
+            },
+            "delayAfterMs": 800
+          }
+        ],
+        "actions": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.sendMessage",
+              "input": {
+                "text": "autotest ping"
+              }
+            },
+            "delayAfterMs": 1000
+          }
+        ],
+        "checks": [
+          {
+            "kind": "crash",
+            "expect": "无崩溃 / 页面错误",
+            "want": "absent"
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 30,
+          "maxIntervalMs": 1000
+        },
+        "verdictRule": {
+          "consecutiveHits": 3
+        },
+        "provenance": {
+          "generatedBy": "rules",
+          "skillVersion": "2026.10.21-1"
+        }
+      },
+      "planErrors": []
+    }
+  ]
+}

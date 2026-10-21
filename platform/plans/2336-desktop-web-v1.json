@@ -1,0 +1,110 @@
+{
+  "id": "2336-desktop-web-v1",
+  "issueRef": "2336",
+  "title": "通知入口盘点（一次性验收）",
+  "category": "feature",
+  "surface": "desktop-web",
+  "issueSurfaces": [
+    "web",
+    "desktop"
+  ],
+  "env": "prod",
+  "launch": "once",
+  "targets": [],
+  "setup": [],
+  "actions": [],
+  "checks": [],
+  "acceptance": [
+    {
+      "id": "no-separate-bell-profile",
+      "text": "个人主页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
+      "actions": [
+        {
+          "type": "node",
+          "node": {
+            "name": "teamily.openPage",
+            "input": {
+              "page": "profile"
+            }
+          },
+          "delayAfterMs": 1000
+        },
+        {
+          "type": "wait",
+          "value": "1000",
+          "delayAfterMs": 1000
+        }
+      ],
+      "check": {
+        "kind": "visual-region",
+        "page": "profile",
+        "region": "element:profile.bell",
+        "expect": "profile 页头部仍有独立 🔔",
+        "want": "absent"
+      }
+    },
+    {
+      "id": "no-separate-bell-artifacts",
+      "text": "Artifacts 页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
+      "actions": [
+        {
+          "type": "node",
+          "node": {
+            "name": "teamily.openPage",
+            "input": {
+              "page": "artifacts"
+            }
+          },
+          "delayAfterMs": 1000
+        },
+        {
+          "type": "wait",
+          "value": "1000",
+          "delayAfterMs": 1000
+        }
+      ],
+      "check": {
+        "kind": "visual-region",
+        "page": "artifacts",
+        "region": "element:artifacts.bell",
+        "expect": "artifacts 页头部仍有独立 🔔",
+        "want": "absent"
+      }
+    },
+    {
+      "id": "single-center",
+      "text": "存在一个汇总所有模块通知、共享同一未读状态的通知中心入口",
+      "actions": [
+        {
+          "type": "node",
+          "node": {
+            "name": "teamily.openPage",
+            "input": {
+              "page": "chat"
+            }
+          },
+          "delayAfterMs": 1000
+        }
+      ],
+      "check": {
+        "kind": "ai",
+        "expect": "The screen shows ONE global notification center entry (e.g. a bell in the global navigation rail) that aggregates notifications from all modules",
+        "want": "present",
+        "onlyOnAnomaly": false
+      }
+    }
+  ],
+  "limits": {
+    "maxSteps": 1000,
+    "maxMinutes": 30,
+    "maxIntervalMs": 1000
+  },
+  "verdictRule": {
+    "anyHit": true
+  },
+  "provenance": {
+    "generatedBy": "rules",
+    "skillVersion": "2026.10.21-1",
+    "confirmedAt": "2026-10-21T11:59:12.909Z"
+  }
+}

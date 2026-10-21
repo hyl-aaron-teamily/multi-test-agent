@@ -8,7 +8,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { DevicePool } from './device-pool';
 
-export type TaskType = 'mission' | 'explore' | 'monkey' | 'imui';
+export type TaskType = 'mission' | 'explore' | 'monkey' | 'imui' | 'issue';
 export type TaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export interface TaskInput {
@@ -27,6 +27,9 @@ export interface TaskInput {
   rate?: number; // imui, msgs/s per sender
   msgTypes?: string; // imui
   yesProd?: boolean; // imui: explicit production confirmation
+  issue?: string; // issue: issues/<id>.md
+  approve?: string; // issue: confirmed sub-cases "s1,s3:mobile-web" (the one-time confirmation)
+  env?: 'test' | 'prod'; // issue
 }
 
 export interface Task extends TaskInput {
@@ -50,7 +53,19 @@ const TSX = resolve('node_modules/tsx/dist/cli.mjs');
 /** Pure: validate a POST body. Returns an error string or the clean input. */
 export function validateTaskInput(b: any): TaskInput | string {
   if (!b || typeof b !== 'object') return 'body must be JSON';
-  if (!['mission', 'explore', 'monkey', 'imui'].includes(b.type)) return 'type must be mission | explore | monkey | imui';
+  if (!['mission', 'explore', 'monkey', 'imui', 'issue'].includes(b.type)) return 'type must be mission | explore | monkey | imui | issue';
+  if (b.type === 'issue') {
+    const issue = String(b.issue ?? '').trim();
+    if (!/^[\w-]+$/.test(issue)) return 'issue must be an issue id (issues/<id>.md)';
+    const approve = String(b.approve ?? '').trim();
+    if (!/^(all|[\w]+(:(android-app|mobile-web|desktop-web))?(,[\w]+(:(android-app|mobile-web|desktop-web))?)*)?$/.test(approve)) return 'approve: s1,s2:mobile-web | all';
+    const env = b.env ?? 'prod';
+    if (!['test', 'prod'].includes(env)) return 'env must be test or prod';
+    const out: TaskInput = { type: 'issue', package: 'ai.teamily.mobile', issue, approve: approve || 'all', env };
+    if (b.device) out.device = String(b.device);
+    for (const k of ['maxSteps', 'maxMinutes'] as const) if (b[k] !== undefined && b[k] !== '') out[k] = Number(b[k]);
+    return out;
+  }
   const pkg = String(b.package ?? '').trim();
   if (!/^[a-zA-Z][\w]*(\.[\w]+)+$/.test(pkg)) return 'package must be an Android package name';
   if (b.type === 'mission' && !String(b.request ?? '').trim()) return 'mission needs a natural-language request';
@@ -85,6 +100,13 @@ export function validateTaskInput(b: any): TaskInput | string {
 
 /** Pure: CLI args for a task. */
 export function taskArgs(t: Task, udid: string): string[] {
+  if (t.type === 'issue') {
+    const a = ['bin/autotest.ts', 'run', '--issue', t.issue!, '--approve', t.approve ?? 'all', '--env', t.env ?? 'prod', '--id', t.id];
+    if (udid) a.push('--device', udid);
+    if (t.maxSteps) a.push('--max-steps', String(t.maxSteps));
+    if (t.maxMinutes) a.push('--max-minutes', String(t.maxMinutes));
+    return a;
+  }
   if (t.type === 'imui') {
     const a = ['bin/autotest.ts', 'imui', 'run', '--client', `android:${udid}@${t.conversation}`];
     if (t.web) a.push('--client', `web:${t.web}@${t.conversation}`);
@@ -170,8 +192,9 @@ export class TaskManager {
     for (const t of [...this.tasks].reverse()) {
       if (t.status !== 'queued') continue;
       const dev = this.pool.acquire(t.id, t.device);
-      if (!dev) continue;
-      this.launch(t, dev.udid);
+      // Issue tasks on web surfaces need no device; android sub-cases lease theirs in the executor.
+      if (!dev && t.type !== 'issue') continue;
+      this.launch(t, dev?.udid ?? '');
     }
   }
 
@@ -184,7 +207,7 @@ export class TaskManager {
     this.procs.set(t.id, child);
     child.stdout.pipe(log, { end: false });
     child.stderr.pipe(log, { end: false });
-    const hardMinutes = t.type === 'mission' ? (t.maxMinutes ?? 30) + 5 : Number(process.env.TASK_HARD_MINUTES ?? 60);
+    const hardMinutes = t.type === 'issue' ? (t.maxMinutes ?? 30) * 4 + 15 : t.type === 'mission' ? (t.maxMinutes ?? 30) + 5 : Number(process.env.TASK_HARD_MINUTES ?? 60);
     const hard = setTimeout(() => {
       log.write(`\n[platform] hard limit ${hardMinutes} min reached, killing task\n`);
       if (child.pid) killTree(child.pid);
@@ -193,7 +216,7 @@ export class TaskManager {
       clearTimeout(hard);
       this.procs.delete(t.id);
       log.end();
-      this.pool.release(udid);
+      if (udid) this.pool.release(udid);
       await this.finish(t, code);
       void this.tick();
     });
@@ -204,7 +227,14 @@ export class TaskManager {
     t.finishedAt = new Date().toISOString();
     const out = join(STATE_DIR, 'reports', `${t.id}.md`);
     try {
-      if (t.type === 'imui') {
+      if (t.type === 'issue') {
+        const log = await readFile(t.logFile, 'utf8');
+        const file = log.match(/\[run\] report → (.+\.md)/)?.[1]?.trim();
+        if (!file) throw new Error('issue run wrote no report');
+        t.reportFile = file;
+        const concl = [...log.matchAll(/\[run\] ([\w-]+-v\d+): ([^—\n]+?) —/g)].map((m) => `${m[1]}: ${m[2].trim()}`);
+        t.verdict = concl.join(' · ') || log.match(/处理: (.+)/)?.[1] || `exit ${code}`;
+      } else if (t.type === 'imui') {
         const log = await readFile(t.logFile, 'utf8');
         const file = log.match(/\[imui\] report → (.+\.md)/)?.[1]?.trim();
         if (!file) throw new Error('imui wrote no report');
@@ -241,7 +271,8 @@ export class TaskManager {
     }
     const killed = t.verdict === 'cancelled by user';
     // mission/explore/monkey: exit 1 = found a problem. imui (imload codes): 2 = SLO failed, 1 = error.
-    const ok = t.type === 'imui' ? (code === 0 || code === 2) && !!t.reportFile : code === 0 || (code === 1 && !!t.reportFile);
+    // issue (autotest run): 0 = not reproduced / done, 1 = reproduced, 3 = execution failed / SKILL stale.
+    const ok = t.type === 'issue' ? (code === 0 || code === 1) && !!t.reportFile : t.type === 'imui' ? (code === 0 || code === 2) && !!t.reportFile : code === 0 || (code === 1 && !!t.reportFile);
     t.status = killed ? 'cancelled' : ok ? 'completed' : 'failed';
     await this.save();
   }

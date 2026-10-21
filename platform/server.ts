@@ -7,13 +7,19 @@
 //   POST /api/tasks/:id/cancel   kill a running / drop a queued task
 //   GET  /api/tasks/:id/report   markdown report (text/markdown)
 //   GET  /api/tasks/:id/log      live log (text/plain)
-//   GET  /files/<path>           read-only artifacts under midscene_run/ (screenshots, HTML replays)
+//   GET  /files/<path>           read-only artifacts under midscene_run/ (screenshots, HTML replays, issue runs)
+//   GET  /api/issues             issues/*.md with their pre-classification (rules)
+//   POST /api/issues             {name, content} upload an Issue markdown → issues/<name>.md
+//   GET  /api/issues/:id/draft   draft for the one-time confirmation (category, sub-cases, substitution boxes)
 // Tasks run asynchronously in child processes; the browser polls.
 import 'dotenv/config';
 import { createReadStream, existsSync, statSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { extname, normalize, resolve, sep } from 'node:path';
+import { readdir, writeFile } from 'node:fs/promises';
+import { classifyRules } from '../issue/classify';
+import { parseIssue } from '../issue/parse';
 import { DevicePool } from './device-pool';
 import { TaskManager, validateTaskInput } from './tasks';
 
@@ -52,6 +58,37 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 
   if (req.method === 'GET' && p === '/') return send(res, 200, await readFile(resolve('platform/console.html')), 'text/html; charset=utf-8');
   if (req.method === 'GET' && p === '/api/devices') return send(res, 200, { config: pool.config, devices: await pool.refresh() });
+  if (req.method === 'GET' && p === '/api/issues') {
+    const files = (await readdir(resolve('issues'))).filter((f) => f.endsWith('.md'));
+    const list = [];
+    for (const f of files) {
+      const i = parseIssue(f.slice(0, -3), await readFile(resolve('issues', f), 'utf8'));
+      const c = classifyRules(i);
+      list.push({ id: i.id, title: i.title, frequency: i.frequency, platforms: i.platforms, category: c.category, reason: c.reason });
+    }
+    return send(res, 200, list);
+  }
+  if (req.method === 'POST' && p === '/api/issues') {
+    const b = (await readBody(req).catch(() => null)) as { name?: string; content?: string } | null;
+    const name = String(b?.name ?? '').replace(/\.md$/, '');
+    if (!/^[\w-]{1,40}$/.test(name) || !b?.content) return send(res, 400, { error: 'name ([\w-]) and content required' });
+    await writeFile(resolve('issues', `${name}.md`), String(b.content).slice(0, 200_000));
+    return send(res, 201, { id: name });
+  }
+  const di = p.match(/^\/api\/issues\/([\w-]+)\/draft$/);
+  if (req.method === 'GET' && di) {
+    const { loadDraft } = await import('../issue/cli');
+    const d = await loadDraft(di[1], (url.searchParams.get('env') as 'test' | 'prod') ?? 'prod', url.searchParams.get('model') !== '0');
+    return send(res, 200, {
+      id: d.issue.id,
+      title: d.issue.title,
+      status: d.status,
+      category: d.classification.category,
+      reason: d.reason,
+      deferredPart: d.deferredPart,
+      subcases: d.subcases.map((s) => ({ sub: s.sub, title: s.title, planTitle: s.plan.title, surface: s.surface, substitution: s.substitution, planErrors: s.planErrors, generatedBy: s.plan.provenance.generatedBy })),
+    });
+  }
   if (req.method === 'GET' && p === '/api/tasks') return send(res, 200, tasks.tasks.slice(0, 50));
   if (req.method === 'POST' && p === '/api/tasks') {
     const input = validateTaskInput(await readBody(req).catch(() => null));

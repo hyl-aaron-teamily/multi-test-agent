@@ -1,0 +1,102 @@
+{
+  "id": "1594-desktop-web-v1",
+  "issueRef": "1594",
+  "title": "@ 成员选择器弹出（切换会话后循环）",
+  "category": "bug-intermittent",
+  "surface": "desktop-web",
+  "issueSurfaces": [
+    "web"
+  ],
+  "env": "prod",
+  "launch": "once",
+  "targets": [
+    {
+      "id": "group",
+      "kind": "group-conversation",
+      "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+    },
+    {
+      "id": "other",
+      "kind": "other-conversation",
+      "guidance": "与目标群不同的任意会话（用于切换会话再切回）"
+    }
+  ],
+  "setup": [
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.openConversation",
+        "input": {
+          "target": "group"
+        }
+      },
+      "delayAfterMs": 800
+    }
+  ],
+  "actions": [
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.clearComposer",
+        "input": {}
+      },
+      "delayAfterMs": 200
+    },
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.openConversation",
+        "input": {
+          "target": "other"
+        }
+      },
+      "delayAfterMs": 500
+    },
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.openConversation",
+        "input": {
+          "target": "group"
+        }
+      },
+      "delayAfterMs": 700
+    },
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.typeMention",
+        "input": {}
+      },
+      "delayAfterMs": 700
+    }
+  ],
+  "checks": [
+    {
+      "kind": "visual-region",
+      "page": "mention-picker",
+      "region": "picker",
+      "expect": "输入 @ 后成员/智能体选择器弹出",
+      "want": "present",
+      "onlyOnAnomaly": true
+    },
+    {
+      "kind": "page-error",
+      "expect": "无崩溃 / 页面错误",
+      "want": "absent"
+    }
+  ],
+  "limits": {
+    "maxSteps": 1000,
+    "maxMinutes": 30,
+    "maxIntervalMs": 1000
+  },
+  "verdictRule": {
+    "anyHit": true
+  },
+  "provenance": {
+    "generatedBy": "rules",
+    "skillVersion": "2026.10.21-1",
+    "confirmedAt": "2026-10-21T11:59:01.205Z"
+  }
+}

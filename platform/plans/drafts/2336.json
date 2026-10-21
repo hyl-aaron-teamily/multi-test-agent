@@ -1,0 +1,385 @@
+{
+  "issue": {
+    "id": "2336",
+    "title": "yara (QA) reports that Teamily exposes at least three separate 🔔 notification entries, each with its own independent unread state, so a user has to check sever",
+    "severity": "Medium",
+    "frequency": "Always",
+    "platforms": [
+      "web",
+      "desktop"
+    ],
+    "summary": "yara (QA) reports that Teamily exposes at least three separate 🔔 notification entries, each with its own independent unread state, so a user has to check several places to see all notifications and easily misses them. Evidence: three screenshots showing the bell in (1) the profile page header (top-right, with a green unread badge '9'), (2) the Artifacts module page header (top-right of the main content area, no badge), and (3) the CloudDoc / deliverable document header (top-right, between Help and the avatar, no badge). Request: consolidate these entries so that a single place shows all notifications with one consistent unread state. This is the structural fix for the root cause behind the related open bug #2334 (the Artifacts in-page bell shows unread while the left-sidebar Artifacts entry shows no badge).",
+    "steps": [
+      "Sign in to Teamily Web (teamily.ai).",
+      "Open the profile page (e.g. /profile) — a 🔔 bell sits in the header top-right, between the community icon and the share icon, and carries an unread badge. [screenshot 1]",
+      "Open the Artifacts page — a separate 🔔 bell sits at the top-right of the main content area, to the right of the grid/list-view toggle and to the left of the '筛选' (Filter) button, with its own (empty) unread state. [screenshot 2]",
+      "Open a CloudDoc / deliverable document — a third 🔔 bell sits in the top-right header, between the Help icon and the avatar. [screenshot 3]",
+      "Compare the three entries: each is an independent entry point with its own unread state, and no single place lists all notifications."
+    ],
+    "expected": "One consolidated notification entry: a single notification center, reachable from one consistent location, that aggregates notifications from every module under a SINGLE shared unread state (badge / count) kept in sync everywhere. Reading or clearing a notification updates the unified state. If module-level entries are kept, they must read from the same unread state instead of maintaining independent ones — so the badge can never disagree between surfaces. Concrete proposal to confirm with product: an aggregated 'Notifications' entry in the global navigation (e.g. the left icon rail) that shows all notifications with per-source grouping, and a single unread count shared by the rail entry, the page-level bell, and any module badge.",
+    "actual": "At least three separate 🔔 entries exist, each with an independent unread state: (1) the profile page header, (2) the Artifacts page header, and (3) the CloudDoc / deliverable document header. A user must visit each module separately to check notifications, and the unread badges disagree between surfaces — e.g. on the Artifacts page the in-page bell reports unread while the left-sidebar Artifacts entry reports none (#2334).",
+    "featureArea": "Notification / Unified notification entry (UI)",
+    "context": "- **Feature area**: Notification / Unified notification entry (UI)\r\n- Reporter: yara (QA, im_user_id 7204801031210562) in Teamily group 3617548693 on 2026-10-16 (UTC+8), with three screenshots.\r\n- Current state — the three known 🔔 entries, each verified against yara's screenshots: (1) Profile page header, top-right, between the community icon and the share icon — carries an unread badge ('9'). (2) Artifacts module page header, top-right of the main content area, right of the grid/list toggle and left of '筛选' (Filter) — no badge. (3) CloudDoc / deliverable document top-right header, between the Help (?) icon and the avatar — no badge. They are three independent components with three independent unread states.\r\n- Problem: the notification entries are scattered and repeat each other, and their unread states are maintained separately. Notifications are therefore easy to miss, and the counts/red-dots disagree between surfaces (see #2334).\r\n- Expected: one unified notification center — a single entry point plus a single shared unread state (see Expected result for the concrete proposal to be confirmed with product).\r\n- Impact / scope: all signed-in Web users (and, wherever the same modules exist, other clients). Touches notification discovery, unread-badge/red-dot consistency, and the notification entry component itself. Affected surfaces seen so far: profile, Artifacts, CloudDoc/deliverable.\r\n- Inventory caveat: a bell also appears in the CloudDoc / site builder editor, and #970/#1363 concern CloudDoc mention notifications being routed to an existing notification list. Please confirm the FULL inventory of bell entries (and where each notification type is produced) during design, so the consolidated center is complete from day one.\r\n- Duplicate check (Teamily-Inc/teamily-ai-all — local full-repo index of 2,334 issues, open + closed, issues only (PRs excluded), judged by ROOT CAUSE / ASK rather than wording; keywords: 通知/notification, 铃铛/🔔/bell, 未读/unread, 角标/红点/badge, notification center/通知中心/消息中心, 整合/统一/收敛/unify/consolidate/unified entry, sidebar/侧边栏, plus module terms artifacts/CloudDoc/profile/Discover): NOT a duplicate. No issue — open or closed — asks to CONSOLIDATE the multiple notification entries or to build a unified notification center; that ask is new. Closest matches, all read in full (body + comments): #2334 (OPEN, Bug) is the SYMPTOM of this feature's root cause — 'the Artifacts in-page bell shows unread while the left-sidebar Artifacts entry shows no badge — the two unread states are out of sync' — but it is scoped to ONE module's badge sync, whereas this Feature asks for cross-module consolidation; keep both and cross-reference (this Feature removes the structural root cause of #2334). #1363 (OPEN) asks for CloudDoc mention notifications to go into the EXISTING notification list — same direction for one module, narrower; a candidate to fold into the unified center. #874 / #555 / #603 (all CLOSED) are defects INSIDE the existing notification center/panel (panel does not auto-close; deleted posts still listed; Web-vs-RN button parity) — not the consolidation ask. #2122 (OPEN, Feature) / #1578 (OPEN, Feature) / #2281 (OPEN) concern new-message indicators and Mentions/unread-badge behaviour in the IM surface — a different surface. #1899 / #1276 (both CLOSED) are single-module badge defects. No 统一入口 / consolidation / unified-notification-center request exists in the repo.\r\n- Related (NOT duplicates): #2334 — Artifacts sidebar badge vs in-page bell out of sync (the concrete bug of this feature's root cause); #1363 — CloudDoc mention notification should go to the existing notification list; #1899 and #1276 — same unread-badge-sync family.\r\n\r\n---",
+    "environment": "- **Platform / OS / Browser**: Web / desktop (screenshots are desktop web)",
+    "empty": false
+  },
+  "classification": {
+    "category": "feature",
+    "surfaces": [
+      "desktop-web"
+    ],
+    "reason": "需求类：按 Expected/AC 一次性验收",
+    "strength": "strong",
+    "by": "rules",
+    "partialMultiAccount": false
+  },
+  "status": "plannable",
+  "reason": "需求类：按 Expected/AC 一次性验收",
+  "subcases": [
+    {
+      "sub": "s1",
+      "title": "the profile page header (top-right, with a green unread badge '9')",
+      "surface": "desktop-web",
+      "plan": {
+        "id": "2336-s1-desktop-web-v1",
+        "issueRef": "2336",
+        "title": "通知入口盘点（一次性验收）",
+        "category": "feature",
+        "surface": "desktop-web",
+        "issueSurfaces": [
+          "web",
+          "desktop"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [],
+        "setup": [],
+        "actions": [],
+        "checks": [],
+        "acceptance": [
+          {
+            "id": "no-separate-bell-profile",
+            "text": "个人主页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
+            "actions": [
+              {
+                "type": "node",
+                "node": {
+                  "name": "teamily.openPage",
+                  "input": {
+                    "page": "profile"
+                  }
+                },
+                "delayAfterMs": 1000
+              },
+              {
+                "type": "wait",
+                "value": "1000",
+                "delayAfterMs": 1000
+              }
+            ],
+            "check": {
+              "kind": "visual-region",
+              "page": "profile",
+              "region": "element:profile.bell",
+              "expect": "profile 页头部仍有独立 🔔",
+              "want": "absent"
+            }
+          },
+          {
+            "id": "no-separate-bell-artifacts",
+            "text": "Artifacts 页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
+            "actions": [
+              {
+                "type": "node",
+                "node": {
+                  "name": "teamily.openPage",
+                  "input": {
+                    "page": "artifacts"
+                  }
+                },
+                "delayAfterMs": 1000
+              },
+              {
+                "type": "wait",
+                "value": "1000",
+                "delayAfterMs": 1000
+              }
+            ],
+            "check": {
+              "kind": "visual-region",
+              "page": "artifacts",
+              "region": "element:artifacts.bell",
+              "expect": "artifacts 页头部仍有独立 🔔",
+              "want": "absent"
+            }
+          },
+          {
+            "id": "single-center",
+            "text": "存在一个汇总所有模块通知、共享同一未读状态的通知中心入口",
+            "actions": [
+              {
+                "type": "node",
+                "node": {
+                  "name": "teamily.openPage",
+                  "input": {
+                    "page": "chat"
+                  }
+                },
+                "delayAfterMs": 1000
+              }
+            ],
+            "check": {
+              "kind": "ai",
+              "expect": "The screen shows ONE global notification center entry (e.g. a bell in the global navigation rail) that aggregates notifications from all modules",
+              "want": "present",
+              "onlyOnAnomaly": false
+            }
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 30,
+          "maxIntervalMs": 1000
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "provenance": {
+          "generatedBy": "rules",
+          "skillVersion": "2026.10.21-1"
+        }
+      },
+      "planErrors": []
+    },
+    {
+      "sub": "s2",
+      "title": "the Artifacts module page header (top-right of the main content area, no badge)",
+      "surface": "desktop-web",
+      "plan": {
+        "id": "2336-s2-desktop-web-v1",
+        "issueRef": "2336",
+        "title": "通知入口盘点（一次性验收）",
+        "category": "feature",
+        "surface": "desktop-web",
+        "issueSurfaces": [
+          "web",
+          "desktop"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [],
+        "setup": [],
+        "actions": [],
+        "checks": [],
+        "acceptance": [
+          {
+            "id": "no-separate-bell-profile",
+            "text": "个人主页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
+            "actions": [
+              {
+                "type": "node",
+                "node": {
+                  "name": "teamily.openPage",
+                  "input": {
+                    "page": "profile"
+                  }
+                },
+                "delayAfterMs": 1000
+              },
+              {
+                "type": "wait",
+                "value": "1000",
+                "delayAfterMs": 1000
+              }
+            ],
+            "check": {
+              "kind": "visual-region",
+              "page": "profile",
+              "region": "element:profile.bell",
+              "expect": "profile 页头部仍有独立 🔔",
+              "want": "absent"
+            }
+          },
+          {
+            "id": "no-separate-bell-artifacts",
+            "text": "Artifacts 页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
+            "actions": [
+              {
+                "type": "node",
+                "node": {
+                  "name": "teamily.openPage",
+                  "input": {
+                    "page": "artifacts"
+                  }
+                },
+                "delayAfterMs": 1000
+              },
+              {
+                "type": "wait",
+                "value": "1000",
+                "delayAfterMs": 1000
+              }
+            ],
+            "check": {
+              "kind": "visual-region",
+              "page": "artifacts",
+              "region": "element:artifacts.bell",
+              "expect": "artifacts 页头部仍有独立 🔔",
+              "want": "absent"
+            }
+          },
+          {
+            "id": "single-center",
+            "text": "存在一个汇总所有模块通知、共享同一未读状态的通知中心入口",
+            "actions": [
+              {
+                "type": "node",
+                "node": {
+                  "name": "teamily.openPage",
+                  "input": {
+                    "page": "chat"
+                  }
+                },
+                "delayAfterMs": 1000
+              }
+            ],
+            "check": {
+              "kind": "ai",
+              "expect": "The screen shows ONE global notification center entry (e.g. a bell in the global navigation rail) that aggregates notifications from all modules",
+              "want": "present",
+              "onlyOnAnomaly": false
+            }
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 30,
+          "maxIntervalMs": 1000
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "provenance": {
+          "generatedBy": "rules",
+          "skillVersion": "2026.10.21-1"
+        }
+      },
+      "planErrors": []
+    },
+    {
+      "sub": "s3",
+      "title": "the CloudDoc / deliverable document header (top-right, between Help and the avat",
+      "surface": "desktop-web",
+      "plan": {
+        "id": "2336-s3-desktop-web-v1",
+        "issueRef": "2336",
+        "title": "通知入口盘点（一次性验收）",
+        "category": "feature",
+        "surface": "desktop-web",
+        "issueSurfaces": [
+          "web",
+          "desktop"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [],
+        "setup": [],
+        "actions": [],
+        "checks": [],
+        "acceptance": [
+          {
+            "id": "no-separate-bell-profile",
+            "text": "个人主页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
+            "actions": [
+              {
+                "type": "node",
+                "node": {
+                  "name": "teamily.openPage",
+                  "input": {
+                    "page": "profile"
+                  }
+                },
+                "delayAfterMs": 1000
+              },
+              {
+                "type": "wait",
+                "value": "1000",
+                "delayAfterMs": 1000
+              }
+            ],
+            "check": {
+              "kind": "visual-region",
+              "page": "profile",
+              "region": "element:profile.bell",
+              "expect": "profile 页头部仍有独立 🔔",
+              "want": "absent"
+            }
+          },
+          {
+            "id": "no-separate-bell-artifacts",
+            "text": "Artifacts 页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
+            "actions": [
+              {
+                "type": "node",
+                "node": {
+                  "name": "teamily.openPage",
+                  "input": {
+                    "page": "artifacts"
+                  }
+                },
+                "delayAfterMs": 1000
+              },
+              {
+                "type": "wait",
+                "value": "1000",
+                "delayAfterMs": 1000
+              }
+            ],
+            "check": {
+              "kind": "visual-region",
+              "page": "artifacts",
+              "region": "element:artifacts.bell",
+              "expect": "artifacts 页头部仍有独立 🔔",
+              "want": "absent"
+            }
+          },
+          {
+            "id": "single-center",
+            "text": "存在一个汇总所有模块通知、共享同一未读状态的通知中心入口",
+            "actions": [
+              {
+                "type": "node",
+                "node": {
+                  "name": "teamily.openPage",
+                  "input": {
+                    "page": "chat"
+                  }
+                },
+                "delayAfterMs": 1000
+              }
+            ],
+            "check": {
+              "kind": "ai",
+              "expect": "The screen shows ONE global notification center entry (e.g. a bell in the global navigation rail) that aggregates notifications from all modules",
+              "want": "present",
+              "onlyOnAnomaly": false
+            }
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 30,
+          "maxIntervalMs": 1000
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "provenance": {
+          "generatedBy": "rules",
+          "skillVersion": "2026.10.21-1"
+        }
+      },
+      "planErrors": []
+    }
+  ]
+}

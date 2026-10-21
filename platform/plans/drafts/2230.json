@@ -1,0 +1,38 @@
+{
+  "issue": {
+    "id": "2230",
+    "title": "PR #697 (fix for #2214) moved the conversation store to IndexedDB and cut quotes to one level, but the pending-send outbox (zustand persist name \"openim-pending",
+    "severity": "High",
+    "frequency": "Always",
+    "platforms": [
+      "web",
+      "desktop"
+    ],
+    "summary": "PR #697 (fix for #2214) moved the conversation store to IndexedDB and cut quotes to one level, but the pending-send outbox (zustand persist name \"openim-pending-outbox-v1\", default localStorage storage, apps/chat-to/src/lib/im/pending-outbox.ts) still writes synchronously into the shared ~5MB origin quota with no try/catch. When localStorage is near full, an offline send (or an online send that fails with a retryable error) throws QuotaExceededError out of sendOpenIMMessage: the message is never written to the outbox, the bubble flips to the red failed icon immediately instead of the clock, and the console logs \"failed to send message QuotaExceededError ... openim-pending-outbox-v1\" - the exact line Henry hit on prod at 02:11 on 10/9 right after the #2214 hotfix was deployed. Reproduced on chat-test build test-20261009-114941-40 (commit eec519d48, includes PR #697).",
+    "steps": [
+      "Log in to chat-test.teamily.ai (yuxiao+03) and open a group chat (AG3-share).",
+      "Bring localStorage close to the quota, e.g. in DevTools: localStorage.setItem(\"qa-quota-filler\", \"f\".repeat(5062440)) - on a ~5.24M-char quota this leaves ~600 chars of headroom. (Realistic equivalent: the old \"conversation\" localStorage key that PR #697 leaves in place, plus member-cache / contact / Group / profile caches.)",
+      "Go offline (DevTools > Network > Offline, or any network drop).",
+      "Send a text message.",
+      "Control: remove the filler key and repeat steps 3-4."
+    ],
+    "expected": "The offline send is held in the pending outbox (clock icon, 1 item persisted) and resent on reconnect. A failed persist must never abort or fail the send - the same principle PR #697 applied to the conversation store (\"a failed write cannot throw into the caller\").",
+    "actual": "Console: failed to send message QuotaExceededError: Failed to execute \"setItem\" on \"Storage\": Setting the value of \"openim-pending-outbox-v1\" exceeded the quota (thrown from the zustand persist middleware). localStorage[\"openim-pending-outbox-v1\"] stays {\"state\":{\"items\":{}}} (0 items). The bubble shows the red failed icon immediately; header says \"Waiting for network\". Control run with free storage: outbox has 1 pending item (907 chars), bubble shows the clock, delivered on reconnect. Note: in the failing run the Rust SDK in-memory reconnect resend still delivered the text once because the tab stayed open (server seq 12); what breaks is the persistence guarantee - reload / tab close while offline, media (ByFile) resends that re-register OPFS bytes from the outbox item, and online sends that fail with a retryable error (Henry path on 10/9), which rely on the JS outbox alone.",
+    "featureArea": "IM / message sending / pending outbox persistence",
+    "context": "- **Feature area**: IM / message sending / pending outbox persistence\r\n- Code: apps/chat-to/src/lib/im/pending-outbox.ts persist({ name: \"openim-pending-outbox-v1\", partialize: items }) with the default localStorage storage and no try/catch; upsertItem() is called from enqueuePendingMessage() in both the offline path and the retryable-failure path of sendOpenIMMessage().\r\n- Still on localStorage after #697 (same unguarded persist pattern): openim-pending-outbox-v1, member-cache, contact, Group, im-user-profile-cache, server, auth. The old \"conversation\" localStorage key is left in place by #697 (\"no longer read or written\"), so users who hit #2214 before the fix keep up to several MB of dead data in the shared quota.\r\n- Suggested fix: wrap the persist storage so a QuotaExceededError never propagates into the send path (persist failure = lose reload-survival only, not the send), or move the outbox to IndexedDB via createIdbPersistStorage like the conversation slice; plus a one-time localStorage.removeItem(\"conversation\") cleanup.\r\n- Evidence: screenshots 06 (failing run: red icon while offline) and 08 (control: clock) attached; console excerpt attached; server-side pull_msg_by_seq on sg_957854985 shows each test message exactly once (seq 10-13). Related: #2214, TensorOpera-Inc/chat-web PR #697, Henry 10/9 02:11 report in Payment & Team Subscription Dev.\r\n### File: /Users/yara/YARAAI/screenshots/regression/outbox_repro_20261009/console_excerpt.txt\r\n```txt\r\n# chat-test.teamily.ai build test-20261009-114941-40 (commit eec519d48 on test-v2.0.2, includes PR #697)\r\n# Console captured via Playwright page.on('console') in headless Chromium 1600x900; times are Beijing (UTC+8).",
+    "environment": "- **Platform / OS / Browser**: Web (chat-test.teamily.ai, headless Chromium 1600x900 via Playwright); desktop app shares the same code path",
+    "empty": false
+  },
+  "classification": {
+    "category": "deferred",
+    "surfaces": [
+      "desktop-web"
+    ],
+    "reason": "前置条件需要写满浏览器存储（localStorage 配额），黑盒无法构造，记入未来计划",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "status": "deferred",
+  "reason": "前置条件需要写满浏览器存储（localStorage 配额），黑盒无法构造，记入未来计划",
+  "subcases": []
+}

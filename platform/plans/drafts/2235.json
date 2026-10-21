@@ -1,0 +1,39 @@
+{
+  "issue": {
+    "id": "2235",
+    "title": "Henry forwarded a message out of the 1:1 (direct) conversation with Shok.",
+    "severity": "Medium",
+    "frequency": "Always (on the reporter's Web and Desktop 101 clients)",
+    "platforms": [
+      "ios",
+      "web",
+      "desktop"
+    ],
+    "summary": "Henry forwarded a message out of the 1:1 (direct) conversation with Shok. On the sender's side (Henry, macOS) the forwarded message is present, and on the recipient's side (Shawn) it is visible on the iOS app — but the SAME message never appears on Web or on the Desktop client (build 101). The same account therefore shows different conversation content on different clients, and the reporter cannot tell whether the message was lost or whether the product intentionally hides forwarded messages on some clients. The reporter explicitly asks product/engineering to confirm the intended visibility rule (sender vs recipient, forwarded-message visibility) and, whatever the rule is, to make the experience consistent across clients. Impact: a user who reads the conversation on Web/Desktop believes the message was never sent, while the iOS user sees it — asymmetric information in a group conversation, which erodes trust in message delivery.",
+    "steps": [
+      "1. In the 1:1 (direct) conversation with Shok, forward a message out of that conversation (the exact forward entry point used is not specified — please confirm).",
+      "2. On the sender's side (Henry, macOS client), open the destination conversation and confirm the forwarded message is present — it is (screenshot 2).",
+      "3. On the recipient's side (Shawn), open the SAME destination conversation on the iOS app — the forwarded message is present, carrying a 'Forwarded from Shok' attribution label (screenshot 1).",
+      "4. On the same account, open the same conversation on Web and on the Desktop client (build 101).",
+      "5. Compare the three clients: iOS shows the forwarded message, Web and Desktop (101) do not."
+    ],
+    "expected": "The same forwarded message should be visible on every client of the same account (iOS / Web / Desktop), or — if the product deliberately restricts forwarded-message visibility per client or per role (sender vs recipient) — that rule must be explicit and documented, and the clients must still agree with each other. Either way the multi-client experience should be consistent, and a message that exists on one client should not be silently absent on another.",
+    "actual": "The forwarded message is visible on iOS (with a 'Forwarded from Shok' label) and on the sender's macOS client, but it does not appear at all on Web or on the Desktop client (build 101) for the same account. The reporter's words: '我这 web 和 desktop（101）都没看到，只有 ios 看到这个消息' and 'web 和 desktop 没看到，只有 ios 有，有不一致问题'. No error, no placeholder and no notice is shown on Web/Desktop — the message is simply absent, so the user cannot tell whether it was lost or intentionally hidden.",
+    "featureArea": "Messaging / Message Forwarding / Multi-device message visibility",
+    "context": "- **Feature area**: Messaging / Message Forwarding / Multi-device message visibility\r\n- **Group context (verbatim, as reported in the group chat):**\r\n- - Henry: 是从根 shok 单聊对话转发过来的\r\n- - Henry: 我 Mac 这里有\r\n- - Shawn: 我这 web 和 desktop（101）都没看到，只有 ios 看到这个消息，你是发送方，我是接收方，看这里逻辑预期是怎么样 @water @jack 帮忙确认下；不管怎么设计，这个地方多端建议体验一致\r\n- **Reporter's own words (verbatim):**\r\n- - 「web 和desktop没看到，只有ios有，有不一致问题」\r\n- - 「我这web和desktop（101）都没看到，只有ios看到这个消息，你是发送方，我是接收方，看这里逻辑预期是怎么样 @water @jack 帮忙确认下 不管怎么设计，这个地方多端建议体验一致」\r\n- **What the screenshots actually show (and what they do NOT show):**\r\n- - Screenshot 1 (Shawn, iOS app, 860x1862): a GROUP conversation (header shows four overlapping avatars plus an 'Invite' button, and the title area reads 'Updating...' with a spinner). The message list contains an image card about 'Plan & Billing / Free Plan / Auto-renewal is off. Your plan stays active until .' with the text '欠费状态取消订阅的提示有问题 @Tmly Quan @Shok', a date separator 'Today 21:58', and then TWO messages from Henry each carrying a grey 'Forwarded from Shok' attribution label — one listing 'airwallex.card-renew.max-fail : 最多失败几次，默认 3' and 'airwallex.card-renew.retry-delay-sec : 两次重试的间隔，默认 86400 秒（1天）', the other a small table about 'past_due, fail_count = 1/2' and '订阅过期，撤销签约，解除价格锁定'. So on iOS the forwarded messages ARE present and DO carry the 'Forwarded from Shok' label.\r\n- - Screenshot 2 (Henry, macOS, 392x254): the same two forwarded bubbles with 'Forwarded from Shok', the first bubble's text truncated ('，默认 3' / '试的间隔，默认 86400 秒 (1 天)'), with a green ring progress indicator at the bottom-right of the bubble. So on the sender's side the forwarded messages are present too.\r\n- - **Honest limitation:** neither screenshot shows the Web or Desktop client, so the screenshots do NOT themselves demonstrate the absence of the message on Web/Desktop — that part is the reporter's verbal statement and still needs a Web/Desktop screenshot or screen recording to be confirmed. The screenshots do confirm (a) the message is a forwarded message carrying 'Forwarded from Shok', (b) it is visible on iOS, and (c) it is visible on the sender's macOS client.\r\n- - The iOS header reading 'Updating...' is worth noting: the iOS client was still syncing when the screenshot was taken, which may be relevant to how the message list was assembled.\r\n- **Not yet determined (needs engineering confirmation):**\r\n- - Whether the forwarded message type / source marker is recognised and rendered on Web and Desktop at all, or whether those clients filter it out.\r\n- - Whether the message-sync / fetch path on Web and Desktop drops this message class (cf. the seq-gap family in #1919).\r\n- - Whether the visibility rule for a message forwarded out of a 1:1 conversation differs per client or per role (sender vs recipient), i.e. whether this is a product rule that was never implemented consistently.\r\n- - Whether Desktop build 101 simply lags behind iOS in capability for this message type.\r\n- - Whether the message payload is missing a field that Web/Desktop require in order to render it.\r\n- - Whether the message is completely absent on Web/Desktop or rendered as an empty placeholder / gap — the reporter says it is not visible; please confirm which.\r\n- **Pending environment information:** iOS app version, Web browser and version, Desktop client version (reported as 101) and OS, account ID, the exact conversation (group vs 1:1) and a message link, whether it reproduces reliably, and whether the message is entirely absent or shown as a placeholder on Web/Desktop.\r\n- **Severity field note:** the repository has no native Severity issue field (only a native Priority field, verified via GraphQL introspection of the org issue fields). Severity is therefore recorded in the body above as Medium, and Priority is set to High (P1) per the convention of comparable multi-device messaging issues.\r\n- **Duplicate check (BugBuddy, 2026-10-09).** Searched the full repo index (2,230 issues, open + closed, PRs excluded) at ti",
+    "environment": "- **Platform / OS / Browser**: iOS app (visible) vs Web and Desktop client build 101 (not visible); sender side macOS. Exact iOS build, browser and Desktop OS not specified — please confirm.",
+    "empty": false
+  },
+  "classification": {
+    "category": "multi-account",
+    "surfaces": [
+      "desktop-web"
+    ],
+    "reason": "需要第二账号或同账号多端配合观察，等待账号池/设备池多客户端支持",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "status": "deferred",
+  "reason": "需要第二账号或同账号多端配合观察，等待账号池/设备池多客户端支持",
+  "subcases": []
+}

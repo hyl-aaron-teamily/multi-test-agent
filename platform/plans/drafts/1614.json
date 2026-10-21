@@ -1,0 +1,37 @@
+{
+  "issue": {
+    "id": "1614",
+    "title": "On 2026-09-10 16:01:36 (UTC+8) an onboarding sync message was sent into group 2213724931 (Session Replay & Onboarding) whose mention segment read @1223609775443",
+    "severity": "High",
+    "frequency": "Always (100% no notification whenever the @ target is malformed)",
+    "platforms": [
+      "web",
+      "desktop"
+    ],
+    "summary": "On 2026-09-10 16:01:36 (UTC+8) an onboarding sync message was sent into group 2213724931 (Session Replay & Onboarding) whose mention segment read @12236097754431223609775443 — a 26-digit string equal to 1223609775443 concatenated twice. That string matches no member of the group, so it could not be resolved into a member and no @ notification was triggered; yet the message itself was sent successfully and returned a message ID, with no error or warning shown to the sender. This is a silent failure — the sender believes the notification was delivered when it was not.",
+    "steps": [
+      "In a group chat, send a message whose @ segment contains a malformed userID, e.g. @12236097754431223609775443 (26 digits, i.e. 1223609775443 repeated twice).",
+      "Send the message — it is sent successfully and returns a message ID (observed: ced731ead7421943e571e779f65689d6 in group 2213724931).",
+      "Check the member who should have been mentioned (real userID 1223609773775443, 16 digits) — no @ notification is received at all.",
+      "Control: re-send the same message with the correct userID 1223609773775443 — the send succeeds (message ID 6c89fcacfd11b4546adad721c1a9d708), confirming the group and the agent send permission are fine."
+    ],
+    "expected": "When the @ target userID is malformed or matches no group member, the sender should get a clear error or a degraded-mode notice (e.g. mention target invalid — sent as plain text) instead of a plain success. Ideally the send path should validate the target (digit-only + expected length) and verify membership before sending, then either reject the send or auto-correct it.",
+    "actual": "The message is sent successfully with no warning at all, but the @ does not take effect and the mentioned member receives no notification; the sender has no feedback and no way to detect the failure.",
+    "featureArea": "Messaging / Group-chat @-mention (Mention)",
+    "context": "- **Feature area**: Messaging / Group-chat @-mention (Mention)\r\n- Group: 2213724931 (Session Replay & Onboarding). Failing message ID ced731ead7421943e571e779f65689d6, 2026-09-10 16:01:36 (UTC+8); mention segment text @12236097754431223609775443.\r\n- Member-table cross-check: get_groups_info([\"2213724931\"]) shows Tmly Quan userID = 1223609773775443 (16 digits), which does not match the malformed 26-digit string.\r\n- Root cause: (1) the mention target was an invalid userID matching no group member, so no notification could be produced; (2) the send path performs no validation of the @ target, so the malformed id is emitted as ordinary text while the message still reports success; (3) possible aggravating factor — an agent-side send path that builds the mention by string concatenation instead of populating the structured atUserList field.\r\n- Ruled out: group unavailable / agent lacking post permission — the same agent identity re-sent successfully into the same group with the correct userID.\r\n- Impact: issue-sync, escalation and handoff messages that rely on @-mentions for notification can silently fail to reach the responsible owner, delaying triage and fixes, while the sender has no failure feedback and no self-check.\r\n- Suggested fix: validate @ targets before sending (digit-only, expected length, membership); fail loudly or degrade to plain text with an explicit notice; have the agent send path populate the structured atUserList field; log/acknowledge unmatched mentions server-side so silent drops become observable.\r\n- Reported by 林子溪 Susan (QA) on 2026-09-10. Full bilingual report: https://static.teamily.ai/sites/983a64a5-ef89-4aef-9753-b7d77f5155b9/documents/bugbuddy-submission-at-mention-invalid-userid/invalid_mention_userid_silent_failure_2026-09-10.md?tk=c2l0ZTo5ODNhNjRhNS1lZjg5LTRhZWYtOTc1My1iN2Q3N2Y1MTU1YjkvZG9jdW1lbnRzL2J1Z2J1ZGR5LXN1Ym1pc3Npb24tYXQtbWVudGlvbi1pbnZhbGlkLXVzZXJpZDoxNzg5MDM3OTc3.NDNhMTM1NTEwZjExZTYwNjc0ZjI3M2FkMTk2YjA3ZjY\r\n\r\n---",
+    "environment": "- **Platform / OS / Browser**: Teamily IM group chat (Web / desktop client); sender is an agent account posting into group 2213724931 (Session Replay & Onboarding); 2026-09-10 16:01:36 (UTC+8); exact client OS / browser build not specified — please confirm",
+    "empty": false
+  },
+  "classification": {
+    "category": "server-side",
+    "surfaces": [
+      "desktop-web"
+    ],
+    "reason": "问题发生在服务端 / Agent 发送路径，无用户可见 UI 现象可驱动或观察",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "status": "refused",
+  "reason": "问题发生在服务端 / Agent 发送路径，无用户可见 UI 现象可驱动或观察",
+  "subcases": []
+}

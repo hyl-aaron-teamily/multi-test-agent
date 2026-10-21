@@ -1,0 +1,199 @@
+{
+  "issue": {
+    "id": "2122",
+    "title": "Improvement request raised by Aiden (P0, scheduled as a key iteration right after the China National Day holiday, i.e.",
+    "severity": "High",
+    "frequency": "Always",
+    "platforms": [
+      "ios",
+      "android",
+      "web",
+      "desktop"
+    ],
+    "summary": "Improvement request raised by Aiden (P0, scheduled as a key iteration right after the China National Day holiday, i.e. from 2026-10-08). Today, when a user is @-mentioned in a muted (DND) group, the only cue is a small green '[@ mentioned]' text in the conversation-list preview. There is no new-message indicator, no unread badge on the conversation, and no count on the top-right / tab / app-icon badge, so users routinely miss messages addressed to them. Original feedback from Ellery Wang: 'When I am @-mentioned in a muted group there is only a green text hint, no new-message indicator or top-right badge, so I often miss group messages. Can we match WeChat, where any @ always produces a new-message indicator + badge?' Scope: (1) an @-mention addressed to me must always produce a new-message indicator + unread badge regardless of the group's mute state (WeChat parity); (2) add a Slack-style 'Mentions / @Me' aggregated list that collects every message that @-mentions me across all conversations in one place.",
+    "steps": [
+      "Mute (DND) a group chat on any client (Web / macOS / Windows / iOS / Android).",
+      "Have another member @-mention me in that muted group.",
+      "Observe the conversation list, the conversation's unread badge, the Chats tab / top-right badge and the app-icon badge.",
+      "Try to find all messages that @-mentioned me across groups — there is no single entry point for this."
+    ],
+    "expected": "(1) Any @-mention addressed to me (direct @me; @All/@Everyone per product rule) always shows a new-message indicator and increments the conversation's unread badge and the global (tab / top-right / app-icon) badge, even when the group is muted — matching WeChat. Muted groups' ordinary (non-@) messages keep the current silent behaviour. (2) A 'Mentions / @Me' list (Slack-style) aggregates every message that @-mentions me, newest first, with sender, group, time, message preview and read/unread state; tapping an item jumps to that message in context.",
+    "actual": "In a muted group an @-mention only renders a green '[@ mentioned]' text hint in the conversation preview. No new-message indicator, no conversation unread badge, no top-right / tab / app-icon badge count. There is no aggregated view of messages that mention me, so users miss them.",
+    "featureArea": "Messaging / Notification & Mention routing / Unread badge / Mentions inbox",
+    "context": "- **Feature area**: Messaging / Notification & Mention routing / Unread badge / Mentions inbox\r\n- Priority: P0 (set by Aiden). Schedule: key iteration right after the National Day holiday (from 2026-10-08). No milestone assigned — please attach one at sprint planning.\r\n- Proposer: Aiden (Teamily userID 6296335850356299). Original feedback: Ellery Wang (Teamily userID 6226891335107934). Source: Teamily Product Team group chat (group 3106444614), 2026-09-29.\r\n- Acceptance criteria AC1 — Muted group + direct @me: conversation shows a new-message indicator and unread badge; global badge (Chats tab / top-right / app icon) increments by the number of unread @me messages; verified on Web, macOS, Windows, iOS, Android.\r\n- AC2 — Muted group + ordinary (non-@) message: behaviour unchanged (no badge contribution, no push), so #263 (muted messages must not inflate the badge) does not regress.\r\n- AC3 — Muted group + @me: a system / push notification is delivered (mentions break through mute), consistent across Web and App; product to decide and document whether @All/@Everyone also breaks through mute.\r\n- AC4 — Opening the conversation or reading the mentioned message clears the @ badge on every client (multi-device read sync); counts never get stuck.\r\n- AC5 — A 'Mentions / @Me' entry exists on every client (e.g. sidebar / Activity tab on desktop & web, top-level entry on mobile) listing all messages that @-mention me across conversations, newest first, showing sender, conversation, time, preview and unread state, with its own unread count.\r\n- AC6 — Tapping a Mentions item jumps to and highlights the exact message in its conversation (including history that needs loading); read state syncs back to the list.\r\n- AC7 — The list supports mark-as-read / mark-all-read and pagination, and includes mentions from muted groups, @All/@Everyone (clearly distinguished) and, if in scope, CloudDoc mentions (see #1363).\r\n- Duplicate check: indexed all 2,117 issues (titles + bodies) in Teamily-Inc/teamily-ai-all on 2026-09-29 for mention / @me / Mentions list / mute / 免打扰 / 角标 / badge / unread. No existing 'Mentions / @Me' list request. Related but NOT duplicates: #1821 (muted group suppresses @ notifications; closed as completed with comment '设计如此' / by design — this request deliberately changes that design), #263 (iOS muted-group messages inflating the badge; closed — the opposite direction, must not regress, see AC2), #1363 (CloudDoc mention notifications should go to the notification list; open — candidate content for the Mentions list), #1180 (multi-device sync lag / missed @; closed, different root cause).\r\n- Reference patterns: WeChat (@ in a muted group still shows '[有人@我]' + badge), Slack (Activity → Mentions & reactions).\r\n\r\n---",
+    "environment": "- **Platform / OS / Browser**: All clients — Web, macOS, Windows, iOS, Android (plus push notification channel)",
+    "empty": false
+  },
+  "classification": {
+    "category": "feature",
+    "surfaces": [
+      "android-app",
+      "desktop-web"
+    ],
+    "reason": "需求类：单账号可验部分一次性验收；需要他人 @ 我的部分需第二账号，暂缓",
+    "strength": "strong",
+    "by": "rules",
+    "partialMultiAccount": true
+  },
+  "status": "plannable",
+  "reason": "需求类：单账号可验部分一次性验收；需要他人 @ 我的部分需第二账号，暂缓",
+  "subcases": [
+    {
+      "sub": "s1",
+      "title": "an @-mention addressed to me must always produce a new-message indicator + unrea",
+      "surface": "desktop-web",
+      "plan": {
+        "id": "2122-s1-desktop-web-v1",
+        "issueRef": "2122",
+        "title": "@我 聚合入口 / 免打扰群 @ 提示（单账号可验部分）",
+        "category": "feature",
+        "surface": "desktop-web",
+        "issueSurfaces": [
+          "ios",
+          "android",
+          "web",
+          "desktop"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "mutedGroup",
+            "kind": "muted-group",
+            "guidance": "会话列表里带免打扰（划线铃铛）图标、且预览中出现 “@” 的群"
+          }
+        ],
+        "setup": [],
+        "actions": [],
+        "checks": [],
+        "acceptance": [
+          {
+            "id": "mentions-entry",
+            "text": "存在 “@我 / Mentions” 聚合入口（列出所有 @ 我的消息）",
+            "actions": [
+              {
+                "type": "node",
+                "node": {
+                  "name": "teamily.openPage",
+                  "input": {
+                    "page": "chat"
+                  }
+                },
+                "delayAfterMs": 1000
+              }
+            ],
+            "check": {
+              "kind": "ai",
+              "expect": "There is a visible entry named like \"@我\", \"Mentions\" or \"提及\" that lists messages mentioning the user",
+              "want": "present",
+              "onlyOnAnomaly": false
+            }
+          },
+          {
+            "id": "muted-mention-badge",
+            "text": "免打扰群被 @ 时，会话列表有显著提示（角标/徽标，而不只是小号绿色 “[有人@你]” 文本）",
+            "actions": [],
+            "check": {
+              "kind": "ai",
+              "expect": "In the conversation list, the muted group row that mentions the user shows a prominent badge (a count or @ badge on the avatar or at the right side), not only small green preview text",
+              "want": "present",
+              "onlyOnAnomaly": false
+            }
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 30,
+          "maxIntervalMs": 1000
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "provenance": {
+          "generatedBy": "rules",
+          "skillVersion": "2026.10.21-1"
+        }
+      },
+      "planErrors": []
+    },
+    {
+      "sub": "s2",
+      "title": "add a Slack-style 'Mentions / @Me' aggregated list that collects every message t",
+      "surface": "desktop-web",
+      "plan": {
+        "id": "2122-s2-desktop-web-v1",
+        "issueRef": "2122",
+        "title": "@我 聚合入口 / 免打扰群 @ 提示（单账号可验部分）",
+        "category": "feature",
+        "surface": "desktop-web",
+        "issueSurfaces": [
+          "ios",
+          "android",
+          "web",
+          "desktop"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "mutedGroup",
+            "kind": "muted-group",
+            "guidance": "会话列表里带免打扰（划线铃铛）图标、且预览中出现 “@” 的群"
+          }
+        ],
+        "setup": [],
+        "actions": [],
+        "checks": [],
+        "acceptance": [
+          {
+            "id": "mentions-entry",
+            "text": "存在 “@我 / Mentions” 聚合入口（列出所有 @ 我的消息）",
+            "actions": [
+              {
+                "type": "node",
+                "node": {
+                  "name": "teamily.openPage",
+                  "input": {
+                    "page": "chat"
+                  }
+                },
+                "delayAfterMs": 1000
+              }
+            ],
+            "check": {
+              "kind": "ai",
+              "expect": "There is a visible entry named like \"@我\", \"Mentions\" or \"提及\" that lists messages mentioning the user",
+              "want": "present",
+              "onlyOnAnomaly": false
+            }
+          },
+          {
+            "id": "muted-mention-badge",
+            "text": "免打扰群被 @ 时，会话列表有显著提示（角标/徽标，而不只是小号绿色 “[有人@你]” 文本）",
+            "actions": [],
+            "check": {
+              "kind": "ai",
+              "expect": "In the conversation list, the muted group row that mentions the user shows a prominent badge (a count or @ badge on the avatar or at the right side), not only small green preview text",
+              "want": "present",
+              "onlyOnAnomaly": false
+            }
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 30,
+          "maxIntervalMs": 1000
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "provenance": {
+          "generatedBy": "rules",
+          "skillVersion": "2026.10.21-1"
+        }
+      },
+      "planErrors": []
+    }
+  ],
+  "deferredPart": "需要第二账号 @ 我才能产生的角标/推送部分：暂缓（账号池多账号调度后执行）"
+}

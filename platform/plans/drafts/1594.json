@@ -1,0 +1,244 @@
+{
+  "issue": {
+    "id": "1594",
+    "title": "On the Teamily Web client, typing \"@\" in the message input of a chat conversation intermittently fails to open the member/agent selection picker, so the user ca",
+    "severity": "Medium",
+    "frequency": "Intermittent",
+    "platforms": [
+      "web"
+    ],
+    "summary": "On the Teamily Web client, typing \"@\" in the message input of a chat conversation intermittently fails to open the member/agent selection picker, so the user cannot mention anyone. Switching to another conversation and back restores the picker. Reproduced during a live meeting by the reporter. Suspected root cause: the @-mention member list is not reloaded / its state is not reset on conversation switch (stale cache, or a failed member-list request that is not retried).",
+    "steps": [
+      "Open a chat conversation in the Teamily Web client.",
+      "In the message input box, type \"@\" to start a mention.",
+      "Observe that the member/agent selection picker does not pop up (intermittent — happens sometimes, not every time).",
+      "Switch to another conversation, then switch back to the original one.",
+      "Type \"@\" again — the picker now appears and mentioning works normally."
+    ],
+    "expected": "Typing \"@\" in the message input box reliably opens the member/agent selection picker, allowing the user to mention any member or agent, regardless of how the conversation was entered.",
+    "actual": "The @-mention selection picker sometimes does not appear after typing \"@\" — no member/agent list is shown and the user cannot mention anyone. The feature only recovers after switching to another conversation and back. Confirmed on the Web client, also reproduced during a meeting.",
+    "featureArea": "Messaging / @-mention",
+    "context": "- **Feature area**: Messaging / @-mention\r\n- Suspected cause: @-mention member list loading or state refresh issue — the picker state is not reset when the conversation changes, the member-list request fails silently, or a stale/corrupted cache is used.\r\n- Suggested investigation: check the mention member-list request on conversation switch (does it re-fire? is the response cached?); verify the picker open-state / member-list state store is reset on conversation change; add a retry or re-fetch path when the member list is empty/stale.\r\n- Screenshot provided by reporter — the original CDN link returned HTTP 404 when this issue was filed (link likely expired); please ask the reporter to re-share if visual evidence is needed: https://teamily-storage.becdn.net/im/images/4203662271075754/76c85a8b-2660-49e6-96e4-f17bdf4472f6.msg_picture_17890104170000001339_0.png\r\n- Related existing issues (different platforms / symptoms, not duplicates): #1400 [Mobile] group chat @-mention only shows partial members; #1265 / #485 group chat @-mention member list incomplete; #865 [iOS] @ mention cannot be triggered in long-text editing view; #184 / #186 mention autocomplete does not show suggestions when typing '@T'.\r\n\r\n---",
+    "environment": "- **Platform / OS / Browser**: Web",
+    "empty": false
+  },
+  "classification": {
+    "category": "bug-intermittent",
+    "surfaces": [
+      "desktop-web"
+    ],
+    "reason": "Frequency: Intermittent",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "status": "plannable",
+  "reason": "Frequency: Intermittent",
+  "subcases": [
+    {
+      "sub": "main",
+      "title": "On the Teamily Web client, typing \"@\" in the message input of a chat conversatio",
+      "surface": "desktop-web",
+      "plan": {
+        "id": "1594-desktop-web-v1",
+        "issueRef": "1594",
+        "title": "Desktop Web：聊天输入框键入「@」应稳定弹出成员/Agent 选择器（间歇性不弹出回归验证）",
+        "category": "bug-intermittent",
+        "surface": "desktop-web",
+        "issueSurfaces": [
+          "web"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "group",
+            "kind": "group-conversation",
+            "guidance": "在会话列表中挑选成员 ≥3 的群聊（头像为多人拼图，或名称包含多个成员名/逗号），用于在输入框中键入 @ 触发成员/Agent 选择器。"
+          },
+          {
+            "id": "other",
+            "kind": "other-conversation",
+            "guidance": "与目标群不同的任意会话（单聊或其他群均可），用于「切到别的会话再切回目标群」以复现/恢复 picker。"
+          }
+        ],
+        "setup": [
+          {
+            "type": "launch",
+            "delayAfterMs": 1000
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.login",
+              "input": {
+                "account": "default"
+              }
+            },
+            "delayAfterMs": 1000
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "group"
+              }
+            },
+            "delayAfterMs": 1000
+          }
+        ],
+        "actions": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.typeMention",
+              "input": {}
+            },
+            "delayAfterMs": 1000
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.clearComposer",
+              "input": {}
+            },
+            "delayAfterMs": 300
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.switchConversation",
+              "input": {
+                "from": "group",
+                "to": "other"
+              }
+            },
+            "delayAfterMs": 1000
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.typeMention",
+              "input": {}
+            },
+            "delayAfterMs": 1000
+          }
+        ],
+        "checks": [
+          {
+            "kind": "visual-region",
+            "page": "chat",
+            "region": "composer",
+            "expect": "目标群会话的消息输入框可见且处于可输入状态",
+            "want": "present"
+          },
+          {
+            "kind": "visual-region",
+            "page": "mention-picker",
+            "region": "picker",
+            "expect": "在输入框键入 @ 后，成员/Agent 选择器弹出并列出可提及的成员与 Agent",
+            "want": "present"
+          },
+          {
+            "kind": "console-error",
+            "expect": "过程中无控制台错误，尤其不得出现成员列表请求失败且未被重试的报错",
+            "want": "absent"
+          },
+          {
+            "kind": "page-error",
+            "expect": "页面无未捕获异常或崩溃提示",
+            "want": "absent"
+          },
+          {
+            "kind": "process-alive",
+            "expect": "页面进程保持存活，会话切换与 @ 输入后应用未白屏或卡死",
+            "want": "present"
+          }
+        ],
+        "acceptance": [
+          {
+            "id": "mention-picker-open",
+            "text": "在目标群会话的消息输入框键入「@」时，成员/Agent 选择器应立即弹出，可在其中看到成员与 Agent 列表（循环多轮以覆盖间歇性失效场景）。",
+            "actions": [
+              {
+                "type": "node",
+                "node": {
+                  "name": "teamily.typeMention",
+                  "input": {}
+                },
+                "delayAfterMs": 1000
+              }
+            ],
+            "check": {
+              "kind": "visual-region",
+              "page": "mention-picker",
+              "region": "picker",
+              "expect": "输入 @ 后成员/Agent 选择器弹出，包含可提及成员与 Agent 选项",
+              "want": "present"
+            }
+          },
+          {
+            "id": "mention-picker-after-switch-back",
+            "text": "切换到另一个会话再切回目标群后再次键入「@」，选择器同样应弹出，说明成员列表在会话切换时会重新加载/重置，不再依赖切走切回的兜底操作。",
+            "actions": [
+              {
+                "type": "node",
+                "node": {
+                  "name": "teamily.switchConversation",
+                  "input": {
+                    "from": "group",
+                    "to": "other"
+                  }
+                },
+                "delayAfterMs": 1000
+              },
+              {
+                "type": "node",
+                "node": {
+                  "name": "teamily.typeMention",
+                  "input": {}
+                },
+                "delayAfterMs": 1000
+              }
+            ],
+            "check": {
+              "kind": "visual-region",
+              "page": "mention-picker",
+              "region": "picker",
+              "expect": "切回目标群后再键入 @，成员/Agent 选择器依然正常弹出",
+              "want": "present"
+            }
+          },
+          {
+            "id": "no-member-list-error",
+            "text": "整个 @ 提及过程中不得出现因成员列表请求失败且未重试而导致的控制台报错或页面异常。",
+            "actions": [
+              {
+                "type": "wait",
+                "delayAfterMs": 1000
+              }
+            ],
+            "check": {
+              "kind": "console-error",
+              "expect": "无与成员列表加载相关的控制台错误，页面无未捕获异常",
+              "want": "absent"
+            }
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 30,
+          "maxIntervalMs": 1000
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "provenance": {
+          "generatedBy": "model",
+          "skillVersion": "2026.10.21-1"
+        }
+      },
+      "planErrors": []
+    }
+  ]
+}

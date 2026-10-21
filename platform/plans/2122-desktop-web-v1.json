@@ -1,0 +1,73 @@
+{
+  "id": "2122-desktop-web-v1",
+  "issueRef": "2122",
+  "title": "@我 聚合入口 / 免打扰群 @ 提示（单账号可验部分）",
+  "category": "feature",
+  "surface": "desktop-web",
+  "issueSurfaces": [
+    "ios",
+    "android",
+    "web",
+    "desktop"
+  ],
+  "env": "prod",
+  "launch": "once",
+  "targets": [
+    {
+      "id": "mutedGroup",
+      "kind": "muted-group",
+      "guidance": "会话列表里带免打扰（划线铃铛）图标、且预览中出现 “@” 的群"
+    }
+  ],
+  "setup": [],
+  "actions": [],
+  "checks": [],
+  "acceptance": [
+    {
+      "id": "mentions-entry",
+      "text": "存在 “@我 / Mentions” 聚合入口（列出所有 @ 我的消息）",
+      "actions": [
+        {
+          "type": "node",
+          "node": {
+            "name": "teamily.openPage",
+            "input": {
+              "page": "chat"
+            }
+          },
+          "delayAfterMs": 1000
+        }
+      ],
+      "check": {
+        "kind": "ai",
+        "expect": "There is a visible entry named like \"@我\", \"Mentions\" or \"提及\" that lists messages mentioning the user",
+        "want": "present",
+        "onlyOnAnomaly": false
+      }
+    },
+    {
+      "id": "muted-mention-badge",
+      "text": "免打扰群被 @ 时，会话列表有显著提示（角标/徽标，而不只是小号绿色 “[有人@你]” 文本）",
+      "actions": [],
+      "check": {
+        "kind": "ai",
+        "expect": "In the conversation list, the muted group row that mentions the user shows a prominent badge (a count or @ badge on the avatar or at the right side), not only small green preview text",
+        "want": "present",
+        "onlyOnAnomaly": false
+      }
+    }
+  ],
+  "limits": {
+    "maxSteps": 1000,
+    "maxMinutes": 30,
+    "maxIntervalMs": 1000
+  },
+  "verdictRule": {
+    "anyHit": true
+  },
+  "provenance": {
+    "generatedBy": "rules",
+    "skillVersion": "2026.10.21-1",
+    "confirmedAt": "2026-10-21T12:00:39.790Z"
+  }
+}

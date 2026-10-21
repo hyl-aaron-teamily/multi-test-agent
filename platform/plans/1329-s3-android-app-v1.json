@@ -1,0 +1,80 @@
+{
+  "id": "1329-s3-android-app-v1",
+  "issueRef": "1329",
+  "title": "点一次输入框键盘即弹出",
+  "category": "bug-intermittent",
+  "surface": "android-app",
+  "issueSurfaces": [
+    "ios"
+  ],
+  "env": "prod",
+  "launch": "once",
+  "targets": [
+    {
+      "id": "conv",
+      "kind": "group-conversation",
+      "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+    }
+  ],
+  "setup": [
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.openConversation",
+        "input": {
+          "target": "conv"
+        }
+      },
+      "delayAfterMs": 800
+    }
+  ],
+  "actions": [
+    {
+      "type": "tap",
+      "element": "chat.back",
+      "delayAfterMs": 700
+    },
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.openConversation",
+        "input": {
+          "target": "conv"
+        }
+      },
+      "delayAfterMs": 900
+    },
+    {
+      "type": "tap",
+      "element": "chat.composer",
+      "delayAfterMs": 900
+    }
+  ],
+  "checks": [
+    {
+      "kind": "ai",
+      "expect": "The on-screen keyboard is shown after a single tap on the message input",
+      "want": "present",
+      "onlyOnAnomaly": false
+    }
+  ],
+  "afterCheck": [],
+  "limits": {
+    "maxSteps": 1000,
+    "maxMinutes": 30,
+    "maxIntervalMs": 1000
+  },
+  "verdictRule": {
+    "anyHit": true
+  },
+  "provenance": {
+    "generatedBy": "rules",
+    "skillVersion": "2026.10.21-1",
+    "confirmedAt": "2026-10-21T12:06:09.713Z"
+  },
+  "substitution": {
+    "from": "ios",
+    "to": "android-app",
+    "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。"
+  }
+}

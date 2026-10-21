@@ -1,0 +1,279 @@
+{
+  "id": "m5demo2336-desktop-web-v1",
+  "issueRef": "m5demo2336",
+  "title": "Consolidated notification entry with one shared unread state across profile, Artifacts and CloudDoc headers (desktop-web)",
+  "category": "feature",
+  "surface": "desktop-web",
+  "issueSurfaces": [
+    "web",
+    "desktop"
+  ],
+  "env": "prod",
+  "launch": "once",
+  "targets": [
+    {
+      "id": "doc-artifact",
+      "kind": "doc-artifact",
+      "guidance": "Artifacts 列表中的任意文档卡片（DOC 标记）。点开后进入 CloudDoc 文档页，用于检查文档头部右上角（Help 图标与头像之间）是否还有独立 🔔 入口，以及它的未读状态是否与全局通知一致。"
+    }
+  ],
+  "setup": [],
+  "actions": [
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.openPage",
+        "input": {
+          "page": "profile"
+        }
+      },
+      "delayAfterMs": 900
+    },
+    {
+      "type": "tap",
+      "element": "profile.bell",
+      "delayAfterMs": 900
+    },
+    {
+      "type": "key",
+      "value": "Escape",
+      "delayAfterMs": 600
+    },
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.openPage",
+        "input": {
+          "page": "artifacts"
+        }
+      },
+      "delayAfterMs": 900
+    },
+    {
+      "type": "tap",
+      "element": "artifacts.bell",
+      "delayAfterMs": 900
+    },
+    {
+      "type": "key",
+      "value": "Escape",
+      "delayAfterMs": 600
+    },
+    {
+      "type": "tap",
+      "element": "target.doc-artifact",
+      "delayAfterMs": 1000
+    },
+    {
+      "type": "wait",
+      "delayAfterMs": 800
+    }
+  ],
+  "checks": [
+    {
+      "kind": "crash",
+      "expect": "页面未崩溃，CloudDoc 文档页正常渲染",
+      "want": "present"
+    },
+    {
+      "kind": "page-error",
+      "expect": "无未捕获的页面异常",
+      "want": "present",
+      "onlyOnAnomaly": true
+    },
+    {
+      "kind": "console-error",
+      "expect": "控制台无报错",
+      "want": "present",
+      "onlyOnAnomaly": true
+    },
+    {
+      "kind": "ai",
+      "page": "page/doc",
+      "region": "doc/header",
+      "expect": "CloudDoc 文档页头部右上角（Help 图标与头像之间）的通知入口展示的未读数，与个人主页 🔔、Artifacts 页 🔔、左栏全局通知入口完全一致（同为 0 或同一个数字）；若保留该页级入口，点击后打开的是同一个聚合通知中心并按来源分组，而不是只显示文档模块自己的通知。",
+      "want": "present"
+    }
+  ],
+  "afterCheck": [],
+  "acceptance": [
+    {
+      "id": "single-global-entry",
+      "text": "全局导航（左栏图标栏）存在唯一的聚合通知入口，聚合所有模块的通知，只有一个未读计数。",
+      "actions": [
+        {
+          "type": "node",
+          "node": {
+            "name": "teamily.openPage",
+            "input": {
+              "page": "chat"
+            }
+          },
+          "delayAfterMs": 900
+        },
+        {
+          "type": "wait",
+          "delayAfterMs": 600
+        }
+      ],
+      "check": {
+        "kind": "ai",
+        "page": "home/nav",
+        "region": "home/nav",
+        "expect": "左栏全局导航中存在唯一的 Notifications / 通知入口，点击后打开统一的聚合通知中心（通知按来源模块分组），并且整个应用只有一个未读数徽标来源，不再出现每个模块各自一套未读状态。",
+        "want": "present"
+      }
+    },
+    {
+      "id": "profile-bell-shared-state",
+      "text": "个人主页头部的 🔔 读取共享未读状态，点击打开同一个聚合通知中心。",
+      "actions": [
+        {
+          "type": "node",
+          "node": {
+            "name": "teamily.openPage",
+            "input": {
+              "page": "profile"
+            }
+          },
+          "delayAfterMs": 900
+        },
+        {
+          "type": "tap",
+          "element": "profile.bell",
+          "delayAfterMs": 900
+        }
+      ],
+      "check": {
+        "kind": "ai",
+        "page": "page/profile",
+        "region": "profile/header",
+        "expect": "个人主页头部右上角（社区图标与分享图标之间）的 🔔 显示的未读数与全局导航通知入口的未读数一致；点击后打开的是同一个聚合通知中心（包含来自其它模块的通知），而不是只展示个人页相关通知。",
+        "want": "present"
+      }
+    },
+    {
+      "id": "artifacts-badge-consistent",
+      "text": "Artifacts 页内 🔔 与左栏 Artifacts 入口徽标来自同一未读状态，二者不可能不一致（修复 #2334）。",
+      "actions": [
+        {
+          "type": "node",
+          "node": {
+            "name": "teamily.openPage",
+            "input": {
+              "page": "artifacts"
+            }
+          },
+          "delayAfterMs": 900
+        },
+        {
+          "type": "wait",
+          "delayAfterMs": 600
+        }
+      ],
+      "check": {
+        "kind": "ai",
+        "page": "page/artifacts",
+        "region": "artifacts/header",
+        "expect": "Artifacts 主内容区右上角（网格/列表切换右侧、筛选按钮左侧）的 🔔 未读徽标，与左栏 Artifacts 导航入口的未读徽标、以及全局通知入口的未读数三者完全一致：要么都显示未读，要么都不显示，不会出现页内显示未读而左栏无徽标的情况。",
+        "want": "present"
+      }
+    },
+    {
+      "id": "clouddoc-bell-shared-state",
+      "text": "CloudDoc 文档头部 🔔（Help 与头像之间）同样读取共享未读状态。",
+      "actions": [
+        {
+          "type": "node",
+          "node": {
+            "name": "teamily.openPage",
+            "input": {
+              "page": "artifacts"
+            }
+          },
+          "delayAfterMs": 900
+        },
+        {
+          "type": "tap",
+          "element": "target.doc-artifact",
+          "delayAfterMs": 1000
+        },
+        {
+          "type": "wait",
+          "delayAfterMs": 600
+        }
+      ],
+      "check": {
+        "kind": "ai",
+        "page": "page/doc",
+        "region": "doc/header",
+        "expect": "CloudDoc 文档头部右上角（Help 图标与头像之间）的通知入口未读数与个人主页 🔔、Artifacts 页 🔔、全局导航通知入口完全一致，且点击后进入的是同一个聚合通知中心。",
+        "want": "present"
+      }
+    },
+    {
+      "id": "read-updates-unified-state",
+      "text": "阅读或清除通知后，统一未读状态在全局入口、页面级 🔔 与模块徽标上同步更新。",
+      "actions": [
+        {
+          "type": "node",
+          "node": {
+            "name": "teamily.openPage",
+            "input": {
+              "page": "profile"
+            }
+          },
+          "delayAfterMs": 900
+        },
+        {
+          "type": "tap",
+          "element": "profile.bell",
+          "delayAfterMs": 900
+        },
+        {
+          "type": "wait",
+          "delayAfterMs": 800
+        },
+        {
+          "type": "key",
+          "value": "Escape",
+          "delayAfterMs": 600
+        },
+        {
+          "type": "node",
+          "node": {
+            "name": "teamily.openPage",
+            "input": {
+              "page": "artifacts"
+            }
+          },
+          "delayAfterMs": 900
+        },
+        {
+          "type": "wait",
+          "delayAfterMs": 600
+        }
+      ],
+      "check": {
+        "kind": "ai",
+        "page": "page/artifacts",
+        "region": "artifacts/header",
+        "expect": "在个人主页 🔔 中查看/清除通知后，切到 Artifacts 页时全局导航通知入口、Artifacts 页 🔔 与左栏 Artifacts 入口的未读数同步下降且彼此一致，不会出现某个表面仍显示旧未读数的不同步现象。",
+        "want": "present"
+      }
+    }
+  ],
+  "limits": {
+    "maxSteps": 1000,
+    "maxMinutes": 30,
+    "maxIntervalMs": 1000
+  },
+  "verdictRule": {
+    "anyHit": true
+  },
+  "provenance": {
+    "generatedBy": "model",
+    "skillVersion": "2026.10.21-1",
+    "confirmedAt": "2026-10-21T12:24:22.658Z"
+  }
+}

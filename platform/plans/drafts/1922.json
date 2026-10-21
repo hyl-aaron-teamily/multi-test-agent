@@ -1,0 +1,116 @@
+{
+  "issue": {
+    "id": "1922",
+    "title": "Aiden reports that the long-standing bug in which the second line of a text message bubble is not displayed has reappeared.",
+    "severity": "High",
+    "frequency": "Intermittent",
+    "platforms": [
+      "ios"
+    ],
+    "summary": "Aiden reports that the long-standing bug in which the second line of a text message bubble is not displayed has reappeared. On the reporter's own sent message, only the first line of content is shown and the remaining content is clipped with no ellipsis, so the message reads as though it were truncated mid-sentence. Reproduction path reported this time: send a message, leave the app to do something else, and later — after another participant replies — reopen the app and return to that conversation; the second line of the reporter's own message is then missing. The same symptom was reported on 2026-06-23 (\"after opening the app for the first time on a given day the second line of the message content is not displayed; restarting the app restores it\") and again on 2026-09-11, when the reporter asked for it to be fixed with the highest priority — so this is at least the third occurrence, and one that a prior fix did not permanently resolve. Because it only affects messages longer than one line and silently hides part of the user's own text, it is a trust-damaging core-messaging defect rather than a cosmetic one.",
+    "steps": [
+      "Send a text message that is longer than one line in any conversation.",
+      "Leave the app / switch away to do something else (background the client, or use another app).",
+      "Wait until another participant replies in that conversation.",
+      "Reopen the app and return to the same conversation.",
+      "Observe the reporter's own message bubble — only the first line of content is visible; the second line is missing (no ellipsis, no partial glyphs, no 'show more' affordance).",
+      "(Historical variant, 2026-06-23 report, inferred) Cold-start the app for the first time on a given day, open the conversation, and observe the same clipping; relaunching the app restores the missing line.",
+      "(Historical variant, 2026-09-11 report, inferred) The same clipping occurs on newly sent messages while reading the conversation, and was hit at least three times by the reporter on that day.",
+      "(inferred) Confirm on each candidate client — iOS app, Android app, web, macOS — which builds reproduce the clipping."
+    ],
+    "expected": "Every message bubble renders its full text height on first layout and on every re-layout after re-entering the conversation. A message longer than one line shows all of its lines (or, if truncation is intended, a 'show more' affordance), regardless of whether the content came from the local cache or from a later sync.",
+    "actual": "The second line of the reporter's own message bubble is not rendered: the bubble keeps a height that fits only the first line, and the remaining text is clipped without any ellipsis or expand affordance. In the first-open / long-message observation the message text is cut mid-sentence inside the bubble. Restarting the app temporarily makes the missing line reappear, which indicates the content is present in the data but the bubble height is not recomputed.",
+    "featureArea": "Messaging / Message List Rendering (UI)",
+    "context": "- **Feature area**: Messaging / Message List Rendering (UI)\r\n- Reporter: Aiden (2026-09-21). cc: Cora, Shawn.\r\n- Recurrence history: (1) 2026-06-23 — \"iOS: after opening the app for the first time on a given day the second line of the message content is not displayed; restarting the app restores it\" (reported together with caixintong2001); (2) 2026-09-11 — the same symptom reported again, with an explicit request to fix it with the highest priority; (3) 2026-09-21 — this report. This is therefore at least the third occurrence.\r\n- Suspected root cause (unverified): either (a) the message bubble's height / auto-sizing layout is computed before the text has been measured — on first layout or on re-layout — so the bubble keeps a single-line height and clips the second line; or (b) after a message reload / incremental update (cache-first render followed by sync, or a foreground / return-to-foreground refresh) the re-layout is never triggered, so the height is never recomputed for the final content.\r\n- Open questions to confirm during triage — (1) height/auto-sizing layout calculation bug vs. a missed re-render after reload/incremental update; (2) whether it correlates with 'first open of the day' / cold start, or with the app returning from background to foreground; (3) which clients are affected — iOS only, or also Android / RN and web; (4) whether it only occurs on messages longer than one line; (5) whether RN text measurement (e.g. a missing onTextLayout-driven height update) is involved; (6) whether it reproduces on a specific build number and can be captured in a screen recording.\r\n- Cross-reference — possibly related, NOT a duplicate, do not merge: #1919 (iOS conversation content incomplete — messages exchanged on Mac/web missing on iOS) is a message-sync/transport issue, a plausible but distinct root cause that may share the same code path as the reload/incremental-update branch here. Also in the same iOS message-bubble rendering pipeline: #1903 (@-mention not rendered in the sent bubble, iOS) and #1918 (LaTeX not rendered in agent bubbles, iOS). Unrelated: #1038 (no Copy in the iOS message context menu).\r\n- Duplicate search performed before filing (2026-09-21): scanned all 1920 issues in Teamily-Inc/teamily-ai-all plus 379 in Teamily-Inc/chat-web — title and body — for 第二行 / second line / 掉了一行 / 少一行 / 气泡+高度 / 消息不显示 / clipped / truncated, and also searched issue comments and the 用户反馈重要问题 label set — no existing issue describes this symptom. Related-but-distinct closed issues: #1709 (mobile web agent status bubble clipped — different surface), #538 / #347 / #528 (message covered by the input box / keyboard — different mechanism), #832 (blank area above the input bar), #1020 / #1335 / #1914 (text truncation in other components). Filed as new.\r\n\r\n---",
+    "environment": "- **Platform / OS / Browser**: iOS app (primary, per the reporter); Android / RN and web unconfirmed — needs confirmation. Desktop macOS also worth checking.",
+    "empty": false
+  },
+  "classification": {
+    "category": "bug-intermittent",
+    "surfaces": [],
+    "reason": "Frequency: Intermittent",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "status": "plannable",
+  "reason": "Frequency: Intermittent",
+  "subcases": [
+    {
+      "sub": "main",
+      "title": "Aiden reports that the long-standing bug in which the second line of a text mess",
+      "surface": "android-app",
+      "substitution": {
+        "from": "ios",
+        "to": "android-app",
+        "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。",
+        "alternatives": [
+          "android-app",
+          "mobile-web"
+        ]
+      },
+      "plan": {
+        "id": "1922-android-app-v1",
+        "issueRef": "1922",
+        "title": "按步骤执行并核对预期",
+        "category": "bug-intermittent",
+        "surface": "android-app",
+        "issueSurfaces": [
+          "ios"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "conv",
+            "kind": "group-conversation",
+            "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+          }
+        ],
+        "setup": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "conv"
+              }
+            },
+            "delayAfterMs": 800
+          }
+        ],
+        "actions": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.sendMessage",
+              "input": {
+                "text": "autotest ping"
+              }
+            },
+            "delayAfterMs": 1000
+          }
+        ],
+        "checks": [
+          {
+            "kind": "crash",
+            "expect": "无崩溃 / 页面错误",
+            "want": "absent"
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 30,
+          "maxIntervalMs": 1000
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "provenance": {
+          "generatedBy": "rules",
+          "skillVersion": "2026.10.21-1"
+        }
+      },
+      "planErrors": []
+    }
+  ]
+}

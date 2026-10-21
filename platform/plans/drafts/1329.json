@@ -1,0 +1,287 @@
+{
+  "issue": {
+    "id": "1329",
+    "title": "Aiden reports multiple interaction issues on iOS (iPhone): (1) tapping like on a message gives no visible feedback - the like is not displayed; (2) on the lates",
+    "severity": "Medium",
+    "frequency": "Intermittent",
+    "platforms": [
+      "ios"
+    ],
+    "summary": "Aiden reports multiple interaction issues on iOS (iPhone): (1) tapping like on a message gives no visible feedback - the like is not displayed; (2) on the latest version, tapping a message location link often jumps to a very old message instead of the target; (3) the keyboard does not auto-populate - the user must tap the input box once before the keyboard appears.",
+    "steps": [
+      "Open a chat on iOS (iPhone)",
+      "Tap the like/reaction button on a message - no reaction or feedback appears (inferred)",
+      "Tap a message location link to jump to a specific message - the app jumps to a very old message instead (inferred)",
+      "Tap the input box - the keyboard does not appear automatically; a second tap is required (inferred)"
+    ],
+    "expected": "Likes should display immediately after tapping; message location should jump to the target message; the keyboard should auto-populate when the input box is focused.",
+    "actual": "Likes are not visible after tapping; message location jumps to a very old message; the keyboard requires an extra tap to appear.",
+    "featureArea": "Messaging / UI",
+    "context": "- **Feature area**: Messaging / UI\r\n\r\n---",
+    "environment": "- **Platform / OS / Browser**: iOS (iPhone)",
+    "empty": false
+  },
+  "classification": {
+    "category": "bug-intermittent",
+    "surfaces": [],
+    "reason": "Frequency: Intermittent",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "status": "plannable",
+  "reason": "Frequency: Intermittent",
+  "subcases": [
+    {
+      "sub": "s1",
+      "title": "tapping like on a message gives no visible feedback - the like is not displayed",
+      "surface": "android-app",
+      "substitution": {
+        "from": "ios",
+        "to": "android-app",
+        "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。",
+        "alternatives": [
+          "android-app",
+          "mobile-web"
+        ]
+      },
+      "plan": {
+        "id": "1329-s1-android-app-v1",
+        "issueRef": "1329",
+        "title": "点赞后立即可见",
+        "category": "bug-intermittent",
+        "surface": "android-app",
+        "issueSurfaces": [
+          "ios"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "conv",
+            "kind": "group-conversation",
+            "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+          },
+          {
+            "id": "msg",
+            "kind": "others-text-message",
+            "guidance": "别人发的普通文本消息（不是图片/卡片/系统消息），点赞类问题用它"
+          },
+          {
+            "id": "like",
+            "kind": "like-action",
+            "guidance": "长按消息后出现的点赞/👍 表情按钮"
+          }
+        ],
+        "setup": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "conv"
+              }
+            },
+            "delayAfterMs": 800
+          }
+        ],
+        "actions": [
+          {
+            "type": "longPress",
+            "element": "target.msg",
+            "delayAfterMs": 800
+          },
+          {
+            "type": "tap",
+            "element": "target.like",
+            "delayAfterMs": 1000
+          }
+        ],
+        "checks": [
+          {
+            "kind": "ai",
+            "expect": "The liked message shows a like / 👍 reaction under it",
+            "want": "present",
+            "onlyOnAnomaly": false
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 30,
+          "maxIntervalMs": 1000
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "provenance": {
+          "generatedBy": "rules",
+          "skillVersion": "2026.10.21-1"
+        }
+      },
+      "planErrors": []
+    },
+    {
+      "sub": "s2",
+      "title": "on the latest version, tapping a message location link often jumps to a very old",
+      "surface": "android-app",
+      "substitution": {
+        "from": "ios",
+        "to": "android-app",
+        "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。",
+        "alternatives": [
+          "android-app",
+          "mobile-web"
+        ]
+      },
+      "plan": {
+        "id": "1329-s2-android-app-v1",
+        "issueRef": "1329",
+        "title": "按步骤执行并核对预期",
+        "category": "bug-intermittent",
+        "surface": "android-app",
+        "issueSurfaces": [
+          "ios"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "conv",
+            "kind": "group-conversation",
+            "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+          }
+        ],
+        "setup": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "conv"
+              }
+            },
+            "delayAfterMs": 800
+          }
+        ],
+        "actions": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.sendMessage",
+              "input": {
+                "text": "autotest ping"
+              }
+            },
+            "delayAfterMs": 1000
+          }
+        ],
+        "checks": [
+          {
+            "kind": "crash",
+            "expect": "无崩溃 / 页面错误",
+            "want": "absent"
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 30,
+          "maxIntervalMs": 1000
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "provenance": {
+          "generatedBy": "rules",
+          "skillVersion": "2026.10.21-1"
+        }
+      },
+      "planErrors": []
+    },
+    {
+      "sub": "s3",
+      "title": "the keyboard does not auto-populate - the user must tap the input box once befor",
+      "surface": "android-app",
+      "substitution": {
+        "from": "ios",
+        "to": "android-app",
+        "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。",
+        "alternatives": [
+          "android-app",
+          "mobile-web"
+        ]
+      },
+      "plan": {
+        "id": "1329-s3-android-app-v1",
+        "issueRef": "1329",
+        "title": "点一次输入框键盘即弹出",
+        "category": "bug-intermittent",
+        "surface": "android-app",
+        "issueSurfaces": [
+          "ios"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "conv",
+            "kind": "group-conversation",
+            "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+          }
+        ],
+        "setup": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "conv"
+              }
+            },
+            "delayAfterMs": 800
+          }
+        ],
+        "actions": [
+          {
+            "type": "back",
+            "delayAfterMs": 600
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "conv"
+              }
+            },
+            "delayAfterMs": 700
+          },
+          {
+            "type": "tap",
+            "element": "chat.composer",
+            "delayAfterMs": 800
+          }
+        ],
+        "checks": [
+          {
+            "kind": "ai",
+            "expect": "The on-screen keyboard is shown after a single tap on the message input",
+            "want": "present",
+            "onlyOnAnomaly": false
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 30,
+          "maxIntervalMs": 1000
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "provenance": {
+          "generatedBy": "rules",
+          "skillVersion": "2026.10.21-1"
+        }
+      },
+      "planErrors": []
+    }
+  ]
+}

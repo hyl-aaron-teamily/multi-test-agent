@@ -40,7 +40,7 @@ export function runMarkdown(d: Draft, results: RunResult[], runDir: string): str
     lines.push('', '| 统计 | 值 |', '|---|---|', `| 总步数 / 轮数 | ${s.steps} / ${s.rounds} |`, `| 总时长 | ${s.durationSec}s |`, `| 动作间隔 平均 / 最大 | ${s.avgIntervalMs}ms / ${s.maxIntervalMs}ms（>1s: ${s.intervalsOverCap} 次） |`, `| App 启动次数 | ${s.launches} |`, `| 操作偏离（重进，不计命中） | ${s.drifts ?? 0} |`, `| 异常门触发 / 可疑信号 | ${s.anomalyGateTriggers} / ${s.suspectSignals} |`, `| 检查点截图 | ${s.checkpointScreenshots} |`, `| 视觉模型调用 | ${s.visionCalls} |`, `| 文本模型调用 | ${s.textModelCalls} |`, '');
     if (r.acceptance) {
       lines.push('| 验收项 | 结果 | 依据 |', '|---|---|---|');
-      for (const a of r.acceptance) lines.push(`| ${a.text} | ${a.pass === null ? '未验证' : a.pass ? '✅ 已实现' : '❌ 缺项'} | ${a.detail}${a.evidence ? ` · [截图](${a.evidence})` : ''} |`);
+      for (const a of r.acceptance) lines.push(`| ${a.text} | ${a.pass === null ? '未验证' : a.pass ? '✅ 已实现' : '❌ 缺项'} | ${a.detail}${a.evidence ? ` · [截图](${r.planId}/${a.evidence})` : ''} |`);
       lines.push('');
     }
     if (r.hits.length) lines.push('命中记录：', ...r.hits.slice(0, 10).map((h) => `- 第 ${h.round} 轮 / 第 ${h.step} 步 ${h.at}：${h.reason}`), '');
@@ -63,7 +63,7 @@ export async function writeAllure(d: Draft, r: RunResult, runDir: string): Promi
   };
   const steps = [];
   for (const a of r.acceptance ?? []) {
-    const shot = a.evidence ? await att(join(runDir, a.evidence), `${a.id}.png`, 'image/png') : undefined;
+    const shot = a.evidence ? await att(join(runDir, r.planId, a.evidence), `${a.id}.png`, 'image/png') : undefined;
     steps.push({ name: a.text, status: a.pass === null ? 'skipped' : a.pass ? 'passed' : 'failed', statusDetails: { message: a.detail }, attachments: shot ? [shot] : [], stage: 'finished' });
   }
   for (const h of r.hits.slice(0, 5)) steps.push({ name: `命中：第 ${h.round} 轮 第 ${h.step} 步`, status: 'failed', statusDetails: { message: h.reason }, attachments: [], stage: 'finished' });
