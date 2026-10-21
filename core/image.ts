@@ -197,7 +197,10 @@ export function pixelDiff(a: Rgba, b: Rgba, box: Box = [0, 0, a.width, a.height]
  * leaves the image or the region has no ink.
  */
 export function regionDiffFraction(img: Rgba, ref: Rgba, box: Box, dy = 0): number {
-  const [bx, by, bw, bh] = box.map(Math.round);
+  const [bx, by] = box.map(Math.round);
+  // Clamp rounding overflow (CSS box × DPR can end a pixel past the image).
+  const bw = Math.min(Math.round(box[2]), ref.width - bx, img.width - bx);
+  const bh = Math.min(Math.round(box[3]), ref.height - by, img.height - by - Math.max(0, dy));
   if (by + dy < 0 || by + bh + dy > img.height || bx < 0 || bx + bw > Math.min(img.width, ref.width) || by < 0 || by + bh > ref.height) return 1;
   const grey = (im: Rgba, x: number, y: number) => {
     const o = (y * im.width + x) * 4;

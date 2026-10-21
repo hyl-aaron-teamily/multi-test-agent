@@ -31,7 +31,50 @@ async function accounts(args: string[]): Promise<number> {
   return 0;
 }
 
+/** T2 smoke: by coordinates only, open a conversation (picked at preparation) and send one message. */
+async function smoke(args: string[]): Promise<number> {
+  const surface = (flag(args, 'surface') ?? 'desktop-web') as Surface;
+  const env = (flag(args, 'env') ?? 'prod') as Env;
+  const { runPlan, runDirFor } = await import('../executor/run');
+  const { DevicePool } = await import('../platform/device-pool');
+  const { SKILL_VERSION } = await import('../skills/teamily/vocab');
+  const pool = new AccountPool();
+  await pool.reload();
+  const devices = new DevicePool();
+  await devices.reloadConfig();
+  await devices.refresh();
+  const id = `smoke-${surface}-${env}`;
+  const r = await runPlan({
+    plan: {
+      id,
+      issueRef: 'smoke',
+      title: '打开会话 → 发送一条消息（坐标驱动）',
+      category: 'bug-intermittent',
+      surface,
+      issueSurfaces: [],
+      env,
+      launch: 'once',
+      targets: [{ id: 'conv', kind: 'other-conversation', guidance: "the user's own Personal AI conversation (sending there disturbs no one)" }],
+      setup: [{ type: 'node', node: { name: 'teamily.openConversation', input: { target: 'conv' } }, delayAfterMs: 1000 }],
+      actions: [{ type: 'node', node: { name: 'teamily.sendMessage', input: { text: `autotest smoke ${new Date().toISOString().slice(11, 19)}` } }, delayAfterMs: 1000 }],
+      checks: [{ kind: 'visual-region', page: 'chat', region: 'composer', expect: '发送后输入框恢复为空', want: 'present' }],
+      limits: { maxSteps: 1, maxMinutes: 5, maxIntervalMs: 1000 },
+      verdictRule: { anyHit: true },
+      provenance: { generatedBy: 'manual', skillVersion: SKILL_VERSION },
+    },
+    runDir: runDirFor(id),
+    pool,
+    devices,
+    udid: flag(args, 'device'),
+    headed: has(args, 'headed'),
+  });
+  const sent = r.roundLog[0]?.results[0];
+  console.log(`[smoke] ${surface}@${env}: target ${r.targets.map((t) => `"${t.chosen}"`).join(', ')}; steps ${r.stats.steps}; composer after send: ${sent ? (sent.pass ? 'empty (sent)' : `NOT empty — ${sent.detail}`) : '?'}${r.error ? `; error ${r.error}` : ''}`);
+  return !r.error && sent?.pass ? 0 : 1;
+}
+
 async function skill(args: string[]): Promise<number> {
+  if (args[0] === 'smoke') return smoke(args);
   if (args[0] !== 'calibrate') {
     console.error('Usage: autotest skill calibrate --surface <s> --env <e> [--device <udid>]');
     return 2;

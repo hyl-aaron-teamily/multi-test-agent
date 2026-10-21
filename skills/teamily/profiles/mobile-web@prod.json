@@ -3,7 +3,7 @@
   "name": "mobile-web@prod",
   "skillVersion": "2026.10.21-1",
   "env": "prod",
-  "calibratedAt": "2026-10-21T11:13:17.057Z",
+  "calibratedAt": "2026-10-21T11:49:22.925Z",
   "viewport": {
     "width": 412,
     "height": 839
@@ -35,18 +35,18 @@
     "login.password": {
       "page": "login-password",
       "box": [
-        36,
+        51,
         492,
         340,
         40
       ],
       "selfCheck": "pass",
-      "note": "focus probe: 8895 px changed in element"
+      "note": "focus probe: 9730 px changed in element"
     },
     "login.continue": {
       "page": "login-password",
       "box": [
-        46,
+        61,
         574,
         320,
         40
@@ -63,7 +63,7 @@
         36
       ],
       "selfCheck": "pass",
-      "note": "screen Δ121"
+      "note": "screen Δ120"
     },
     "nav.chat": {
       "page": "home",
@@ -180,6 +180,23 @@
       },
       "greys": {
         "form": 243
+      }
+    },
+    "banner": {
+      "image": "refs/mobile-web@prod/banner.png",
+      "regions": {
+        "dismiss": [
+          71,
+          428,
+          132,
+          36
+        ]
+      },
+      "hashes": {
+        "dismiss": "8001313131310180"
+      },
+      "greys": {
+        "dismiss": 234
       }
     },
     "home": {

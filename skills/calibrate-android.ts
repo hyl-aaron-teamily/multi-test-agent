@@ -152,7 +152,13 @@ export async function calibrateAndroid(o: CalibrateAndroidOptions): Promise<Prof
     await d.type('x');
     await sleep(800);
     nodes = await dump(udid, o.packageName);
-    put('chat.send', byDesc(/^(发送|Send)$/));
+    // The send button has no label: the right-most button on the composer's toolbar row (keyboard up).
+    const comp2 = nodes.find((n) => /EditText/.test(n.cls));
+    put(
+      'chat.send',
+      byDesc(/^(发送|Send)$/) ??
+        (comp2 ? nodes.filter((n) => n.clickable && /Button/.test(n.cls) && !n.desc && n.x1 > prof.viewport.width * 0.75 && n.y1 >= comp2.y2 - 20 && n.y1 < comp2.y2 + 250).sort((a, b) => b.x2 - a.x2)[0] : undefined),
+    );
     await d.key('backspace');
     await d.back(); // keyboard
     await sleep(600);

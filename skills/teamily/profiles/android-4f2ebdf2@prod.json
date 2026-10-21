@@ -3,7 +3,7 @@
   "name": "android-4f2ebdf2@prod",
   "skillVersion": "2026.10.21-1",
   "env": "prod",
-  "calibratedAt": "2026-10-21T11:22:31.688Z",
+  "calibratedAt": "2026-10-21T11:42:03.429Z",
   "viewport": {
     "width": 1080,
     "height": 2400
@@ -19,7 +19,7 @@
         149
       ],
       "selfCheck": "pass",
-      "note": "screen Δ807280px"
+      "note": "screen Δ812190px"
     },
     "nav.me": {
       "page": "home",
@@ -30,7 +30,7 @@
         110
       ],
       "selfCheck": "pass",
-      "note": "screen Δ301657px"
+      "note": "screen Δ302081px"
     },
     "chatlist.search": {
       "page": "home",
@@ -41,7 +41,7 @@
         127
       ],
       "selfCheck": "pass",
-      "note": "screen Δ278115px"
+      "note": "screen Δ321038px"
     },
     "chat.back": {
       "page": "chat",
@@ -52,7 +52,7 @@
         132
       ],
       "selfCheck": "pass",
-      "note": "screen Δ277759px"
+      "note": "screen Δ277585px"
     },
     "chat.composer": {
       "page": "chat",
@@ -63,7 +63,17 @@
         84
       ],
       "selfCheck": "pass",
-      "note": "screen Δ1259053px"
+      "note": "screen Δ437044px"
+    },
+    "chat.send": {
+      "page": "chat",
+      "box": [
+        929,
+        2217,
+        99,
+        99
+      ],
+      "selfCheck": "pending"
     }
   },
   "refs": {
@@ -119,11 +129,5 @@
       }
     }
   },
-  "reviewQueue": [
-    {
-      "element": "chat.send",
-      "image": "",
-      "reason": "not found during calibration"
-    }
-  ]
+  "reviewQueue": []
 }

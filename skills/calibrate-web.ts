@@ -154,6 +154,7 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
       const dismiss = await first(p, 'div[role=dialog] button:has-text("忽略")', 'div[role=dialog] button:has-text("Ignore")');
       if (dismiss) {
         put('popup.appBannerDismiss', await box(dismiss));
+        await ref('banner', { dismiss: prof.elements['popup.appBannerDismiss']?.box });
         await selfCheck('popup.appBannerDismiss');
       }
     }

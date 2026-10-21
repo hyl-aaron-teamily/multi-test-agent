@@ -64,7 +64,13 @@ const openConversation: Exec<{ target: string }> = async ({ input, context: c })
 const sendMessage: Exec<{ text: string }> = async ({ input, context: c }) => {
   await tapEl(c, 'chat.composer');
   await c.driver.type(input.text);
-  await c.driver.key('Enter');
+  if (c.driver.surface === 'android-app') {
+    // RN composer: Enter is a newline. Hide the keyboard, then tap the (calibrated, keyboard-down) send button.
+    await c.driver.back();
+    await sleep(400);
+    await tapEl(c, 'chat.send');
+  } else if (c.driver.surface === 'mobile-web') await tapEl(c, 'chat.send'); // touch keyboard: Enter is a newline
+  else await c.driver.key('Enter');
   return { summary: `sent ${input.text.length} chars` };
 };
 

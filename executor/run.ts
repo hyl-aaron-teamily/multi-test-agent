@@ -158,15 +158,16 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       await wfr!.start(web.context!, web.page!);
       await sleep(8000);
     }
-    try {
-      await assertSkillFresh(d, profile);
-    } catch (e) {
-      if (!(e instanceof SkillStaleError) || !profile.elements['popup.appBannerDismiss']) throw e;
-      log('home differs from reference — dismissing the mobile app banner once');
-      await d.tap(pointOf(profile, 'popup.appBannerDismiss'));
-      await sleep(1000);
-      await assertSkillFresh(d, profile);
+    if (profile.refs.banner) {
+      // Mobile web shows a "download the app" dialog on some loads: dismiss it only if it is visibly there.
+      const banner = await evaluateVisual(d, profile, { kind: 'visual-region', page: 'banner', region: 'dismiss', expect: 'app banner shown', want: 'present' });
+      if (banner.pass) {
+        log('app download banner visible — dismissing');
+        await d.tap(pointOf(profile, 'popup.appBannerDismiss'));
+        await sleep(1500);
+      }
     }
+    await assertSkillFresh(d, profile);
     d.drainAnomalies(); // page-load noise before the test starts
 
     // ---- prepare: dynamic targets
