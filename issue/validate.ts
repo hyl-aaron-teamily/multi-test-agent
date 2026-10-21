@@ -38,6 +38,7 @@ export function validatePlan(raw: unknown): Validation {
   };
   plan.setup.forEach((a, i) => checkAction(a, `setup[${i}]`));
   plan.actions.forEach((a, i) => checkAction(a, `actions[${i}]`));
+  plan.prepare.forEach((a, i) => checkAction(a, `prepare[${i}]`));
   plan.afterCheck.forEach((a, i) => checkAction(a, `afterCheck[${i}]`));
   plan.correctPath?.forEach((a, i) => checkAction(a, `correctPath[${i}]`));
   plan.acceptance?.forEach((it) => it.actions.forEach((a, i) => checkAction(a, `acceptance.${it.id}[${i}]`)));

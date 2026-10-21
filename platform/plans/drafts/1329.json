@@ -88,7 +88,7 @@
           {
             "type": "longPress",
             "element": "target.msg",
-            "delayAfterMs": 800
+            "delayAfterMs": 900
           },
           {
             "type": "tap",
@@ -102,6 +102,18 @@
             "expect": "The liked message shows a like / 👍 reaction under it",
             "want": "present",
             "onlyOnAnomaly": false
+          }
+        ],
+        "afterCheck": [
+          {
+            "type": "longPress",
+            "element": "target.msg",
+            "delayAfterMs": 900
+          },
+          {
+            "type": "tap",
+            "element": "target.like",
+            "delayAfterMs": 1000
           }
         ],
         "limits": {
@@ -135,7 +147,7 @@
       "plan": {
         "id": "1329-s2-android-app-v1",
         "issueRef": "1329",
-        "title": "按步骤执行并核对预期",
+        "title": "点消息定位链接应跳到目标消息",
         "category": "bug-intermittent",
         "surface": "android-app",
         "issueSurfaces": [
@@ -148,6 +160,11 @@
             "id": "conv",
             "kind": "group-conversation",
             "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+          },
+          {
+            "id": "link",
+            "kind": "message-link",
+            "guidance": "会话里指向另一条消息的可点定位：引用回复里的被引用消息块、“跳转到消息”链接或消息位置链接（不是网页 URL）"
           }
         ],
         "setup": [
@@ -159,26 +176,44 @@
                 "target": "conv"
               }
             },
-            "delayAfterMs": 800
+            "delayAfterMs": 900
           }
         ],
         "actions": [
           {
-            "type": "node",
-            "node": {
-              "name": "teamily.sendMessage",
-              "input": {
-                "text": "autotest ping"
-              }
-            },
+            "type": "tap",
+            "element": "target.link",
             "delayAfterMs": 1000
+          },
+          {
+            "type": "wait",
+            "value": "800",
+            "delayAfterMs": 900
           }
         ],
         "checks": [
           {
-            "kind": "crash",
-            "expect": "无崩溃 / 页面错误",
-            "want": "absent"
+            "kind": "ai",
+            "expect": "After tapping the message link, the chat shows (usually highlighted) the specific message the link refers to, not an unrelated much older part of the history",
+            "want": "present",
+            "onlyOnAnomaly": false
+          }
+        ],
+        "afterCheck": [
+          {
+            "type": "tap",
+            "element": "chat.back",
+            "delayAfterMs": 800
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "conv"
+              }
+            },
+            "delayAfterMs": 1000
           }
         ],
         "limits": {
@@ -241,8 +276,9 @@
         ],
         "actions": [
           {
-            "type": "back",
-            "delayAfterMs": 600
+            "type": "tap",
+            "element": "chat.back",
+            "delayAfterMs": 700
           },
           {
             "type": "node",
@@ -252,12 +288,12 @@
                 "target": "conv"
               }
             },
-            "delayAfterMs": 700
+            "delayAfterMs": 900
           },
           {
             "type": "tap",
             "element": "chat.composer",
-            "delayAfterMs": 800
+            "delayAfterMs": 900
           }
         ],
         "checks": [
@@ -268,6 +304,7 @@
             "onlyOnAnomaly": false
           }
         ],
+        "afterCheck": [],
         "limits": {
           "maxSteps": 1000,
           "maxMinutes": 30,

@@ -49,8 +49,13 @@ export const TestPlanZ = z.object({
   account: z.string().optional(),
   launch: z.enum(['once', 'each-iteration']).default('once'),
   /** Dynamic targets (which group / message): picked by the model at preparation time, then frozen to coordinates. */
-  targets: z.array(z.object({ id: z.string(), kind: z.string(), guidance: z.string() })).default([]),
+  targets: z.array(z.object({ id: z.string(), kind: z.string(), guidance: z.string(), afterPrepare: z.boolean().optional() })).default([]),
   setup: z.array(PlannedActionZ),
+  /** Builds a precondition through the UI after the in-conversation targets are frozen (e.g. send a reply);
+   *  targets marked afterPrepare are located after it. Runs once. */
+  prepare: z.array(PlannedActionZ).default([]),
+  /** Must hold after prepare (the precondition really exists); otherwise the run is 执行失败, never a hit. */
+  prepareCheck: CheckPointZ.optional(),
   actions: z.array(PlannedActionZ),
   checks: z.array(CheckPointZ),
   /** Run after each round's checkpoint: restore state the round changed (e.g. remove the like just added). */

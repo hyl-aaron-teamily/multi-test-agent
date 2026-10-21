@@ -3,7 +3,7 @@
   "name": "android-4f2ebdf2@prod",
   "skillVersion": "2026.10.21-1",
   "env": "prod",
-  "calibratedAt": "2026-10-21T11:42:03.429Z",
+  "calibratedAt": "2026-10-21T14:08:22.042Z",
   "viewport": {
     "width": 1080,
     "height": 2400
@@ -19,7 +19,7 @@
         149
       ],
       "selfCheck": "pass",
-      "note": "screen Δ812190px"
+      "note": "screen Δ11199px"
     },
     "nav.me": {
       "page": "home",
@@ -30,7 +30,7 @@
         110
       ],
       "selfCheck": "pass",
-      "note": "screen Δ302081px"
+      "note": "screen Δ304575px"
     },
     "chatlist.search": {
       "page": "home",
@@ -41,7 +41,7 @@
         127
       ],
       "selfCheck": "pass",
-      "note": "screen Δ321038px"
+      "note": "screen Δ285291px"
     },
     "chat.back": {
       "page": "chat",
@@ -52,7 +52,7 @@
         132
       ],
       "selfCheck": "pass",
-      "note": "screen Δ277585px"
+      "note": "screen Δ350837px"
     },
     "chat.composer": {
       "page": "chat",
@@ -63,7 +63,7 @@
         84
       ],
       "selfCheck": "pass",
-      "note": "screen Δ437044px"
+      "note": "screen Δ516534px"
     },
     "chat.send": {
       "page": "chat",
@@ -98,17 +98,17 @@
       "image": "refs/android-4f2ebdf2@prod/chat.png",
       "regions": {
         "composer": [
-          58,
-          2128,
-          966,
-          84
+          0,
+          2212,
+          1080,
+          150
         ]
       },
       "hashes": {
-        "composer": "0000000000000000"
+        "composer": "01136b6b13010100"
       },
       "greys": {
-        "composer": 255
+        "composer": 237
       }
     },
     "mention-picker": {

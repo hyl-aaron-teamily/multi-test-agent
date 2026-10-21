@@ -42,7 +42,7 @@ export function splitSubcases(i: NormalizedIssue): { sub: string; text: string }
   return out;
 }
 
-type Template = Pick<TestPlan, 'targets' | 'setup' | 'actions' | 'checks'> & { afterCheck?: TestPlan['afterCheck']; acceptance?: TestPlan['acceptance']; title: string };
+type Template = Pick<TestPlan, 'targets' | 'setup' | 'actions' | 'checks'> & { prepare?: TestPlan['prepare']; prepareCheck?: TestPlan['prepareCheck']; afterCheck?: TestPlan['afterCheck']; acceptance?: TestPlan['acceptance']; title: string };
 
 const T = TARGET_GUIDANCE;
 
@@ -121,6 +121,27 @@ export function templateFor(text: string, category: TestPlan['category'], surfac
       ],
     };
   }
+  if (/location link|jumps? to|定位|跳转|message link/.test(t)) {
+    // Precondition built through the UI: reply to an older message → the sent reply carries a quote block
+    // that links back to it. Then: tap the quote, expect the original message to be shown.
+    return {
+      title: '点消息定位（引用块）应跳到目标消息',
+      targets: [
+        { id: 'conv', kind: 'group-conversation', guidance: T['group-conversation'] },
+        { id: 'msg', kind: 'others-text-message', guidance: 'a plain text message sent by someone else, visible on screen now, containing NO link / URL / @mention (only ordinary words); the history has been scrolled up, so it is far from the latest messages' },
+        { id: 'reply', kind: 'reply-action', guidance: '长按消息后弹出菜单里的“回复 / Reply”项' },
+        { id: 'link', kind: 'message-link', guidance: 'the quote card directly ABOVE my latest sent green reply bubble: it has a vertical bar on its left and shows the original sender name and quoted text — tap the sender-name line of the card (NOT the green bubble, NOT any link text)', afterPrepare: true },
+      ],
+      // Scroll well up the history first, so the quoted message is far from the bottom where the reply lands.
+      setup: [node('teamily.openConversation', { target: 'conv' }, 900), a('scroll', { value: 'up', delayAfterMs: 700 }), a('scroll', { value: 'up', delayAfterMs: 700 }), a('scroll', { value: 'up', delayAfterMs: 700 }), a('scroll', { value: 'up', delayAfterMs: 900 })],
+      prepare: [{ type: 'longPress', element: 'target.msg', delayAfterMs: 900 }, { type: 'tap', element: 'target.reply', delayAfterMs: 800 }, node('teamily.sendMessage', { text: 'autotest 定位链接测试（引用回复）' }, 1000), a('wait', { value: '1000', delayAfterMs: 1000 })],
+      prepareCheck: { kind: 'ai', expect: 'The newest message at the bottom of the chat is a green bubble saying "autotest 定位链接测试（引用回复）" with a quote card (vertical bar, quoted sender and text) directly above it', want: 'present', onlyOnAnomaly: false },
+      actions: [{ type: 'tap', element: 'target.link', delayAfterMs: 1000 }, a('wait', { value: '800', delayAfterMs: 900 })],
+      checks: [{ kind: 'ai', expect: 'The chat has scrolled away from the latest messages: the newest "autotest 定位链接测试" reply bubble is NOT visible, and an older part of the conversation is shown (the quoted original message, often highlighted)', want: 'present', onlyOnAnomaly: false }],
+      // Back to the bottom where the reply (and its quote) is: reopen the conversation.
+      afterCheck: [...(surface === 'desktop-web' ? [] : [a('tap', { element: 'chat.back', delayAfterMs: 800 })]), node('teamily.openConversation', { target: 'conv' }, 1000)],
+    };
+  }
   if (/keyboard|键盘/.test(t)) {
     return {
       title: '点一次输入框键盘即弹出',
@@ -180,6 +201,8 @@ function basePlan(i: NormalizedIssue, c: Classification, sub: string, surface: S
     launch: /launch|startup|启动|加载/.test(i.summary.toLowerCase()) ? 'each-iteration' : 'once',
     targets: tpl.targets,
     setup: tpl.setup,
+    prepare: tpl.prepare ?? [],
+    prepareCheck: tpl.prepareCheck,
     actions: tpl.actions,
     checks: tpl.checks,
     afterCheck: tpl.afterCheck ?? [],
@@ -254,7 +277,7 @@ export function applyApproval(d: Draft, approve: { sub: string; surface?: Surfac
     .filter((s) => approve.some((a) => a.sub === s.sub))
     .map((s) => {
       const surf = approve.find((a) => a.sub === s.sub)?.surface ?? s.surface;
-      const tpl = { title: s.plan.title, targets: s.plan.targets, setup: s.plan.setup, actions: s.plan.actions, checks: s.plan.checks, afterCheck: s.plan.afterCheck, acceptance: s.plan.acceptance };
+      const tpl = { title: s.plan.title, targets: s.plan.targets, setup: s.plan.setup, prepare: s.plan.prepare, prepareCheck: s.plan.prepareCheck, actions: s.plan.actions, checks: s.plan.checks, afterCheck: s.plan.afterCheck, acceptance: s.plan.acceptance };
       const plan: TestPlan = {
         ...s.plan,
         ...tpl,

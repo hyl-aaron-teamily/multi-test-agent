@@ -76,9 +76,9 @@ export const isRowTarget = (kind: string) => ROW_KINDS.has(kind);
  * phase 'inside' : on-screen things inside the opened conversation (after setup), located by vision;
  *                  a 'like-action' target is located after long-pressing the message target found before it.
  */
-export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, log: (s: string) => void, locate?: (q: string) => Promise<Point | null>, phase: 'rows' | 'inside' = 'rows', frozen: FrozenTarget[] = []): Promise<FrozenTarget[]> {
+export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, log: (s: string) => void, locate?: (q: string) => Promise<Point | null>, phase: 'rows' | 'inside' | 'after-prepare' = 'rows', frozen: FrozenTarget[] = []): Promise<FrozenTarget[]> {
   const out: FrozenTarget[] = [];
-  const wanted = plan.targets.filter((t) => (phase === 'rows') === ROW_KINDS.has(t.kind));
+  const wanted = plan.targets.filter((t) => (phase === 'rows' ? ROW_KINDS.has(t.kind) : !ROW_KINDS.has(t.kind) && (phase === 'after-prepare') === !!t.afterPrepare));
   if (!wanted.length) return out;
   const rowsNeeded = phase === 'rows';
   let cands: Candidate[] = [];
@@ -116,7 +116,7 @@ export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, lo
       const c = cands[idx];
       out.push({ id: t.id, kind: t.kind, point: { x: Math.round(c.box[0] + c.box[2] / 2), y: Math.round(c.box[1] + c.box[3] / 2) }, chosen: c.title, reason, by });
     } else {
-      const msg = t.kind === 'like-action' ? [...frozen, ...out].find((x) => x.kind === 'others-text-message') : undefined;
+      const msg = t.kind === 'like-action' || t.kind === 'reply-action' ? [...frozen, ...out].find((x) => x.kind === 'others-text-message') : undefined;
       if (msg) {
         await driver.longPress(msg.point);
         await new Promise((r) => setTimeout(r, 1200));

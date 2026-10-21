@@ -1,0 +1,155 @@
+{
+  "id": "1329-s2-android-app-v1",
+  "issueRef": "1329",
+  "title": "点消息定位（引用块）应跳到目标消息",
+  "category": "bug-intermittent",
+  "surface": "android-app",
+  "issueSurfaces": [
+    "ios"
+  ],
+  "env": "prod",
+  "launch": "once",
+  "targets": [
+    {
+      "id": "conv",
+      "kind": "group-conversation",
+      "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+    },
+    {
+      "id": "msg",
+      "kind": "others-text-message",
+      "guidance": "a plain text message sent by someone else, visible on screen now, containing NO link / URL / @mention (only ordinary words); the history has been scrolled up, so it is far from the latest messages"
+    },
+    {
+      "id": "reply",
+      "kind": "reply-action",
+      "guidance": "长按消息后弹出菜单里的“回复 / Reply”项"
+    },
+    {
+      "id": "link",
+      "kind": "message-link",
+      "guidance": "the quote card directly ABOVE my latest sent green reply bubble: it has a vertical bar on its left and shows the original sender name and quoted text — tap the sender-name line of the card (NOT the green bubble, NOT any link text)",
+      "afterPrepare": true
+    }
+  ],
+  "setup": [
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.openConversation",
+        "input": {
+          "target": "conv"
+        }
+      },
+      "delayAfterMs": 900
+    },
+    {
+      "type": "scroll",
+      "value": "up",
+      "delayAfterMs": 700
+    },
+    {
+      "type": "scroll",
+      "value": "up",
+      "delayAfterMs": 700
+    },
+    {
+      "type": "scroll",
+      "value": "up",
+      "delayAfterMs": 700
+    },
+    {
+      "type": "scroll",
+      "value": "up",
+      "delayAfterMs": 900
+    }
+  ],
+  "prepare": [
+    {
+      "type": "longPress",
+      "element": "target.msg",
+      "delayAfterMs": 900
+    },
+    {
+      "type": "tap",
+      "element": "target.reply",
+      "delayAfterMs": 800
+    },
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.sendMessage",
+        "input": {
+          "text": "autotest 定位链接测试（引用回复）"
+        }
+      },
+      "delayAfterMs": 1000
+    },
+    {
+      "type": "wait",
+      "value": "1000",
+      "delayAfterMs": 1000
+    }
+  ],
+  "prepareCheck": {
+    "kind": "ai",
+    "expect": "The newest message at the bottom of the chat is a green bubble saying \"autotest 定位链接测试（引用回复）\" with a quote card (vertical bar, quoted sender and text) directly above it",
+    "want": "present",
+    "onlyOnAnomaly": false
+  },
+  "actions": [
+    {
+      "type": "tap",
+      "element": "target.link",
+      "delayAfterMs": 1000
+    },
+    {
+      "type": "wait",
+      "value": "800",
+      "delayAfterMs": 900
+    }
+  ],
+  "checks": [
+    {
+      "kind": "ai",
+      "expect": "The chat has scrolled away from the latest messages: the newest \"autotest 定位链接测试\" reply bubble is NOT visible, and an older part of the conversation is shown (the quoted original message, often highlighted)",
+      "want": "present",
+      "onlyOnAnomaly": false
+    }
+  ],
+  "afterCheck": [
+    {
+      "type": "tap",
+      "element": "chat.back",
+      "delayAfterMs": 800
+    },
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.openConversation",
+        "input": {
+          "target": "conv"
+        }
+      },
+      "delayAfterMs": 1000
+    }
+  ],
+  "limits": {
+    "maxSteps": 1000,
+    "maxMinutes": 30,
+    "maxIntervalMs": 1000
+  },
+  "verdictRule": {
+    "anyHit": true
+  },
+  "provenance": {
+    "generatedBy": "rules",
+    "skillVersion": "2026.10.21-1",
+    "confirmedAt": "2026-10-21T14:19:44.393Z"
+  },
+  "substitution": {
+    "from": "ios",
+    "to": "android-app",
+    "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。"
+  }
+}

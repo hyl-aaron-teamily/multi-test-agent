@@ -28,6 +28,7 @@
       "delayAfterMs": 800
     }
   ],
+  "prepare": [],
   "actions": [
     {
       "type": "tap",
@@ -70,7 +71,7 @@
   "provenance": {
     "generatedBy": "rules",
     "skillVersion": "2026.10.21-1",
-    "confirmedAt": "2026-10-21T12:51:17.047Z"
+    "confirmedAt": "2026-10-21T14:00:04.888Z"
   },
   "substitution": {
     "from": "ios",

@@ -203,6 +203,13 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     const composerCheck = { kind: 'visual-region' as const, page: 'chat', region: 'composer', expect: 'chat page open (composer visible)', want: 'present' as const };
     const onChat = async (png?: Buffer) => !inChat || (await evaluateVisual(d, profile, { ...composerCheck, onlyOnAnomaly: false }, undefined, png)).pass !== false;
     const redoSetup = async () => {
+      // Left the app (a link opened a browser): bring the app back like a user would — launch it.
+      if (inner instanceof AndroidDriver && !inner.foreground) {
+        log('app not in foreground — relaunching it');
+        await d.launch();
+        stats.launches++;
+        await sleep(2000);
+      }
       for (let i = 0; i < 3 && plan.surface !== 'desktop-web'; i++) {
         if (await onChat()) break;
         // Never back out of the home screen (that would leave the app).
@@ -218,6 +225,22 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     if (inChat && !(await onChat())) {
       log('not on the chat page after preparation — redoing setup');
       await redoSetup();
+    }
+    if (plan.prepare.length) {
+      for (const a of plan.prepare) {
+        d.label = `prepare:${a.node?.name ?? a.element ?? a.type}`;
+        await exec(a);
+      }
+      if (plan.prepareCheck) {
+        const pc = plan.prepareCheck.kind === 'ai' ? await evaluateAi(plan.prepareCheck, ask) : await evaluateVisual(d, profile, plan.prepareCheck, ask);
+        await writeFile(join(o.runDir, 'prepare-check.png'), await d.screenshot());
+        log(`precondition: ${pc.pass ? 'established' : 'NOT established'} — ${pc.detail}`);
+        if (!pc.pass) throw new Error(`前置条件未建立（${plan.prepareCheck.expect}）— ${pc.detail}；见 prepare-check.png`);
+      }
+      for (const t of await pickTargets(plan, inner, profile, log, locate, 'after-prepare', res.targets)) {
+        res.targets.push(t);
+        targets[t.id] = t.point;
+      }
     }
     const setupOps = d.ops.filter((x) => x.op !== 'launch');
     const shotDir = join(o.runDir, 'evidence');
