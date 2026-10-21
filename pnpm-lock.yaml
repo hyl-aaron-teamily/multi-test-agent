@@ -169,6 +169,9 @@ importers:
       '@midscene/android':
         specifier: 1.16.0
         version: 1.16.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(ws@8.22.0)
+      '@midscene/core':
+        specifier: 1.16.0
+        version: 1.16.0(supports-color@8.1.1)(ws@8.22.0)
       '@midscene/web':
         specifier: ^1.16.0
         version: 1.16.0(@playwright/test@1.64.1)(debug@4.4.3(supports-color@8.1.1))(playwright@1.64.1)(supports-color@8.1.1)
@@ -208,6 +211,9 @@ importers:
       vitest:
         specifier: ^3.2.7
         version: 3.2.7(@types/debug@4.1.13)(@types/node@26.6.5)(supports-color@8.1.1)(tsx@4.23.15)
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
 
 packages:
 
@@ -2917,6 +2923,9 @@ packages:
 
   zod@3.25.76:
     resolution: {integrity: sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ==}
+
+  zod@4.6.7:
+    resolution: {integrity: sha512-g8W2D2kU6a8untc053fX1uVBKzM7yqAxW/3zwk83+6RyF2+SKOuV+c0wBDhUwzV1PaGapmZH+rmcUzPf+3CGwg==}
 
   zwitch@2.0.4:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
@@ -5750,5 +5759,7 @@ snapshots:
       readable-stream: 4.8.0
 
   zod@3.25.76: {}
+
+  zod@4.6.7: {}
 
   zwitch@2.0.4: {}

@@ -1,0 +1,232 @@
+{
+  "surface": "desktop-web",
+  "name": "desktop-web@test",
+  "skillVersion": "2026.10.21-1",
+  "env": "test",
+  "calibratedAt": "2026-10-21T11:05:24.386Z",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "elements": {
+    "login.email": {
+      "page": "login",
+      "box": [
+        525,
+        581,
+        390,
+        44
+      ],
+      "selfCheck": "pass",
+      "note": "focus Δlocal 6.5"
+    },
+    "login.emailContinue": {
+      "page": "login",
+      "box": [
+        525,
+        649,
+        390,
+        44
+      ],
+      "selfCheck": "pass",
+      "note": "no self-check (covered by flow)"
+    },
+    "login.password": {
+      "page": "login-password",
+      "box": [
+        526,
+        479,
+        390,
+        44
+      ],
+      "selfCheck": "pass",
+      "note": "focus Δlocal 15.1"
+    },
+    "login.continue": {
+      "page": "login-password",
+      "box": [
+        536,
+        565,
+        370,
+        44
+      ],
+      "selfCheck": "pass",
+      "note": "expected state reached"
+    },
+    "nav.chat": {
+      "page": "home",
+      "box": [
+        14,
+        84,
+        44,
+        44
+      ],
+      "selfCheck": "pass",
+      "note": "url changed, screen Δ91"
+    },
+    "nav.artifacts": {
+      "page": "home",
+      "box": [
+        14,
+        344,
+        44,
+        44
+      ],
+      "selfCheck": "pass",
+      "note": "url changed, screen Δ27"
+    },
+    "nav.me": {
+      "page": "home",
+      "box": [
+        14,
+        396,
+        44,
+        44
+      ],
+      "selfCheck": "pass",
+      "note": "url changed, screen Δ23"
+    },
+    "chatlist.search": {
+      "page": "home",
+      "box": [
+        135,
+        29,
+        219,
+        34
+      ],
+      "selfCheck": "pass",
+      "note": "focus Δlocal 24.0"
+    },
+    "chat.composer": {
+      "page": "chat",
+      "box": [
+        465,
+        785,
+        894,
+        24
+      ],
+      "selfCheck": "fail",
+      "note": "focus Δlocal 0.0"
+    },
+    "chat.send": {
+      "page": "chat",
+      "box": [
+        1359,
+        831,
+        36,
+        36
+      ],
+      "selfCheck": "pending"
+    },
+    "artifacts.bell": {
+      "page": "artifacts",
+      "box": [
+        1380,
+        24,
+        32,
+        32
+      ],
+      "selfCheck": "pass",
+      "note": "screen Δ71"
+    }
+  },
+  "refs": {
+    "login": {
+      "image": "refs/desktop-web@test/login.png",
+      "regions": {
+        "form": [
+          525,
+          581,
+          390,
+          44
+        ]
+      },
+      "hashes": {
+        "form": "00000040c0000000"
+      },
+      "greys": {
+        "form": 245
+      }
+    },
+    "home": {
+      "image": "refs/desktop-web@test/home.png",
+      "regions": {
+        "nav": [
+          0,
+          80,
+          70,
+          360
+        ]
+      },
+      "hashes": {
+        "nav": "6831392939393139"
+      },
+      "greys": {
+        "nav": 233
+      }
+    },
+    "chat": {
+      "image": "refs/desktop-web@test/chat.png",
+      "regions": {
+        "composer": [
+          465,
+          785,
+          894,
+          24
+        ]
+      },
+      "hashes": {
+        "composer": "0000000000000000"
+      },
+      "greys": {
+        "composer": 247
+      }
+    },
+    "mention-picker": {
+      "image": "refs/desktop-web@test/mention-picker.png",
+      "regions": {},
+      "hashes": {},
+      "greys": {}
+    },
+    "profile": {
+      "image": "refs/desktop-web@test/profile.png",
+      "regions": {},
+      "hashes": {},
+      "greys": {}
+    },
+    "artifacts": {
+      "image": "refs/desktop-web@test/artifacts.png",
+      "regions": {
+        "bell": [
+          1374,
+          18,
+          44,
+          44
+        ]
+      },
+      "hashes": {
+        "bell": "0000102828100000"
+      },
+      "greys": {
+        "bell": 238
+      }
+    }
+  },
+  "reviewQueue": [
+    {
+      "element": "chat.composer",
+      "image": "refs/desktop-web@test/review-chat.composer.png",
+      "reason": "focus Δlocal 0.0"
+    },
+    {
+      "element": "region:mention-picker/picker",
+      "image": "refs/desktop-web@test/mention-picker.png",
+      "reason": "picker did not open after typing @"
+    },
+    {
+      "element": "profile.bell",
+      "image": "",
+      "reason": "not found during calibration"
+    }
+  ]
+}

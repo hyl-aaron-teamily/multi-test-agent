@@ -13,3 +13,8 @@ monkey_run/
 platform/state/
 .playwright-mcp/
 .imui/
+
+# account secrets (account pool, local backend)
+*.local.yaml
+platform/secrets/
+.m5tmp/

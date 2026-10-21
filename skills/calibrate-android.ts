@@ -1,0 +1,171 @@
+// Android calibration: `uiautomator dump` is read here (calibration time) and nowhere at run time.
+// Finds fixed elements, writes coordinates + reference regions into profiles/android-<udid>@<env>.json
+// and self-checks every element (tap → screenshot → expected visible change).
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { adb } from '../core/adb';
+import { type Box, decodePng, dHash, drawBox, encodePng, meanGrey, pixelDiff } from '../core/image';
+import { AndroidDriver } from '../drivers/android';
+import { sleep } from '../drivers/types';
+import { listDevices } from '../platform/adb-devices';
+import type { Env } from '../platform/accounts/types';
+import { parseNodes } from '../imui/clients/android';
+import { type Profile, SKILL_DIR, saveProfile } from './profile';
+import { ELEMENTS, SKILL_VERSION } from './teamily/vocab';
+
+export interface CalibrateAndroidOptions {
+  udid?: string;
+  env: Env;
+  packageName: string;
+  log?: (s: string) => void;
+}
+
+type N = ReturnType<typeof parseNodes>[number];
+const toBox = (n: N): Box => [n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1];
+
+async function dump(udid: string, pkg: string): Promise<N[]> {
+  for (let i = 0; i < 4; i++) {
+    try {
+      await adb(['shell', 'uiautomator', 'dump', '/sdcard/autotest_ui.xml'], udid);
+      const xml = await adb(['exec-out', 'cat', '/sdcard/autotest_ui.xml'], udid);
+      const nodes = parseNodes(xml, pkg);
+      if (nodes.length) return nodes;
+    } catch {
+      /* UI not idle yet */
+    }
+    await sleep(800);
+  }
+  return [];
+}
+
+export async function calibrateAndroid(o: CalibrateAndroidOptions): Promise<Profile> {
+  const log = o.log ?? ((s) => console.log(`[calibrate] ${s}`));
+  const udid = o.udid ?? (await listDevices()).find((d) => d.state === 'device')?.udid;
+  if (!udid) throw new Error('no adb device online');
+  const size = (await adb(['shell', 'wm', 'size'], udid)).match(/(\d+)x(\d+)/);
+  const name = `android-${udid}@${o.env}`;
+  const prof: Profile = { surface: 'android-app', name, skillVersion: SKILL_VERSION, env: o.env, calibratedAt: new Date().toISOString(), viewport: { width: Number(size?.[1] ?? 1080), height: Number(size?.[2] ?? 2400) }, packageName: o.packageName, elements: {}, refs: {}, reviewQueue: [] };
+  const refDir = join(SKILL_DIR, 'refs', name);
+  await mkdir(refDir, { recursive: true });
+  const d = new AndroidDriver({ udid, packageName: o.packageName });
+  const shot = async () => decodePng(await d.screenshot());
+
+  const put = (id: string, n: N | undefined) => {
+    const spec = ELEMENTS.find((e) => e.id === id)!;
+    if (!n) {
+      log(`  ✗ ${id}: not found`);
+      prof.reviewQueue.push({ element: id, image: '', reason: 'not found during calibration' });
+      return;
+    }
+    prof.elements[id] = { page: spec.page, box: toBox(n), selfCheck: 'pending' };
+    log(`  · ${id} ${JSON.stringify(toBox(n))}`);
+  };
+  const selfCheck = async (id: string, minPx = 2000) => {
+    const e = prof.elements[id];
+    if (!e) return;
+    const before = await shot();
+    await d.tap({ x: e.box[0] + e.box[2] / 2, y: e.box[1] + e.box[3] / 2 });
+    await sleep(1500);
+    const after = await shot();
+    const px = pixelDiff(before, after);
+    const ok = px >= minPx;
+    e.selfCheck = ok ? 'pass' : 'fail';
+    e.note = `screen Δ${px}px`;
+    log(`  ${ok ? '✓' : '✗'} self-check ${id}: ${e.note}`);
+    if (!ok) {
+      drawBox(after, e.box);
+      const f = join(refDir, `review-${id}.png`);
+      await writeFile(f, encodePng(after));
+      prof.reviewQueue.push({ element: id, image: `refs/${name}/review-${id}.png`, reason: e.note });
+    }
+  };
+  const ref = async (page: string, regions: Record<string, Box | undefined>) => {
+    const buf = await d.screenshot();
+    const img = decodePng(buf);
+    await writeFile(join(refDir, `${page}.png`), buf);
+    const r: Profile['refs'][string] = { image: `refs/${name}/${page}.png`, regions: {}, hashes: {}, greys: {} };
+    for (const [k, b] of Object.entries(regions)) {
+      if (!b) continue;
+      r.regions[k] = b;
+      r.hashes[k] = dHash(img, b);
+      r.greys[k] = Math.round(meanGrey(img, b));
+    }
+    prof.refs[page] = r;
+    log(`  ▣ ref ${page} (${Object.keys(r.regions).join(', ') || 'full'})`);
+  };
+
+  try {
+    await d.launch();
+    await sleep(3000);
+    let nodes = await dump(udid, o.packageName);
+    // Back out to the home screen (the app restores the last screen).
+    for (let i = 0; i < 4 && !nodes.some((n) => n.desc === '聊天' && /Button/.test(n.cls)); i++) {
+      await d.back();
+      await sleep(1500);
+      nodes = await dump(udid, o.packageName);
+      if (!nodes.length) {
+        await d.launch();
+        await sleep(3000);
+        nodes = await dump(udid, o.packageName);
+      }
+    }
+    const byDesc = (re: RegExp, cls = /Button|ViewGroup/) => nodes.find((n) => n.clickable && re.test(n.desc) && cls.test(n.cls));
+    put('nav.chat', byDesc(/^聊天$/));
+    put('nav.me', byDesc(/^我的$/));
+    put('chatlist.search', byDesc(/^搜索$/));
+    const navNode = byDesc(/^聊天$/);
+    await ref('home', { nav: navNode ? [0, navNode.y1, prof.viewport.width, navNode.y2 - navNode.y1] : undefined });
+    await selfCheck('chatlist.search');
+    await d.back();
+    await sleep(1500);
+    // group row: a clickable row whose title lists several members
+    nodes = await dump(udid, o.packageName);
+    const title = nodes.find((n) => !n.clickable && /,/.test(n.text) && n.y1 > 300 && n.y2 < prof.viewport.height - 300);
+    const row = title && nodes.find((n) => n.clickable && n.x1 <= title.x1 && n.x2 >= title.x2 && n.y1 <= title.y1 && n.y2 >= title.y2 && n.y2 - n.y1 < 400);
+    if (!row) throw new Error('no group conversation row on the home screen');
+    log(`  conversation for chat-page calibration: group`);
+    await d.tap({ x: (row.x1 + row.x2) / 2, y: (row.y1 + row.y2) / 2 });
+    await sleep(3000);
+    nodes = await dump(udid, o.packageName);
+    put('chat.back', byDesc(/^返回$/));
+    const composer = nodes.find((n) => /EditText/.test(n.cls));
+    put('chat.composer', composer);
+    await ref('chat', { composer: composer && toBox(composer) });
+    await selfCheck('chat.composer', 20_000); // keyboard comes up
+    await d.type('@');
+    await sleep(2000);
+    nodes = await dump(udid, o.packageName);
+    let all = nodes.find((n) => n.desc === '所有人' && n.clickable);
+    if (!all) {
+      log(`  picker not seen yet (${nodes.length} nodes), retyping @`);
+      await d.key('backspace');
+      await d.type('@');
+      await sleep(2500);
+      nodes = await dump(udid, o.packageName);
+      all = nodes.find((n) => n.desc === '所有人' && n.clickable);
+    }
+    await ref('mention-picker', { picker: all ? [0, all.y1, prof.viewport.width, all.y2 - all.y1] : undefined });
+    if (!all) prof.reviewQueue.push({ element: 'region:mention-picker/picker', image: `refs/${name}/mention-picker.png`, reason: 'picker did not open after typing @' });
+    await d.back();
+    await sleep(800);
+    await d.key('backspace');
+    await d.type('x');
+    await sleep(800);
+    nodes = await dump(udid, o.packageName);
+    put('chat.send', byDesc(/^(发送|Send)$/));
+    await d.key('backspace');
+    await d.back(); // keyboard
+    await sleep(600);
+    await selfCheck('chat.back');
+    await sleep(1500);
+    await selfCheck('nav.me');
+    await d.back();
+    await sleep(1200);
+    await selfCheck('nav.chat', 1);
+  } finally {
+    await d.close();
+  }
+  const f = await saveProfile(prof);
+  log(`profile → ${f}  (${Object.keys(prof.elements).length} elements, ${Object.values(prof.elements).filter((e) => e.selfCheck === 'fail').length} self-check failures, review queue ${prof.reviewQueue.length})`);
+  return prof;
+}

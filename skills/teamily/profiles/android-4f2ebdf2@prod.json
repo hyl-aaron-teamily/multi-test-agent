@@ -1,0 +1,129 @@
+{
+  "surface": "android-app",
+  "name": "android-4f2ebdf2@prod",
+  "skillVersion": "2026.10.21-1",
+  "env": "prod",
+  "calibratedAt": "2026-10-21T11:22:31.688Z",
+  "viewport": {
+    "width": 1080,
+    "height": 2400
+  },
+  "packageName": "ai.teamily.mobile",
+  "elements": {
+    "nav.chat": {
+      "page": "home",
+      "box": [
+        33,
+        2174,
+        203,
+        149
+      ],
+      "selfCheck": "pass",
+      "note": "screen Δ807280px"
+    },
+    "nav.me": {
+      "page": "home",
+      "box": [
+        44,
+        127,
+        110,
+        110
+      ],
+      "selfCheck": "pass",
+      "note": "screen Δ301657px"
+    },
+    "chatlist.search": {
+      "page": "home",
+      "box": [
+        44,
+        275,
+        992,
+        127
+      ],
+      "selfCheck": "pass",
+      "note": "screen Δ278115px"
+    },
+    "chat.back": {
+      "page": "chat",
+      "box": [
+        28,
+        142,
+        132,
+        132
+      ],
+      "selfCheck": "pass",
+      "note": "screen Δ277759px"
+    },
+    "chat.composer": {
+      "page": "chat",
+      "box": [
+        58,
+        2128,
+        966,
+        84
+      ],
+      "selfCheck": "pass",
+      "note": "screen Δ1259053px"
+    }
+  },
+  "refs": {
+    "home": {
+      "image": "refs/android-4f2ebdf2@prod/home.png",
+      "regions": {
+        "nav": [
+          0,
+          2174,
+          1080,
+          149
+        ]
+      },
+      "hashes": {
+        "nav": "0094958494d5d501"
+      },
+      "greys": {
+        "nav": 248
+      }
+    },
+    "chat": {
+      "image": "refs/android-4f2ebdf2@prod/chat.png",
+      "regions": {
+        "composer": [
+          58,
+          2128,
+          966,
+          84
+        ]
+      },
+      "hashes": {
+        "composer": "0000000000000000"
+      },
+      "greys": {
+        "composer": 255
+      }
+    },
+    "mention-picker": {
+      "image": "refs/android-4f2ebdf2@prod/mention-picker.png",
+      "regions": {
+        "picker": [
+          0,
+          1249,
+          1080,
+          99
+        ]
+      },
+      "hashes": {
+        "picker": "00002ca4a6220000"
+      },
+      "greys": {
+        "picker": 252
+      }
+    }
+  },
+  "reviewQueue": [
+    {
+      "element": "chat.send",
+      "image": "",
+      "reason": "not found during calibration"
+    }
+  ]
+}

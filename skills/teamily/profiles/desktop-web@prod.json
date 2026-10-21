@@ -1,0 +1,249 @@
+{
+  "surface": "desktop-web",
+  "name": "desktop-web@prod",
+  "skillVersion": "2026.10.21-1",
+  "env": "prod",
+  "calibratedAt": "2026-10-21T11:10:35.052Z",
+  "viewport": {
+    "width": 1440,
+    "height": 900
+  },
+  "elements": {
+    "login.email": {
+      "page": "login",
+      "box": [
+        525,
+        588,
+        390,
+        40
+      ],
+      "selfCheck": "pass",
+      "note": "focus probe: 460 px changed in element"
+    },
+    "login.emailContinue": {
+      "page": "login",
+      "box": [
+        525,
+        652,
+        390,
+        40
+      ],
+      "selfCheck": "pass",
+      "note": "no self-check (covered by flow)"
+    },
+    "login.password": {
+      "page": "login-password",
+      "box": [
+        533,
+        487,
+        390,
+        40
+      ],
+      "selfCheck": "pass",
+      "note": "focus probe: 1564 px changed in element"
+    },
+    "login.continue": {
+      "page": "login-password",
+      "box": [
+        542,
+        569,
+        370,
+        40
+      ],
+      "selfCheck": "pass",
+      "note": "expected state reached"
+    },
+    "nav.chat": {
+      "page": "home",
+      "box": [
+        14,
+        90,
+        44,
+        36
+      ],
+      "selfCheck": "pass",
+      "note": "url changed, screen Δ97"
+    },
+    "nav.artifacts": {
+      "page": "home",
+      "box": [
+        14,
+        350,
+        44,
+        36
+      ],
+      "selfCheck": "pass",
+      "note": "url changed, screen Δ25"
+    },
+    "nav.me": {
+      "page": "home",
+      "box": [
+        14,
+        402,
+        44,
+        36
+      ],
+      "selfCheck": "pass",
+      "note": "url changed, screen Δ24"
+    },
+    "chatlist.search": {
+      "page": "home",
+      "box": [
+        88,
+        16,
+        223,
+        36
+      ],
+      "selfCheck": "pass",
+      "note": "focus probe: 829 px changed in element"
+    },
+    "chat.composer": {
+      "page": "chat",
+      "box": [
+        401,
+        789,
+        978,
+        24
+      ],
+      "selfCheck": "pass",
+      "note": "focus probe: 160 px changed in element"
+    },
+    "chat.send": {
+      "page": "chat",
+      "box": [
+        1379,
+        835,
+        36,
+        36
+      ],
+      "selfCheck": "pending"
+    },
+    "profile.bell": {
+      "page": "profile",
+      "box": [
+        991,
+        33,
+        36,
+        36
+      ],
+      "selfCheck": "pass",
+      "note": "screen Δ102"
+    },
+    "artifacts.bell": {
+      "page": "artifacts",
+      "box": [
+        1388,
+        8,
+        32,
+        32
+      ],
+      "selfCheck": "pass",
+      "note": "screen Δ107"
+    }
+  },
+  "refs": {
+    "login": {
+      "image": "refs/desktop-web@prod/login.png",
+      "regions": {
+        "form": [
+          525,
+          588,
+          390,
+          40
+        ]
+      },
+      "hashes": {
+        "form": "0000004080800000"
+      },
+      "greys": {
+        "form": 247
+      }
+    },
+    "home": {
+      "image": "refs/desktop-web@prod/home.png",
+      "regions": {
+        "nav": [
+          0,
+          80,
+          70,
+          360
+        ]
+      },
+      "hashes": {
+        "nav": "7020301038383020"
+      },
+      "greys": {
+        "nav": 250
+      }
+    },
+    "chat": {
+      "image": "refs/desktop-web@prod/chat.png",
+      "regions": {
+        "composer": [
+          401,
+          789,
+          978,
+          24
+        ]
+      },
+      "hashes": {
+        "composer": "0000000000000000"
+      },
+      "greys": {
+        "composer": 255
+      }
+    },
+    "mention-picker": {
+      "image": "refs/desktop-web@prod/mention-picker.png",
+      "regions": {
+        "picker": [
+          409,
+          520,
+          368,
+          28
+        ]
+      },
+      "hashes": {
+        "picker": "0000584848080000"
+      },
+      "greys": {
+        "picker": 226
+      }
+    },
+    "profile": {
+      "image": "refs/desktop-web@prod/profile.png",
+      "regions": {
+        "bell": [
+          985,
+          27,
+          48,
+          48
+        ]
+      },
+      "hashes": {
+        "bell": "0000302828100000"
+      },
+      "greys": {
+        "bell": 250
+      }
+    },
+    "artifacts": {
+      "image": "refs/desktop-web@prod/artifacts.png",
+      "regions": {
+        "bell": [
+          1382,
+          2,
+          44,
+          44
+        ]
+      },
+      "hashes": {
+        "bell": "0000102828100000"
+      },
+      "greys": {
+        "bell": 247
+      }
+    }
+  },
+  "reviewQueue": []
+}

@@ -1,6 +1,8 @@
 // Ring screen recorder ("dashcam") for instant replay.
 //   engine scrcpy       : host-side `scrcpy --no-playback --record seg.mkv --time-limit S` segments
-//                         (mkv survives an abrupt stop; needs scrcpy on PATH or SCRCPY_PATH)
+//                         (needs scrcpy on PATH or SCRCPY_PATH). scrcpy writes the file only when it ends
+//                         normally, so a cut is done on the DEVICE side: `pkill -f com.genymobile.scrcpy.Server`
+//                         (killing the host scrcpy would lose the whole segment).
 //   engine screenrecord : device-side `screenrecord --time-limit S /sdcard/autotest_rec_<k>.mp4`,
 //                         no install needed (Android's own recorder, max 180 s per file)
 // Keeps the newest `keep` segments; snapshot(dir) stops the current segment and copies the
@@ -44,8 +46,9 @@ export class ScreenRecorder {
   private child?: ChildProcess;
   private k = 0;
   /** Finished segments, oldest first (host paths for scrcpy, device paths for screenrecord). */
-  private readonly ring: string[] = [];
+  private readonly ring: { file: string; startedAt: number; endedAt: number }[] = [];
   private current?: string;
+  private currentStart = 0;
   private loop?: Promise<void>;
 
   constructor(private readonly o: RecorderOptions) {
@@ -72,6 +75,7 @@ export class ScreenRecorder {
       const file = this.engine === 'scrcpy' ? join(resolve(this.o.workDir), `seg-${slot}.mkv`) : `/sdcard/autotest_rec_${slot}.mp4`;
       this.current = file;
       const startedAt = Date.now();
+      this.currentStart = startedAt;
       await new Promise<void>((done) => {
         this.child =
           this.engine === 'scrcpy'
@@ -91,7 +95,7 @@ export class ScreenRecorder {
         await sleep(2_000);
         continue;
       }
-      this.ring.push(file);
+      this.ring.push({ file, startedAt, endedAt: Date.now() });
       while (this.ring.length > this.keep) this.ring.shift();
     }
   }
@@ -101,27 +105,34 @@ export class ScreenRecorder {
     if (!this.child) return;
     const closed = new Promise<void>((r) => this.child?.once('close', () => r()));
     if (this.engine === 'screenrecord') await adb(['shell', 'pkill -INT -f autotest_rec_'], this.o.udid).catch(() => {});
-    else this.child.kill('SIGINT');
-    await Promise.race([closed, sleep(5_000)]);
+    else await adb(['shell', 'pkill -f com.genymobile.scrcpy.Server'], this.o.udid).catch(() => {});
+    await Promise.race([closed, sleep(8_000)]);
+    // Last resort only (segment lost): the device-side stop did not end the client.
     if (this.child) this.child.kill();
   }
 
   /** Copy the newest segments (including the cut current one) into `dir`. Returns copied file names. */
   async snapshot(dir: string): Promise<string[]> {
+    return (await this.snapshotTimed(dir)).map((s) => s.name);
+  }
+
+  /** Like snapshot(), with the host start/end time (ms) of every copied segment (for log/ops alignment). */
+  async snapshotTimed(dir: string): Promise<{ name: string; startedAt: number; endedAt: number }[]> {
     this.paused = true;
     await this.cutCurrent();
     await sleep(500);
     await mkdir(dir, { recursive: true });
     const files = [...this.ring].slice(-this.keep);
-    const out: string[] = [];
-    for (const [i, f] of files.entries()) {
+    const out: { name: string; startedAt: number; endedAt: number }[] = [];
+    for (const [i, seg] of files.entries()) {
+      const f = seg.file;
       const name = `video-${i + 1}-of-${files.length}${this.engine === 'scrcpy' ? '.mkv' : '.mp4'}`;
       const dest = join(dir, name);
       const ok =
         this.engine === 'scrcpy'
           ? await copyFile(f, dest).then(() => true, () => false)
           : await adb(['pull', f, dest], this.o.udid, 60_000).then(() => true, () => false);
-      if (ok) out.push(name);
+      if (ok) out.push({ name, startedAt: seg.startedAt, endedAt: seg.endedAt });
     }
     this.paused = false;
     return out;

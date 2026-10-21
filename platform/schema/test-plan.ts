@@ -1,0 +1,81 @@
+// TestPlan: the single intermediate representation between an Issue and the executor (milestone 5 §A.4).
+// Plans reference SKILL element ids and Nodes only — never coordinates; the executor resolves ids through
+// the profile of its surface. The JSON Schema export is what the LLM gets as structured-output contract.
+import { z } from 'zod';
+
+export const SurfaceZ = z.enum(['android-app', 'mobile-web', 'desktop-web']);
+export const CategoryZ = z.enum(['bug-always', 'bug-intermittent', 'feature', 'suspected-misuse']);
+export const PreCategoryZ = z.enum([...CategoryZ.options, 'server-side', 'multi-account', 'deferred', 'not-executable']);
+
+export const PlannedActionZ = z.object({
+  type: z.enum(['tap', 'longPress', 'type', 'key', 'swipe', 'scroll', 'back', 'wait', 'launch', 'node']),
+  node: z.object({ name: z.string(), input: z.record(z.string(), z.unknown()).default({}) }).optional(),
+  element: z.string().optional(),
+  /** type: text; key: key name; swipe/scroll: 'up' | 'down' | 'left' | 'right'; wait: ms. */
+  value: z.string().optional(),
+  delayAfterMs: z.number().int().min(0).max(1000).default(300),
+});
+
+export const CheckPointZ = z.object({
+  kind: z.enum(['visual-region', 'crash', 'process-alive', 'console-error', 'page-error', 'ai']),
+  page: z.string().optional(),
+  region: z.string().optional(),
+  expect: z.string(),
+  /** visual-region: the reference state that counts as "as expected" ('present' = matches the ref, 'absent' = differs). */
+  want: z.enum(['present', 'absent']).default('present'),
+  onlyOnAnomaly: z.boolean().optional(),
+});
+
+export const LimitsZ = z.object({
+  maxSteps: z.number().int().min(1).max(3000),
+  maxMinutes: z.number().min(1).max(120),
+  maxIntervalMs: z.literal(1000),
+});
+
+export const VerdictRuleZ = z.union([z.object({ consecutiveHits: z.literal(3) }), z.object({ anyHit: z.literal(true) })]);
+
+/** Feature acceptance: one item per Expected/AC line; each is a check run once. */
+export const AcceptanceItemZ = z.object({ id: z.string(), text: z.string(), actions: z.array(PlannedActionZ), check: CheckPointZ });
+
+export const TestPlanZ = z.object({
+  id: z.string(),
+  issueRef: z.string(),
+  title: z.string(),
+  category: CategoryZ,
+  surface: SurfaceZ,
+  issueSurfaces: z.array(z.string()),
+  substitution: z.object({ from: z.string(), to: SurfaceZ, reason: z.string() }).optional(),
+  env: z.enum(['test', 'prod']),
+  account: z.string().optional(),
+  launch: z.enum(['once', 'each-iteration']).default('once'),
+  /** Dynamic targets (which group / message): picked by the model at preparation time, then frozen to coordinates. */
+  targets: z.array(z.object({ id: z.string(), kind: z.string(), guidance: z.string() })).default([]),
+  setup: z.array(PlannedActionZ),
+  actions: z.array(PlannedActionZ),
+  checks: z.array(CheckPointZ),
+  acceptance: z.array(AcceptanceItemZ).optional(),
+  /** suspected-misuse: the correct path, run first. */
+  correctPath: z.array(PlannedActionZ).optional(),
+  limits: LimitsZ,
+  verdictRule: VerdictRuleZ,
+  provenance: z.object({ generatedBy: z.enum(['model', 'rules', 'manual']), skillVersion: z.string(), confirmedAt: z.string().optional() }),
+});
+
+export type Surface = z.infer<typeof SurfaceZ>;
+export type Category = z.infer<typeof CategoryZ>;
+export type PreCategory = z.infer<typeof PreCategoryZ>;
+export type PlannedAction = z.infer<typeof PlannedActionZ>;
+export type CheckPoint = z.infer<typeof CheckPointZ>;
+export type TestPlan = z.infer<typeof TestPlanZ>;
+export type AcceptanceItem = z.infer<typeof AcceptanceItemZ>;
+
+export const DEFAULT_LIMITS = { maxSteps: 1000, maxMinutes: 30, maxIntervalMs: 1000 as const };
+export const HARD_LIMITS = { maxSteps: 3000, maxMinutes: 120 };
+
+export function verdictRuleFor(c: Category): TestPlan['verdictRule'] {
+  return c === 'bug-always' ? { consecutiveHits: 3 } : { anyHit: true };
+}
+
+export function testPlanJsonSchema(): unknown {
+  return z.toJSONSchema(TestPlanZ, { io: 'input' });
+}
