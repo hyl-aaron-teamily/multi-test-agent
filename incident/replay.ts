@@ -21,7 +21,8 @@ import type { CoordOp } from './recording-driver';
 
 export type Variant = 'original' | 'fast' | 'slow' | 'cold';
 const PACE: Record<Variant, number> = { original: 1, fast: 0.5, slow: 2, cold: 1 };
-export const DEVIATION_DISTANCE = 16;
+// Video frame vs live screenshot of the same screen differ by ~12–17 bits (scaling, status bar); 24 = different screen.
+export const DEVIATION_DISTANCE = 24;
 
 export interface VariantResult {
   variant: Variant;

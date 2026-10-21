@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, writeFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { decodePng, dHash } from '../core/image';
 import type { AnomalyKind } from '../drivers/types';
 import type { TestPlan } from '../platform/schema/test-plan';
 import type { CoordOp } from './recording-driver';
@@ -99,6 +100,13 @@ export function mergeVideo(dir: string, names: string[]): string | undefined {
   return r.status === 0 && existsSync(out) ? 'merged.mp4' : undefined;
 }
 
+/** One PNG frame at `sec` (ffmpeg), or undefined. */
+export function frameAt(file: string, sec: number): Buffer | undefined {
+  if (sec < 0) return undefined;
+  const r = spawnSync(process.env.FFMPEG_PATH || 'ffmpeg', ['-loglevel', 'error', '-ss', sec.toFixed(2), '-i', file, '-frames:v', '1', '-f', 'image2pipe', '-vcodec', 'png', '-'], { maxBuffer: 64 * 1024 * 1024, windowsHide: true });
+  return r.status === 0 && r.stdout?.length ? r.stdout : undefined;
+}
+
 export function probeDuration(file: string): number | undefined {
   const r = spawnSync(process.env.FFPROBE_PATH || 'ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', file], { encoding: 'utf8', windowsHide: true });
   const d = Number(r.stdout?.trim());
@@ -116,6 +124,16 @@ export async function writeIncident(i: IncidentInput): Promise<string> {
     merged = mergeVideo(dir, i.videos.map((v) => v.name));
     if (merged) videoSec = probeDuration(join(dir, 'video', merged));
     if (videoStart) await writeFile(join(dir, 'video', 'ops.srt'), opsSrt(i.ops, videoStart));
+  }
+  // Round-end reference frames for replay deviation: from the video when the run took no checkpoint shots.
+  if (merged && videoStart) {
+    for (const r of i.replay.rounds) {
+      if (r.endHash || !r.ops.length) continue;
+      const last = r.ops[r.ops.length - 1];
+      const t = (last.at + last.durationMs + 400 - videoStart) / 1000;
+      const png = frameAt(join(dir, 'video', merged), t);
+      if (png) r.endHash = dHash(decodePng(png));
+    }
   }
   const meta = {
     kind: i.kind,

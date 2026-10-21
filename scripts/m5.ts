@@ -44,6 +44,20 @@ async function smoke(args: string[]): Promise<number> {
   await devices.reloadConfig();
   await devices.refresh();
   const id = `smoke-${surface}-${env}`;
+  // --crash-after S (android): loop open/back and inject `am crash` after S seconds (flight-recorder check).
+  const crashAfter = flag(args, 'crash-after') ? Number(flag(args, 'crash-after')) : undefined;
+  if (crashAfter && surface === 'android-app') {
+    const { adb } = await import('../core/adb');
+    const udid = flag(args, 'device') ?? (await devices.refresh()).find((x) => x.status === 'idle')?.udid;
+    setTimeout(() => {
+      console.log(`[smoke] injecting: am crash ai.teamily.mobile`);
+      void adb(['shell', 'am', 'crash', 'ai.teamily.mobile'], udid).catch((e) => console.error(e.message));
+    }, crashAfter * 1000);
+  }
+  const loopActions = [
+    { type: 'node' as const, node: { name: 'teamily.openConversation', input: { target: 'conv' } }, delayAfterMs: 900 },
+    { type: 'back' as const, delayAfterMs: 900 },
+  ];
   const r = await runPlan({
     plan: {
       id,
@@ -55,10 +69,10 @@ async function smoke(args: string[]): Promise<number> {
       env,
       launch: 'once',
       targets: [{ id: 'conv', kind: 'other-conversation', guidance: "the user's own Personal AI conversation (sending there disturbs no one)" }],
-      setup: [{ type: 'node', node: { name: 'teamily.openConversation', input: { target: 'conv' } }, delayAfterMs: 1000 }],
-      actions: [{ type: 'node', node: { name: 'teamily.sendMessage', input: { text: `autotest smoke ${new Date().toISOString().slice(11, 19)}` } }, delayAfterMs: 1000 }],
-      checks: [{ kind: 'visual-region', page: 'chat', region: 'composer', expect: '发送后输入框恢复为空', want: 'present' }],
-      limits: { maxSteps: 1, maxMinutes: 5, maxIntervalMs: 1000 },
+      setup: crashAfter ? [] : [{ type: 'node', node: { name: 'teamily.openConversation', input: { target: 'conv' } }, delayAfterMs: 1000 }],
+      actions: crashAfter ? loopActions : [{ type: 'node', node: { name: 'teamily.sendMessage', input: { text: `autotest smoke ${new Date().toISOString().slice(11, 19)}` } }, delayAfterMs: 1000 }],
+      checks: crashAfter ? [{ kind: 'crash', expect: 'no crash', want: 'absent' }] : [{ kind: 'visual-region', page: 'chat', region: 'composer', expect: '发送后输入框恢复为空', want: 'present' }],
+      limits: { maxSteps: crashAfter ? 400 : 1, maxMinutes: 10, maxIntervalMs: 1000 },
       verdictRule: { anyHit: true },
       provenance: { generatedBy: 'manual', skillVersion: SKILL_VERSION },
     },
@@ -68,6 +82,10 @@ async function smoke(args: string[]): Promise<number> {
     udid: flag(args, 'device'),
     headed: has(args, 'headed'),
   });
+  if (crashAfter) {
+    console.log(`[smoke] crash run: ${r.conclusion} — ${r.conclusionDetail}; incidents: ${r.incidents.join(', ') || 'none'}`);
+    return r.incidents.length ? 0 : 1;
+  }
   const sent = r.roundLog[0]?.results[0];
   console.log(`[smoke] ${surface}@${env}: target ${r.targets.map((t) => `"${t.chosen}"`).join(', ')}; steps ${r.stats.steps}; composer after send: ${sent ? (sent.pass ? 'empty (sent)' : `NOT empty — ${sent.detail}`) : '?'}${r.error ? `; error ${r.error}` : ''}`);
   return !r.error && sent?.pass ? 0 : 1;

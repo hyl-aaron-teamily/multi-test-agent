@@ -167,7 +167,17 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
         await sleep(1500);
       }
     }
-    await assertSkillFresh(d, profile);
+    for (let i = 0; ; i++) {
+      try {
+        await assertSkillFresh(d, profile);
+        break;
+      } catch (e) {
+        // The Android app restores its last screen: back out to the home screen (user action) first.
+        if (!(e instanceof SkillStaleError) || plan.surface !== 'android-app' || i >= 3) throw e;
+        await d.back();
+        await sleep(1500);
+      }
+    }
     d.drainAnomalies(); // page-load noise before the test starts
 
     // ---- prepare: dynamic targets
@@ -288,6 +298,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
         }
       }
       const failed = results.find((r) => r.pass === false);
+      const hardHit = !!roundHitReason;
       if (failed && !roundHitReason) {
         roundHitReason = `check failed: ${failed.check.expect} — ${failed.detail}`;
         log(`HIT round ${round} step ${stats.steps}: ${roundHitReason}`);
@@ -297,7 +308,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
         if (frames.length > 60) frames.shift();
         for (const f of frames.slice(0, -10)) f.png = undefined;
       }
-      if (failed && res.incidents.length < 5) res.incidents.push(await incident(failed.check.kind === 'visual-region' ? 'check-failed' : 'visual-anomaly', roundHitReason, round));
+      if (failed && !hardHit && res.incidents.length < 5) res.incidents.push(await incident(failed.check.kind === 'visual-region' ? 'check-failed' : 'visual-anomaly', roundHitReason, round));
       if (roundHitReason) res.hits.push({ round, step: stats.steps, at: new Date().toISOString(), reason: roundHitReason });
       res.roundLog.push({ round, step: stats.steps, results: results.map((r) => ({ kind: r.check.kind, pass: r.pass, detail: r.detail })) });
       if (res.roundLog.length > 200) res.roundLog.splice(0, 50);
