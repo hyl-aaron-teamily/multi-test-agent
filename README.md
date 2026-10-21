@@ -1,5 +1,7 @@
 # multi-test-agent
 
+> 项目介绍页：[docs/intro.html](docs/intro.html)（浏览器直接打开；预览图 [docs/intro-preview.png](docs/intro-preview.png)）
+
 AI 驱动的自动化测试脚手架：**Midscene（AI 视觉定位/断言）+ Playwright / ADB（驱动）+ Vitest（运行器）+ Allure（报告）**。
 
 - **第一周（Web）**：用 https://www.saucedemo.com 的 5 步登录流程演示「AI 定位 + 结构化断言 + 失败可诊断」。
@@ -56,6 +58,9 @@ pnpm test:unit                            # W3：explore/ + monkey/ 纯函数单
 pnpm explore --package <pkg>              # W3 路径 A：AI 探索式遍历，见下文
 pnpm monkey --package <pkg> --seed 12345 --events 3000   # W3 路径 B：Monkey 压测
 pnpm report:problems                      # W3：合并两条路径 → midscene_run/problem-report.md
+pnpm autotest <mission|explore|monkey|web:smoke|devices|report>   # W4 统一入口
+pnpm mission "聊天时偶发闪退，你试试能不能重现" --package ai.teamily.mobile   # W4 自然语言任务
+pnpm platform                             # W4 Web 控制台 http://localhost:3210
 ```
 
 报告：每个业务步骤是一个 Allure step，步骤结束（成功或失败）都附截图（Web 为整页截图，Android 为 `adb exec-out screencap -p`）；失败断言标在对应 step 上。用例结束还会把 Midscene 自带的 HTML 回放报告作为附件挂到 Allure。
@@ -167,7 +172,7 @@ MONKEY_ROUNDS=3 MONKEY_EVENT_COUNT=5000 pnpm monkey --package <pkg>   # 未给 s
 
 ### 问题报告（`pnpm report:problems`）
 
-读最新 `midscene_run/explore-traces/*.json` 和 `monkey_run/summary.json`（也可 `--trace` / `--monkey` 指定），生成 `midscene_run/problem-report.md`：概览、两条路径的问题（截图 / logcat / 轨迹片段 / seed / 复现命令 / 堆栈摘要）、未复现与待观察项。与 Allure 报告、Midscene HTML 报告并列查看。
+读最新 `midscene_run/explore-traces/*.json` 和 `monkey_run/summary.json`（也可 `--trace` / `--monkey` 指定；`--only explore|monkey` 只出一条路径，`--out` 改输出文件，控制台任务用这两个参数只报告本任务的产物），生成 `midscene_run/problem-report.md`：概览、两条路径的问题（截图 / logcat / 轨迹片段 / seed / 复现命令 / 堆栈摘要）、未复现与待观察项。与 Allure 报告、Midscene HTML 报告并列查看。
 
 ### 真机记录（W3）
 
@@ -180,6 +185,118 @@ MONKEY_ROUNDS=3 MONKEY_EVENT_COUNT=5000 pnpm monkey --package <pkg>   # 未给 s
 | 基线 | `pnpm test:web` / `pnpm test:android` | ✅ 1/1、5/5 |
 
 生产副作用与还原记录见 CHANGELOG「真机记录」。
+
+## 第四周：自然语言任务 + Web 控制台 + 设备池 + CI（alpha）
+
+### 自然语言测试任务（`pnpm mission` / `pnpm autotest mission`）
+
+```bash
+pnpm mission "排查下消息列表的问题" --package ai.teamily.mobile
+pnpm mission "左侧栏新加了个功能，看看使用流畅度和功能完整性" --max-steps 60 --max-minutes 20
+pnpm mission "聊天时偶发闪退，你试试能不能重现" --plan-only      # 只看生成的计划，不动设备
+APP_HINT="一句话介绍 App 的导航结构" pnpm mission "..."             # 给规划器的 App 背景（含引号时用环境变量）
+```
+
+流程：**规划**（用 `MIDSCENE_MODEL_*` 同一个 OpenAI 兼容接口，把需求转成计划：意图 reproduce / investigate / evaluate、目标区域、入口指令、每轮场景动作、关注词、检查项、是否测帧率、建议上限；模型不可用时退化为关键词规划）→ **按轮执行** → **报告**。
+
+每轮：冷/热启动交替 → 进入目标区域 → 场景动作（`aiAct`，含后台/前台切换）→ 随机探索若干步（含输入、开关、发送）→ 检查项（`aiBoolean`，间隔 3 秒问两次都为否才算失败）→ 视觉异常探测（报错、白屏、无限加载、文字截断，两次确认）→ `dumpsys gfxinfo` 卡顿统计。
+
+发现类型：`crash` / `anr`（logcat）、`app-exit`（进程消失但无 Java 崩溃日志）、`check-failed`、`visual`、`jank`（卡顿帧比例 ≥ `MISSION_JANK_THRESHOLD`，默认 40%）、`action-failed`（同一动作连续 3 次失败）。默认发现第一个问题即停（`--keep-going` 关闭）。
+
+**上限机制**（针对偶发、复现条件模糊的问题）：
+
+| 机制 | 默认 | 说明 |
+|---|---|---|
+| 步数上限 `--max-steps` / `MISSION_MAX_STEPS` | 计划建议值（约 40–70） | 每个动作、检查都计 1 步 |
+| 时长上限 `--max-minutes` / `MISSION_MAX_MINUTES` | 计划建议值（约 15–20） | 到点后不再开始新动作 |
+| 平台硬上限 `MISSION_STEP_CAP` / `MISSION_MINUTES_CAP` | 300 步 / 120 分钟 | 计划和用户输入都会被截断到这里 |
+| 看门狗 | 时长上限 + 2 分钟 | 当前 AI 调用卡住时强制写出部分报告并退出（exit 3） |
+| 单条 `aiAct` 规划轮数 `MIDSCENE_REPLANNING_CYCLE_LIMIT` | 15 | 防止一条指令吃掉整个预算 |
+| 控制台服务端硬上限 | mission：时长上限 + 5 分钟；explore/monkey：`TASK_HARD_MINUTES`（60） | 杀掉整个子进程树 |
+
+没有发现问题时报告写「未复现」，并注明执行了多少步、因何停止，不把「未复现」当成「没问题」。
+
+**仍然硬拦截**（即使全面放开）：确认支付 / 立即购买等真实付款按钮，以及退出登录 / 注销 / 删除账号——前者花真钱，后者让后续测试全部失效。
+
+产物：`midscene_run/missions/<id>/`：`plan.json`、`mission.json`、`report.md`、`finding-*.png`；崩溃现场仍在 `midscene_run/crashes/<ts>/`（`context.json.source = "mission"`）。
+
+### 加速与即时重放（W4 补充）
+
+**Midscene 缓存**：mission 默认开启 `AgentOpt.cache`（read-write，缓存 ID = 包名 + 入口与场景动作的哈希，文件在 `midscene_run/cache/`）。`MISSION_CACHE=off` 关闭，`MISSION_CACHE_ID` 指定共享 ID。
+
+- 模型每次规划出的提示词都不同，缓存只有在**复用同一计划**时才能命中：`pnpm autotest mission --plan midscene_run/missions/<id>/plan.json`。
+- 同一次运行内新写入的记录不会被匹配，第 2 轮不会变快；要到下一次运行才生效。
+- Android 上只缓存 aiAct 的规划（`type: plan`），元素定位仍要调模型。
+- 实测（Teamily「排查下消息列表的问题」同一计划第 1 轮，入口 + 6 个场景动作）：无缓存 207.8 秒，有缓存 88.7 秒，约 −57%。
+
+**即时重放**：
+
+- mission 的每个动作都以可重放的操作记录（启动、aiAct、aiTap、aiInput、按键、切后台），同时运行环形录屏。
+- 发现问题时生成 `midscene_run/missions/<id>/replay-<n>/`，包含：
+  - `replay.json`：从最近一次启动到出问题的操作序列和时间偏移
+  - `video-*.mp4|mkv`：出问题前约 90 秒的录屏
+  - `README.md`：操作时间表、崩溃现场路径、重放命令
+- 重放：
+
+```bash
+pnpm autotest replay midscene_run/missions/<id>/replay-1/replay.json --times 3 [--keep-timing]
+```
+
+逐次重放并检测崩溃 / ANR / 进程消失，结果写入 `replay-result.json`。复现过返回退出码 1，未复现返回 0。
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `MISSION_RECORD` | on | `off` 关闭录屏 |
+| `MISSION_RECORDER` | auto | `scrcpy`（主机端录制，mkv，需安装 scrcpy 或设置 `SCRCPY_PATH`）/ `screenrecord`（手机自带，无需安装） |
+| `MISSION_RECORD_SEGMENT` / `MISSION_RECORD_KEEP` | 30 / 3 | 每段秒数 / 保留段数 |
+
+scrcpy 尚未在本机安装：winget 源连不上，直接下载被拦截。当前实际使用的是手机自带的 `screenrecord`。安装 scrcpy 后会自动改用它。
+
+### Web 控制台（`pnpm platform` → http://localhost:3210）
+
+单个 `node:http` 服务 + 单页 HTML（无前端构建链），三个区域：
+
+- **设备**：`platform/devices.yaml` 声明的设备与 `adb devices -l` 合并，显示 idle / busy / offline 和占用任务。
+- **新建任务**：自然语言任务（带三个示例需求、步数/时长上限）、AI 探索、Monkey（seed / 事件数），可指定设备或自动分配。
+- **最近任务**：状态 queued → running → completed / failed / cancelled，查看实时日志、渲染后的报告（含问题截图）、取消任务。
+
+API：`GET /api/devices`、`GET|POST /api/tasks`、`GET /api/tasks/:id`、`/report`、`/log`、`POST /api/tasks/:id/cancel`、`GET /files/<midscene_run 下的路径>`（只读，禁止越界）。任务异步执行，接口立即返回 202 + 任务 ID，前端每 3 秒轮询。状态落盘 `platform/state/`（tasks.json、devices.json、logs/、reports/），不用数据库。
+
+### 设备池（`platform/devices.yaml`）
+
+```yaml
+maxConcurrent: 1          # 同时运行的任务数
+scheduling:
+  strategy: first-idle    # first-idle | round-robin
+devices:
+  - udid: 4f2ebdf2
+    name: Xiaomi 2211133C (Android 16)
+  - udid: emulator-5554
+    name: placeholder emulator
+```
+
+任务排队 FIFO；每 2 秒调度一次，取一台 idle 设备标记 busy，以子进程运行 `autotest <type> --device <udid>`，结束后释放。不声明 `devices` 时使用所有 adb 设备。
+
+### CI（`.github/workflows/ai-test.yml`）
+
+- `pull_request`：typecheck + 单测 + Web 冒烟（未配置模型 secret 时告警跳过），上传 Allure 结果与 Midscene 报告。
+- 每日 `schedule` / 手动 `workflow_dispatch`：固定 seed 的 Android Monkey，跑在 `vars.ANDROID_RUNNER` 指定的 runner 上；runner 无 adb 设备时以 notice 跳过，不失败。
+- Secrets：`MIDSCENE_MODEL_BASE_URL`、`MIDSCENE_MODEL_API_KEY`；Variables：`MIDSCENE_MODEL_NAME`、`MIDSCENE_MODEL_FAMILY`、`ANDROID_RUNNER`。
+![控制台](docs/console.png)
+
+- **验证状态**：只做了 YAML 解析与结构检查，**尚未在真实 GitHub runner 或 `act` 上执行**（本机 Docker 未启动，actionlint 也未运行）。
+
+## IM 消息收发界面层测试（imui，移植自 im-loadtest）
+
+im-loadtest 的 imload 按协议压服务端；imui 用同样的命令、参数、指标、SLO 和退出码，改在真实客户端（Android App / chat-web）的界面上发送和观察：`ui_echo_ms`（按发送 → 自己界面出现）、`ui_e2e_ms`（→ 观察端界面出现）、投递 / 丢失、重复气泡、乱序。
+
+```bash
+pnpm autotest imui selftest
+pnpm autotest imui probe --client "android:4f2ebdf2@aaron+test3's Personal AI"
+pnpm autotest imui run   --client "android:<udid>@<会话>" [--client "web:test@<会话>"] --duration 60 --rate 0.1 --yes-prod
+```
+
+控制台里对应「IM 消息压测（界面层）」任务。完整的功能对照、实现方式、真机结果和限制见 [docs/imui.md](docs/imui.md)。
 
 ## 目录结构
 
@@ -220,6 +337,27 @@ MONKEY_ROUNDS=3 MONKEY_EVENT_COUNT=5000 pnpm monkey --package <pkg>   # 未给 s
 │   ├── loop.ts                  # 多轮 + summary.json
 │   └── unit.spec.ts
 ├── report/problem-report.ts     # W3 统一问题报告
+├── mission/                     # W4 自然语言任务
+│   ├── planner.ts               # 需求 → 计划（模型 + 关键词兜底，限额截断）
+│   ├── runner.ts                # 有界轮次执行、发现判定、卡顿统计
+│   ├── report.ts                # mission.json + report.md
+│   └── unit.spec.ts
+├── platform/                    # W4 平台层
+│   ├── server.ts                # node:http 控制台 + API
+│   ├── console.html             # 单页前端
+│   ├── tasks.ts                 # 任务记录、队列、子进程、硬超时
+│   ├── device-pool.ts           # devices.yaml + adb 心跳 + 占用/释放
+│   ├── devices.yaml
+│   └── adb-devices.ts
+├── imui/                        # im-loadtest 的界面层移植（见 docs/imui.md）
+│   ├── metrics.ts               # 移植 imload/metrics.py：分位数、投递、SLO + 重复/乱序
+│   ├── runner.ts                # ramp → 稳定发送 → drain
+│   ├── clients/android.ts       # 无障碍树 + yadb，不调模型
+│   ├── clients/web.ts           # Playwright + 登录态 + MutationObserver
+│   ├── selftest.ts, fixtures/fake-chat.html
+│   └── report.ts, tokens.ts, unit.spec.ts
+├── bin/autotest.ts              # W4 统一 CLI
+├── .github/workflows/ai-test.yml
 ├── scripts/
 │   ├── explore.ts / monkey.ts   # W3 CLI
 │   ├── report.ts                # 检查 Java 后调用 allure generate
@@ -275,3 +413,22 @@ ADB 通过 `child_process` 调用，没有引入 npm adb 封装库。
 | `ref/midscene-skills/skills/android-automation/` | **缺失**（`ref/` 下无 midscene-skills） | 未下载在线版；按 `.d.ts` 与可运行 demo 自行实现 observe → explore 循环，没有套用不存在的 explore API |
 | Android Monkey 官方文档 | 参数语义 | 文档未写清 `--randomize-throttle` 无值，真机日志纠正 |
 | Midscene「解析报告文件」 | 未用 | 报告只链接 Midscene HTML 路径，没有解析其中 JSON |
+
+### 第四周新增
+
+| 参考源 | 用在哪里 | 备注 |
+|---|---|---|
+| lycoding/auto-test-platform（Gitee） | 设备池「注册 / 心跳 / 占用 / 释放」模型、Master（server）+ Worker（子进程）分层 | 只参考架构，未查看/引入其 Java/Python 代码 |
+| Midscene 设备池配置格式 | `devices.yaml` 的 `devices` / `scheduling.strategy` / `maxConcurrent` 字段命名 | 只借字段格式，调度由本项目实现 |
+| `@midscene/shared` env 类型定义 | `MIDSCENE_REPLANNING_CYCLE_LIMIT`、`MIDSCENE_REPORT_QUIET`、`MIDSCENE_PLANNING_MODEL_*` | |
+| `ref/midscene-example/.github/workflows/` | **缺失** | CI 按 Midscene 文档的环境变量约定编写 |
+| `midscene.config.ts` 的 `setup` / `nodes` | 未使用 | 并行通过子进程实现，未改 Midscene 内部 |
+
+## 距离完整实现的自我评估（W4）
+
+| 维度 | 状态 | 依据 |
+|---|---|---|
+| WebView | 未开始 | 没有 CDP 通道；WebView 内页面只能靠截图视觉操作（如 Teamily 的 WEB 交付物卡片），无法读 DOM / 控制台 |
+| 小程序 | 未开始 | 无任何接入代码 |
+| 报告看板 | 有雏形 | 控制台能列任务、渲染单个 Markdown 报告和截图；无跨任务趋势、状态转换图、崩溃聚类 |
+| 生产级调度 | 有雏形 | 有设备池、FIFO 队列、并发上限、心跳、硬超时、取消；无持久化队列恢复（重启即失败）、无多机 Worker、无鉴权、无重试/优先级，并发任务共享部分产物文件 |

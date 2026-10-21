@@ -1,5 +1,72 @@
 # Changelog
 
+## [Unreleased] — 控制台报告隔离
+
+### Fixed
+- 控制台 explore / monkey 任务的报告混入其它任务的产物：任务结束时报告生成器不带参数运行，取的是全局最新的探索轨迹和 `monkey_run/summary.json`（例：计算器 monkey 任务的报告里出现 10-20 对 Teamily 的探索结果，标题变成两个包名）。现在平台从任务日志读出本任务的产物路径（explore：`[explore] trace →`；monkey：新增的 `[monkey] run summary →`，即按开始时间 + 设备命名的单次汇总），用 `--only <类型> --out <报告>` 生成只含这一条路径的报告。找不到产物或生成失败时任务记为无报告，不再拿别的任务的产物顶替。
+- `report/problem-report.ts` 新增 `--only explore|monkey`、`--out`；不带参数时行为不变。新增单测 3 条。
+
+### 验证
+- 计算器 monkey（seed 4242，200 事件）与 explore（2 步）经控制台排队串行执行，均 completed；两份报告分别只含路径 B / 路径 A，各自指向 `monkey_run/summary-2026-10-21T03-56-15-166Z-4f2ebdf2.json` 和本任务的轨迹。typecheck 通过，`test:unit` 31/31。
+
+## [Unreleased] — imui：im-loadtest 的 Web / 移动端界面层移植
+
+### Added
+- `imui`（`pnpm autotest imui config|discover|login|probe|run|selftest`）：命令、参数（`--duration --rate --ramp --drain --msg-types --payload-bytes --json --env --yes-prod`）、指标口径、SLO 和退出码对齐 im-loadtest 的 imload，测量层从协议换成界面。
+- 指标：`ui_echo_ms`（对应 send_ack_ms）、`ui_e2e_ms`（对应 end_to_end_ms）、按观察客户端计的投递 / 丢失；新增 imload 没有的重复气泡、乱序显示、自身气泡未出现。
+- Android 客户端：读无障碍树、用 yadb 输入，全程不调模型；Web 客户端：Playwright + 保存的登录态 + MutationObserver。
+- 离线自测：本机假聊天页注入延迟 / 丢失 / 重复 / 自动回复引用 / 乱序，6/6 检出。
+- 控制台新增「IM 消息压测（界面层）」任务类型。
+- 文档 `docs/imui.md`：逐项功能对照、实现方式、真机结果、限制。
+
+### Fixed（真机暴露，均在 Teamily 生产账号自己的 Personal AI 会话中复现并修复）
+- 中文九宫格输入法把 `adb input text` 转成拼音 → 改用 yadb；yadb 是在光标处追加，且 RN 输入框不响应退格 / Ctrl+A → 用 yadb `-keyboardClear` 清空。
+- 输入框为空时，发送按钮的位置就是录音键，一次盲点开始了录音（已删除，未发送）→ 发送前必须读回输入框确认内容，发送后确认输入框已清空。
+- 输入法窗口遮住了算出的发送位置（打开过剪贴板面板）→ 输入后先收键盘再点。
+- 多行时输入框右上角出现"展开"图标，表情面板在输入框下方 → 发送按钮只在紧贴输入框下沿的工具栏行里找。
+- 长消息发出后输入框缩回一行，旧中心点落在聊天气泡上 → 每次按当前位置聚焦。
+- 观察循环和发送核验并发 dump 同一文件，读到旧快照 → 每台设备串行 dump、分文件。
+- 输入框里还没发出的 token 被当成气泡（回显 121ms，低于观察分辨率）→ 排除输入框。
+- 回显 16–22 秒的假象：发送流程本身约 13–20 秒，记的是注册时刻而不是按下时刻 → 改用 `onPress` 回调；修正后 p99 3.6 秒。
+- 部分滚出屏幕的长气泡被算成 2 个 → 每个气泡按 TextView 计数。
+- Personal AI 回复引用 token 被算成重复 → 只认以 token 开头的气泡。
+
+## [Unreleased] — W4 平台 alpha：自然语言任务 + 控制台 + 设备池 + CI
+
+### Added
+- 自然语言测试任务 `pnpm mission "<需求>"`（`mission/`）：模型把需求转成计划（意图、目标区域、入口、场景动作、检查项、是否测帧率、建议上限），模型不可用时用关键词规划；按轮执行（冷/热启动交替 → 入口 → 场景 → 随机探索 → 检查 → 视觉异常探测 → gfxinfo 卡顿统计）；产出 `midscene_run/missions/<id>/report.md`。
+- 上限机制：步数上限、时长上限、平台硬上限（`MISSION_STEP_CAP` 300 / `MISSION_MINUTES_CAP` 120）、看门狗（到时 +2 分钟强制写部分报告退出）、单条 aiAct 规划轮数 15、控制台服务端按任务硬超时杀进程树。
+- 统一 CLI `pnpm autotest mission|explore|monkey|web:smoke|devices|report`（不经 shell 转发，自然语言参数在 Windows 下不被拆坏）。
+- Web 控制台 `pnpm platform`（`node:http` + 单页 HTML，端口 3210）：设备、任务提交（含三个示例需求）、最近任务、实时日志、报告渲染（含问题截图）、取消。
+- 设备池 `platform/devices.yaml`（`maxConcurrent`、`scheduling.strategy`）+ adb 心跳 + 占用/释放，状态落盘 `platform/state/`。
+- CI `.github/workflows/ai-test.yml`：PR 跑 typecheck + 单测 + Web 冒烟；每日/手动跑固定 seed Monkey，无设备时跳过。
+- 单测 18 条（explore / monkey / mission / platform）。
+
+- Midscene 缓存（`AgentOpt.cache`）+ `--plan` 复用计划：同一计划第 1 轮入口 + 6 个场景动作 207.8 秒 → 88.7 秒（−57%）。Android 上只缓存规划，不缓存定位。
+- 即时重放：动作统一走可重放的结构化操作；发现问题时导出 `replay-<n>/`（操作序列 + 3×30 秒环形录屏 + README），`pnpm autotest replay` 按序重放 N 次并判定是否复现。真机验证：运行中用 `am crash` 注入崩溃，生成含 3 段录屏的 replay 包；重放 1 次，结论"未复现 0/1"（注入崩溃本就不会复现）。
+
+### Changed
+- 全面放开测试：输入、开关、发送、编辑都允许；只保留真实付款确认和退出登录/注销账号的硬拦截。
+
+### Fixed（真机暴露）
+- aiAct 规划轮数 8 不够复合场景动作（"连续发 3-5 条消息"）→ 15。
+- 检查项误报：动态描述（"快速滑动时列表持续可见"）无法从截图判断 → 规划要求状态型检查，执行器丢弃模型判定为不可截图验证的检查。
+- 到达时长上限被标成"外部中止" → 标为"时长上限"。
+- `bin/autotest` 在 Windows 用 shell 转发时，带引号的需求被 cmd 拆坏。
+
+### 已知限制
+- scrcpy 未安装（winget 源不可达），录屏退回手机自带 `screenrecord`。
+- 运行中的计划缓存要到下次运行才能命中；每次重新规划会产生新提示词，只有 `--plan` 复用时才有加速。
+- ~~并发的 explore/monkey 任务共用 `monkey_run/summary.json`、`midscene_run/problem-report.md`，控制台里的报告可能串到另一任务的汇总~~（已修复，见「控制台报告隔离」；实际不并发时也会串）。
+- AI 动作慢（单步 3–160 秒），偶发问题需要较长时长上限；高频输入 + 即时重放未实现。
+
+### 验证
+- 控制台：设备列表显示真机 idle、占位模拟器 offline；提交 mission 后再提交 monkey，monkey 排队，mission 08:35:09.108 结束、monkey 08:35:09.153 开始（`maxConcurrent: 1` 串行），两个报告链接均返回 200。
+- `maxConcurrent: 2` 并行：同一台小米手机用 USB（`4f2ebdf2`）+ adb over Wi‑Fi（`192.168.1.23:5555`）两个连接充当两台设备（本机无模拟器），两个 Monkey 任务 09:05:53.907 / 09:05:53.915 同时开始，09:08:58 / 09:09:01 结束，均 completed。**不是两台物理设备**。
+- 基线：`test:web` 1/1；`test:android` 首次 1 条失败（未留日志）、重跑 5/5；`autotest explore` 3 步、`autotest monkey` 300 事件均正常。
+- 真机发现问题：Teamily 会话列表中 Health Assistant 的最后一条消息是「WEB 交付物」富卡片，会话内渲染正常，但列表预览只显示占位符「[自定义消息]」。由「排查下消息列表的问题」任务的截图人工确认（该任务自动报出的条目是"行对齐/截断"，属误报），视觉探测随后加入"未渲染占位文本"规则。
+- CI：仅 YAML 解析与结构检查，未在真实 GitHub runner / act 上执行。
+
 ## [Unreleased] — W3 通用探索 + Monkey + 问题报告
 
 ### Added

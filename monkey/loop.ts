@@ -104,10 +104,14 @@ export async function runMonkeyLoop(o: MonkeyLoopOptions): Promise<MonkeySummary
   };
   const file = join(MONKEY_RUN_DIR, 'summary.json');
   await writeFile(file, `${JSON.stringify(summary, null, 2)}\n`);
-  // Per-run copy so report:problems can pick older runs too.
-  await writeFile(join(MONKEY_RUN_DIR, `summary-${startedAt.replace(/[:.]/g, '-')}.json`), `${JSON.stringify(summary, null, 2)}\n`);
+  // Per-run copy: summary.json is shared by every run, so the platform reports from this one.
+  // Device in the name because parallel runs can start in the same millisecond.
+  const dev = o.deviceId ? `-${o.deviceId.replace(/[^\w-]/g, '_')}` : '';
+  const runFile = join(MONKEY_RUN_DIR, `summary-${startedAt.replace(/[:.]/g, '-')}${dev}.json`);
+  await writeFile(runFile, `${JSON.stringify(summary, null, 2)}\n`);
   console.log(`[monkey] ${summary.conclusion}`);
   for (const c of summary.reproduceCommands) console.log(`[monkey] repro: ${c}`);
   console.log(`[monkey] summary → ${file}`);
+  console.log(`[monkey] run summary → ${runFile}`);
   return summary;
 }
