@@ -26,91 +26,13 @@
     "empty": false
   },
   "classification": {
-    "category": "bug-intermittent",
+    "category": "not-executable",
     "surfaces": [],
-    "reason": "Frequency: Intermittent",
+    "reason": "按里程碑 5 文档 §A.2 / T4 约定拒绝执行（用户 2026-10-21 确认）。注：文件实际描述 iOS 自己发送的文本消息第二行被截断（偶现），并非空文档；如需执行请删除此覆盖项。",
     "strength": "strong",
     "by": "rules"
   },
-  "status": "plannable",
-  "reason": "Frequency: Intermittent",
-  "subcases": [
-    {
-      "sub": "main",
-      "title": "Aiden reports that the long-standing bug in which the second line of a text mess",
-      "surface": "android-app",
-      "substitution": {
-        "from": "ios",
-        "to": "android-app",
-        "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。",
-        "alternatives": [
-          "android-app",
-          "mobile-web"
-        ]
-      },
-      "plan": {
-        "id": "1922-android-app-v1",
-        "issueRef": "1922",
-        "title": "按步骤执行并核对预期",
-        "category": "bug-intermittent",
-        "surface": "android-app",
-        "issueSurfaces": [
-          "ios"
-        ],
-        "env": "prod",
-        "launch": "once",
-        "targets": [
-          {
-            "id": "conv",
-            "kind": "group-conversation",
-            "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
-          }
-        ],
-        "setup": [
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.openConversation",
-              "input": {
-                "target": "conv"
-              }
-            },
-            "delayAfterMs": 800
-          }
-        ],
-        "actions": [
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.sendMessage",
-              "input": {
-                "text": "autotest ping"
-              }
-            },
-            "delayAfterMs": 1000
-          }
-        ],
-        "checks": [
-          {
-            "kind": "crash",
-            "expect": "无崩溃 / 页面错误",
-            "want": "absent"
-          }
-        ],
-        "limits": {
-          "maxSteps": 1000,
-          "maxMinutes": 30,
-          "maxIntervalMs": 1000
-        },
-        "verdictRule": {
-          "anyHit": true
-        },
-        "provenance": {
-          "generatedBy": "rules",
-          "skillVersion": "2026.10.21-1"
-        }
-      },
-      "planErrors": []
-    }
-  ]
+  "status": "refused",
+  "reason": "按里程碑 5 文档 §A.2 / T4 约定拒绝执行（用户 2026-10-21 确认）。注：文件实际描述 iOS 自己发送的文本消息第二行被截断（偶现），并非空文档；如需执行请删除此覆盖项。",
+  "subcases": []
 }

@@ -1,5 +1,8 @@
 // Pre-execution category (milestone 5 §A.1): rules first, LLM as second opinion when the rules are weak.
 // "fixed" / "user misuse" are conclusions after a run, not categories here.
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import yaml from 'js-yaml';
 import type { PreCategory, Surface } from '../platform/schema/test-plan';
 import { chatJson, modelConfigured } from './llm';
 import type { NormalizedIssue } from './parse';
@@ -30,9 +33,20 @@ export function surfacesFor(platforms: string[]): Surface[] {
 
 const text = (i: NormalizedIssue) => `${i.title}\n${i.summary}\n${i.steps.join('\n')}\n${i.expected}\n${i.actual}\n${i.featureArea}\n${i.context}`;
 
+const OVERRIDES_FILE = resolve(process.env.ISSUE_OVERRIDES_FILE ?? 'platform/issue-overrides.yaml');
+
+/** Manual overrides (platform/issue-overrides.yaml): an explicit, reviewed decision beats rules and the model. */
+export function overrideFor(id: string, file = OVERRIDES_FILE): { category: PreCategory; reason: string } | undefined {
+  if (!existsSync(file)) return undefined;
+  const o = ((yaml.load(readFileSync(file, 'utf8')) ?? {}) as Record<string, { category?: PreCategory; reason?: string }>)[id];
+  return o?.category ? { category: o.category, reason: String(o.reason ?? 'manual override') } : undefined;
+}
+
 /** Pure rule classifier. */
 export function classifyRules(i: NormalizedIssue): Classification {
   const surfaces = surfacesFor(i.platforms);
+  const ov = overrideFor(i.id);
+  if (ov) return { category: ov.category, surfaces, reason: ov.reason, strength: 'strong', by: 'rules' };
   const t = text(i).toLowerCase();
   const head = `${i.summary}\n${i.featureArea}\n${i.environment}`.toLowerCase();
   const mk = (category: PreCategory, reason: string, strength: 'strong' | 'weak' = 'strong', extra: Partial<Classification> = {}): Classification => ({ category, surfaces, reason, strength, by: 'rules', ...extra });

@@ -31,7 +31,7 @@ describe('classification of the sample issues', () => {
     '1594': 'bug-intermittent',
     '1614': 'server-side',
     '1919': 'multi-account',
-    '1922': 'bug-intermittent',
+    '1922': 'not-executable', // platform/issue-overrides.yaml (user decision, see file)
     '2044': 'bug-always',
     '2122': 'feature',
     '2230': 'deferred',
