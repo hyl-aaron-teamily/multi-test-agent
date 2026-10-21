@@ -69,10 +69,18 @@ export function ruleChoice(kind: string, cands: Candidate[], taken: number[]): n
   return pick ? pick.i : -1;
 }
 
-export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, log: (s: string) => void, locate?: (q: string) => Promise<Point | null>): Promise<FrozenTarget[]> {
+export const isRowTarget = (kind: string) => ROW_KINDS.has(kind);
+
+/**
+ * phase 'rows'   : conversation targets, on the home list (before setup)
+ * phase 'inside' : on-screen things inside the opened conversation (after setup), located by vision;
+ *                  a 'like-action' target is located after long-pressing the message target found before it.
+ */
+export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, log: (s: string) => void, locate?: (q: string) => Promise<Point | null>, phase: 'rows' | 'inside' = 'rows', frozen: FrozenTarget[] = []): Promise<FrozenTarget[]> {
   const out: FrozenTarget[] = [];
-  if (!plan.targets.length) return out;
-  const rowsNeeded = plan.targets.some((t) => ROW_KINDS.has(t.kind));
+  const wanted = plan.targets.filter((t) => (phase === 'rows') === ROW_KINDS.has(t.kind));
+  if (!wanted.length) return out;
+  const rowsNeeded = phase === 'rows';
   let cands: Candidate[] = [];
   // The list renders progressively: wait until it stops growing (max ~20 s).
   for (let i = 0; rowsNeeded && i < 8; i++) {
@@ -83,7 +91,7 @@ export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, lo
   }
   if (rowsNeeded) log(`prep: ${cands.length} conversation candidates on screen`);
   const taken: number[] = [];
-  for (const t of plan.targets) {
+  for (const t of wanted) {
     if (ROW_KINDS.has(t.kind)) {
       let idx = -1;
       let reason = '';
@@ -108,7 +116,16 @@ export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, lo
       const c = cands[idx];
       out.push({ id: t.id, kind: t.kind, point: { x: Math.round(c.box[0] + c.box[2] / 2), y: Math.round(c.box[1] + c.box[3] / 2) }, chosen: c.title, reason, by });
     } else {
+      const msg = t.kind === 'like-action' ? [...frozen, ...out].find((x) => x.kind === 'others-text-message') : undefined;
+      if (msg) {
+        await driver.longPress(msg.point);
+        await new Promise((r) => setTimeout(r, 1200));
+      }
       const pt = locate ? await locate(`${t.guidance}`) : null;
+      if (msg) {
+        await driver.back();
+        await new Promise((r) => setTimeout(r, 800));
+      }
       if (!pt) throw new Error(`prep: target ${t.id} (${t.kind}) needs vision localisation, which is unavailable`);
       out.push({ id: t.id, kind: t.kind, point: pt, chosen: t.guidance, reason: 'vision locate', by: 'vision' });
     }

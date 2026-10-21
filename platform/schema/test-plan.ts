@@ -53,6 +53,8 @@ export const TestPlanZ = z.object({
   setup: z.array(PlannedActionZ),
   actions: z.array(PlannedActionZ),
   checks: z.array(CheckPointZ),
+  /** Run after each round's checkpoint: restore state the round changed (e.g. remove the like just added). */
+  afterCheck: z.array(PlannedActionZ).default([]),
   acceptance: z.array(AcceptanceItemZ).optional(),
   /** suspected-misuse: the correct path, run first. */
   correctPath: z.array(PlannedActionZ).optional(),

@@ -12,7 +12,7 @@ export const MATCH_DISTANCE = 12;
 /** Region counts as matching the reference when fewer than this fraction of its pixels differ. */
 export const MATCH_FRACTION = 0.12;
 /** Regions whose vertical position depends on content (the picker grows with the member count). */
-const SLIDING: Record<string, number> = { 'mention-picker/picker': 520 };
+const SLIDING: Record<string, number> = { 'mention-picker/picker': 520, 'chat/composer': 1000 };
 
 export interface CheckResult {
   check: CheckPoint;

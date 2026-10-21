@@ -42,7 +42,7 @@ export function splitSubcases(i: NormalizedIssue): { sub: string; text: string }
   return out;
 }
 
-type Template = Pick<TestPlan, 'targets' | 'setup' | 'actions' | 'checks'> & { acceptance?: TestPlan['acceptance']; title: string };
+type Template = Pick<TestPlan, 'targets' | 'setup' | 'actions' | 'checks'> & { afterCheck?: TestPlan['afterCheck']; acceptance?: TestPlan['acceptance']; title: string };
 
 const T = TARGET_GUIDANCE;
 
@@ -116,7 +116,8 @@ export function templateFor(text: string, category: TestPlan['category'], surfac
       title: '点一次输入框键盘即弹出',
       targets: [{ id: 'conv', kind: 'group-conversation', guidance: T['group-conversation'] }],
       setup: [node('teamily.openConversation', { target: 'conv' }, 800)],
-      actions: [a('back', { delayAfterMs: 600 }), node('teamily.openConversation', { target: 'conv' }, 700), a('tap', { element: 'chat.composer', delayAfterMs: 800 })],
+      // chat.back (the on-screen button): the back KEY would only close the keyboard.
+      actions: surface === 'desktop-web' ? [a('tap', { element: 'chatlist.search', delayAfterMs: 500 }), node('teamily.openConversation', { target: 'conv' }, 700), a('tap', { element: 'chat.composer', delayAfterMs: 800 })] : [a('tap', { element: 'chat.back', delayAfterMs: 700 }), node('teamily.openConversation', { target: 'conv' }, 900), a('tap', { element: 'chat.composer', delayAfterMs: 900 })],
       checks: [{ kind: 'ai', expect: 'The on-screen keyboard is shown after a single tap on the message input', want: 'present', onlyOnAnomaly: false }],
     };
   }
@@ -129,15 +130,18 @@ export function templateFor(text: string, category: TestPlan['category'], surfac
         { id: 'like', kind: 'like-action', guidance: '长按消息后出现的点赞/👍 表情按钮' },
       ],
       setup: [node('teamily.openConversation', { target: 'conv' }, 800)],
-      actions: [{ type: 'longPress', element: 'target.msg', delayAfterMs: 800 }, { type: 'tap', element: 'target.like', delayAfterMs: 1000 }],
+      actions: [{ type: 'longPress', element: 'target.msg', delayAfterMs: 900 }, { type: 'tap', element: 'target.like', delayAfterMs: 1000 }],
       checks: [{ kind: 'ai', expect: 'The liked message shows a like / 👍 reaction under it', want: 'present', onlyOnAnomaly: false }],
+      // Toggle back so every round starts from "not liked".
+      afterCheck: [{ type: 'longPress', element: 'target.msg', delayAfterMs: 900 }, { type: 'tap', element: 'target.like', delayAfterMs: 1000 }],
     };
   }
   return {
     title: '按步骤执行并核对预期',
     targets: [{ id: 'conv', kind: 'group-conversation', guidance: T['group-conversation'] }],
     setup: [node('teamily.openConversation', { target: 'conv' }, 800)],
-    actions: [node('teamily.sendMessage', { text: 'autotest ping' }, 1000)],
+    // Loop without side effects for other people (no sending): reopen + scroll the history.
+    actions: [...(surface === 'desktop-web' ? [] : [a('tap', { element: 'chat.back', delayAfterMs: 700 })]), node('teamily.openConversation', { target: 'conv' }, 900), a('scroll', { value: 'up', delayAfterMs: 700 }), a('scroll', { value: 'down', delayAfterMs: 700 })],
     checks: [{ kind: surface === 'android-app' ? 'crash' : 'page-error', expect: '无崩溃 / 页面错误', want: 'absent' }],
   };
 }
@@ -168,6 +172,7 @@ function basePlan(i: NormalizedIssue, c: Classification, sub: string, surface: S
     setup: tpl.setup,
     actions: tpl.actions,
     checks: tpl.checks,
+    afterCheck: tpl.afterCheck ?? [],
     acceptance: tpl.acceptance,
     limits: { ...DEFAULT_LIMITS },
     verdictRule: verdictRuleFor(category),
@@ -239,7 +244,7 @@ export function applyApproval(d: Draft, approve: { sub: string; surface?: Surfac
     .filter((s) => approve.some((a) => a.sub === s.sub))
     .map((s) => {
       const surf = approve.find((a) => a.sub === s.sub)?.surface ?? s.surface;
-      const tpl = { title: s.plan.title, targets: s.plan.targets, setup: s.plan.setup, actions: s.plan.actions, checks: s.plan.checks, acceptance: s.plan.acceptance };
+      const tpl = { title: s.plan.title, targets: s.plan.targets, setup: s.plan.setup, actions: s.plan.actions, checks: s.plan.checks, afterCheck: s.plan.afterCheck, acceptance: s.plan.acceptance };
       const plan: TestPlan = {
         ...s.plan,
         ...tpl,

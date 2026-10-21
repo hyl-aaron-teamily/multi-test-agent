@@ -44,6 +44,8 @@ export class AndroidDriver implements Driver {
   private anomalies: Anomaly[] = [];
   private device?: AndroidDevice;
   pid?: number;
+  /** From wm_set_resumed_activity: is the app in the foreground right now? */
+  foreground = true;
 
   constructor(readonly o: AndroidDriverOptions) {}
 
@@ -84,6 +86,7 @@ export class AndroidDriver implements Driver {
 
   async launch(): Promise<void> {
     await launchApp(this.o.packageName, this.o.udid);
+    this.foreground = true;
     await sleep(2500);
     await this.refreshPid();
     this.startLogcat();
@@ -108,8 +111,12 @@ export class AndroidDriver implements Driver {
         const m = line.match(/\[\d+,(\d+),\d+,/);
         if (m) this.pid = Number(m[1]);
       }
+      const res = line.match(/\bwm_set_resumed_activity\b.*?\[\d+,([\w.]+)\//);
+      if (res) this.foreground = res[1] === this.o.packageName;
       const a = classifyLogLine(line, this.o.packageName, this.pid, this.o.appErrorRe);
-      if (a) this.anomalies.push({ ...a, at });
+      // A background process killed by the system (low-memory / cached trim) is not an app failure.
+      if (a?.kind === 'app-exit' && !this.foreground) this.anomalies.push({ ...a, at, suspect: true, kind: 'app-error', detail: `background death: ${a.detail}` });
+      else if (a) this.anomalies.push({ ...a, at });
     });
   }
 

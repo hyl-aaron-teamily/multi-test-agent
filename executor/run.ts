@@ -54,6 +54,8 @@ export interface Stats {
   visionCalls: number;
   textModelCalls: number;
   launches: number;
+  /** Rounds discarded because the screen was not where the plan expected (re-entered). */
+  drifts: number;
 }
 
 export interface RunResult {
@@ -89,7 +91,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   const maxMs = Math.min(o.maxMinutes ?? plan.limits.maxMinutes, HARD_LIMITS.maxMinutes) * 60_000;
   await mkdir(o.runDir, { recursive: true });
   const t0 = Date.now();
-  const stats: Stats = { steps: 0, rounds: 0, durationSec: 0, avgIntervalMs: 0, maxIntervalMs: 0, intervalsOverCap: 0, anomalyGateTriggers: 0, suspectSignals: 0, checkpointScreenshots: 0, visionCalls: 0, textModelCalls: 0, launches: 0 };
+  const stats: Stats = { steps: 0, rounds: 0, durationSec: 0, avgIntervalMs: 0, maxIntervalMs: 0, intervalsOverCap: 0, anomalyGateTriggers: 0, suspectSignals: 0, checkpointScreenshots: 0, visionCalls: 0, textModelCalls: 0, launches: 0, drifts: 0 };
   const vision0 = modelCalls.vision;
   const text0 = modelCalls.text;
   const res: RunResult = {
@@ -183,7 +185,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     // ---- prepare: dynamic targets
     const ask = await visionAsker(web ?? (inner as any));
     const locate = await visionLocator(web ?? (inner as any));
-    res.targets = await pickTargets(plan, inner, profile, log, locate);
+    res.targets = await pickTargets(plan, inner, profile, log, locate, 'rows');
     const targets: Record<string, Point> = Object.fromEntries(res.targets.map((t) => [t.id, t.point]));
     const ctx: NodeContext = { driver: d, profile, targets, credentials: () => o.pool.backend.get(account.id) };
     const exec = (a: PlannedAction) => execAction(a, ctx, profile, targets);
@@ -191,6 +193,31 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     for (const a of plan.setup) {
       d.label = a.node?.name ?? a.element ?? a.type;
       await exec(a);
+    }
+    // Targets inside the opened conversation (message, reaction button) are decided after setup.
+    for (const t of await pickTargets(plan, inner, profile, log, locate, 'inside', res.targets)) {
+      res.targets.push(t);
+      targets[t.id] = t.point;
+    }
+    const inChat = plan.setup.some((a) => a.node?.name === 'teamily.openConversation') && !!profile.refs.chat?.regions.composer;
+    const composerCheck = { kind: 'visual-region' as const, page: 'chat', region: 'composer', expect: 'chat page open (composer visible)', want: 'present' as const };
+    const onChat = async (png?: Buffer) => !inChat || (await evaluateVisual(d, profile, { ...composerCheck, onlyOnAnomaly: false }, undefined, png)).pass !== false;
+    const redoSetup = async () => {
+      for (let i = 0; i < 3 && plan.surface !== 'desktop-web'; i++) {
+        if (await onChat()) break;
+        // Never back out of the home screen (that would leave the app).
+        if ((await assertSkillFresh(d, profile).then(() => true, () => false)) === true) break;
+        await d.back();
+        await sleep(1200);
+      }
+      for (const a of plan.setup) {
+        d.label = `re-setup:${a.node?.name ?? a.type}`;
+        await exec(a);
+      }
+    };
+    if (inChat && !(await onChat())) {
+      log('not on the chat page after preparation — redoing setup');
+      await redoSetup();
     }
     const setupOps = d.ops.filter((x) => x.op !== 'launch');
     const shotDir = join(o.runDir, 'evidence');
@@ -218,6 +245,22 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       const unv = res.acceptance.filter((x) => x.pass === null).map((x) => x.text);
       res.conclusionDetail = `${miss.length ? `缺项：${miss.join('；')}` : '无缺项'}${unv.length ? `；未验证：${unv.join('；')}` : ''}`;
       return finish(res, t0, stats, vision0, text0);
+    }
+
+    // ---- suspected misuse: the correct path first, once, with the same checks
+    let correctPathOk: boolean | undefined;
+    if (plan.category === 'suspected-misuse' && plan.correctPath?.length) {
+      for (const a of plan.correctPath) {
+        d.label = `correct:${a.node?.name ?? a.element ?? a.type}`;
+        await exec(a);
+      }
+      const png = await d.screenshot();
+      stats.checkpointScreenshots++;
+      const rs: CheckResult[] = [];
+      for (const c of plan.checks) if (c.kind === 'visual-region') rs.push(await evaluateVisual(d, profile, c, ask, png));
+      else if (c.kind === 'ai') rs.push(await evaluateAi(c, ask));
+      correctPathOk = !rs.some((x) => x.pass === false) && !d.drainAnomalies().some((x) => HARD.includes(x.kind));
+      log(`correct path: ${correctPathOk ? 'normal' : 'also shows the problem'}`);
     }
 
     // ---- loop
@@ -297,8 +340,17 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
           results.push({ check: c, pass: null, detail: bad ? `suspect: ${bad.detail.slice(0, 160)}` : 'none' });
         }
       }
-      const failed = results.find((r) => r.pass === false);
+      let failed = results.find((r) => r.pass === false);
       const hardHit = !!roundHitReason;
+      if (failed && !hardHit && png && !(await onChat(png))) {
+        // Operation drift (we are not where the plan thinks): not a finding. Re-enter and continue.
+        stats.drifts++;
+        log(`round ${round}: operation drift (chat page not on screen) — re-entering, not counted`);
+        failed = undefined;
+        results.length = 0;
+        await redoSetup();
+        if (stats.drifts > 10) stop = '操作偏离过多（>10 次），停止';
+      }
       if (failed && !roundHitReason) {
         roundHitReason = `check failed: ${failed.check.expect} — ${failed.detail}`;
         log(`HIT round ${round} step ${stats.steps}: ${roundHitReason}`);
@@ -313,6 +365,11 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       res.roundLog.push({ round, step: stats.steps, results: results.map((r) => ({ kind: r.check.kind, pass: r.pass, detail: r.detail })) });
       if (res.roundLog.length > 200) res.roundLog.splice(0, 50);
       stats.rounds = round;
+      if (!stop && !hardHit)
+        for (const a of plan.afterCheck) {
+          d.label = `after:${a.node?.name ?? a.element ?? a.type}`;
+          await exec(a);
+        }
       if (tracker.record(!!roundHitReason)) stop = `判定规则满足（${'anyHit' in plan.verdictRule ? '命中 1 次' : '连续 3 次命中'}）`;
       if (round % 20 === 0) log(`round ${round}, steps ${stats.steps}, hits ${tracker.hits}, ${Math.round((Date.now() - t0) / 1000)}s`);
       if (web) await wfr!.rotate(web.context!);
@@ -325,6 +382,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     stats.maxIntervalMs = intervals.length ? Math.max(...intervals) : 0;
     stats.intervalsOverCap = intervals.filter((x) => x > plan.limits.maxIntervalMs).length;
     res.conclusion = tracker.conclusion(plan.category);
+    if (correctPathOk !== undefined) res.conclusion = !correctPathOk ? '转为 bug' : tracker.reproduced() ? '疑似误操作' : '未复现（上限内未出现）';
     res.conclusionDetail = `停止原因：${stop}；共 ${stats.rounds} 轮 ${stats.steps} 步，命中 ${tracker.hits} 次${tracker.hits ? `（第 ${tracker.hitRounds.slice(0, 10).join(', ')} 轮）` : ''}`;
     return finish(res, t0, stats, vision0, text0);
 

@@ -72,6 +72,7 @@ async function smoke(args: string[]): Promise<number> {
       setup: crashAfter ? [] : [{ type: 'node', node: { name: 'teamily.openConversation', input: { target: 'conv' } }, delayAfterMs: 1000 }],
       actions: crashAfter ? loopActions : [{ type: 'node', node: { name: 'teamily.sendMessage', input: { text: `autotest smoke ${new Date().toISOString().slice(11, 19)}` } }, delayAfterMs: 1000 }],
       checks: crashAfter ? [{ kind: 'crash', expect: 'no crash', want: 'absent' }] : [{ kind: 'visual-region', page: 'chat', region: 'composer', expect: '发送后输入框恢复为空', want: 'present' }],
+      afterCheck: [],
       limits: { maxSteps: crashAfter ? 400 : 1, maxMinutes: 10, maxIntervalMs: 1000 },
       verdictRule: { anyHit: true },
       provenance: { generatedBy: 'manual', skillVersion: SKILL_VERSION },
