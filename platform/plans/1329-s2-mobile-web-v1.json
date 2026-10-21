@@ -1,0 +1,84 @@
+{
+  "id": "1329-s2-mobile-web-v1",
+  "issueRef": "1329",
+  "title": "按步骤执行并核对预期",
+  "category": "bug-intermittent",
+  "surface": "mobile-web",
+  "issueSurfaces": [
+    "ios"
+  ],
+  "env": "prod",
+  "launch": "once",
+  "targets": [
+    {
+      "id": "conv",
+      "kind": "group-conversation",
+      "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+    }
+  ],
+  "setup": [
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.openConversation",
+        "input": {
+          "target": "conv"
+        }
+      },
+      "delayAfterMs": 800
+    }
+  ],
+  "actions": [
+    {
+      "type": "tap",
+      "element": "chat.back",
+      "delayAfterMs": 700
+    },
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.openConversation",
+        "input": {
+          "target": "conv"
+        }
+      },
+      "delayAfterMs": 900
+    },
+    {
+      "type": "scroll",
+      "value": "up",
+      "delayAfterMs": 700
+    },
+    {
+      "type": "scroll",
+      "value": "down",
+      "delayAfterMs": 700
+    }
+  ],
+  "checks": [
+    {
+      "kind": "crash",
+      "expect": "无崩溃 / 页面错误",
+      "want": "absent"
+    }
+  ],
+  "afterCheck": [],
+  "limits": {
+    "maxSteps": 1000,
+    "maxMinutes": 30,
+    "maxIntervalMs": 1000
+  },
+  "verdictRule": {
+    "anyHit": true
+  },
+  "provenance": {
+    "generatedBy": "rules",
+    "skillVersion": "2026.10.21-1",
+    "confirmedAt": "2026-10-21T12:50:56.390Z"
+  },
+  "substitution": {
+    "from": "ios",
+    "to": "mobile-web",
+    "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。"
+  }
+}
