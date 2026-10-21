@@ -75,12 +75,13 @@ export async function quoteCards(d: AndroidDriver, p: Profile): Promise<QuoteCar
 }
 
 /** After a jump: is the quoted original shown as a message (text node outside any quote card)? */
-export async function quotedOriginalVisible(d: AndroidDriver, quoted: string): Promise<boolean> {
+export async function quotedOriginalVisible(d: AndroidDriver, quoted: string): Promise<[number, number, number, number] | undefined> {
   await adb(['shell', 'uiautomator', 'dump', '/sdcard/autotest_ui.xml'], d.o.udid);
   const nodes = parseNodes(await adb(['exec-out', 'cat', '/sdcard/autotest_ui.xml'], d.o.udid), d.o.packageName);
   const cards = nodes.filter((n) => n.clickable && /^[^,]{1,60}, .+/.test(n.desc));
   const norm = (s: string) => s.replace(/\s+/g, ' ').trim().slice(0, 30);
-  return nodes.some((n) => n.text && norm(n.text) === norm(quoted) && !cards.some((c) => n.x1 >= c.x1 && n.x2 <= c.x2 && n.y1 >= c.y1 && n.y2 <= c.y2));
+  const n = nodes.find((n) => n.text && norm(n.text) === norm(quoted) && !cards.some((c) => n.x1 >= c.x1 && n.x2 <= c.x2 && n.y1 >= c.y1 && n.y2 <= c.y2));
+  return n ? [n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1] : undefined;
 }
 
 /** Pure fallback rules when no model is configured. */

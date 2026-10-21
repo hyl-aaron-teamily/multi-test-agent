@@ -84,6 +84,7 @@
             "delayAfterMs": 800
           }
         ],
+        "prepare": [],
         "actions": [
           {
             "type": "longPress",
@@ -147,7 +148,7 @@
       "plan": {
         "id": "1329-s2-android-app-v1",
         "issueRef": "1329",
-        "title": "点消息定位链接应跳到目标消息",
+        "title": "点引用定位应稳定跳到被引用消息",
         "category": "bug-intermittent",
         "surface": "android-app",
         "issueSurfaces": [
@@ -163,8 +164,8 @@
           },
           {
             "id": "link",
-            "kind": "message-link",
-            "guidance": "会话里指向另一条消息的可点定位：引用回复里的被引用消息块、“跳转到消息”链接或消息位置链接（不是网页 URL）"
+            "kind": "quote-card",
+            "guidance": "会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文）"
           }
         ],
         "setup": [
@@ -176,9 +177,10 @@
                 "target": "conv"
               }
             },
-            "delayAfterMs": 900
+            "delayAfterMs": 1000
           }
         ],
+        "prepare": [],
         "actions": [
           {
             "type": "tap",
@@ -187,23 +189,22 @@
           },
           {
             "type": "wait",
-            "value": "800",
-            "delayAfterMs": 900
+            "value": "1000",
+            "delayAfterMs": 1000
           }
         ],
         "checks": [
           {
-            "kind": "ai",
-            "expect": "After tapping the message link, the chat shows (usually highlighted) the specific message the link refers to, not an unrelated much older part of the history",
-            "want": "present",
-            "onlyOnAnomaly": false
+            "kind": "baseline",
+            "expect": "点引用块后跳到被引用的原消息（每轮落在同一位置）",
+            "want": "present"
           }
         ],
         "afterCheck": [
           {
             "type": "tap",
             "element": "chat.back",
-            "delayAfterMs": 800
+            "delayAfterMs": 900
           },
           {
             "type": "node",
@@ -213,6 +214,11 @@
                 "target": "conv"
               }
             },
+            "delayAfterMs": 1000
+          },
+          {
+            "type": "wait",
+            "value": "1000",
             "delayAfterMs": 1000
           }
         ],
@@ -240,8 +246,7 @@
         "to": "android-app",
         "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。",
         "alternatives": [
-          "android-app",
-          "mobile-web"
+          "android-app"
         ]
       },
       "plan": {
@@ -274,6 +279,7 @@
             "delayAfterMs": 800
           }
         ],
+        "prepare": [],
         "actions": [
           {
             "type": "tap",

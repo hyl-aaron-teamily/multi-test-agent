@@ -23,7 +23,7 @@ import type { DevicePool } from '../platform/device-pool';
 import { HARD_LIMITS, type PlannedAction, type TestPlan } from '../platform/schema/test-plan';
 import { loadProfile, pointOf, type Profile, SkillStaleError } from '../skills/profile';
 import { type NodeContext, runNode } from '../skills/teamily/nodes';
-import { assertSkillFresh, type CheckResult, evaluateAi, evaluateVisual, visionAsker } from './checks';
+import { assertSkillFresh, type CheckResult, evaluateAi, evaluateVisual, regionMatch, visionAsker } from './checks';
 import { type FrozenTarget, pickTargets, quotedOriginalVisible, visionLocator } from './targets';
 import { type Conclusion, featureConclusion, VerdictTracker } from './verdict';
 
@@ -294,7 +294,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     const visualChecks = plan.checks.filter((c) => c.kind === 'visual-region' || c.kind === 'baseline');
     // 'baseline' check: round 1 verifies the landing screen once (accessibility read of the quoted original)
     // and keeps it; later rounds must land on the same screen (hash of the content area).
-    let baseline: { hash: string; verified: boolean } | undefined;
+    let baseline: { img: ReturnType<typeof decodePng>; box?: [number, number, number, number] } | undefined;
     const contentHash = (png: Buffer) => {
       const img = decodePng(png);
       return dHash(img, [0, Math.round(img.height * 0.12), img.width, Math.round(img.height * 0.68)]);
@@ -359,28 +359,18 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
         if (c.kind === 'visual-region' && png) results.push(await evaluateVisual(d, profile, c, ask, png));
         else if (c.kind === 'ai' && png && c.onlyOnAnomaly === false) results.push(await evaluateAi(c, ask));
         else if (c.kind === 'baseline' && png) {
-          const h = contentHash(png);
+          // Round 1: accessibility read confirms the quoted original is shown; its bubble becomes the reference.
+          // Later rounds: that bubble must be on screen again (ink match, vertical search) — a jump elsewhere fails.
           if (!baseline) {
             const quoted = res.targets.find((t) => t.kind === 'quote-card')?.chosen.match(/^quote of "(.*)"$/)?.[1] ?? '';
-            const ok = inner instanceof AndroidDriver && quoted ? await quotedOriginalVisible(inner, quoted) : false;
-            baseline = { hash: h, verified: ok };
+            const box = inner instanceof AndroidDriver && quoted ? await quotedOriginalVisible(inner, quoted) : undefined;
+            baseline = { img: decodePng(png), box };
             await writeFile(join(o.runDir, 'baseline.png'), png);
-            results.push({ check: c, pass: ok, detail: ok ? 'first jump shows the quoted original (accessibility check) — screen kept as baseline' : 'first jump does NOT show the quoted original message' });
-          } else {
-            const dist = hamming(h, baseline.hash);
-            results.push({ check: c, pass: dist <= 10, detail: `landing screen vs baseline: ${dist} bits${dist <= 10 ? '' : ' — landed somewhere else'}` });
-          }
-        }
-        else if (c.kind === 'crash' || c.kind === 'process-alive') {
-          const bad = roundAnoms.find((x) => HARD.includes(x.kind));
-          results.push({ check: c, pass: !bad, detail: bad ? bad.detail.slice(0, 200) : 'no crash / process exit in the log stream' });
-        } else if (c.kind === 'page-error') {
-          const bad = roundAnoms.find((x) => x.kind === 'page-error' || x.kind === 'page-crash');
-          results.push({ check: c, pass: !bad, detail: bad ? bad.detail.slice(0, 200) : 'none' });
-        } else if (c.kind === 'console-error') {
-          // console errors are third-party noise too often: recorded as suspect signals, never a hit alone.
-          const bad = roundAnoms.find((x) => x.kind === 'console-error');
-          results.push({ check: c, pass: null, detail: bad ? `suspect: ${bad.detail.slice(0, 160)}` : 'none' });
+            results.push({ check: c, pass: !!box, detail: box ? `first jump shows the quoted original at ${JSON.stringify(box)} (accessibility check) — kept as reference` : 'first jump does NOT show the quoted original message' });
+          } else if (baseline.box) {
+            const m = regionMatch(decodePng(png), baseline.img, baseline.box, 1, 900);
+            results.push({ check: c, pass: m.fraction <= 0.12, detail: `quoted original ${m.fraction <= 0.12 ? `visible (dy ${m.dy})` : `NOT on screen (${Math.round(m.fraction * 100)}% of its marks missing)`}` });
+          } else results.push({ check: c, pass: false, detail: 'no reference: the first jump already failed' });
         }
       }
       let failed = results.find((r) => r.pass === false);
@@ -388,6 +378,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       if (failed && !hardHit && png && !(await onChat(png))) {
         // Operation drift (we are not where the plan thinks): not a finding. Re-enter and continue.
         stats.drifts++;
+        await writeFile(join(o.runDir, `drift-round-${round}.png`), png);
         log(`round ${round}: operation drift (chat page not on screen) — re-entering, not counted`);
         failed = undefined;
         results.length = 0;

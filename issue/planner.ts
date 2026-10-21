@@ -242,7 +242,11 @@ export async function draftIssue(i: NormalizedIssue, opts: { env?: 'test' | 'pro
   for (const sc of c.category === 'feature' ? [{ sub: 'main', text: `${i.summary} ${i.expected}` }] : splitSubcases(i)) {
     const surf = subst ? 'android-app' : surface;
     let by: 'model' | 'rules' = 'model';
-    let tpl = opts.useModel === false ? undefined : await modelTemplate(i, c, sc.text, surf);
+    // A specific SKILL template (plan-template.md) is validated on the device: it wins over a model draft.
+    // The model writes plans only for cases no template covers.
+    const ruleTpl = templateFor(`${sc.text} ${c.category === 'feature' ? i.featureArea : ''}`, c.category as TestPlan['category'], surf);
+    const specific = ruleTpl.title !== '按步骤执行并核对预期';
+    let tpl = opts.useModel === false || specific ? undefined : await modelTemplate(i, c, sc.text, surf);
     let plan = tpl && basePlan(i, c, sc.sub, surf, env, tpl, 'model');
     let v = plan ? validatePlan(plan) : undefined;
     if (!v?.ok) {
@@ -256,7 +260,8 @@ export async function draftIssue(i: NormalizedIssue, opts: { env?: 'test' | 'pro
       sub: sc.sub,
       title: `${sc.text.slice(0, 80)}`,
       surface: surf,
-      substitution: subst ? { from: subst.from, to: surf, reason: subst.reason, alternatives: subst.alternatives } : undefined,
+      // Keyboard behaviour only exists with a real soft keyboard: a browser emulation cannot stand in for it.
+      substitution: subst ? { from: subst.from, to: surf, reason: subst.reason, alternatives: /keyboard|键盘/i.test(sc.text) ? ['android-app'] : subst.alternatives } : undefined,
       plan: v.plan ?? plan!,
       planErrors: v.errors,
     });

@@ -3,7 +3,7 @@
   "name": "mobile-web@prod",
   "skillVersion": "2026.10.21-1",
   "env": "prod",
-  "calibratedAt": "2026-10-21T11:49:22.925Z",
+  "calibratedAt": "2026-10-21T15:44:40.593Z",
   "viewport": {
     "width": 412,
     "height": 839
@@ -35,18 +35,18 @@
     "login.password": {
       "page": "login-password",
       "box": [
-        51,
+        36,
         492,
         340,
         40
       ],
       "selfCheck": "pass",
-      "note": "focus probe: 9730 px changed in element"
+      "note": "focus probe: 8895 px changed in element"
     },
     "login.continue": {
       "page": "login-password",
       "box": [
-        61,
+        46,
         574,
         320,
         40
@@ -74,7 +74,7 @@
         63
       ],
       "selfCheck": "pass",
-      "note": "url same, screen Δ67"
+      "note": "url same, screen Δ72"
     },
     "nav.artifacts": {
       "page": "home",
@@ -85,7 +85,7 @@
         63
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ21"
+      "note": "url changed, screen Δ20"
     },
     "nav.me": {
       "page": "home",
@@ -96,7 +96,7 @@
         36
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ30"
+      "note": "url changed, screen Δ29"
     },
     "chatlist.search": {
       "page": "home",
@@ -107,7 +107,7 @@
         36
       ],
       "selfCheck": "pass",
-      "note": "focus probe: 3685 px changed in element"
+      "note": "focus probe: 3695 px changed in element"
     },
     "chat.composer": {
       "page": "chat",
@@ -161,7 +161,7 @@
         32
       ],
       "selfCheck": "pass",
-      "note": "screen Δ66"
+      "note": "screen Δ70"
     }
   },
   "refs": {
@@ -220,17 +220,17 @@
       "image": "refs/mobile-web@prod/chat.png",
       "regions": {
         "composer": [
-          25,
-          732,
-          362,
-          28
+          0,
+          778,
+          412,
+          36
         ]
       },
       "hashes": {
-        "composer": "0000000000000000"
+        "composer": "01031b496b5b0301"
       },
       "greys": {
-        "composer": 255
+        "composer": 236
       }
     },
     "mention-picker": {
@@ -244,10 +244,10 @@
         ]
       },
       "hashes": {
-        "picker": "000058d8c8880000"
+        "picker": "000058c8d8a80000"
       },
       "greys": {
-        "picker": 243
+        "picker": 246
       }
     },
     "profile": {

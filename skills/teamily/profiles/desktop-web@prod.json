@@ -3,7 +3,7 @@
   "name": "desktop-web@prod",
   "skillVersion": "2026.10.21-1",
   "env": "prod",
-  "calibratedAt": "2026-10-21T12:38:33.073Z",
+  "calibratedAt": "2026-10-21T15:46:17.884Z",
   "viewport": {
     "width": 1440,
     "height": 900
@@ -34,18 +34,18 @@
     "login.password": {
       "page": "login-password",
       "box": [
-        536,
+        541,
         487,
         390,
         40
       ],
       "selfCheck": "pass",
-      "note": "focus probe: 1492 px changed in element"
+      "note": "focus probe: 1390 px changed in element"
     },
     "login.continue": {
       "page": "login-password",
       "box": [
-        545,
+        549,
         569,
         370,
         40
@@ -62,7 +62,7 @@
         36
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ26"
+      "note": "url changed, screen Δ27"
     },
     "nav.artifacts": {
       "page": "home",
@@ -73,7 +73,7 @@
         36
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ26"
+      "note": "url changed, screen Δ27"
     },
     "nav.me": {
       "page": "home",
@@ -84,7 +84,7 @@
         36
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ24"
+      "note": "url changed, screen Δ25"
     },
     "chatlist.search": {
       "page": "home",
@@ -138,7 +138,7 @@
         32
       ],
       "selfCheck": "pass",
-      "note": "screen Δ106"
+      "note": "screen Δ107"
     },
     "artifacts.firstCard": {
       "page": "artifacts",
@@ -202,17 +202,17 @@
       "image": "refs/desktop-web@prod/chat.png",
       "regions": {
         "composer": [
-          401,
-          789,
-          978,
-          24
+          0,
+          833,
+          1440,
+          40
         ]
       },
       "hashes": {
-        "composer": "0000000000000000"
+        "composer": "8181838787838181"
       },
       "greys": {
-        "composer": 255
+        "composer": 242
       }
     },
     "mention-picker": {
@@ -226,10 +226,10 @@
         ]
       },
       "hashes": {
-        "picker": "0000584848080000"
+        "picker": "0000584858280000"
       },
       "greys": {
-        "picker": 226
+        "picker": 232
       }
     },
     "profile": {

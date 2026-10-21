@@ -201,7 +201,11 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
       const back = await first(p, `button${label('返回')}`, `button${label('Back')}`, 'header button');
       put('chat.back', back && (await box(back)));
     }
-    await ref('chat', { composer: prof.elements['chat.composer']?.box });
+    // Chat-page marker: the composer toolbar row (+ / Instant / icons) — stable, unlike the input's text,
+    // which changes with drafts and focus.
+    const emoji = await first(p, `button${label('Emoji')}`, `button${label('表情')}`);
+    const eb = emoji && (await box(emoji));
+    await ref('chat', { composer: eb ? [0, eb[1] - 4, vp.width, eb[3] + 8] : prof.elements['chat.composer']?.box });
     await selfCheck('chat.composer');
     await d.type('@');
     await p.waitForTimeout(1500);
