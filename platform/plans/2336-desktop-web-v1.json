@@ -12,6 +12,7 @@
   "launch": "once",
   "targets": [],
   "setup": [],
+  "prepare": [],
   "actions": [],
   "checks": [],
   "afterCheck": [],
@@ -158,6 +159,6 @@
   "provenance": {
     "generatedBy": "rules",
     "skillVersion": "2026.10.21-1",
-    "confirmedAt": "2026-10-21T12:46:04.006Z"
+    "confirmedAt": "2026-10-22T07:36:39.819Z"
   }
 }

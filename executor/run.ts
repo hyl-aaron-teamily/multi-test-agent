@@ -133,7 +133,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   const taskId = o.taskId ?? `run-${plan.id}-${t0}`;
   let lease: Lease | null = null;
   for (let i = 0; i < 30 && !lease; i++) {
-    lease = o.pool.lease(taskId, { env: plan.env, surface: plan.surface, accountId: plan.account, devices: o.devices, device: o.udid });
+    lease = o.pool.lease(taskId, { env: plan.env, surface: plan.surface, accountId: plan.account, devices: o.devices, device: onAndroid(plan.surface) ? o.udid : undefined });
     if (!lease) await sleep(2000);
   }
   if (!lease) {

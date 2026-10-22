@@ -45,6 +45,8 @@ export interface SyncOptions {
   conversation?: string;
   /** Seconds a receiver may take to show the line. */
   timeoutSec?: number;
+  /** Seconds to wait after every client is in the conversation, before round 1. */
+  settleSec?: number;
   runDir: string;
   pool: AccountPool;
   devices: DevicePool;
@@ -156,6 +158,10 @@ export async function runSync(o: SyncOptions): Promise<SyncResult> {
     const ready = roles.filter((r) => r.res.ready);
     if (ready.length < 2) throw new Error(`fewer than two clients ready (${ready.map((r) => r.spec.id).join(', ') || 'none'})`);
 
+    if (o.settleSec) {
+      log(`settling ${o.settleSec}s before round 1`);
+      await sleep(o.settleSec * 1000);
+    }
     // ---- rounds: one sender, every other client must show the line
     const rounds = o.rounds ?? ready.length;
     for (let k = 1; k <= rounds; k++) {

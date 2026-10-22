@@ -208,7 +208,7 @@ async function sync(args: string[]): Promise<number> {
     return { id: x.replace('#', '-'), surface: surface as Surface, device: flag(args, `device-${surface}`) };
   });
   const runDir = resolve('midscene_run/sync', new Date().toISOString().replace(/[:.]/g, '-'));
-  const r = await runSync({ env, roles, rounds: flag(args, 'rounds') ? Number(flag(args, 'rounds')) : undefined, conversation: flag(args, 'conversation'), timeoutSec: flag(args, 'timeout') ? Number(flag(args, 'timeout')) : undefined, runDir, pool, devices, headed: has(args, 'headed') });
+  const r = await runSync({ env, roles, rounds: flag(args, 'rounds') ? Number(flag(args, 'rounds')) : undefined, conversation: flag(args, 'conversation'), timeoutSec: flag(args, 'timeout') ? Number(flag(args, 'timeout')) : undefined, settleSec: flag(args, 'settle') ? Number(flag(args, 'settle')) : undefined, runDir, pool, devices, headed: has(args, 'headed') });
   console.log(`[sync] ${r.conclusion} — ${r.detail}`);
   console.log(`[sync] report → ${resolve(runDir, 'report.md')}`);
   return r.conclusion === '全部同步' ? 0 : 1;
