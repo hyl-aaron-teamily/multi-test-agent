@@ -11,7 +11,7 @@
 // maxConcurrent caps distinct tasks on Android endpoints (one task may hold several slots).
 // Sign-in on a phone lives on the phone: `accounts` says which pool account is signed in on which surface.
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import yaml from 'js-yaml';
 import { type Surface, SURFACES, SURFACE_TRAITS } from './accounts/types';
@@ -121,6 +121,8 @@ export class DevicePool {
       };
       next.set(d.udid, this.withStatus(dev, online));
     }
+    // An endpoint that holds leases stays in the pool even if adb lost it for a heartbeat (it shows offline).
+    for (const [udid, prev] of this.devices) if (!next.has(udid) && this.tasksOf(prev).length) next.set(udid, this.withStatus({ ...prev, adbState: 'absent' }, false));
     this.devices = next;
     await this.persist();
     return this.list();
@@ -177,7 +179,11 @@ export class DevicePool {
     if (d) {
       for (const s of Object.keys(d.leases) as Surface[]) {
         if (surface && s !== surface) continue;
-        d.leases[s] = taskId ? d.leases[s]!.filter((t) => t !== taskId) : [];
+        // One slot per call: a task may hold the same surface twice (two desktop-web roles).
+        if (taskId) {
+          const i = d.leases[s]!.indexOf(taskId);
+          if (i >= 0) d.leases[s]!.splice(i, 1);
+        } else d.leases[s] = [];
         if (!d.leases[s]!.length) delete d.leases[s];
       }
       this.withStatus(d);
@@ -185,8 +191,15 @@ export class DevicePool {
     void this.persist();
   }
 
-  private async persist(): Promise<void> {
-    await mkdir(dirname(STATE_FILE), { recursive: true });
-    await writeFile(STATE_FILE, JSON.stringify({ updatedAt: new Date().toISOString(), config: this.config, devices: this.list() }, null, 2));
+  private writing: Promise<void> = Promise.resolve();
+  /** Writes are serialised (overlapping writeFile calls could leave a torn file). */
+  private persist(): Promise<void> {
+    const body = JSON.stringify({ updatedAt: new Date().toISOString(), config: this.config, devices: this.list() }, null, 2);
+    this.writing = this.writing.then(async () => {
+      await mkdir(dirname(STATE_FILE), { recursive: true });
+      await writeFile(`${STATE_FILE}.tmp`, body);
+      await rename(`${STATE_FILE}.tmp`, STATE_FILE);
+    }).catch(() => {});
+    return this.writing;
   }
 }

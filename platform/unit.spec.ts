@@ -46,6 +46,21 @@ describe('platform', () => {
     expect(pool.get('ph1')?.status).toBe('idle');
   });
 
+  it('a leased phone survives a heartbeat without it; one release frees one slot of a task', async () => {
+    const pool = new DevicePool();
+    pool.config = parsePoolConfig('maxConcurrent: 2\nhosts:\n  - id: local\n    surfaces: { desktop-web: 2 }\n');
+    await pool.refresh([{ udid: 'ph1', state: 'device' }]); // undeclared phones come from adb
+    expect(pool.acquire('t1', undefined, 'android-app')?.udid).toBe('ph1');
+    await pool.refresh([]); // adb lost the phone for one beat
+    expect(pool.get('ph1')?.leases['android-app']).toEqual(['t1']);
+    await pool.refresh([{ udid: 'ph1', state: 'device' }]);
+    expect(pool.acquire('t2', undefined, 'android-app')).toBeNull(); // still taken
+    pool.acquire('t1', undefined, 'desktop-web');
+    pool.acquire('t1', undefined, 'desktop-web'); // two desktop roles of one sync task
+    pool.release('host:local', 'desktop-web', 't1');
+    expect(pool.get('host:local')?.leases['desktop-web']).toEqual(['t1']);
+  });
+
   it('declared phones default to app + browser; the host defaults to this computer', () => {
     const c = parsePoolConfig('devices:\n  - udid: a\n');
     expect(Object.keys(c.devices[0].capacity)).toEqual(['android-app', 'android-web']);

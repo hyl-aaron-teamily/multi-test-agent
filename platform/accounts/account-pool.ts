@@ -2,7 +2,7 @@
 // State (no secrets) → platform/state/accounts.json. Accounts are isolated by env: the same email in
 // test and prod is two accounts. lease() takes an endpoint slot (phone / this computer) together with the account.
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import type { DevicePool, PoolDevice } from '../device-pool';
 import { LocalYamlBackend, type SecretBackend } from './secret-backend';
@@ -39,7 +39,15 @@ export class AccountPool {
 
   /** Merge backend records with persisted runtime state. */
   async reload(): Promise<Account[]> {
-    const prev: Account[] = existsSync(this.stateFile) ? (JSON.parse(await readFile(this.stateFile, 'utf8')).accounts ?? []) : [];
+    // Runtime state only (no secrets): an unreadable file is started over, not fatal.
+    let prev: Account[] = [];
+    if (existsSync(this.stateFile)) {
+      try {
+        prev = JSON.parse(await readFile(this.stateFile, 'utf8')).accounts ?? [];
+      } catch {
+        prev = [];
+      }
+    }
     this.accounts.clear();
     for (const r of this.backend.accounts()) {
       const p = prev.find((x) => x.id === r.id);
@@ -95,7 +103,8 @@ export class AccountPool {
         req.devices.release(d.udid, req.surface, taskId);
         return null;
       }
-      accountId = accountId ?? signed;
+      // Undeclared phone: prefer the account last bound to it (the one signed in there before).
+      accountId = accountId ?? signed ?? (d.kind === 'android' ? this.list(req.env).find((a) => a.boundDevice === d.udid && a.surfaces.includes(req.surface))?.id : undefined);
       device = d;
     }
     const accounts = this.pick({ ...req, accountId });
@@ -126,8 +135,16 @@ export class AccountPool {
     await this.persist();
   }
 
-  async persist(): Promise<void> {
-    await mkdir(dirname(this.stateFile), { recursive: true });
-    await writeFile(this.stateFile, JSON.stringify({ updatedAt: new Date().toISOString(), accounts: this.list() }, null, 2));
+  private writing: Promise<void> = Promise.resolve();
+  /** Writes are serialised (several leases in one tick would otherwise overlap and tear the file). */
+  persist(): Promise<void> {
+    const body = JSON.stringify({ updatedAt: new Date().toISOString(), accounts: this.list() }, null, 2);
+    this.writing = this.writing.then(async () => {
+      await mkdir(dirname(this.stateFile), { recursive: true });
+      // tmp + rename: a process that exits mid-write never leaves a truncated file.
+      await writeFile(`${this.stateFile}.tmp`, body);
+      await rename(`${this.stateFile}.tmp`, this.stateFile);
+    }).catch(() => {});
+    return this.writing;
   }
 }

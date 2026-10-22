@@ -6,6 +6,7 @@ import { z } from 'zod';
 import type { Driver, Point } from '../../drivers/types';
 import { sleep } from '../../drivers/types';
 import { type Credentials, mobileLayout } from '../../platform/accounts/types';
+import { decodePng, pixelDiff } from '../../core/image';
 import { pointOf, type Profile } from '../profile';
 
 export interface NodeContext {
@@ -42,6 +43,11 @@ const target = (c: NodeContext, id: string): Point => {
 };
 
 const tapEl = (c: NodeContext, id: string) => c.driver.tap(pointOf(c.profile, id));
+const pointBox = (c: NodeContext, id: string) => {
+  const e = c.profile.elements[id];
+  if (!e) throw new Error(`element ${id} not calibrated in profile ${c.profile.name}`);
+  return e.box;
+};
 
 const login: Exec<{ account?: string }> = async ({ context: c }) => {
   const cred = c.credentials?.();
@@ -64,15 +70,38 @@ const openConversation: Exec<{ target: string }> = async ({ input, context: c })
 };
 
 const sendMessage: Exec<{ text: string }> = async ({ input, context: c }) => {
+  // Screen checks (no hierarchy reads): the keyboard really came up before Back hides it, and the composer
+  // box looks empty again after sending — otherwise send once more with the send button.
+  const box = pointBox(c, 'chat.composer');
+  const shot = async () => decodePng(await c.driver.screenshot());
+  const empty = await shot();
   await tapEl(c, 'chat.composer');
+  await sleep(500);
+  const focused = await shot();
   await c.driver.type(input.text);
   if (c.driver.surface === 'android-app') {
-    // RN composer: Enter is a newline. Hide the keyboard, then tap the (calibrated, keyboard-down) send button.
-    await c.driver.back();
-    await sleep(400);
+    // RN composer: Enter is a newline. Hide the keyboard (only if it is up: Back would otherwise leave the
+    // conversation), then tap the (calibrated, keyboard-down) send button.
+    if (pixelDiff(empty, focused) > 20_000) {
+      await c.driver.back();
+      await sleep(400);
+    }
     await tapEl(c, 'chat.send');
   } else if (mobileLayout(c.driver.surface)) await tapEl(c, 'chat.send'); // touch keyboard: Enter is a newline (phone browser: send calibrated with the keyboard up)
   else await c.driver.key('Enter');
+  await sleep(800);
+  if (!mobileLayout(c.driver.surface)) {
+    // Desktop: text still in the composer (Enter swallowed while the conversation was still loading) → send button.
+    const after = await shot();
+    const dpr = after.width / c.profile.viewport.width;
+    // Baseline: the focused, still-empty composer (no placeholder difference).
+    const px = pixelDiff(focused, after, [box[0] * dpr, box[1] * dpr, box[2] * dpr, box[3] * dpr]);
+    if (px > 150 && c.profile.elements['chat.send']) {
+      await tapEl(c, 'chat.send');
+      await sleep(800);
+      return { summary: `sent ${input.text.length} chars (Enter did not send; used the send button)` };
+    }
+  }
   return { summary: `sent ${input.text.length} chars` };
 };
 

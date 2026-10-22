@@ -23,7 +23,7 @@ import { type Env, onAndroid, onPlaywright, type Surface } from '../platform/acc
 import { ensureUiLogin } from '../platform/accounts/ui-login';
 import type { DevicePool } from '../platform/device-pool';
 import type { TestPlan } from '../platform/schema/test-plan';
-import { loadProfile, type Profile, SkillStaleError } from '../skills/profile';
+import { loadProfile, pointOf, type Profile, SkillStaleError } from '../skills/profile';
 import { runNode } from '../skills/teamily/nodes';
 import { assertSkillFresh, visionAsker, type VisionAsk, waitForRegion } from './checks';
 import { toChatListAndroidWeb } from './run';
@@ -152,10 +152,11 @@ export async function runSync(o: SyncOptions): Promise<SyncResult> {
       } catch (e) {
         r.res.error = (e as Error).message.split('\n')[0];
         log(`${r.spec.id}: preparation failed — ${r.res.error}`);
-        if (r.d) await writeFile(join(o.runDir, `${r.spec.id}-prep-failed.png`), await r.d.screenshot()).catch(() => {});
+        if (r.d) await r.d.screenshot().then((png) => writeFile(join(o.runDir, `${r.spec.id}-prep-failed.png`), png)).catch(() => {});
       }
     }
-    const ready = roles.filter((r) => r.res.ready);
+    // Senders take turns in the order the roles were given (preparation order is phones first).
+    const ready = roles.filter((r) => r.res.ready).sort((x, y) => o.roles.indexOf(x.spec) - o.roles.indexOf(y.spec));
     if (ready.length < 2) throw new Error(`fewer than two clients ready (${ready.map((r) => r.spec.id).join(', ') || 'none'})`);
 
     if (o.settleSec) {
@@ -182,9 +183,10 @@ export async function runSync(o: SyncOptions): Promise<SyncResult> {
     const all = result.rounds.flatMap((r) => r.deliveries);
     const missed = all.filter((x) => x.seen === false);
     const unverified = all.filter((x) => x.seen === null);
-    result.conclusion = missed.length ? '存在未同步' : unverified.length ? '执行失败' : '全部同步';
+    const notReady = roles.filter((r) => !r.res.ready);
+    result.conclusion = missed.length ? '存在未同步' : unverified.length || notReady.length ? '执行失败' : '全部同步';
     const lat = all.filter((x) => x.seen && x.latencyMs !== undefined && !x.receiver.endsWith('(sender)')).map((x) => x.latencyMs!);
-    result.detail = `${result.rounds.length} 轮，${all.length} 次投递检查：可见 ${all.filter((x) => x.seen).length}，未出现 ${missed.length}，未能核实 ${unverified.length}${lat.length ? `；接收端从发送到看到 平均 ${Math.round(lat.reduce((a, b) => a + b, 0) / lat.length / 100) / 10}s / 最长 ${Math.round(Math.max(...lat) / 100) / 10}s（含切换手机前台）` : ''}`;
+    result.detail = `${notReady.length ? `未就绪：${notReady.map((r) => r.spec.id).join(', ')}；` : ''}${result.rounds.length} 轮，${all.length} 次投递检查：可见 ${all.filter((x) => x.seen).length}，未出现 ${missed.length}，未能核实 ${unverified.length}${lat.length ? `；接收端从发送到看到 平均 ${Math.round(lat.reduce((a, b) => a + b, 0) / lat.length / 100) / 10}s / 最长 ${Math.round(Math.max(...lat) / 100) / 10}s（含切换手机前台）` : ''}`;
   } catch (e) {
     result.conclusion = '执行失败';
     result.detail = (e as Error).message.split('\n')[0];
@@ -235,6 +237,11 @@ async function prepareRole(r: Role, o: SyncOptions, log: (s: string) => void, fo
         await sleep(1500);
       } else throw e;
     }
+  }
+  // The bottom bar looks the same on every tab: make sure the chat tab is the one showing.
+  if (onAndroid(r.spec.surface) && profile.elements['nav.chat']) {
+    await d.tap(pointOf(profile, 'nav.chat'));
+    await sleep(1500);
   }
   d.drainAnomalies();
   const guidance = chosenTitle

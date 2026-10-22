@@ -128,7 +128,7 @@ export class AndroidDriver implements Driver {
     this.foreground = false;
     await this.sh(`am force-stop ${this.o.packageName}`);
     for (let i = 0; i < 10; i++) {
-      if (!(await this.processAlive())) {
+      if ((await this.processAlive(true)) === false) {
         this.pid = undefined;
         return;
       }
@@ -156,9 +156,17 @@ export class AndroidDriver implements Driver {
     this.away = true;
   }
 
-  async processAlive(): Promise<boolean> {
-    const out = await adb(['shell', 'pidof', this.o.packageName], this.o.udid).catch(() => '');
-    return /\d/.test(out);
+  /** Is the app process running? `strict`: an adb failure throws instead of reading as "not running". */
+  async processAlive(strict = false): Promise<boolean> {
+    try {
+      const out = await adb(['shell', 'pidof', this.o.packageName], this.o.udid);
+      return /\d/.test(out);
+    } catch (e) {
+      // pidof exits 1 when there is no such process; adb itself failing is something else.
+      if ((e as { code?: number }).code === 1 && !(e as { stderr?: string }).stderr) return false;
+      if (strict) throw new Error(`processAlive: adb failed (${(e as Error).message.split(String.fromCharCode(10))[0]})`);
+      return false;
+    }
   }
 
   async refreshPid(): Promise<void> {

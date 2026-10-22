@@ -211,6 +211,11 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
         await sleep(1500);
       }
     }
+    // Phones: the bottom bar looks the same on every tab — make sure the chat tab is the one showing.
+    if (onAndroid(plan.surface) && profile.elements['nav.chat'] && plan.setup.some((a) => a.node?.name === 'teamily.openConversation')) {
+      await d.tap(pointOf(profile, 'nav.chat'));
+      await sleep(1500);
+    }
     d.drainAnomalies(); // page-load noise before the test starts
 
     // ---- prepare: dynamic targets
