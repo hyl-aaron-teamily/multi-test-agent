@@ -5,7 +5,7 @@ import { defineNode } from '@midscene/core/internal/test-runner';
 import { z } from 'zod';
 import type { Driver, Point } from '../../drivers/types';
 import { sleep } from '../../drivers/types';
-import type { Credentials } from '../../platform/accounts/types';
+import { type Credentials, mobileLayout } from '../../platform/accounts/types';
 import { pointOf, type Profile } from '../profile';
 
 export interface NodeContext {
@@ -46,13 +46,15 @@ const tapEl = (c: NodeContext, id: string) => c.driver.tap(pointOf(c.profile, id
 const login: Exec<{ account?: string }> = async ({ context: c }) => {
   const cred = c.credentials?.();
   if (!cred) throw new Error('teamily.login: no credentials provider');
+  // Phone browser: the on-screen keyboard covers the form buttons — submit with its Enter ("Go") key.
+  const submit = (id: string) => (c.driver.surface === 'android-web' ? c.driver.key('enter') : tapEl(c, id));
   await tapEl(c, 'login.email');
   await c.driver.type(cred.email);
-  await tapEl(c, 'login.emailContinue');
+  await submit('login.emailContinue');
   await sleep(Math.max(c.settleMs ?? 0, 3500));
   await tapEl(c, 'login.password');
   await c.driver.type(cred.password);
-  await tapEl(c, 'login.continue');
+  await submit('login.continue');
   return { summary: `login ${cred.email.replace(/^(.).*@/, '$1***@')}` };
 };
 
@@ -69,7 +71,7 @@ const sendMessage: Exec<{ text: string }> = async ({ input, context: c }) => {
     await c.driver.back();
     await sleep(400);
     await tapEl(c, 'chat.send');
-  } else if (c.driver.surface === 'mobile-web') await tapEl(c, 'chat.send'); // touch keyboard: Enter is a newline
+  } else if (mobileLayout(c.driver.surface)) await tapEl(c, 'chat.send'); // touch keyboard: Enter is a newline (phone browser: send calibrated with the keyboard up)
   else await c.driver.key('Enter');
   return { summary: `sent ${input.text.length} chars` };
 };
@@ -86,10 +88,10 @@ const clearComposer: Exec<Record<string, never>> = async ({ context: c }) => {
 };
 
 const switchConversation: Exec<{ from: string; to: string }> = async ({ input, context: c }) => {
-  if (c.driver.surface !== 'desktop-web') await tapEl(c, 'chat.back').catch(() => {});
+  if (mobileLayout(c.driver.surface)) await tapEl(c, 'chat.back').catch(() => {});
   await c.driver.tap(target(c, input.to));
   await sleep(c.settleMs ?? 500);
-  if (c.driver.surface !== 'desktop-web') await tapEl(c, 'chat.back').catch(() => {});
+  if (mobileLayout(c.driver.surface)) await tapEl(c, 'chat.back').catch(() => {});
   await c.driver.tap(target(c, input.from));
 };
 

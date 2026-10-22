@@ -4,10 +4,12 @@ import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { WebDriver } from '../../drivers/web';
-import { loadProfile } from '../../skills/profile';
+import { loadProfile, pointOf } from '../../skills/profile';
 import { runNode } from '../../skills/teamily/nodes';
 import type { AccountPool } from './account-pool';
 import type { Surface } from './types';
+
+export type PlaywrightSurface = Extract<Surface, 'desktop-web' | 'mobile-web'>;
 
 export const SESSIONS_DIR = resolve('platform/secrets/sessions');
 
@@ -21,7 +23,7 @@ export interface SessionResult {
 }
 
 /** True if the saved state still lands on the chat app (not on /login). */
-async function sessionValid(url: string, file: string, surface: Exclude<Surface, 'android-app'>): Promise<boolean> {
+async function sessionValid(url: string, file: string, surface: PlaywrightSurface): Promise<boolean> {
   if (!existsSync(file)) return false;
   const d = new WebDriver({ surface, url, storageState: file });
   try {
@@ -36,7 +38,7 @@ async function sessionValid(url: string, file: string, surface: Exclude<Surface,
 }
 
 /** Reuse or create the web session of an account by cursor/keyboard login with the calibrated profile. */
-export async function ensureWebSession(pool: AccountPool, accountId: string, surface: Exclude<Surface, 'android-app'> = 'desktop-web', force = false): Promise<SessionResult> {
+export async function ensureWebSession(pool: AccountPool, accountId: string, surface: PlaywrightSurface = 'desktop-web', force = false): Promise<SessionResult> {
   const acc = pool.get(accountId);
   if (!acc) return { ok: false, file: '', reused: false, error: `no account ${accountId}` };
   const url = pool.webUrl(acc.env);
@@ -53,7 +55,13 @@ export async function ensureWebSession(pool: AccountPool, accountId: string, sur
     await d.p.waitForTimeout(5000);
     const ctx = { driver: d, profile, targets: {}, credentials: () => pool.backend.get(accountId) };
     await runNode('teamily.login', {}, ctx);
-    const reached = await d.p.waitForURL(/\/chat/, { timeout: 30_000 }).then(() => true, () => false);
+    let reached = await d.p.waitForURL(/\/(chat|onboarding)/, { timeout: 30_000 }).then(() => true, () => false);
+    if (reached && /\/onboarding/.test(d.p.url()) && profile.elements['onboarding.skip']) {
+      // A fresh browser's first sign-in shows the onboarding page: skip it (calibrated button).
+      await d.p.waitForTimeout(3000);
+      await d.tap(pointOf(profile, 'onboarding.skip'));
+      reached = await d.p.waitForURL(/\/chat/, { timeout: 30_000 }).then(() => true, () => false);
+    }
     if (!reached) {
       // One retry from a fresh login page (slow prod responses between the email and password steps).
       await d.launch();

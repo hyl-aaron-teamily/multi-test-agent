@@ -1,0 +1,161 @@
+{
+  "surface": "android-web",
+  "name": "android-web-4f2ebdf2@prod",
+  "skillVersion": "2026.10.21-1",
+  "env": "prod",
+  "calibratedAt": "2026-10-22T05:57:08.466Z",
+  "viewport": {
+    "width": 1080,
+    "height": 2400
+  },
+  "packageName": "com.android.browser",
+  "elements": {
+    "nav.chat": {
+      "page": "home",
+      "box": [
+        11,
+        2055,
+        214,
+        176
+      ],
+      "selfCheck": "pass",
+      "note": "screen Δ218120px"
+    },
+    "nav.artifacts": {
+      "page": "home",
+      "box": [
+        855,
+        2055,
+        214,
+        176
+      ],
+      "selfCheck": "pass",
+      "note": "screen Δ220478px"
+    },
+    "nav.me": {
+      "page": "home",
+      "box": [
+        44,
+        317,
+        99,
+        99
+      ],
+      "selfCheck": "pass",
+      "note": "screen Δ59742px"
+    },
+    "chatlist.search": {
+      "page": "home",
+      "box": [
+        44,
+        504,
+        990,
+        99
+      ],
+      "selfCheck": "pending"
+    },
+    "chat.back": {
+      "page": "chat",
+      "box": [
+        33,
+        303,
+        88,
+        91
+      ],
+      "selfCheck": "pass",
+      "note": "screen Δ316882px"
+    },
+    "chat.composer": {
+      "page": "chat",
+      "box": [
+        66,
+        1934,
+        946,
+        82
+      ],
+      "selfCheck": "pass",
+      "note": "keyboard up (screen Δ195255px)"
+    },
+    "chat.send": {
+      "page": "chat",
+      "box": [
+        960,
+        1348,
+        8,
+        8
+      ],
+      "selfCheck": "pass",
+      "note": "located by vision; located with the keyboard up; covered by the send flow"
+    }
+  },
+  "refs": {
+    "home": {
+      "image": "refs/android-web-4f2ebdf2@prod/home.png",
+      "regions": {
+        "nav": [
+          0,
+          2051,
+          1080,
+          184
+        ]
+      },
+      "hashes": {
+        "nav": "808495d515570000"
+      },
+      "greys": {
+        "nav": 247
+      }
+    },
+    "artifacts": {
+      "image": "refs/android-web-4f2ebdf2@prod/artifacts.png",
+      "regions": {
+        "nav": [
+          0,
+          2051,
+          1080,
+          184
+        ]
+      },
+      "hashes": {
+        "nav": "008495d515570000"
+      },
+      "greys": {
+        "nav": 249
+      }
+    },
+    "chat": {
+      "image": "refs/android-web-4f2ebdf2@prod/chat.png",
+      "regions": {
+        "composer": [
+          0,
+          2065,
+          1080,
+          92
+        ]
+      },
+      "hashes": {
+        "composer": "03031b5352531303"
+      },
+      "greys": {
+        "composer": 239
+      }
+    },
+    "mention-picker": {
+      "image": "refs/android-web-4f2ebdf2@prod/mention-picker.png",
+      "regions": {
+        "picker": [
+          0,
+          476,
+          1080,
+          24
+        ]
+      },
+      "hashes": {
+        "picker": "a8a8a8a8e8e8a850"
+      },
+      "greys": {
+        "picker": 212
+      }
+    }
+  },
+  "reviewQueue": []
+}

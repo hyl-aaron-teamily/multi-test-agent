@@ -1,5 +1,32 @@
 # Changelog
 
+## [Unreleased] — 证据复核、退出/杀进程、手机浏览器、Edge、端点池与多端同步
+
+验收证据：`docs/m6-acceptance.md`。
+
+### Fixed
+- **1329 s2 误报**：开发期记为「已复现」的定位链接用例，录屏显示跳到的就是被引用消息（窄屏下气泡换行 + 跳转高亮，基线像素比对没对上）。README / 介绍页 / m5 验收文档已更正。
+- **录屏与操作日志错位约 2 秒**：录屏分段起点改取 scrcpy 打印 `Recording started` 的时刻（原为进程启动时刻）；多段合并按各段实际时长换算（`videoTimeOf`），`ops.srt`、查看器跳转、复核取帧统一使用。
+- 桌面首页有效性标记改为搜索行：左栏的未读角标随账号变化，换账号即误报「SKILL 失效」。
+- SKILL 失效时保存 `skill-stale.png`，便于判断是改版还是临时遮挡。
+
+### Added
+- **证据复核**（`incident/evidence-review.ts`）：检查类命中先把出事轮与前一轮的录屏画面条 + 被判定截图交给视觉模型，对照 Issue 实际结果，3 票多数；「不符」排除不计命中，连续 3 次排除记执行失败；报告新增「证据复核排除」一节。`issue/llm.ts` 新增 `visionJson`。
+- **预置用例**（`fixtures/evidence/`、`pnpm autotest evidence review|snapshot|cases`）：`1329-s2-quote-wrap`（期望不符）、`1329-s2-synthetic-old-jump`（阳性对照，期望符合）。
+- **生命周期动作**：计划动作 `exitApp`、`killApp`、`reload`、`idle`；`process-alive` 检查落地；`skill smoke --lifecycle warm|cold`（App / 手机浏览器）。
+- **`android-web` 执行端**：手机系统浏览器，adb 输入 + 截屏，固定标签页打开网址；`skills/calibrate-android-web.ts`（无障碍树 + 刷新重读 + 视觉定位临时元素）；键盘回车提交登录；会话恢复时经 Artifacts → 聊天 → 返回回到列表；按需光标登录（`platform/accounts/ui-login.ts`）。
+- **Edge 最大化**：Windows 上 `desktop-web` 用 Edge 有头最大化窗口，标定记录实际视口与缩放；登录后的新手引导页处理（`onboarding.skip`）。
+- **端点池**：`platform/device-pool.ts` 按「端点 × 执行端」分槽，本机为 `host:local` 端点，`devices.yaml` 记录手机上各端登录的账号；`AccountPool.lease` 同时租槽并只给登在手机上的账号。
+- **多端同步** `pnpm autotest sync`（`executor/sync.ts`）与控制台「多端同步」任务：各端不同账号进同一群，每轮一端发送，其余端核对可见并记耗时与截图；同一手机的 App 与浏览器轮流占前台。
+- `drivers/factory.ts`：执行器、重放、同步共用的驱动构造。
+
+### 验证
+- 证据复核预置用例 2/2（三次）；严格阈值复跑 1329 s2：2 次误报全部被排除。
+- 生命周期：App 热 / 冷、浏览器热 / 冷均 0 命中。
+- Edge 标定 14 元素 0 失败、冒烟发送成功；手机浏览器标定 7 元素 0 失败、冒烟发送成功。
+- 同步：三端 3 轮 9/9（三次）；手机单机 App + 浏览器 4/4；记录 1 次 App 回前台后 45 秒未显示后台期间消息的偶现现象。
+- `typecheck` 通过；`test:unit` 77/77；`test:web` 1/1；`test:android` 5/5。
+
 ## [Unreleased] — 控制台报告隔离
 
 ### Fixed

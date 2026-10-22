@@ -1,0 +1,23 @@
+{
+  "triggeredAt": "2026-10-21T16:43:41.324Z",
+  "detail": "check failed: 点引用块后跳到被引用的原消息（每轮落在同一位置） — quoted original NOT on screen (13% of its marks missing)",
+  "issue": "1329",
+  "plan": "1329-s2-android-app-v1",
+  "title": "点引用定位应稳定跳到被引用消息",
+  "surface": "android-app",
+  "video": [
+    {
+      "startedAt": 1792600988325,
+      "endedAt": 1792601016553,
+      "durationSec": 29.869
+    },
+    {
+      "startedAt": 1792601019003,
+      "endedAt": 1792601022998,
+      "durationSec": 5.697
+    }
+  ],
+  "clipStartSec": 16,
+  "videoMerged": "merged.mp4",
+  "videoSeconds": 20.13
+}

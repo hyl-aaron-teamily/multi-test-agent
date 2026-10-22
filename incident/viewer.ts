@@ -12,7 +12,8 @@ export function viewerHtml(meta: Record<string, any>, ops: CoordOp[], dir: strin
   const logFile = ['logs/logcat-window.txt', 'logs/console.jsonl'].find((f) => existsSync(join(dir, f)));
   const logText = logFile ? readFileSync(join(dir, logFile), 'utf8').split('\n').slice(-3000).join('\n') : '';
   const trig = Date.parse(meta.triggeredAt);
-  const data = { meta, videoStart, trig, ops: ops.slice(-400), logFile };
+  const segs = (meta.video ?? []).map((v: any) => ({ startedAt: v.startedAt, endedAt: v.endedAt, durationSec: v.durationSec }));
+  const data = { meta, videoStart, segs, trig, ops: ops.slice(-400), logFile };
   return `<!doctype html><html lang="zh"><meta charset="utf-8"><title>incident ${esc(String(meta.kind))} — ${esc(String(meta.issue))}</title>
 <style>body{font:13px system-ui,sans-serif;margin:0;display:grid;grid-template-columns:minmax(320px,46%) 1fr;height:100vh}
 #l{padding:10px;overflow:auto;border-right:1px solid #ddd}#r{display:grid;grid-template-rows:auto 1fr 40%;overflow:hidden}
@@ -28,10 +29,11 @@ ${meta.traces?.length ? `<h1>Trace</h1>${meta.traces.map((t: any) => `<p><a href
 <div id="r"><div style="padding:6px;border-bottom:1px solid #ddd">操作轨迹（点击跳转视频 / 过滤日志）</div><div id="ops"></div><pre id="log"></pre></div>
 <script>const D=${JSON.stringify(data).replace(/</g, '\\u003c')};let LOG=${JSON.stringify(logText).replace(/</g, '\\u003c')}.split('\\n');
 const v=document.getElementById('v'),ops=document.getElementById('ops'),log=document.getElementById('log');
+function vt(ms){let k=0,b=0;for(let i=1;i<D.segs.length&&D.segs[i].startedAt<=ms;i++)k=i;for(let i=0;i<k;i++)b+=D.segs[i].durationSec??((D.segs[i].endedAt??D.segs[i].startedAt)-D.segs[i].startedAt)/1000;return b+(ms-D.segs[k].startedAt)/1000}
 function at(line){const m=line.match(/^(\\d{4}-\\d\\d-\\d\\dT[\\d:.]+Z)/)||line.match(/"time":"([^"]+)"/);return m?Date.parse(m[1]):NaN}
 function showLog(t){const rows=LOG.filter(l=>{const x=at(l);return isNaN(x)||Math.abs(x-t)<15000});log.textContent=rows.join('\\n')||'(no log lines in ±15 s)';}
 for(const o of D.ops){const d=document.createElement('div');d.textContent=new Date(o.at).toISOString().slice(11,23)+'  #'+o.step+' r'+o.round+' '+o.op+(o.point?' ('+o.point.x+','+o.point.y+')':'')+(o.value?' "'+o.value+'"':'')+' '+(o.label||'');
-if(Math.abs(o.at-D.trig)<1500)d.className='trig';d.onclick=()=>{if(v&&D.videoStart)v.currentTime=Math.max(0,(o.at-D.videoStart)/1000);showLog(o.at)};ops.appendChild(d)}
+if(Math.abs(o.at-D.trig)<1500)d.className='trig';d.onclick=()=>{if(v&&D.videoStart)v.currentTime=Math.max(0,vt(o.at));showLog(o.at)};ops.appendChild(d)}
 showLog(D.trig);if(D.logFile)fetch(D.logFile).then(r=>r.text()).then(t=>{LOG=t.split('\\n');showLog(D.trig)}).catch(()=>{});
-if(v&&D.videoStart)v.addEventListener('loadedmetadata',()=>{v.currentTime=Math.max(0,(D.trig-D.videoStart)/1000-5)});</script></html>`;
+if(v&&D.videoStart)v.addEventListener('loadedmetadata',()=>{v.currentTime=Math.max(0,vt(D.trig)-5)});</script></html>`;
 }

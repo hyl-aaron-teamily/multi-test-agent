@@ -9,6 +9,8 @@ import type { Draft } from './planner';
 
 export const ALLURE_DIR = resolve('allure-results');
 
+const REVIEW_TEXT: Record<string, string> = { consistent: '符合 Issue 描述', inconsistent: '不符', unverified: '未能复核（视觉模型不可用），结论仅依据自动检查' };
+
 const CAT: Record<string, string> = {
   'bug-always': '必现 bug',
   'bug-intermittent': '偶现 bug',
@@ -37,13 +39,15 @@ export function runMarkdown(d: Draft, results: RunResult[], runDir: string): str
     if (r.error) lines.push(`- 错误：${r.error}`);
     if (r.targets.length) lines.push(`- 准备阶段目标（模型决策后冻结）：${r.targets.map((t) => `${t.id}="${t.chosen}" @(${t.point.x},${t.point.y}) [${t.by}]`).join('；')}`);
     const s = r.stats;
-    lines.push('', '| 统计 | 值 |', '|---|---|', `| 总步数 / 轮数 | ${s.steps} / ${s.rounds} |`, `| 总时长 | ${s.durationSec}s |`, `| 动作间隔 平均 / 最大 | ${s.avgIntervalMs}ms / ${s.maxIntervalMs}ms（>1s: ${s.intervalsOverCap} 次） |`, `| App 启动次数 | ${s.launches} |`, `| 操作偏离（重进，不计命中） | ${s.drifts ?? 0} |`, `| 异常门触发 / 可疑信号 | ${s.anomalyGateTriggers} / ${s.suspectSignals} |`, `| 检查点截图 | ${s.checkpointScreenshots} |`, `| 视觉模型调用 | ${s.visionCalls} |`, `| 文本模型调用 | ${s.textModelCalls} |`, '');
+    lines.push('', '| 统计 | 值 |', '|---|---|', `| 总步数 / 轮数 | ${s.steps} / ${s.rounds} |`, `| 总时长 | ${s.durationSec}s |`, `| 动作间隔 平均 / 最大 | ${s.avgIntervalMs}ms / ${s.maxIntervalMs}ms（>1s: ${s.intervalsOverCap} 次） |`, `| App 启动次数 | ${s.launches} |`, `| 操作偏离（重进，不计命中） | ${s.drifts ?? 0} |`, `| 异常门触发 / 可疑信号 | ${s.anomalyGateTriggers} / ${s.suspectSignals} |`, `| 检查点截图 | ${s.checkpointScreenshots} |`, `| 视觉模型调用 | ${s.visionCalls}${s.evidenceReviews ? `（含证据复核 ${s.evidenceReviews} 次）` : ''} |`, `| 文本模型调用 | ${s.textModelCalls} |`, '');
     if (r.acceptance) {
       lines.push('| 验收项 | 结果 | 依据 |', '|---|---|---|');
       for (const a of r.acceptance) lines.push(`| ${a.text} | ${a.pass === null ? '未验证' : a.pass ? '✅ 已实现' : '❌ 缺项'} | ${a.detail}${a.evidence ? ` · [截图](${r.planId}/${a.evidence})` : ''} |`);
       lines.push('');
     }
-    if (r.hits.length) lines.push('命中记录：', ...r.hits.slice(0, 10).map((h) => `- 第 ${h.round} 轮 / 第 ${h.step} 步 ${h.at}：${h.reason}`), '');
+    if (r.hits.length) lines.push('命中记录：', ...r.hits.slice(0, 10).map((h) => `- 第 ${h.round} 轮 / 第 ${h.step} 步 ${h.at}：${h.reason}${h.review ? `\n  - 证据复核：${REVIEW_TEXT[h.review]}${h.reviewNote ? ` — ${h.reviewNote}` : ''}` : ''}`), '');
+    if (r.dismissed?.length)
+      lines.push('证据复核排除（自动检查误报，不计命中）：', ...r.dismissed.slice(0, 10).map((x) => `- 第 ${x.round} 轮 / 第 ${x.step} 步：${x.reason}\n  - 画面所见：${x.observed} · [复核](${relative(runDir, x.incident).replace(/\\/g, '/')}/review/review.md)`), '');
     if (r.incidents.length) lines.push('现场包：', ...r.incidents.map((i) => `- [${basename(i)}](${relative(runDir, i).replace(/\\/g, '/')}/index.html) · 重放：\`pnpm autotest replay ${relative(process.cwd(), i).replace(/\\/g, '/')}/replay.json\``), '');
     const last = r.roundLog.slice(-3);
     if (last.length) lines.push('最后几轮检查：', ...last.map((x) => `- 轮 ${x.round}（步 ${x.step}）：${x.results.map((y) => `${y.kind}=${y.pass === null ? '?' : y.pass ? 'ok' : 'FAIL'} ${y.detail}`).join('；')}`), '');

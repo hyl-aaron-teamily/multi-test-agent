@@ -14,6 +14,9 @@ import { type Anomaly, type Driver, type Point, sleep } from './types';
 export interface AndroidDriverOptions {
   udid: string;
   packageName: string;
+  /** android-web: the phone's browser (packageName) opened on this URL. Default android-app. */
+  surface?: 'android-app' | 'android-web';
+  url?: string;
   /** App E/ lines matching this are recorded as suspect signals. */
   appErrorRe?: RegExp;
   /** Every logcat line, host-timestamped (flight recorder). */
@@ -36,7 +39,7 @@ export function classifyLogLine(line: string, pkg: string, pid?: number, appErro
 }
 
 export class AndroidDriver implements Driver {
-  readonly surface = 'android-app' as const;
+  readonly surface: 'android-app' | 'android-web';
   private shell?: ChildProcessWithoutNullStreams;
   private shellQueue: { marker: string; resolve: () => void }[] = [];
   private seq = 0;
@@ -46,8 +49,14 @@ export class AndroidDriver implements Driver {
   pid?: number;
   /** From wm_set_resumed_activity: is the app in the foreground right now? */
   foreground = true;
+  /** The app is away on purpose (Home / killed / another surface in front): leaving it or its process
+   *  ending is the plan, not a finding. Cleared by launch() / focus(). Crashes and ANRs still count. */
+  away = false;
+  private launched = false;
 
-  constructor(readonly o: AndroidDriverOptions) {}
+  constructor(readonly o: AndroidDriverOptions) {
+    this.surface = o.surface ?? 'android-app';
+  }
 
   /** Resident shell: commands are written to stdin; a marker echo tells us each finished. */
   private ensureShell(): ChildProcessWithoutNullStreams {
@@ -85,11 +94,71 @@ export class AndroidDriver implements Driver {
   }
 
   async launch(): Promise<void> {
-    await launchApp(this.o.packageName, this.o.udid);
+    this.startLogcat();
+    // Browser: open the URL in it the first time and after its process was killed (what opening a link
+    // does); otherwise, like an app, its launcher icon brings back the open tab.
+    if (this.o.url && (!this.launched || !(await this.processAlive()))) await this.openUrl();
+    else await launchApp(this.o.packageName, this.o.udid);
+    this.launched = true;
     this.foreground = true;
     await sleep(2500);
     await this.refreshPid();
-    this.startLogcat();
+    this.away = false;
+  }
+
+  /** Browser: load the app address in our tab, as opening a link does. application_id makes the browser
+   *  reuse the tab it opened for us; the query makes it a real load even when the address is unchanged. */
+  async openUrl(path?: string): Promise<void> {
+    if (!this.o.url) throw new Error('openUrl: no url (android-web only)');
+    const base = path ? new URL(path, this.o.url).toString() : this.o.url;
+    const u = `${base}${base.includes('?') ? '&' : '?'}autotest=${Date.now()}`;
+    await this.sh(`am start -a android.intent.action.VIEW -d '${u}' -p ${this.o.packageName} --es com.android.browser.application_id ai.autotest`);
+  }
+
+  /** Home key: the app goes to the background and keeps its process. */
+  async exitApp(): Promise<void> {
+    this.away = true;
+    await this.sh('input keyevent 3');
+    this.foreground = false;
+  }
+
+  /** Kill the app process (as swiping it out of recents does) and confirm it is gone. */
+  async killApp(): Promise<void> {
+    this.away = true;
+    this.foreground = false;
+    await this.sh(`am force-stop ${this.o.packageName}`);
+    for (let i = 0; i < 10; i++) {
+      if (!(await this.processAlive())) {
+        this.pid = undefined;
+        return;
+      }
+      await sleep(300);
+    }
+    throw new Error(`killApp: ${this.o.packageName} still running after force-stop`);
+  }
+
+  /** Native app: no page reload — cold restart (kill, then launch). */
+  async reload(): Promise<void> {
+    await this.killApp();
+    await this.launch();
+  }
+
+  /** Bring the app back in front of another surface on the same phone (warm, like tapping its icon). */
+  async focus(): Promise<void> {
+    if (this.foreground && !this.away) return;
+    await launchApp(this.o.packageName, this.o.udid);
+    this.foreground = true;
+    await sleep(1200);
+    this.away = false;
+  }
+
+  yieldFocus(): void {
+    this.away = true;
+  }
+
+  async processAlive(): Promise<boolean> {
+    const out = await adb(['shell', 'pidof', this.o.packageName], this.o.udid).catch(() => '');
+    return /\d/.test(out);
   }
 
   async refreshPid(): Promise<void> {
@@ -114,6 +183,8 @@ export class AndroidDriver implements Driver {
       const res = line.match(/\bwm_set_resumed_activity\b.*?\[\d+,([\w.]+)\//);
       if (res) this.foreground = res[1] === this.o.packageName;
       const a = classifyLogLine(line, this.o.packageName, this.pid, this.o.appErrorRe);
+      // Planned exits (Home, kill, another surface in front) are not findings.
+      if (this.away && (a?.kind === 'left-app' || a?.kind === 'app-exit')) return;
       // A background process killed by the system (low-memory / cached trim) is not an app failure.
       if (a?.kind === 'app-exit' && !this.foreground) this.anomalies.push({ ...a, at, suspect: true, kind: 'app-error', detail: `background death: ${a.detail}` });
       else if (a) this.anomalies.push({ ...a, at });

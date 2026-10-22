@@ -1,10 +1,12 @@
 // Milestone 5 CLI: Issue-driven black-box reproduction.
 //   pnpm autotest accounts list|check [--env test|prod] [--force] [--id <acc>]
-//   pnpm autotest skill calibrate --surface desktop-web|mobile-web|android-app --env test|prod [--device <udid>] [--account <id>] [--headed]
+//   pnpm autotest skill calibrate --surface desktop-web|mobile-web|android-app|android-web --env test|prod [--device <udid>] [--account <id>] [--headed]
 //   pnpm autotest nodes [--json]
 //   pnpm autotest plan issues/<id>.md [--env prod] [--json]
 //   pnpm autotest run --issue <id> [--env prod] [--approve <sub,...>] [--yes] [--max-steps N] [--max-minutes M] [--headed]
 //   pnpm autotest replay <incident>/replay.json [--variant original|fast|slow|cold] [--times N]
+//   pnpm autotest evidence review <incidentDir> | snapshot <incidentDir> --id <case> --expect .. | cases
+//   pnpm autotest sync [--roles desktop-web,android-web,android-app] [--rounds N] [--env prod] [--timeout S]
 import 'dotenv/config';
 import { AccountPool } from '../platform/accounts/account-pool';
 import type { Env, Surface } from '../platform/accounts/types';
@@ -58,6 +60,11 @@ async function smoke(args: string[]): Promise<number> {
     { type: 'node' as const, node: { name: 'teamily.openConversation', input: { target: 'conv' } }, delayAfterMs: 900 },
     { type: 'back' as const, delayAfterMs: 900 },
   ];
+  // --lifecycle warm|cold (android-app / android-web): leave the app (Home) → wait in the background → [kill
+  // its process → wait] → launch again. App: warm comes back on the chat page, cold starts on the home screen.
+  // Browser: warm keeps the conversation; cold reloads the address and Teamily web reopens the conversation.
+  const lifecycle = flag(args, 'lifecycle') as 'warm' | 'cold' | undefined;
+  if (lifecycle) return lifecycleSmoke(args, lifecycle, { env, pool, devices, runPlan, runDirFor, SKILL_VERSION });
   const r = await runPlan({
     plan: {
       id,
@@ -93,6 +100,59 @@ async function smoke(args: string[]): Promise<number> {
   return !r.error && sent?.pass ? 0 : 1;
 }
 
+async function lifecycleSmoke(args: string[], mode: 'warm' | 'cold', x: { env: Env; pool: AccountPool; devices: import('../platform/device-pool').DevicePool; runPlan: typeof import('../executor/run').runPlan; runDirFor: (id: string) => string; SKILL_VERSION: string }): Promise<number> {
+  const idle = String(Number(flag(args, 'idle') ?? 5000));
+  const rounds = Number(flag(args, 'rounds') ?? 2);
+  // android-web: the same on the phone's browser (Teamily web reopens the last conversation after a cold load).
+  const surface = (flag(args, 'surface') === 'android-web' ? 'android-web' : 'android-app') as 'android-app' | 'android-web';
+  const web = surface === 'android-web';
+  const id = `lifecycle-${mode}-${surface}-${x.env}`;
+  const actions = [
+    { type: 'exitApp' as const, delayAfterMs: 300 },
+    { type: 'idle' as const, value: idle, delayAfterMs: 0 },
+    ...(mode === 'cold' ? [{ type: 'killApp' as const, delayAfterMs: 300 }, { type: 'idle' as const, value: idle, delayAfterMs: 0 }] : []),
+    { type: 'launch' as const, delayAfterMs: 1000 },
+    // The page loads over the network after a cold browser start.
+    web && mode === 'cold' ? { type: 'idle' as const, value: '15000', delayAfterMs: 0 } : { type: 'wait' as const, value: '1000', delayAfterMs: 0 },
+  ];
+  const r = await x.runPlan({
+    plan: {
+      id,
+      issueRef: 'lifecycle',
+      title: web
+        ? mode === 'cold' ? '离开浏览器 → 后台等待 → 杀浏览器进程 → 等待 → 重新打开网址（应重新加载并回到上次的会话）' : '离开浏览器 → 后台等待 → 回到浏览器（应仍在原会话）'
+        : mode === 'cold' ? '退出 App → 后台等待 → 杀进程 → 等待 → 冷启动（应回到首页且进程新建）' : '退出 App → 后台等待 → 重新打开（应恢复到原聊天页）',
+      category: 'bug-intermittent',
+      surface,
+      issueSurfaces: [],
+      env: x.env,
+      launch: 'once',
+      targets: [{ id: 'conv', kind: 'other-conversation', guidance: "the user's own Personal AI conversation (disturbs no one)" }],
+      setup: [{ type: 'node', node: { name: 'teamily.openConversation', input: { target: 'conv' } }, delayAfterMs: 1000 }],
+      prepare: [],
+      actions,
+      checks: [
+        { kind: 'process-alive', expect: 'App 进程在重新打开后存在', want: 'present' },
+        mode === 'cold' && !web
+          ? { kind: 'visual-region', page: 'home', region: 'nav', expect: '冷启动后回到首页（底栏可见）', want: 'present' }
+          : { kind: 'visual-region', page: 'chat', region: 'composer', expect: '热启动后恢复到原聊天页（输入框可见）', want: 'present' },
+      ],
+      // cold: the next round starts from the chat page again
+      afterCheck: mode === 'cold' && !web ? [{ type: 'node', node: { name: 'teamily.openConversation', input: { target: 'conv' } }, delayAfterMs: 1000 }] : [],
+      limits: { maxSteps: actions.length * rounds, maxMinutes: 30, maxIntervalMs: 1000 },
+      verdictRule: { anyHit: true },
+      provenance: { generatedBy: 'manual', skillVersion: x.SKILL_VERSION },
+    },
+    runDir: x.runDirFor(id),
+    pool: x.pool,
+    devices: x.devices,
+    udid: flag(args, 'device'),
+  });
+  for (const l of r.roundLog) console.log(`[lifecycle] round ${l.round}: ${l.results.map((c) => `${c.kind}=${c.pass ? 'ok' : 'FAIL'} (${c.detail})`).join('; ')}`);
+  console.log(`[lifecycle] ${mode}: ${r.conclusion} — ${r.conclusionDetail}; launches ${r.stats.launches}, anomaly-gate ${r.stats.anomalyGateTriggers} (suspect ${r.stats.suspectSignals})${r.error ? `; error ${r.error}` : ''}`);
+  return !r.error && r.hits.length === 0 && r.roundLog.length > 0 ? 0 : 1;
+}
+
 async function skill(args: string[]): Promise<number> {
   if (args[0] === 'smoke') return smoke(args);
   if (args[0] !== 'calibrate') {
@@ -103,8 +163,22 @@ async function skill(args: string[]): Promise<number> {
   const env = (flag(args, 'env') ?? 'test') as Env;
   const pool = new AccountPool();
   await pool.reload();
-  const accountId = flag(args, 'account') ?? pool.list(env)[0]?.id;
+  const { DevicePool } = await import('../platform/device-pool');
+  const devices = new DevicePool();
+  await devices.reloadConfig();
+  const pooled = await devices.refresh();
+  const udid = flag(args, 'device') ?? pooled.find((d) => d.kind === 'android' && d.status !== 'offline')?.udid;
+  // The account signed in on that surface of the phone (devices.yaml), else the first of the env.
+  const signed = pooled.find((d) => d.udid === udid)?.accounts[surface];
+  const accountId = flag(args, 'account') ?? (signed && pool.get(signed)?.env === env ? signed : undefined) ?? pool.list(env)[0]?.id;
   if (!accountId) throw new Error(`no ${env} account in the pool`);
+  if (surface === 'android-web') {
+    if (!udid) throw new Error('android-web calibration needs a phone (--device)');
+    const { calibrateAndroidWeb } = await import('../skills/calibrate-android-web');
+    const p = await calibrateAndroidWeb({ udid, env, url: pool.webUrl(env), credentials: pool.backend.get(accountId) });
+    await pool.markLogin(accountId, true);
+    return Object.values(p.elements).some((e) => e.selfCheck === 'fail') ? 1 : 0;
+  }
   if (surface === 'android-app') {
     const { calibrateAndroid } = await import('../skills/calibrate-android');
     const p = await calibrateAndroid({ udid: flag(args, 'device'), env, packageName: flag(args, 'package') ?? 'ai.teamily.mobile' });
@@ -112,9 +186,32 @@ async function skill(args: string[]): Promise<number> {
   }
   const { calibrateWeb } = await import('../skills/calibrate-web');
   const { sessionFile } = await import('../platform/accounts/sessions');
-  const p = await calibrateWeb({ surface, env, url: pool.webUrl(env), credentials: pool.backend.get(accountId), headless: !has(args, 'headed'), sessionFile: sessionFile(accountId) });
+  const p = await calibrateWeb({ surface: surface as 'desktop-web' | 'mobile-web', env, url: pool.webUrl(env), credentials: pool.backend.get(accountId), headless: !has(args, 'headed'), sessionFile: sessionFile(accountId) });
   await pool.markLogin(accountId, true);
   return Object.values(p.elements).some((e) => e.selfCheck === 'fail') ? 1 : 0;
+}
+
+/** Multi-client sync: each role a surface on a pooled endpoint, signed in as a different account. */
+async function sync(args: string[]): Promise<number> {
+  const { runSync } = await import('../executor/sync');
+  const { DevicePool } = await import('../platform/device-pool');
+  const { resolve } = await import('node:path');
+  const env = (flag(args, 'env') ?? 'prod') as Env;
+  const pool = new AccountPool();
+  await pool.reload();
+  const devices = new DevicePool();
+  await devices.reloadConfig();
+  await devices.refresh();
+  // --roles desktop-web,android-web,android-app  (a role per surface; repeat a surface with a suffix: desktop-web#2)
+  const roles = (flag(args, 'roles') ?? 'desktop-web,android-web,android-app').split(',').map((x) => {
+    const [surface] = x.split('#');
+    return { id: x.replace('#', '-'), surface: surface as Surface, device: flag(args, `device-${surface}`) };
+  });
+  const runDir = resolve('midscene_run/sync', new Date().toISOString().replace(/[:.]/g, '-'));
+  const r = await runSync({ env, roles, rounds: flag(args, 'rounds') ? Number(flag(args, 'rounds')) : undefined, conversation: flag(args, 'conversation'), timeoutSec: flag(args, 'timeout') ? Number(flag(args, 'timeout')) : undefined, runDir, pool, devices, headed: has(args, 'headed') });
+  console.log(`[sync] ${r.conclusion} — ${r.detail}`);
+  console.log(`[sync] report → ${resolve(runDir, 'report.md')}`);
+  return r.conclusion === '全部同步' ? 0 : 1;
 }
 
 async function nodes(args: string[]): Promise<number> {
@@ -133,6 +230,8 @@ const table: Record<string, (a: string[]) => Promise<number>> = {
   plan: async (a) => (await import('../issue/cli')).planCmd(a),
   run: async (a) => (await import('../issue/cli')).runCmd(a),
   replay: async (a) => (await import('../incident/replay')).replayCmd(a),
+  evidence: async (a) => (await import('../incident/evidence-cases')).evidenceCmd(a),
+  sync,
 };
 if (!cmd || !table[cmd]) {
   console.error('Usage: m5 <accounts|skill|nodes|plan|run|replay> ...');

@@ -48,6 +48,24 @@ describe('account pool', () => {
     expect(pool.pick({ env: 'prod', surface: 'mobile-web' })).toEqual([]);
     expect(pool.pick({ env: 'prod', surface: 'mobile-web' }, Date.now() + 60_000).map((a) => a.id)).toEqual(['p1']);
   });
+  it('on a phone the lease takes the account signed in there, never another one', async () => {
+    const { DevicePool, parsePoolConfig } = await import('../device-pool');
+    const devices = new DevicePool();
+    devices.config = parsePoolConfig('maxConcurrent: 2\ndevices:\n  - udid: ph1\n    accounts: { android-app: p2 }\n');
+    await devices.refresh([{ udid: 'ph1', state: 'device' }]);
+    const b = backend();
+    const pool = new AccountPool({ ...b, accounts: () => b.accounts().map((a) => ({ ...a, surfaces: ['android-app', 'desktop-web'] })) }, join(mkdtempSync(join(tmpdir(), 'acc-')), 'a.json'));
+    await pool.reload();
+    expect(pool.lease('t1', { env: 'prod', surface: 'android-app', accountId: 'p1', devices })).toBeNull(); // p2 is signed in there
+    const l = pool.lease('t1', { env: 'prod', surface: 'android-app', devices });
+    expect(l?.accounts.map((a) => a.id)).toEqual(['p2']);
+    expect(l?.device?.udid).toBe('ph1');
+    const h = pool.lease('t1', { env: 'prod', surface: 'desktop-web', devices });
+    expect(h?.accounts.map((a) => a.id)).toEqual(['p1']); // a different account for the second client
+    expect(h?.device?.udid).toBe('host:local');
+    pool.release(l!, devices);
+    expect(devices.get('ph1')?.status).toBe('idle');
+  });
   it('count > free → nothing', async () => {
     const pool = new AccountPool(backend(), join(mkdtempSync(join(tmpdir(), 'acc-')), 'a.json'));
     await pool.reload();

@@ -3,28 +3,29 @@
   "name": "desktop-web@prod",
   "skillVersion": "2026.10.21-1",
   "env": "prod",
-  "calibratedAt": "2026-10-21T15:46:17.884Z",
+  "calibratedAt": "2026-10-22T06:29:53.209Z",
   "viewport": {
-    "width": 1440,
-    "height": 900
+    "width": 2040,
+    "height": 1148
   },
+  "device": "msedge-maximized",
   "elements": {
     "login.email": {
       "page": "login",
       "box": [
-        525,
-        588,
+        825,
+        720,
         390,
         40
       ],
       "selfCheck": "pass",
-      "note": "focus probe: 460 px changed in element"
+      "note": "focus probe: 777 px changed in element"
     },
     "login.emailContinue": {
       "page": "login",
       "box": [
-        525,
-        652,
+        825,
+        784,
         390,
         40
       ],
@@ -34,19 +35,19 @@
     "login.password": {
       "page": "login-password",
       "box": [
-        541,
-        487,
+        825,
+        611,
         390,
         40
       ],
       "selfCheck": "pass",
-      "note": "focus probe: 1390 px changed in element"
+      "note": "focus probe: 1923 px changed in element"
     },
     "login.continue": {
       "page": "login-password",
       "box": [
-        549,
-        569,
+        835,
+        693,
         370,
         40
       ],
@@ -62,7 +63,7 @@
         36
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ27"
+      "note": "url changed, screen Δ18"
     },
     "nav.artifacts": {
       "page": "home",
@@ -73,7 +74,7 @@
         36
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ27"
+      "note": "url changed, screen Δ17"
     },
     "nav.me": {
       "page": "home",
@@ -84,7 +85,7 @@
         36
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ25"
+      "note": "url changed, screen Δ19"
     },
     "chatlist.search": {
       "page": "home",
@@ -95,24 +96,24 @@
         36
       ],
       "selfCheck": "pass",
-      "note": "focus probe: 829 px changed in element"
+      "note": "focus probe: 1165 px changed in element"
     },
     "chat.composer": {
       "page": "chat",
       "box": [
         401,
-        789,
-        978,
+        1037,
+        1578,
         24
       ],
       "selfCheck": "pass",
-      "note": "focus probe: 160 px changed in element"
+      "note": "focus probe: 272 px changed in element"
     },
     "chat.send": {
       "page": "chat",
       "box": [
-        1379,
-        835,
+        1979,
+        1083,
         36,
         36
       ],
@@ -121,32 +122,32 @@
     "profile.bell": {
       "page": "profile",
       "box": [
-        991,
+        1291,
         33,
         36,
         36
       ],
       "selfCheck": "pass",
-      "note": "screen Δ102"
+      "note": "screen Δ123"
     },
     "artifacts.bell": {
       "page": "artifacts",
       "box": [
-        1388,
+        1988,
         8,
         32,
         32
       ],
       "selfCheck": "pass",
-      "note": "screen Δ107"
+      "note": "screen Δ132"
     },
     "artifacts.firstCard": {
       "page": "artifacts",
       "box": [
         353,
         116,
-        323,
-        243
+        298,
+        224
       ],
       "selfCheck": "pass",
       "note": "opened docs in a new tab"
@@ -154,7 +155,7 @@
     "clouddoc.bell": {
       "page": "clouddoc",
       "box": [
-        1284,
+        1884,
         6,
         32,
         32
@@ -168,14 +169,14 @@
       "image": "refs/desktop-web@prod/login.png",
       "regions": {
         "form": [
-          525,
-          588,
+          825,
+          720,
           390,
           40
         ]
       },
       "hashes": {
-        "form": "0000004080800000"
+        "form": "0000000180000000"
       },
       "greys": {
         "form": 247
@@ -185,17 +186,17 @@
       "image": "refs/desktop-web@prod/home.png",
       "regions": {
         "nav": [
-          0,
           80,
-          70,
-          360
+          10,
+          283,
+          48
         ]
       },
       "hashes": {
-        "nav": "7020301038383020"
+        "nav": "0083038383838300"
       },
       "greys": {
-        "nav": 250
+        "nav": 243
       }
     },
     "chat": {
@@ -203,16 +204,16 @@
       "regions": {
         "composer": [
           0,
-          833,
-          1440,
+          1081,
+          2040,
           40
         ]
       },
       "hashes": {
-        "composer": "8181838787838181"
+        "composer": "0001010303030100"
       },
       "greys": {
-        "composer": 242
+        "composer": 239
       }
     },
     "mention-picker": {
@@ -220,23 +221,23 @@
       "regions": {
         "picker": [
           409,
-          520,
+          769,
           368,
           28
         ]
       },
       "hashes": {
-        "picker": "0000584858280000"
+        "picker": "0000e8d8d8c80000"
       },
       "greys": {
-        "picker": 232
+        "picker": 244
       }
     },
     "profile": {
       "image": "refs/desktop-web@prod/profile.png",
       "regions": {
         "bell": [
-          985,
+          1285,
           27,
           48,
           48
@@ -246,38 +247,38 @@
         "bell": "0000302828100000"
       },
       "greys": {
-        "bell": 250
+        "bell": 248
       }
     },
     "artifacts": {
       "image": "refs/desktop-web@prod/artifacts.png",
       "regions": {
         "bell": [
-          1382,
+          1982,
           2,
           44,
           44
         ]
       },
       "hashes": {
-        "bell": "0000102828100000"
+        "bell": "0000302828100000"
       },
       "greys": {
-        "bell": 247
+        "bell": 252
       }
     },
     "clouddoc": {
       "image": "refs/desktop-web@prod/clouddoc.png",
       "regions": {
         "bell": [
-          1278,
+          1878,
           0,
           44,
           44
         ]
       },
       "hashes": {
-        "bell": "0000102828100000"
+        "bell": "0000302828100000"
       },
       "greys": {
         "bell": 251

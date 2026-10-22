@@ -25,7 +25,7 @@ const SCRIPTS: Record<string, string> = {
   report: 'report/problem-report.ts',
   imui: 'scripts/imui.ts',
 };
-const M5 = ['accounts', 'skill', 'nodes', 'plan', 'run'];
+const M5 = ['accounts', 'skill', 'nodes', 'plan', 'run', 'evidence', 'sync'];
 
 function run(bin: string, args: string[]): Promise<number> {
   return new Promise((res) => {

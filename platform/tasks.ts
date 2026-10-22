@@ -8,7 +8,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { DevicePool } from './device-pool';
 
-export type TaskType = 'mission' | 'explore' | 'monkey' | 'imui' | 'issue';
+export type TaskType = 'mission' | 'explore' | 'monkey' | 'imui' | 'issue' | 'sync';
 export type TaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export interface TaskInput {
@@ -29,7 +29,9 @@ export interface TaskInput {
   yesProd?: boolean; // imui: explicit production confirmation
   issue?: string; // issue: issues/<id>.md
   approve?: string; // issue: confirmed sub-cases "s1,s3:mobile-web" (the one-time confirmation)
-  env?: 'test' | 'prod'; // issue
+  env?: 'test' | 'prod'; // issue, sync
+  roles?: string; // sync: surfaces, one client each ("desktop-web,android-web,android-app")
+  rounds?: number; // sync
 }
 
 export interface Task extends TaskInput {
@@ -53,7 +55,17 @@ const TSX = resolve('node_modules/tsx/dist/cli.mjs');
 /** Pure: validate a POST body. Returns an error string or the clean input. */
 export function validateTaskInput(b: any): TaskInput | string {
   if (!b || typeof b !== 'object') return 'body must be JSON';
-  if (!['mission', 'explore', 'monkey', 'imui', 'issue'].includes(b.type)) return 'type must be mission | explore | monkey | imui | issue';
+  if (!['mission', 'explore', 'monkey', 'imui', 'issue', 'sync'].includes(b.type)) return 'type must be mission | explore | monkey | imui | issue | sync';
+  if (b.type === 'sync') {
+    const S = '(android-app|android-web|mobile-web|desktop-web)(#[0-9])?';
+    const roles = String(b.roles ?? 'desktop-web,android-web,android-app').replace(/\s/g, '');
+    if (!new RegExp(`^${S}(,${S})+$`).test(roles)) return 'roles: two or more of android-app, android-web, mobile-web, desktop-web (comma separated)';
+    const rounds = b.rounds === undefined || b.rounds === '' ? undefined : Number(b.rounds);
+    if (rounds !== undefined && !(Number.isInteger(rounds) && rounds >= 1 && rounds <= 20)) return 'rounds must be 1..20';
+    const env = b.env ?? 'prod';
+    if (!['test', 'prod'].includes(env)) return 'env must be test or prod';
+    return { type: 'sync', package: 'ai.teamily.mobile', roles, env, ...(rounds ? { rounds } : {}) };
+  }
   if (b.type === 'issue') {
     const issue = String(b.issue ?? '').trim();
     if (!/^[\w-]+$/.test(issue)) return 'issue must be an issue id (issues/<id>.md)';
@@ -100,6 +112,8 @@ export function validateTaskInput(b: any): TaskInput | string {
 
 /** Pure: CLI args for a task. */
 export function taskArgs(t: Task, udid: string): string[] {
+  // Sync tasks lease their endpoint slots themselves (one per role).
+  if (t.type === 'sync') return ['bin/autotest.ts', 'sync', '--roles', t.roles ?? 'desktop-web,android-web,android-app', '--env', t.env ?? 'prod', ...(t.rounds ? ['--rounds', String(t.rounds)] : [])];
   if (t.type === 'issue') {
     const a = ['bin/autotest.ts', 'run', '--issue', t.issue!, '--approve', t.approve ?? 'all', '--env', t.env ?? 'prod', '--id', t.id];
     if (udid) a.push('--device', udid);
@@ -191,9 +205,9 @@ export class TaskManager {
     await this.pool.refresh();
     for (const t of [...this.tasks].reverse()) {
       if (t.status !== 'queued') continue;
-      const dev = this.pool.acquire(t.id, t.device);
-      // Issue tasks on web surfaces need no device; android sub-cases lease theirs in the executor.
-      if (!dev && t.type !== 'issue') continue;
+      // Sync tasks lease one slot per role in the runner; issue tasks on web surfaces need no device.
+      const dev = t.type === 'sync' ? null : this.pool.acquire(t.id, t.device);
+      if (!dev && t.type !== 'issue' && t.type !== 'sync') continue;
       this.launch(t, dev?.udid ?? '');
     }
   }
@@ -227,7 +241,13 @@ export class TaskManager {
     t.finishedAt = new Date().toISOString();
     const out = join(STATE_DIR, 'reports', `${t.id}.md`);
     try {
-      if (t.type === 'issue') {
+      if (t.type === 'sync') {
+        const log = await readFile(t.logFile, 'utf8');
+        const file = log.match(/\[sync\] report → (.+\.md)/)?.[1]?.trim();
+        if (!file) throw new Error('sync run wrote no report');
+        t.reportFile = file;
+        t.verdict = log.match(/\[sync\] ((?:全部同步|存在未同步|执行失败) — .+)/)?.[1] ?? `exit ${code}`;
+      } else if (t.type === 'issue') {
         const log = await readFile(t.logFile, 'utf8');
         const file = log.match(/\[run\] report → (.+\.md)/)?.[1]?.trim();
         if (!file) throw new Error('issue run wrote no report');
@@ -272,7 +292,7 @@ export class TaskManager {
     const killed = t.verdict === 'cancelled by user';
     // mission/explore/monkey: exit 1 = found a problem. imui (imload codes): 2 = SLO failed, 1 = error.
     // issue (autotest run): 0 = not reproduced / done, 1 = reproduced, 3 = execution failed / SKILL stale.
-    const ok = t.type === 'issue' ? (code === 0 || code === 1) && !!t.reportFile : t.type === 'imui' ? (code === 0 || code === 2) && !!t.reportFile : code === 0 || (code === 1 && !!t.reportFile);
+    const ok = t.type === 'sync' ? (code === 0 || code === 1) && !!t.reportFile : t.type === 'issue' ? (code === 0 || code === 1) && !!t.reportFile : t.type === 'imui' ? (code === 0 || code === 2) && !!t.reportFile : code === 0 || (code === 1 && !!t.reportFile);
     t.status = killed ? 'cancelled' : ok ? 'completed' : 'failed';
     await this.save();
   }

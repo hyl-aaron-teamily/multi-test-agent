@@ -20,10 +20,10 @@ export interface CalibrateAndroidOptions {
   log?: (s: string) => void;
 }
 
-type N = ReturnType<typeof parseNodes>[number];
-const toBox = (n: N): Box => [n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1];
+export type N = ReturnType<typeof parseNodes>[number];
+export const toBox = (n: N): Box => [n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1];
 
-async function dump(udid: string, pkg: string): Promise<N[]> {
+export async function dump(udid: string, pkg: string): Promise<N[]> {
   for (let i = 0; i < 4; i++) {
     try {
       await adb(['shell', 'uiautomator', 'dump', '/sdcard/autotest_ui.xml'], udid);

@@ -6,24 +6,30 @@
 //   round end    : checkpoint screenshot only when a visual check exists; region hash vs reference;
 //                  vision model only on mismatch (or explicit ai checks)
 //   verdict      : intermittent → 1 hit; always → 3 consecutive hits; limits / watchdog stop the run
-import { mkdir, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { decodePng, dHash, hamming } from '../core/image';
 import { AndroidDriver } from '../drivers/android';
-import { type Anomaly, type Driver, type Point, sleep } from '../drivers/types';
+import { type Anomaly, type Driver, lifecycle, type Point, sleep } from '../drivers/types';
 import { WebDriver } from '../drivers/web';
 import { AndroidFlightRecorder } from '../incident/android-recorder';
 import { type IncidentKind, incidentDir, incidentKind, type ReplayFile, type RoundFrame, writeIncident } from '../incident/bundle';
 import { type CoordOp, RecordingDriver } from '../incident/recording-driver';
+import { type EvidenceVerdict, reviewIncident } from '../incident/evidence-review';
 import { WebFlightRecorder } from '../incident/web-recorder';
-import { modelCalls } from '../issue/llm';
+import { modelCalls, visionConfigured } from '../issue/llm';
+import { type NormalizedIssue, parseIssue } from '../issue/parse';
 import type { AccountPool, Lease } from '../platform/accounts/account-pool';
-import { ensureWebSession } from '../platform/accounts/sessions';
+import { ensureWebSession, type PlaywrightSurface } from '../platform/accounts/sessions';
+import { mobileLayout, onAndroid, onPlaywright } from '../platform/accounts/types';
+import { ensureUiLogin } from '../platform/accounts/ui-login';
+import { createDriver, profileKey } from '../drivers/factory';
 import type { DevicePool } from '../platform/device-pool';
-import { HARD_LIMITS, type PlannedAction, type TestPlan } from '../platform/schema/test-plan';
+import { HARD_LIMITS, LIFECYCLE_OPS, MAX_IDLE_MS, type PlannedAction, type TestPlan } from '../platform/schema/test-plan';
 import { loadProfile, pointOf, type Profile, SkillStaleError } from '../skills/profile';
 import { type NodeContext, runNode } from '../skills/teamily/nodes';
-import { assertSkillFresh, type CheckResult, evaluateAi, evaluateVisual, regionMatch, visionAsker } from './checks';
+import { assertSkillFresh, type CheckResult, evaluateAi, evaluateVisual, regionMatch, visionAsker, waitForRegion } from './checks';
 import { type FrozenTarget, pickTargets, quotedOriginalVisible, visionLocator } from './targets';
 import { type Conclusion, featureConclusion, VerdictTracker } from './verdict';
 
@@ -38,6 +44,9 @@ export interface RunOptions {
   maxMinutes?: number;
   log?: (s: string) => void;
   taskId?: string;
+  /** Check-based hits are reviewed against the Issue on their recorded evidence before they count
+   *  (default: on when the Issue file exists and a vision model is configured). */
+  evidenceReview?: boolean;
 }
 
 export interface Stats {
@@ -56,6 +65,8 @@ export interface Stats {
   launches: number;
   /** Rounds discarded because the screen was not where the plan expected (re-entered). */
   drifts: number;
+  /** Check-based hits whose evidence was reviewed by the vision model. */
+  evidenceReviews?: number;
 }
 
 export interface RunResult {
@@ -73,7 +84,9 @@ export interface RunResult {
   startedAt: string;
   finishedAt: string;
   stats: Stats;
-  hits: { round: number; step: number; at: string; reason: string }[];
+  hits: { round: number; step: number; at: string; reason: string; review?: EvidenceVerdict; reviewNote?: string }[];
+  /** Check-based hits the evidence review rejected (frames do not show the Issue's phenomenon): not counted. */
+  dismissed?: { round: number; step: number; reason: string; observed: string; incident: string }[];
   incidents: string[];
   targets: FrozenTarget[];
   acceptance?: { id: string; text: string; pass: boolean | null; detail: string; evidence?: string }[];
@@ -83,6 +96,9 @@ export interface RunResult {
 
 const HARD: Anomaly['kind'][] = ['crash', 'anr', 'app-exit', 'page-crash'];
 const WATCHDOG_MS = 20_000;
+/** Baseline check: fraction of the reference bubble's marks that may be missing. Diagnostic override
+ *  AUTOTEST_BASELINE_TOLERANCE (e.g. 0.05 restores the strict pre-fix threshold that raised 1329's false hits). */
+const BASELINE_TOLERANCE = Number(process.env.AUTOTEST_BASELINE_TOLERANCE ?? 0.35);
 
 export async function runPlan(o: RunOptions): Promise<RunResult> {
   const plan = o.plan;
@@ -113,21 +129,21 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     roundLog: [],
   };
 
-  // ---- lease
+  // ---- lease: account + slot of an endpoint (a phone for Android surfaces, this computer otherwise)
   const taskId = o.taskId ?? `run-${plan.id}-${t0}`;
   let lease: Lease | null = null;
   for (let i = 0; i < 30 && !lease; i++) {
-    lease = o.pool.lease(taskId, { env: plan.env, surface: plan.surface, accountId: plan.account, devices: plan.surface === 'android-app' ? o.devices : undefined, device: o.udid });
+    lease = o.pool.lease(taskId, { env: plan.env, surface: plan.surface, accountId: plan.account, devices: o.devices, device: o.udid });
     if (!lease) await sleep(2000);
   }
   if (!lease) {
-    res.error = `no free ${plan.env} account${plan.surface === 'android-app' ? ' / device' : ''} for ${plan.surface}`;
+    res.error = `no free ${plan.env} account${o.devices ? ' / endpoint slot' : ''} for ${plan.surface}`;
     return finish(res, t0, stats, vision0, text0);
   }
   const account = lease.accounts[0];
   res.account = account.id;
-  const udid = lease.device?.udid ?? o.udid ?? account.boundDevice;
-  res.device = plan.surface === 'android-app' ? udid : undefined;
+  const udid = lease.device?.kind === 'android' ? lease.device.udid : (o.udid ?? (onAndroid(plan.surface) ? account.boundDevice : undefined));
+  res.device = onAndroid(plan.surface) ? udid : undefined;
 
   let inner: Driver | undefined;
   let afr: AndroidFlightRecorder | undefined;
@@ -135,20 +151,23 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   const flightDir = join(o.runDir, '.flight');
   try {
     // ---- profile + driver
-    const profName = plan.surface === 'android-app' ? `android-${udid}@${plan.env}` : `${plan.surface}@${plan.env}`;
+    const profName = profileKey(plan.surface, plan.env, udid);
     const profile = loadProfile(profName);
     if (!profile) throw new Error(`no SKILL profile ${profName} — run \`pnpm autotest skill calibrate --surface ${plan.surface} --env ${plan.env}${udid ? ` --device ${udid}` : ''}\``);
-    if (plan.surface === 'android-app') {
-      if (!udid) throw new Error('android-app plan without a device');
-      afr = new AndroidFlightRecorder(udid, profile.packageName ?? 'ai.teamily.mobile', flightDir);
-      inner = new AndroidDriver({ udid, packageName: profile.packageName ?? 'ai.teamily.mobile', onLog: afr.onLog, appErrorRe: /Exception|Error:|TypeError|ReferenceError|Invariant Violation/ });
-      await afr.start();
-    } else {
-      const sess = await ensureWebSession(o.pool, account.id, plan.surface);
+    const url = o.pool.webUrl(plan.env);
+    let storageState: string | undefined;
+    if (onPlaywright(plan.surface)) {
+      const sess = await ensureWebSession(o.pool, account.id, plan.surface as PlaywrightSurface);
       if (!sess.ok) throw new Error(`login failed for ${account.id}: ${sess.error}`);
+      storageState = sess.file;
       wfr = new WebFlightRecorder(flightDir);
-      inner = new WebDriver({ surface: plan.surface, url: o.pool.webUrl(plan.env), storageState: sess.file, headless: !o.headed, onConsole: wfr.onConsole, consoleIgnore: /favicon|Download the React DevTools|sentry|analytics/i });
     }
+    if (onAndroid(plan.surface)) {
+      if (!udid) throw new Error(`${plan.surface} plan without a device`);
+      afr = new AndroidFlightRecorder(udid, profile.packageName ?? 'ai.teamily.mobile', flightDir);
+    }
+    inner = createDriver({ surface: plan.surface, profile, url, udid, storageState, headless: !o.headed, onLog: afr?.onLog, onConsole: wfr?.onConsole });
+    await afr?.start();
     const d = new RecordingDriver(inner);
     const web = inner instanceof WebDriver ? inner : undefined;
 
@@ -159,6 +178,9 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     if (web) {
       await wfr!.start(web.context!, web.page!);
       await sleep(8000);
+    } else if (plan.surface === 'android-web') {
+      // The phone browser loads slowly: wait for the list, a restored conversation or the login form.
+      await waitForRegion(d, profile, ['home/nav', 'chat/composer', 'login/form'], 45_000);
     }
     if (profile.refs.banner) {
       // Mobile web shows a "download the app" dialog on some loads: dismiss it only if it is visibly there.
@@ -169,13 +191,22 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
         await sleep(1500);
       }
     }
+    // The phone's browser keeps its own sign-in: sign in by coordinates if needed.
+    if (plan.surface === 'android-web') await d.redacted(() => ensureUiLogin(d, profile, o.pool, account.id, log));
     for (let i = 0; ; i++) {
       try {
         await assertSkillFresh(d, profile);
         break;
       } catch (e) {
-        // The Android app restores its last screen: back out to the home screen (user action) first.
-        if (!(e instanceof SkillStaleError) || plan.surface !== 'android-app' || i >= 3) throw e;
+        // Phones restore their last screen (app) / conversation (browser): back out to the home screen first.
+        if (e instanceof SkillStaleError && plan.surface === 'android-web' && i < 2) {
+          await toChatListAndroidWeb(d, inner as AndroidDriver, profile, log);
+          continue;
+        }
+        if (!(e instanceof SkillStaleError) || !onAndroid(plan.surface) || i >= 3) {
+          if (e instanceof SkillStaleError) await writeFile(join(o.runDir, 'skill-stale.png'), await d.screenshot()).catch(() => {});
+          throw e;
+        }
         await d.back();
         await sleep(1500);
       }
@@ -210,11 +241,13 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
         stats.launches++;
         await sleep(2000);
       }
-      for (let i = 0; i < 3 && plan.surface !== 'desktop-web'; i++) {
+      for (let i = 0; i < 3 && mobileLayout(plan.surface); i++) {
         if (await onChat()) break;
         // Never back out of the home screen (that would leave the app).
         if ((await assertSkillFresh(d, profile).then(() => true, () => false)) === true) break;
-        await d.back();
+        // In the phone browser the system Back closes the tab: use the conversation's own back arrow.
+        if (plan.surface === 'android-web') await d.tap(pointOf(profile, 'chat.back'));
+        else await d.back();
         await sleep(1200);
       }
       for (const a of plan.setup) {
@@ -288,6 +321,8 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
 
     // ---- loop
     const tracker = new VerdictTracker(plan.verdictRule);
+    const reviewIssue = o.evidenceReview === false || !visionConfigured() ? undefined : await loadIssueOf(plan.issueRef);
+    let dismissedRun = 0;
     const frames: RoundFrame[] = [];
     const roundOpsFrom: number[] = [];
     let stop = '';
@@ -322,9 +357,10 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
         stats.steps++;
         d.step = stats.steps;
         d.label = a.node?.name ?? a.element ?? a.type;
-        const ok = await Promise.race([exec(a).then(() => true), sleep(WATCHDOG_MS).then(() => false)]);
+        const budget = WATCHDOG_MS + (a.type === 'idle' ? idleMs(a) : 0) + (a.type === 'killApp' || a.type === 'reload' ? 10_000 : 0);
+        const ok = await Promise.race([exec(a).then(() => true), sleep(budget).then(() => false)]);
         if (!ok) {
-          stop = `看门狗：第 ${stats.steps} 步 ${d.label} 超过 ${WATCHDOG_MS / 1000}s`;
+          stop = `看门狗：第 ${stats.steps} 步 ${d.label} 超过 ${budget / 1000}s`;
           res.incidents.push(await incident('watchdog', stop, round));
           break;
         }
@@ -358,6 +394,10 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       for (const c of plan.checks) {
         if (c.kind === 'visual-region' && png) results.push(await evaluateVisual(d, profile, c, ask, png));
         else if (c.kind === 'ai' && png && c.onlyOnAnomaly === false) results.push(await evaluateAi(c, ask));
+        else if (c.kind === 'process-alive' && inner instanceof AndroidDriver) {
+          const alive = await inner.processAlive();
+          results.push({ check: c, pass: c.want === 'absent' ? !alive : alive, detail: `process ${alive ? 'running' : 'not running'}` });
+        }
         else if (c.kind === 'baseline' && png) {
           // Round 1: accessibility read confirms the quoted original is shown; its bubble becomes the reference.
           // Later rounds: that bubble must be on screen again (ink match, vertical search) — a jump elsewhere fails.
@@ -370,7 +410,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
           } else if (baseline.box) {
             // 0.35: the jump briefly highlights the target bubble (tint differs by capture moment); another screen scores ~0.7.
             const m = regionMatch(decodePng(png), baseline.img, baseline.box, 1, 900);
-            results.push({ check: c, pass: m.fraction <= 0.35, detail: `quoted original ${m.fraction <= 0.35 ? `visible (dy ${m.dy})` : `NOT on screen (${Math.round(m.fraction * 100)}% of its marks missing)`}` });
+            results.push({ check: c, pass: m.fraction <= BASELINE_TOLERANCE, detail: `quoted original ${m.fraction <= BASELINE_TOLERANCE ? `visible (dy ${m.dy})` : `NOT on screen (${Math.round(m.fraction * 100)}% of its marks missing)`}` });
           } else results.push({ check: c, pass: false, detail: 'no reference: the first jump already failed' });
         }
       }
@@ -395,8 +435,27 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
         if (frames.length > 60) frames.shift();
         for (const f of frames.slice(0, -10)) f.png = undefined;
       }
-      if (failed && !hardHit && res.incidents.length < 5) res.incidents.push(await incident(failed.check.kind === 'visual-region' ? 'check-failed' : 'visual-anomaly', roundHitReason, round));
-      if (roundHitReason) res.hits.push({ round, step: stats.steps, at: new Date().toISOString(), reason: roundHitReason });
+      let review: { verdict: EvidenceVerdict; note: string } | undefined;
+      if (failed && !hardHit && res.incidents.length < 5 + (res.dismissed?.length ?? 0)) {
+        const dir = await incident(failed.check.kind === 'visual-region' ? 'check-failed' : 'visual-anomaly', roundHitReason, round);
+        res.incidents.push(dir);
+        // The check only compares pixels: before the round counts, the recorded evidence must show what
+        // the Issue describes. A rejected hit is kept (bundle + review) but does not count.
+        if (reviewIssue) {
+          const rv = await reviewIncident(dir, reviewIssue, { subcase: plan.title, log });
+          stats.evidenceReviews = (stats.evidenceReviews ?? 0) + 1;
+          review = { verdict: rv.verdict, note: rv.observed || rv.reason };
+          if (rv.verdict === 'inconsistent') {
+            (res.dismissed ??= []).push({ round, step: stats.steps, reason: roundHitReason, observed: review.note, incident: dir });
+            log(`round ${round}: evidence review — frames do not show the Issue's phenomenon; hit dismissed (${review.note.slice(0, 160)})`);
+            roundHitReason = '';
+            dismissedRun++;
+            if (dismissedRun >= 3) stop = '自动检查连续 3 次误报（证据复核不符），检查需重新标定';
+          }
+        }
+      }
+      if (roundHitReason) dismissedRun = 0;
+      if (roundHitReason) res.hits.push({ round, step: stats.steps, at: new Date().toISOString(), reason: roundHitReason, review: review?.verdict, reviewNote: review?.note });
       res.roundLog.push({ round, step: stats.steps, results: results.map((r) => ({ kind: r.check.kind, pass: r.pass, detail: r.detail })) });
       if (res.roundLog.length > 200) res.roundLog.splice(0, 50);
       stats.rounds = round;
@@ -417,14 +476,16 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     for (let i = 1; i < d.ops.length; i++) {
       const a = d.ops[i - 1];
       const b = d.ops[i];
-      if (b.round > 0 && b.round === a.round && b.op !== 'launch' && !(isAfter(b) && !isAfter(a))) intervals.push(b.at - a.at);
+      if (b.round > 0 && b.round === a.round && !LIFECYCLE_OPS.has(b.op) && !LIFECYCLE_OPS.has(a.op) && !(isAfter(b) && !isAfter(a))) intervals.push(b.at - a.at);
     }
     stats.avgIntervalMs = intervals.length ? Math.round(intervals.reduce((s, x) => s + x, 0) / intervals.length) : 0;
     stats.maxIntervalMs = intervals.length ? Math.max(...intervals) : 0;
     stats.intervalsOverCap = intervals.filter((x) => x > plan.limits.maxIntervalMs).length;
+    stats.launches = d.ops.filter((x) => x.op === 'launch').length;
     res.conclusion = tracker.conclusion(plan.category);
+    if (stop.startsWith('自动检查连续') && !tracker.reproduced()) res.conclusion = '执行失败';
     if (correctPathOk !== undefined) res.conclusion = !correctPathOk ? '转为 bug' : tracker.reproduced() ? '疑似误操作' : '未复现（上限内未出现）';
-    res.conclusionDetail = `停止原因：${stop}；共 ${stats.rounds} 轮 ${stats.steps} 步，命中 ${tracker.hits} 次${tracker.hits ? `（第 ${tracker.hitRounds.slice(0, 10).join(', ')} 轮）` : ''}`;
+    res.conclusionDetail = `停止原因：${stop}；共 ${stats.rounds} 轮 ${stats.steps} 步，命中 ${tracker.hits} 次${tracker.hits ? `（第 ${tracker.hitRounds.slice(0, 10).join(', ')} 轮）` : ''}${res.dismissed?.length ? `；证据复核排除误报 ${res.dismissed.length} 次` : ''}`;
     return finish(res, t0, stats, vision0, text0);
 
     async function incident(kind: IncidentKind, detail: string, round: number): Promise<string> {
@@ -501,6 +562,48 @@ function finish(res: RunResult, t0: number, stats: Stats, vision0: number, text0
   return res;
 }
 
+/** android-web: Teamily web reopens the last conversation on load, and that conversation's back arrow
+ *  does nothing (it goes back in an empty history). The user's way out: another page (Artifacts), then
+ *  聊天, then the back arrow — which now has an in-app page to return to. */
+export async function toChatListAndroidWeb(d: Driver, a: AndroidDriver, profile: Profile, log: (s: string) => void): Promise<boolean> {
+  log('android-web: not on the chat list (last conversation restored?) — Artifacts → 聊天 → back');
+  await a.openUrl('/artifacts');
+  if (!(await waitPastDialog(d, a, profile, ['artifacts/nav', 'home/nav'], 40_000, log))) return false;
+  await d.tap(pointOf(profile, 'nav.chat'));
+  const where = await waitPastDialog(d, a, profile, ['chat/composer', 'home/nav'], 20_000, log);
+  if (where === 'chat/composer') {
+    await d.tap(pointOf(profile, 'chat.back'));
+    return !!(await waitPastDialog(d, a, profile, ['home/nav'], 15_000, log));
+  }
+  return where === 'home/nav';
+}
+
+/** Wait for a reference region; Teamily web shows a "download the app" dialog on some page loads, which
+ *  dims the page: dismiss it (its calibrated button, or — preparation only — the vision model locates
+ *  "忽略") and keep waiting. */
+async function waitPastDialog(d: Driver, a: AndroidDriver, profile: Profile, keys: string[], ms: number, log: (s: string) => void): Promise<string | undefined> {
+  const banner = profile.refs.banner ? ['banner/dismiss'] : [];
+  const t0 = Date.now();
+  for (let tries = 0; tries < 3; tries++) {
+    const hit = await waitForRegion(d, profile, [...keys, ...banner], Math.max(5000, ms - (Date.now() - t0)) / (tries ? 2 : 1));
+    if (hit && hit !== 'banner/dismiss') return hit;
+    let p: Point | null = hit ? pointOf(profile, 'popup.appBannerDismiss') : null;
+    if (!p) p = await (await visionLocator(a as any))?.('the "忽略" (Ignore) button of a dialog asking to download the Teamily mobile app') ?? null;
+    if (!p) return undefined;
+    log('android-web: app download dialog over the page — dismissing');
+    await d.tap(p);
+  }
+  return undefined;
+}
+
+/** The Issue a plan comes from (issues/<id>.md), for evidence review; none for smoke / ad-hoc plans. */
+async function loadIssueOf(ref: string): Promise<NormalizedIssue | undefined> {
+  const f = resolve('issues', `${ref}.md`);
+  return existsSync(f) ? parseIssue(ref, await readFile(f, 'utf8')) : undefined;
+}
+
+const idleMs = (a: PlannedAction) => Math.min(MAX_IDLE_MS, Math.max(0, Number(a.value ?? 1000)));
+
 const DIRS: Record<string, [number, number]> = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
 
 /** One plan action by coordinates (element / target → point through the profile and frozen targets). */
@@ -553,6 +656,16 @@ export async function execAction(a: PlannedAction, ctx: NodeContext, profile: Pr
       break;
     case 'launch':
       await d.launch();
+      break;
+    case 'exitApp':
+    case 'killApp':
+    case 'reload':
+      if (d instanceof RecordingDriver) await d[a.type]();
+      else await lifecycle(d, a.type);
+      break;
+    case 'idle':
+      if (d instanceof RecordingDriver) await d.idle(idleMs(a));
+      else await sleep(idleMs(a));
       break;
   }
   // Pace: the next input starts ≤ 950 ms after the previous one started (op time included).

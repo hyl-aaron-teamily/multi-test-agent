@@ -1,0 +1,9 @@
+id: 1329-s2-quote-wrap
+issue: '1329'
+subcase: 点引用定位应稳定跳到被引用消息
+expect: inconsistent
+note: >-
+  点引用后跳到的是正确的被引用消息；窄屏下被引用气泡换成两行、跳转后短暂高亮，基线像素比对误报为“跳到别处”。
+  该录屏早于录屏对齐修复（段起点改取 scrcpy 的 Recording started），快照时用 --align-ms 2450 校正，
+  数值由两轮“点引用 → 画面跳转”的反应时刻测得。
+source: midscene_run/issues/1329-2026-10-21T16-43-05-544Z/1329-s2-android-app-v1/incidents/1-visual-anomaly

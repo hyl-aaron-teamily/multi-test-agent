@@ -14,22 +14,26 @@ export interface ElementSpec {
   surfaces: Surface[];
 }
 
-const WEB: Surface[] = ['desktop-web', 'mobile-web'];
-const ALL: Surface[] = ['android-app', 'desktop-web', 'mobile-web'];
+/** Surfaces showing the Teamily web UI. */
+const WEB: Surface[] = ['desktop-web', 'mobile-web', 'android-web'];
+const ALL: Surface[] = ['android-app', ...WEB];
+/** Phone-layout surfaces (bottom bar, back button in the chat header). */
+const MOBILE: Surface[] = ['android-app', 'mobile-web', 'android-web'];
 
 export const ELEMENTS: ElementSpec[] = [
   { id: 'login.email', page: 'login', meaning: '邮箱输入框', selfCheck: 'focus', surfaces: WEB },
   { id: 'login.emailContinue', page: 'login', meaning: '“Continue with Email” 按钮', selfCheck: 'none', surfaces: WEB },
   { id: 'login.password', page: 'login-password', meaning: '密码输入框', selfCheck: 'focus', surfaces: WEB },
   { id: 'login.continue', page: 'login-password', meaning: '“Continue” 提交按钮', selfCheck: 'none', surfaces: WEB },
-  { id: 'popup.appBannerDismiss', page: 'home', meaning: '移动 Web 首次进入时“下载移动应用”弹窗的“忽略”按钮', selfCheck: 'popup', surfaces: ['mobile-web'] },
+  { id: 'onboarding.skip', page: 'onboarding', meaning: '新浏览器首次登录后的新手引导页“跳过”按钮', selfCheck: 'navigate', surfaces: WEB },
+  { id: 'popup.appBannerDismiss', page: 'home', meaning: '移动 Web 首次进入时“下载移动应用”弹窗的“忽略”按钮', selfCheck: 'popup', surfaces: ['mobile-web', 'android-web'] },
   { id: 'nav.chat', page: 'home', meaning: '左栏/底栏 聊天入口', selfCheck: 'navigate', surfaces: ALL },
   { id: 'nav.artifacts', page: 'home', meaning: '左栏 / 底栏 Artifacts 入口', selfCheck: 'navigate', surfaces: WEB },
   { id: 'nav.me', page: 'home', meaning: '左栏/底栏 “我” 入口（个人主页）', selfCheck: 'navigate', surfaces: ALL },
   { id: 'chatlist.search', page: 'home', meaning: '会话列表顶部搜索框', selfCheck: 'focus', surfaces: ALL },
   { id: 'chat.composer', page: 'chat', meaning: '消息输入框', selfCheck: 'focus', surfaces: ALL },
   { id: 'chat.send', page: 'chat', meaning: '发送按钮（输入内容后出现）', selfCheck: 'none', surfaces: ALL },
-  { id: 'chat.back', page: 'chat', meaning: '聊天页返回会话列表（移动端）', selfCheck: 'navigate', surfaces: ['android-app', 'mobile-web'] },
+  { id: 'chat.back', page: 'chat', meaning: '聊天页返回会话列表（移动端）', selfCheck: 'navigate', surfaces: MOBILE },
   { id: 'profile.bell', page: 'profile', meaning: '个人主页头部右上角 🔔 通知入口', selfCheck: 'popup', surfaces: WEB },
   { id: 'artifacts.firstCard', page: 'artifacts', meaning: 'Artifacts 网格第一个卡片位（打开任意文档 / CloudDoc，新标签页）', selfCheck: 'navigate', surfaces: ['desktop-web'] },
   { id: 'clouddoc.bell', page: 'clouddoc', meaning: 'CloudDoc 文档头部右上角 🔔（帮助与头像之间；无通知时点击无可见变化，只作存在性检查）', selfCheck: 'none', surfaces: ['desktop-web'] },

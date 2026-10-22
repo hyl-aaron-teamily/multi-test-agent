@@ -6,7 +6,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { Locator, Page } from 'playwright';
 import { type Box, decodePng, dHash, drawBox, encodePng, hamming, meanGrey, pixelDiff, scaleBox } from '../core/image';
-import { WebDriver, contextOptions } from '../drivers/web';
+import { WebDriver, contextOptions, desktopBrowser } from '../drivers/web';
 import type { Credentials, Env } from '../platform/accounts/types';
 import { type ElementCal, type Profile, SKILL_DIR, saveProfile } from './profile';
 import { ELEMENTS, SKILL_VERSION } from './teamily/vocab';
@@ -41,9 +41,10 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
   const log = o.log ?? ((s) => console.log(`[calibrate] ${s}`));
   const name = `${o.surface}@${o.env}`;
   const d = new WebDriver({ surface: o.surface, url: o.url, headless: o.headless });
-  const vp = o.surface === 'mobile-web' ? (contextOptions('mobile-web') as any).viewport : (contextOptions('desktop-web') as any).viewport;
-  const dpr = o.surface === 'mobile-web' ? ((contextOptions('mobile-web') as any).deviceScaleFactor ?? 1) : 1;
-  const prof: Profile = { surface: o.surface, name, skillVersion: SKILL_VERSION, env: o.env, calibratedAt: new Date().toISOString(), viewport: vp, device: o.surface === 'mobile-web' ? 'Pixel 7' : undefined, elements: {}, refs: {}, reviewQueue: [] };
+  // Viewport and device pixel ratio as the browser really runs (maximized Edge: the window decides).
+  let vp: { width: number; height: number } = (contextOptions(o.surface) as any).viewport ?? { width: 0, height: 0 };
+  let dpr = o.surface === 'mobile-web' ? ((contextOptions('mobile-web') as any).deviceScaleFactor ?? 1) : 1;
+  const prof: Profile = { surface: o.surface, name, skillVersion: SKILL_VERSION, env: o.env, calibratedAt: new Date().toISOString(), viewport: vp, device: o.surface === 'mobile-web' ? 'Pixel 7' : desktopBrowser() === 'msedge' ? 'msedge-maximized' : undefined, elements: {}, refs: {}, reviewQueue: [] };
   const refDir = join(SKILL_DIR, 'refs', name);
   await mkdir(refDir, { recursive: true });
   const shot = async () => decodePng(await d.screenshot());
@@ -127,6 +128,10 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
     await d.launch();
     const p = d.p;
     await p.waitForTimeout(5000);
+    vp = await d.viewport();
+    dpr = Math.round((decodePng(await d.screenshot()).width / vp.width) * 100) / 100;
+    prof.viewport = vp;
+    log(`viewport ${vp.width}×${vp.height} CSS px, device pixel ratio ${dpr}${prof.device ? ` (${prof.device})` : ''}`);
     // ---- login page
     log(`login page ${p.url()}`);
     put('login.email', await box((await first(p, 'input[type=email]'))!));
@@ -141,7 +146,17 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
     await selfCheck('login.password');
     await d.type(o.credentials.password);
     await selfCheck('login.continue', async () => {
-      await p.waitForURL(/\/chat/, { timeout: 30_000 }).catch(() => {});
+      await p.waitForURL(/\/(chat|onboarding)/, { timeout: 30_000 }).catch(() => {});
+      // A fresh browser's first sign-in shows the onboarding page: its "skip" button is calibrated too.
+      if (/\/onboarding/.test(p.url())) {
+        await p.waitForTimeout(3000);
+        put('onboarding.skip', await box(p.getByRole('button', { name: /^(跳过|Skip)$/ }).first()));
+        await ref('onboarding', { skip: prof.elements['onboarding.skip']?.box && pad(prof.elements['onboarding.skip'].box, 4) });
+        await selfCheck('onboarding.skip', async () => {
+          await p.waitForURL(/\/chat/, { timeout: 30_000 }).catch(() => {});
+          return /\/chat/.test(p.url());
+        });
+      }
       return /\/chat/.test(p.url());
     });
     if (!/\/chat/.test(p.url())) throw new Error(`login did not reach /chat (at ${p.url()})`);
@@ -169,7 +184,10 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
     put('nav.me', navMe && (await box(navMe)));
     const search = await first(p, 'input[placeholder="搜索"]', 'input[placeholder*="Search"]');
     put('chatlist.search', search && (await box(search)));
-    const navRegion: Box = o.surface === 'mobile-web' ? [0, vp.height - 70, vp.width, 70] : [0, 80, 70, 360];
+    // Freshness marker. Desktop: the search row above the list (the left rail carries per-account unread
+    // badges, so it differs between accounts); mobile: the bottom bar.
+    const sb = prof.elements['chatlist.search']?.box;
+    const navRegion: Box = o.surface === 'mobile-web' ? [0, vp.height - 70, vp.width, 70] : sb ? [sb[0] - 8, sb[1] - 6, sb[2] + 60, sb[3] + 12] : [0, 80, 70, 360];
     await ref('home', { nav: navRegion });
     await selfCheck('chatlist.search');
     await d.key('Escape');
