@@ -1,5 +1,7 @@
 // Web driver (desktop-web / mobile-web) on Playwright, black-box:
-//   desktop-web : page.mouse with interpolated cursor movement, wheel, keyboard; viewport 1440×900
+//   desktop-web : page.mouse with interpolated cursor movement, wheel, keyboard. On Windows: Microsoft Edge,
+//                 a real maximized window (the viewport is whatever the maximized window gives, recorded in
+//                 the profile at calibration); elsewhere / AUTOTEST_DESKTOP_BROWSER=chromium: headless 1440×900
 //   mobile-web  : device emulation (Pixel 7: touch + mobile viewport), page.touchscreen.tap, CDP touch swipes
 // Observation is event-only: pageerror, console error, page crash, unexpected navigation. Emulating the
 // environment (viewport, device, offline) is allowed; nothing is evaluated inside the page.
@@ -23,8 +25,24 @@ export interface WebDriverOptions {
 
 const KEYS: Record<string, string> = { enter: 'Enter', backspace: 'Backspace', escape: 'Escape', esc: 'Escape', tab: 'Tab', up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', space: ' ' };
 
+/** Desktop browser: Edge (maximized, headed) on Windows unless overridden; Playwright Chromium otherwise. */
+export function desktopBrowser(): 'msedge' | 'chromium' {
+  const v = process.env.AUTOTEST_DESKTOP_BROWSER;
+  if (v === 'chromium' || v === 'msedge') return v;
+  return process.platform === 'win32' ? 'msedge' : 'chromium';
+}
+
+/** Edge on Windows: a maximized window; occluded windows keep rendering (screenshots, checkpoints). */
+export function launchOptions(surface: WebDriverOptions['surface'], headless = true) {
+  if (desktopBrowser() !== 'msedge') return { headless };
+  if (surface === 'mobile-web') return { channel: 'msedge', headless };
+  return { channel: 'msedge', headless: false, args: ['--start-maximized', '--disable-features=CalculateNativeWinOcclusion', '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding'] };
+}
+
 export function contextOptions(surface: WebDriverOptions['surface']) {
-  return surface === 'mobile-web' ? { ...devices[MOBILE_DEVICE] } : { viewport: DESKTOP_VIEWPORT };
+  if (surface === 'mobile-web') return { ...devices[MOBILE_DEVICE] };
+  // Maximized Edge: the page gets the window's size (viewport: null).
+  return desktopBrowser() === 'msedge' ? { viewport: null } : { viewport: DESKTOP_VIEWPORT };
 }
 
 export class WebDriver implements Driver {
@@ -48,7 +66,7 @@ export class WebDriver implements Driver {
 
   async launch(): Promise<void> {
     if (!this.browser) {
-      this.browser = await chromium.launch({ headless: this.o.headless ?? true });
+      this.browser = await chromium.launch(launchOptions(this.surface, this.o.headless ?? true));
       this.context = await this.browser.newContext({ ...contextOptions(this.surface), ...(this.o.storageState ? { storageState: this.o.storageState } : {}) });
       this.page = await this.context.newPage();
       this.watch(this.page);
@@ -155,6 +173,17 @@ export class WebDriver implements Driver {
       return;
     }
     await this.p.goBack({ timeout: 10_000 }).catch(() => {});
+  }
+
+  /** CSS viewport of the page from the browser's layout metrics (DevTools protocol query, no page script). */
+  async viewport(): Promise<{ width: number; height: number }> {
+    const vs = this.p.viewportSize();
+    if (vs) return vs;
+    const cdp = await this.context!.newCDPSession(this.p);
+    const m: any = await cdp.send('Page.getLayoutMetrics');
+    await cdp.detach().catch(() => {});
+    const v = m.cssLayoutViewport ?? m.layoutViewport;
+    return { width: Math.round(v.clientWidth), height: Math.round(v.clientHeight) };
   }
 
   async screenshot(): Promise<Buffer> {

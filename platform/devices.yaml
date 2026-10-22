@@ -1,10 +1,23 @@
-# Device pool. Format modelled on Midscene's device-pool config (devices list + scheduling + maxConcurrent).
-# A device is "offline" unless `adb devices` lists it as "device"; tasks only run on idle online devices.
-maxConcurrent: 1
+# Endpoint pool. Format modelled on Midscene's device-pool config (devices list + scheduling + maxConcurrent),
+# extended with per-surface slots: a task leases (endpoint × surface), so one phone can run the app and its
+# browser at once and this computer can run desktop web and phone-sized web side by side.
+# A phone is "offline" unless `adb devices` lists it as "device". maxConcurrent counts tasks on phones.
+maxConcurrent: 2
 scheduling:
   strategy: first-idle   # first-idle | round-robin
 devices:
   - udid: 4f2ebdf2
     name: Xiaomi 2211133C (Android 16)
+    surfaces: [android-app, android-web]
+    # Sign-in lives on the phone: the pool account signed in on each surface (the run uses exactly that one).
+    accounts:
+      android-app: prod-aaron1   # Teamily app (aaron+test1)
+      android-web: prod-aaron3   # phone browser, Teamily web (aaron+test3)
   - udid: emulator-5554
     name: placeholder emulator (offline unless started)
+hosts:
+  - id: local
+    name: this Windows laptop
+    # surface: concurrent tasks. desktop-web = Microsoft Edge, maximized window (one per account);
+    # mobile-web = headless Chromium in a phone viewport.
+    surfaces: { desktop-web: 2, mobile-web: 4 }

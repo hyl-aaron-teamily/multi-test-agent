@@ -13,6 +13,7 @@
 - **点赞可见**：targets 群 + 别人的文本消息 + 点赞按钮；循环：长按 → 点赞；ai 检查；afterCheck 再长按 → 取消点赞。
 - **通知入口盘点**（feature）：逐页打开，`element:<page>.bell` 应 absent；ai 检查是否存在统一通知中心。
 - **@我 聚合**（feature）：ai 检查 Mentions 入口；免打扰群 @ 的显著角标。
+- **退出 / 杀后台 / 重新加载**（android-app、android-web）：setup 打开会话；循环 `exitApp` → `idle`（后台等待）→ [`killApp` → `idle`] → `launch`（浏览器冷启动后再 `idle` 等页面加载）；检查 `process-alive` present + 冷启动 `home/nav`（App）或 `chat/composer`（浏览器、热启动）present；冷启动 App 用 afterCheck 重新打开会话。
 - **通用**：进会话 → 滚动历史（不发送）。
 
 动态目标指引见 `vocab.ts#TARGET_GUIDANCE`。

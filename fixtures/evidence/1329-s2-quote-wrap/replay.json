@@ -1,0 +1,102 @@
+{
+  "format": "coord-v1",
+  "skillVersion": "2026.10.21-1",
+  "surface": "android-app",
+  "profile": "android-4f2ebdf2@prod",
+  "env": "prod",
+  "packageName": "ai.teamily.mobile",
+  "launch": "once",
+  "category": "bug-intermittent",
+  "verdictRule": {
+    "anyHit": true
+  },
+  "checks": [
+    {
+      "kind": "baseline",
+      "expect": "点引用块后跳到被引用的原消息（每轮落在同一位置）",
+      "want": "present"
+    }
+  ],
+  "targets": [
+    {
+      "id": "conv",
+      "point": {
+        "x": 540,
+        "y": 1298
+      },
+      "chosen": "黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2"
+    },
+    {
+      "id": "link",
+      "point": {
+        "x": 692,
+        "y": 1860
+      },
+      "chosen": "quote of \"@aaron+test1  @aaron+test2  @aaron+test3\""
+    }
+  ],
+  "setupOps": [],
+  "rounds": [
+    {
+      "round": 1,
+      "ops": [
+        {
+          "step": 1,
+          "round": 1,
+          "at": 1792601008501,
+          "durationMs": 65,
+          "op": "tap",
+          "label": "target.link",
+          "point": {
+            "x": 692,
+            "y": 1860
+          }
+        },
+        {
+          "step": 2,
+          "round": 1,
+          "at": 1792601014736,
+          "durationMs": 69,
+          "op": "tap",
+          "label": "after:chat.back",
+          "point": {
+            "x": 94,
+            "y": 208
+          }
+        },
+        {
+          "step": 2,
+          "round": 1,
+          "at": 1792601015686,
+          "durationMs": 59,
+          "op": "tap",
+          "label": "after:teamily.openConversation",
+          "point": {
+            "x": 540,
+            "y": 1298
+          }
+        }
+      ],
+      "endHash": "a003120224202013"
+    },
+    {
+      "round": 2,
+      "ops": [
+        {
+          "step": 3,
+          "round": 2,
+          "at": 1792601017657,
+          "durationMs": 39,
+          "op": "tap",
+          "label": "target.link",
+          "point": {
+            "x": 692,
+            "y": 1860
+          }
+        }
+      ],
+      "endHash": "a003120224202013"
+    }
+  ],
+  "incidentRound": 2
+}

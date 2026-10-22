@@ -1,5 +1,5 @@
 // Rule validation of a TestPlan against the SKILL vocabulary and platform limits (milestone 5 §A.5).
-import { HARD_LIMITS, type PlannedAction, type TestPlan, TestPlanZ } from '../platform/schema/test-plan';
+import { APP_SURFACES, HARD_LIMITS, MAX_IDLE_MS, type PlannedAction, type TestPlan, TestPlanZ } from '../platform/schema/test-plan';
 import { ELEMENTS, NODES, REGIONS } from '../skills/teamily/vocab';
 
 export interface Validation {
@@ -35,6 +35,9 @@ export function validatePlan(raw: unknown): Validation {
     }
     if (['tap', 'longPress'].includes(a.type) && !a.element) errors.push(`${where}: ${a.type} needs an element`);
     if (['type', 'key'].includes(a.type) && !a.value) errors.push(`${where}: ${a.type} needs a value`);
+    if (['exitApp', 'killApp'].includes(a.type) && !APP_SURFACES.includes(plan.surface)) errors.push(`${where}: ${a.type} needs an app surface (${APP_SURFACES.join(' / ')}), not ${plan.surface}`);
+    if (a.type === 'idle' && !(Number(a.value) > 0 && Number(a.value) <= MAX_IDLE_MS)) errors.push(`${where}: idle needs a value in ms (1..${MAX_IDLE_MS})`);
+    if (a.type === 'wait' && Number(a.value ?? 0) > 1000) errors.push(`${where}: wait ≤ 1000 ms (use idle for longer pauses)`);
   };
   plan.setup.forEach((a, i) => checkAction(a, `setup[${i}]`));
   plan.actions.forEach((a, i) => checkAction(a, `actions[${i}]`));

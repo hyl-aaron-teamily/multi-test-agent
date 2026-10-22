@@ -12,6 +12,7 @@ import { parseNodes } from '../imui/clients/android';
 import { chatJson, modelCalls, modelConfigured } from '../issue/llm';
 import type { TestPlan } from '../platform/schema/test-plan';
 import type { Profile } from '../skills/profile';
+import { onAndroid } from '../platform/accounts/types';
 
 export interface Candidate {
   title: string;
@@ -43,6 +44,7 @@ export async function conversationCandidates(driver: Driver, p: Profile): Promis
       })
       .filter((c) => c.title);
   }
+  if (driver.surface === 'android-web') return browserRows(driver as AndroidDriver, p);
   const page = (driver as WebDriver).p;
   const listX = driver.surface === 'mobile-web' ? [0, p.viewport.width] : [70, 420];
   const out: Candidate[] = [];
@@ -56,6 +58,35 @@ export async function conversationCandidates(driver: Driver, p: Profile): Promis
     out.push({ title: lines[0], preview: `${lines.slice(1).join(' | ')}${muted ? ' | [muted]' : ''}`, box: [b.x, b.y, b.width, b.height].map(Math.round) as Candidate['box'] });
   }
   return out;
+}
+
+/** android-web: conversation rows of the chat list from the phone's accessibility tree (the browser exposes
+ *  web content): a title line with a time at the right end of the same row, the preview line under it.
+ *  Rows under a floating card (free-trial banner) or the bottom bar are left out (a tap would hit those). */
+export async function browserRows(d: AndroidDriver, p: Profile): Promise<Candidate[]> {
+  await adb(['shell', 'uiautomator', 'dump', '/sdcard/autotest_ui.xml'], d.o.udid);
+  const nodes = parseNodes(await adb(['exec-out', 'cat', '/sdcard/autotest_ui.xml'], d.o.udid), d.o.packageName);
+  const web = nodes.find((n) => /WebView$/.test(n.cls) && n.y2 - n.y1 > 800);
+  const w = p.viewport.width;
+  const top = Math.max(web?.y1 ?? 0, ...nodes.filter((n) => /搜索/.test(n.hint) && /EditText/.test(n.cls) && n.y1 > (web?.y1 ?? 0)).map((n) => n.y2));
+  const navTop = Math.min(...nodes.filter((n) => /^(\d+ )?(聊天|Chat)$/.test(n.desc) && n.y1 > (web?.y2 ?? p.viewport.height) - 320).map((n) => n.y1), web?.y2 ?? p.viewport.height);
+  const card = nodes.filter((n) => /免费试用|free trial|查看我的任务/i.test(n.text));
+  const cardTop = card.length ? Math.min(...card.map((n) => n.y1)) - 140 : navTop;
+  const texts = nodes.filter((n) => /TextView/.test(n.cls) && n.text.trim() && n.y1 > top && n.y2 < Math.min(navTop, cardTop) && n.y2 > n.y1);
+  const out: Candidate[] = [];
+  for (const t of texts) {
+    if (t.x1 < w * 0.15 || t.x1 > w * 0.35) continue;
+    const time = texts.find((x) => x !== t && x.x1 > w * 0.75 && Math.abs(x.y1 - t.y1) < 40);
+    if (!time) continue;
+    const preview = texts.find((x) => x !== t && Math.abs(x.x1 - t.x1) < 30 && x.y1 >= t.y2 - 5 && x.y1 < t.y2 + 90);
+    const y1 = t.y1 - 40;
+    const y2 = (preview?.y2 ?? t.y2) + 40;
+    out.push({ title: t.text.trim(), preview: preview?.text.trim() ?? '', box: [0, y1, w, y2 - y1] });
+  }
+  // Rows exposed as one button (the personal-AI row at the top): its whole text.
+  for (const b of nodes.filter((n) => n.clickable && /Button/.test(n.cls) && n.text.length > 8 && n.x2 - n.x1 > w * 0.8 && n.y1 > top && n.y2 < Math.min(navTop, cardTop)))
+    if (!out.some((o) => o.box[1] < b.y2 && o.box[1] + o.box[3] > b.y1)) out.push({ title: b.text.trim().slice(0, 60), preview: '', box: [b.x1, b.y1, b.x2 - b.x1, b.y2 - b.y1] });
+  return out.sort((a, b) => a.box[1] - b.box[1]);
 }
 
 export interface QuoteCard {
@@ -137,7 +168,16 @@ export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, lo
         idx = ruleChoice(t.kind, cands, taken);
         reason = 'rule fallback (model unavailable or answer invalid)';
       }
-      if (idx < 0) throw new Error(`prep: no candidate for target ${t.id} (${t.kind})`);
+      if (idx < 0) {
+        // No readable rows (the phone browser's accessibility tree can lag behind the page): let the vision
+        // model find the row on the screenshot instead (preparation only).
+        const pt = !cands.length && locate ? await locate(`the conversation row in the chat list that matches: ${t.guidance}`) : null;
+        if (!pt) throw new Error(`prep: no candidate for target ${t.id} (${t.kind})`);
+        const chosen = t.guidance.match(/titled "([^"]+)"/)?.[1] ?? t.guidance;
+        out.push({ id: t.id, kind: t.kind, point: pt, chosen, reason: 'vision locate (no readable rows)', by: 'vision' });
+        log(`prep: target ${t.id} → "${chosen.slice(0, 60)}" @ ${JSON.stringify(pt)} (vision: no readable rows)`);
+        continue;
+      }
       taken.push(idx);
       const c = cands[idx];
       out.push({ id: t.id, kind: t.kind, point: { x: Math.round(c.box[0] + c.box[2] / 2), y: Math.round(c.box[1] + c.box[3] / 2) }, chosen: c.title, reason, by });
@@ -178,7 +218,7 @@ export async function visionLocator(driver: Driver & { page?: unknown; o?: any }
     try {
       modelCalls.vision++;
       let agent: any;
-      if (driver.surface === 'android-app') {
+      if (onAndroid(driver.surface)) {
         const { AndroidAgent, AndroidDevice } = await import('@midscene/android');
         const dev = new AndroidDevice(driver.o.udid);
         await dev.connect();

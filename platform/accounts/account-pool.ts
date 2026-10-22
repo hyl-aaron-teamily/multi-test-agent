@@ -1,8 +1,8 @@
 // Account pool, same shape as DevicePool: reload / lease / release.
 // State (no secrets) → platform/state/accounts.json. Accounts are isolated by env: the same email in
-// test and prod is two accounts. lease() takes a device together with the account for android-app.
+// test and prod is two accounts. lease() takes an endpoint slot (phone / this computer) together with the account.
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import type { DevicePool, PoolDevice } from '../device-pool';
 import { LocalYamlBackend, type SecretBackend } from './secret-backend';
@@ -16,14 +16,17 @@ export interface LeaseRequest {
   surface: Surface;
   count?: number;
   accountId?: string;
-  /** android-app: also lease a device from this pool (bound device preferred). */
+  /** Also lease a slot (endpoint × surface) from this pool: phones for Android surfaces, this computer otherwise. */
   devices?: DevicePool;
+  /** Pin the endpoint (adb serial or host:<id>). */
   device?: string;
 }
 
 export interface Lease {
   accounts: Account[];
   device?: PoolDevice;
+  surface?: Surface;
+  taskId?: string;
 }
 
 export class AccountPool {
@@ -36,7 +39,15 @@ export class AccountPool {
 
   /** Merge backend records with persisted runtime state. */
   async reload(): Promise<Account[]> {
-    const prev: Account[] = existsSync(this.stateFile) ? (JSON.parse(await readFile(this.stateFile, 'utf8')).accounts ?? []) : [];
+    // Runtime state only (no secrets): an unreadable file is started over, not fatal.
+    let prev: Account[] = [];
+    if (existsSync(this.stateFile)) {
+      try {
+        prev = JSON.parse(await readFile(this.stateFile, 'utf8')).accounts ?? [];
+      } catch {
+        prev = [];
+      }
+    }
     this.accounts.clear();
     for (const r of this.backend.accounts()) {
       const p = prev.find((x) => x.id === r.id);
@@ -79,19 +90,31 @@ export class AccountPool {
     return free.length >= n ? free.slice(0, n) : [];
   }
 
-  /** Lease accounts (and a device for android-app) in one step. null if not satisfiable now. */
+  /** Lease accounts (and a slot of an endpoint) in one step. null if not satisfiable now.
+   *  On a phone the account is the one signed in there (devices.yaml `accounts`), never another. */
   lease(taskId: string, req: LeaseRequest): Lease | null {
-    const accounts = this.pick(req);
-    if (!accounts.length) return null;
     let device: PoolDevice | undefined;
-    if (req.surface === 'android-app' && req.devices) {
-      const d = req.devices.acquire(taskId, req.device ?? accounts[0].boundDevice);
+    let accountId = req.accountId;
+    if (req.devices) {
+      const d = req.devices.acquire(taskId, req.device, req.surface);
       if (!d) return null;
+      const signed = d.accounts[req.surface];
+      if (signed && accountId && signed !== accountId) {
+        req.devices.release(d.udid, req.surface, taskId);
+        return null;
+      }
+      // Undeclared phone: prefer the account last bound to it (the one signed in there before).
+      accountId = accountId ?? signed ?? (d.kind === 'android' ? this.list(req.env).find((a) => a.boundDevice === d.udid && a.surfaces.includes(req.surface))?.id : undefined);
       device = d;
     }
-    for (const a of accounts) Object.assign(a, { status: 'busy', taskId, boundDevice: device?.udid ?? a.boundDevice });
+    const accounts = this.pick({ ...req, accountId });
+    if (!accounts.length) {
+      if (device) req.devices!.release(device.udid, req.surface, taskId);
+      return null;
+    }
+    for (const a of accounts) Object.assign(a, { status: 'busy', taskId, boundDevice: device?.kind === 'android' ? device.udid : a.boundDevice });
     void this.persist();
-    return { accounts, device };
+    return { accounts, device, surface: req.surface, taskId };
   }
 
   release(lease: Lease, devices?: DevicePool): void {
@@ -99,7 +122,7 @@ export class AccountPool {
       const cur = this.accounts.get(a.id);
       if (cur?.status === 'busy') Object.assign(cur, { status: 'idle', taskId: undefined, cooldownUntil: new Date(Date.now() + COOLDOWN_MS).toISOString() });
     }
-    if (lease.device && devices) devices.release(lease.device.udid);
+    if (lease.device && devices) devices.release(lease.device.udid, lease.surface, lease.taskId);
     void this.persist();
   }
 
@@ -112,8 +135,16 @@ export class AccountPool {
     await this.persist();
   }
 
-  async persist(): Promise<void> {
-    await mkdir(dirname(this.stateFile), { recursive: true });
-    await writeFile(this.stateFile, JSON.stringify({ updatedAt: new Date().toISOString(), accounts: this.list() }, null, 2));
+  private writing: Promise<void> = Promise.resolve();
+  /** Writes are serialised (several leases in one tick would otherwise overlap and tear the file). */
+  persist(): Promise<void> {
+    const body = JSON.stringify({ updatedAt: new Date().toISOString(), accounts: this.list() }, null, 2);
+    this.writing = this.writing.then(async () => {
+      await mkdir(dirname(this.stateFile), { recursive: true });
+      // tmp + rename: a process that exits mid-write never leaves a truncated file.
+      await writeFile(`${this.stateFile}.tmp`, body);
+      await rename(`${this.stateFile}.tmp`, this.stateFile);
+    }).catch(() => {});
+    return this.writing;
   }
 }

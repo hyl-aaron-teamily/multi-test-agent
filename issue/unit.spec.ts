@@ -61,7 +61,7 @@ const basePlan = () => ({
   setup: [{ type: 'node', node: { name: 'teamily.openConversation', input: { target: 'group' } } }],
   actions: [{ type: 'node', node: { name: 'teamily.typeMention', input: {} } }],
   checks: [{ kind: 'visual-region', page: 'mention-picker', region: 'picker', expect: 'picker shows' }],
-  limits: { maxSteps: 1000, maxMinutes: 30, maxIntervalMs: 1000 },
+  limits: { maxSteps: 1000, maxMinutes: 15, maxIntervalMs: 1000 },
   verdictRule: { anyHit: true },
   provenance: { generatedBy: 'rules', skillVersion: 'x' },
 });

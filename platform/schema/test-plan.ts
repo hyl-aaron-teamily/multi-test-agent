@@ -3,15 +3,19 @@
 // the profile of its surface. The JSON Schema export is what the LLM gets as structured-output contract.
 import { z } from 'zod';
 
-export const SurfaceZ = z.enum(['android-app', 'mobile-web', 'desktop-web']);
+export const SurfaceZ = z.enum(['android-app', 'android-web', 'mobile-web', 'desktop-web']);
 export const CategoryZ = z.enum(['bug-always', 'bug-intermittent', 'feature', 'suspected-misuse']);
 export const PreCategoryZ = z.enum([...CategoryZ.options, 'server-side', 'multi-account', 'deferred', 'not-executable']);
 
 export const PlannedActionZ = z.object({
-  type: z.enum(['tap', 'longPress', 'type', 'key', 'swipe', 'scroll', 'back', 'wait', 'launch', 'node']),
+  /** Lifecycle: exitApp = Home (app stays in the background); killApp = kill its process (verified gone);
+   *  reload = page reload (web) / kill + launch (app); idle = no input for `value` ms (≤ 10 min, e.g. while
+   *  the app sits in the background); launch after killApp = cold start. Lifecycle ops are not counted
+   *  as action intervals and planned exits are never hits. */
+  type: z.enum(['tap', 'longPress', 'type', 'key', 'swipe', 'scroll', 'back', 'wait', 'launch', 'node', 'exitApp', 'killApp', 'reload', 'idle']),
   node: z.object({ name: z.string(), input: z.record(z.string(), z.unknown()).default({}) }).optional(),
   element: z.string().optional(),
-  /** type: text; key: key name; swipe/scroll: 'up' | 'down' | 'left' | 'right'; wait: ms. */
+  /** type: text; key: key name; swipe/scroll: 'up' | 'down' | 'left' | 'right'; wait: ms (≤ 1000); idle: ms (≤ 600000). */
   value: z.string().optional(),
   delayAfterMs: z.number().int().min(0).max(1000).default(300),
 });
@@ -76,8 +80,13 @@ export type CheckPoint = z.infer<typeof CheckPointZ>;
 export type TestPlan = z.infer<typeof TestPlanZ>;
 export type AcceptanceItem = z.infer<typeof AcceptanceItemZ>;
 
-export const DEFAULT_LIMITS = { maxSteps: 1000, maxMinutes: 30, maxIntervalMs: 1000 as const };
+export const DEFAULT_LIMITS = { maxSteps: 1000, maxMinutes: 15, maxIntervalMs: 1000 as const };
 export const HARD_LIMITS = { maxSteps: 3000, maxMinutes: 120 };
+export const MAX_IDLE_MS = 600_000;
+/** Surfaces with an app process the user can leave / kill (exitApp, killApp). */
+export const APP_SURFACES: string[] = ['android-app', 'android-web'];
+/** Ops that are not user input pacing: excluded from the ≤ 1 s action-interval statistic. */
+export const LIFECYCLE_OPS = new Set(['launch', 'exitApp', 'killApp', 'reload', 'idle', 'focus']);
 
 export function verdictRuleFor(c: Category): TestPlan['verdictRule'] {
   return c === 'bug-always' ? { consecutiveHits: 3 } : { anyHit: true };

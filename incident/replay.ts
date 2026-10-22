@@ -6,15 +6,14 @@
 import { existsSync } from 'node:fs';
 import { readFile, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { adb } from '../core/adb';
 import { decodePng, dHash, hamming } from '../core/image';
 import { evaluateVisual } from '../executor/checks';
 import { VerdictTracker } from '../executor/verdict';
-import { AndroidDriver } from '../drivers/android';
-import { type Anomaly, type Driver, sleep } from '../drivers/types';
-import { WebDriver } from '../drivers/web';
+import { type Anomaly, type Driver, lifecycle, sleep } from '../drivers/types';
 import { AccountPool } from '../platform/accounts/account-pool';
-import { ensureWebSession } from '../platform/accounts/sessions';
+import { ensureWebSession, type PlaywrightSurface } from '../platform/accounts/sessions';
+import { onPlaywright } from '../platform/accounts/types';
+import { createDriver } from '../drivers/factory';
 import { loadProfile } from '../skills/profile';
 import type { ReplayFile } from './bundle';
 import type { CoordOp } from './recording-driver';
@@ -63,6 +62,14 @@ async function playOp(d: Driver, op: CoordOp): Promise<void> {
       return d.back();
     case 'launch':
       return d.launch();
+    case 'exitApp':
+    case 'killApp':
+    case 'reload':
+      return lifecycle(d, op.op);
+    case 'idle':
+      return sleep(op.ms ?? 1000);
+    case 'focus':
+      return d.focus?.();
     default:
       return;
   }
@@ -73,18 +80,17 @@ export async function replayIncident(file: string, variant: Variant, log = (s: s
   const profile = loadProfile(r.profile);
   if (!profile) throw new Error(`profile ${r.profile} missing — recalibrate`);
   if (profile.skillVersion !== r.skillVersion) log(`warning: SKILL ${profile.skillVersion} ≠ recorded ${r.skillVersion}`);
-  let d: Driver;
-  if (r.surface === 'android-app') {
-    const udid = r.profile.match(/^android-(.+)@/)![1];
-    d = new AndroidDriver({ udid, packageName: r.packageName ?? 'ai.teamily.mobile' });
-    if (variant === 'cold') await adb(['shell', 'am', 'force-stop', r.packageName ?? 'ai.teamily.mobile'], udid);
-  } else {
-    const pool = new AccountPool();
-    await pool.reload();
-    const s = await ensureWebSession(pool, r.account!, r.surface);
+  const pool = new AccountPool();
+  await pool.reload();
+  const udid = r.profile.match(/^android-(?:web-)?(.+)@/)?.[1];
+  let storageState: string | undefined;
+  if (onPlaywright(r.surface)) {
+    const s = await ensureWebSession(pool, r.account!, r.surface as PlaywrightSurface);
     if (!s.ok) throw new Error(`login ${r.account}: ${s.error}`);
-    d = new WebDriver({ surface: r.surface, url: r.url!, storageState: s.file });
+    storageState = s.file;
   }
+  const d: Driver = createDriver({ surface: r.surface, profile, url: r.url ?? pool.webUrl(r.env), udid, storageState });
+  if (variant === 'cold' && d.killApp) await d.killApp();
   const tracker = new VerdictTracker(r.verdictRule);
   const res: VariantResult = { variant, reproduced: false, hits: 0, rounds: 0, deviations: [], hitDetails: [] };
   const anomalies: Anomaly[] = [];

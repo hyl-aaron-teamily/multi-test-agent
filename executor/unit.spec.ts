@@ -14,6 +14,22 @@ const ink = (img: Rgba, x0: number, y0: number, w: number, h: number) => {
   for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) img.data.set([20, 20, 20, 255], (y * img.width + x) * 4);
 };
 
+describe('lifecycle plan rules', () => {
+  const base = {
+    id: 'x', issueRef: 'x', title: 'x', category: 'bug-intermittent', issueSurfaces: [], env: 'prod', setup: [], checks: [],
+    limits: { maxSteps: 10, maxMinutes: 5, maxIntervalMs: 1000 }, verdictRule: { anyHit: true }, provenance: { generatedBy: 'manual', skillVersion: 'x' },
+  };
+  it('exit / kill only on app surfaces; idle needs ms ≤ 10 min; wait stays ≤ 1 s', () => {
+    const ok = validatePlan({ ...base, surface: 'android-app', actions: [{ type: 'exitApp' }, { type: 'idle', value: '60000' }, { type: 'killApp' }, { type: 'launch' }] });
+    expect(ok.errors).toEqual([]);
+    const web = validatePlan({ ...base, surface: 'desktop-web', actions: [{ type: 'killApp' }] });
+    expect(web.errors.join()).toMatch(/killApp needs an app surface/);
+    const bad = validatePlan({ ...base, surface: 'android-web', actions: [{ type: 'idle', value: '900000' }, { type: 'wait', value: '5000' }] });
+    expect(bad.errors.join()).toMatch(/idle needs a value/);
+    expect(bad.errors.join()).toMatch(/wait ≤ 1000/);
+  });
+});
+
 describe('verdict rule', () => {
   it('intermittent: one hit reproduces', () => {
     const t = new VerdictTracker({ anyHit: true });

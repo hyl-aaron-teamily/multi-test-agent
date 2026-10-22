@@ -12,6 +12,7 @@
   "launch": "once",
   "targets": [],
   "setup": [],
+  "prepare": [],
   "actions": [],
   "checks": [],
   "afterCheck": [],
@@ -149,7 +150,7 @@
   ],
   "limits": {
     "maxSteps": 1000,
-    "maxMinutes": 30,
+    "maxMinutes": 15,
     "maxIntervalMs": 1000
   },
   "verdictRule": {
@@ -158,6 +159,6 @@
   "provenance": {
     "generatedBy": "rules",
     "skillVersion": "2026.10.21-1",
-    "confirmedAt": "2026-10-21T12:46:04.006Z"
+    "confirmedAt": "2026-10-22T07:36:39.819Z"
   }
 }

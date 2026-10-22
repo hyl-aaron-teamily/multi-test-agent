@@ -1,0 +1,11 @@
+id: 1329-s2-synthetic-old-jump
+issue: '1329'
+subcase: 点引用定位应稳定跳到被引用消息
+expect: consistent
+note: >-
+  阳性对照：确认复核不会一律判“不符”。第 1 轮（参考）为真实录屏中的正确跳转；第 2 轮点击引用后，
+  画面换成同一群聊里很早以前（2026-09-29 的 chattest 消息）的历史位置——即 Issue 描述的“跳到很旧的消息”。
+synthetic: >-
+  由 1329-s2-quote-wrap 的录屏截取 0–14.1 s（第 2 轮点击引用前），拼接 6 s 静止画面；
+  静止画面为真机上同一群聊向上滚动 30 屏后的截图，同时替换第 2 轮检查点截图。
+source: fixtures/evidence/1329-s2-quote-wrap

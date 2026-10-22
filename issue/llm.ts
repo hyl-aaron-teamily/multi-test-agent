@@ -1,5 +1,6 @@
-// Text-only JSON chat against the OpenAI-compatible endpoint Midscene is configured with (same as mission/planner).
-// Never receives screenshots or credentials. Every call is counted (report: "model calls").
+// JSON chat against the OpenAI-compatible endpoint Midscene is configured with (same as mission/planner).
+// chatJson is text-only; visionJson gets recorded evidence frames (incident review, never the hot loop).
+// Neither ever receives credentials. Every call is counted (report: "model calls").
 import { extractJson } from '../mission/planner';
 
 export const modelCalls = { text: 0, vision: 0 };
@@ -31,6 +32,44 @@ export async function chatJson(system: string, user: string, timeoutMs = 90_000)
     return extractJson(body.choices?.[0]?.message?.content ?? '');
   } catch (err) {
     console.warn(`[issue] model call failed (${(err as Error).message}); falling back to rules`);
+    return undefined;
+  }
+}
+
+function visionCfg() {
+  const base = process.env.MIDSCENE_MODEL_BASE_URL;
+  const key = process.env.MIDSCENE_MODEL_API_KEY;
+  const model = process.env.EVIDENCE_VISION_MODEL ?? process.env.MIDSCENE_MODEL_NAME;
+  return base && key && model ? { base, key, model } : undefined;
+}
+
+export function visionConfigured(): boolean {
+  return !!visionCfg() && process.env.ISSUE_NO_VISION !== '1';
+}
+
+export type VisionPart = string | { label: string; png: Buffer };
+
+/** Images + text → JSON, against the vision model Midscene uses (OpenAI-compatible image_url parts).
+ *  Used offline on recorded evidence only (never in the action loop). Counted as a vision call. */
+export async function visionJson(system: string, parts: VisionPart[], timeoutMs = 120_000): Promise<unknown> {
+  const c = visionCfg();
+  if (!c || process.env.ISSUE_NO_VISION === '1') return undefined;
+  modelCalls.vision++;
+  const content = parts.flatMap((p) =>
+    typeof p === 'string' ? [{ type: 'text', text: p }] : [{ type: 'text', text: p.label }, { type: 'image_url', image_url: { url: `data:image/png;base64,${p.png.toString('base64')}` } }],
+  );
+  try {
+    const res = await fetch(`${c.base.replace(/\/$/, '')}/chat/completions`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: `Bearer ${c.key}` },
+      body: JSON.stringify({ model: c.model, temperature: 0.1, messages: [{ role: 'system', content: system }, { role: 'user', content }] }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+    const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+    return extractJson(body.choices?.[0]?.message?.content ?? '');
+  } catch (err) {
+    console.warn(`[vision] evidence call failed (${(err as Error).message})`);
     return undefined;
   }
 }

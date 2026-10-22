@@ -257,11 +257,12 @@ code{font-family:var(--mono);font-size:.9em;background:var(--card-sunk);border:1
 <!-- ════════════ hero ════════════ -->
 <header class="hero">
   <div class="wrap">
-    <span class="hero__tag rise in"><i></i>黑盒 · 三端 · 生产环境出结论</span>
+    <span class="hero__tag rise in"><i></i>黑盒 · 四个执行端 · 多端同步 · 生产环境出结论</span>
     <h1 class="rise in">交给它一份 Issue，<br>它在<em>真机和浏览器</em>上替你复现</h1>
     <p class="lead rise in">测试台读 Issue，判断是偶现 bug、必现 bug、需求还是服务端问题；生成测试计划，经你<b>确认一次</b>后，
-      在 Android 真机、手机 Web 或桌面 Web 上按坐标反复操作，动作间隔不超过 1 秒。
-      全程只做用户能做的操作、只看用户能看到的现象。出事时自动导出<b>现场包</b>：出事前的录屏或 trace、对齐的日志、坐标级操作序列，可直接重放。</p>
+      在 Android App、手机浏览器、手机视口 Web 或 Edge 桌面 Web 上按坐标反复操作，动作间隔不超过 1 秒。
+      全程只做用户能做的操作、只看用户能看到的现象。出事时自动导出<b>现场包</b>：出事前的录屏或 trace、对齐的日志、坐标级操作序列，可直接重放；
+      命中先经<b>录屏复核</b>，画面不符合 Issue 描述就不算复现。多个端可各登一个账号进同一会话做<b>同步测试</b>。</p>
     <div class="hero__actions rise in">
       <span class="btn btn--primary btn--cmd">本地启动 <kbd>pnpm platform</kbd></span>
       <a class="btn" href="#results">看当前进度</a>
@@ -336,7 +337,7 @@ code{font-family:var(--mono);font-size:.9em;background:var(--card-sunk);border:1
       <div class="card rise">
         <div class="ic"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg></div>
         <h3>Teamily SKILL</h3>
-        <p>三端页面地图与标定坐标；标定后自动逐个自检，只有失败项进人工复核。改版后参考区域对不上，执行器报「SKILL 失效」并停下。</p>
+        <p>四个执行端的页面地图与标定坐标：Android App、手机自带浏览器里的 Web、手机视口 Web、Edge 最大化窗口的桌面 Web。标定后自动逐个自检，只有失败项进人工复核；改版后参考区域对不上，执行器报「SKILL 失效」并停下。</p>
         <span class="cmd">pnpm autotest skill calibrate --surface …</span>
       </div>
       <div class="card rise">
@@ -352,9 +353,27 @@ code{font-family:var(--mono);font-size:.9em;background:var(--card-sunk);border:1
         <span class="cmd">pnpm autotest replay …/replay.json --variant all</span>
       </div>
       <div class="card rise">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8M12 17v4"/><path d="M8 10l2.5 2.5L16 8"/></svg></div>
+        <h3>证据复核</h3>
+        <p>检查只比像素，会误报。命中后把录屏里出事前后两轮的画面条和被判定的截图交给视觉模型，对照 Issue 的「实际结果」：画面不符合就排除，不计命中。附预置用例回归复核本身。</p>
+        <span class="cmd">pnpm autotest evidence cases</span>
+      </div>
+      <div class="card rise">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="12" height="9" rx="1.5"/><rect x="16" y="6" width="6" height="12" rx="1.5"/><path d="M5 17h6M8 13v4"/></svg></div>
+        <h3>多端同步</h3>
+        <p>端点池按「设备 × 执行端」分槽租用：同一台手机可同时开 App 与浏览器，本机开 Edge，各登录不同账号进同一会话；每轮一端发送，其余端必须看到。</p>
+        <span class="cmd">pnpm autotest sync --roles desktop-web,android-web,android-app</span>
+      </div>
+      <div class="card rise">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M12 3v9"/><path d="M6.3 7.3a8 8 0 1 0 11.4 0"/></svg></div>
+        <h3>退出 / 杀进程 / 重新加载</h3>
+        <p>计划里可写「退出 App → 后台等待 → 杀后台进程 → 等待 → 冷启动 / 重新加载」，App 与手机浏览器都适用；计划内的退出不算闪退，杀进程会核实进程已不在。</p>
+        <span class="cmd">pnpm autotest skill smoke --lifecycle cold</span>
+      </div>
+      <div class="card rise">
         <div class="ic"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2 .8 3 2.8 3 6"/></svg></div>
         <h3>账号池</h3>
-        <p>测试 / 生产账号分开租用，光标登录并缓存会话，Android 任务与设备一起租用；凭据只在本地私有文件，不进日志和提交。</p>
+        <p>测试 / 生产账号分开租用，光标登录并缓存会话；手机上的登录状态写在端点池里（哪个账号登在 App、哪个登在浏览器），租用时只给登在那里的账号。凭据只在本地私有文件，不进日志和提交。</p>
         <span class="cmd">pnpm autotest accounts check --env prod</span>
       </div>
       <div class="card rise">
@@ -450,12 +469,14 @@ code{font-family:var(--mono);font-size:.9em;background:var(--card-sunk);border:1
   <div class="wrap">
     <p class="eyebrow rise">Status · 2026-10-22</p>
     <h2 class="h2 rise">当前进度</h2>
-    <p class="sub rise">端到端流程已在三个执行端、生产环境跑通。样例 Issue 的结论全部来自生产环境运行记录（Xiaomi 2211133C / Android 16 · teamily.ai）。</p>
+    <p class="sub rise">端到端流程已在四个执行端、生产环境跑通。样例 Issue 的结论全部来自生产环境运行记录（Xiaomi 2211133C / Android 16 · teamily.ai · Edge 155）。</p>
     <div class="stats">
       <div class="stat rise"><span>样例 Issue</span><b>10 <small>/ 10 已分类</small></b><p>5 份执行出结论，2 份拒绝，3 份暂缓（多账号 / 需构造存储）</p></div>
       <div class="stat hl rise"><span>1594 @ 选择器</span><b>1000 <small>步</small></b><p>最大动作间隔 918 ms，启动 1 次，视觉模型调用 0；未复现</p></div>
       <div class="stat rise"><span>需求验收</span><b>2 <small>份未实现</small></b><p>2336：三处独立铃铛仍在；2122：无 @我 聚合入口、免打扰群无显著角标</p></div>
       <div class="stat rise"><span>Android 现场包</span><b>153 <small>s</small></b><p>注入崩溃后录屏覆盖出事前 153 秒，日志与视频对齐，可追溯到步号</p></div>
+      <div class="stat hl rise"><span>三端同步</span><b>9 <small>/ 9</small></b><p>Edge（aaron+test2）· 手机浏览器（test3）· 手机 App（test1）同一群聊 3 轮收发全部可见</p></div>
+      <div class="stat rise"><span>证据复核</span><b>2 <small>/ 2 预置用例</small></b><p>1329 换行误报判「不符」；合成的「跳到旧消息」判「符合」。严格阈值复跑：2 次误报全被排除</p></div>
     </div>
     <div class="map rise">
       <table>
@@ -463,7 +484,7 @@ code{font-family:var(--mono);font-size:.9em;background:var(--card-sunk);border:1
         <tr><td>1594 @ 选择器偶发不弹出</td><td>desktop-web</td><td>未复现（上限内未出现）</td></tr>
         <tr><td>2336 三个独立通知铃铛</td><td>desktop-web</td><td>未实现：个人主页 / Artifacts / CloudDoc 各有独立 🔔</td></tr>
         <tr><td>2122 免打扰群 @ 我（单账号部分）</td><td>desktop-web</td><td>未实现；需第二账号的部分暂缓</td></tr>
-        <tr><td>1329 点赞 / 引用定位 / 键盘（iOS）</td><td>android-app（替代）</td><td>三项均未复现，各跑满 30 分钟</td></tr>
+        <tr><td>1329 点赞 / 引用定位 / 键盘（iOS）</td><td>android-app（替代）</td><td>三项均未复现，各跑满 30 分钟。开发期曾记「已复现」的 s2 经录屏复核为误报：跳到的就是被引用消息，只是窄屏下气泡换行 + 高亮</td></tr>
         <tr><td>1614 · 1922</td><td>—</td><td>拒绝：服务端问题 / 按文档约定</td></tr>
         <tr><td>1919 · 2235 · 2230</td><td>—</td><td>暂缓：多账号多端 / 需写满浏览器存储</td></tr>
       </table>
@@ -523,8 +544,10 @@ code{font-family:var(--mono);font-size:.9em;background:var(--card-sunk);border:1
         <p>iOS 问题只能经确认后在 Android 真机或手机 Web 上替代执行，报告首行标注替代，结论不直接代表 iOS。WebView、小程序也未接入。</p></div></div>
       <div class="limit rise"><div class="m">!</div><div><b>视觉模型不适合下结论</b>
         <p>挑目标可以，判定结果不稳定（同一画面会给出相反答案）。判定优先用参考区域比对和无障碍层核对，视觉只作补充，调用次数写进报告。</p></div></div>
-      <div class="limit rise"><div class="m">⇄</div><div><b>多账号 / 多端联动暂缓</b>
-        <p>需要第二账号 @ 我、同账号多端同步的 Issue 要等账号池调度完成；接口已留好，设备与账号可一起租用。</p></div></div>
+      <div class="limit rise"><div class="m">⇄</div><div><b>多端同步已有底座，Issue 计划尚未接上</b>
+        <p>多账号、多端同一会话的收发已能跑（sync）；1919、2235 这类 Issue 还没有生成多角色计划，仍是暂缓。同步耗时是「发送到检查看到」，含视觉核对与切换手机前台的时间，是上界。</p></div></div>
+      <div class="limit rise"><div class="m">☐</div><div><b>手机浏览器的几处约束</b>
+        <p>浏览器的无障碍树只在页面加载时建立，标定靠重新加载 + 视觉定位补齐；软键盘盖住表单按钮，登录用键盘回车提交；系统返回键会关掉标签页，只用页面里的返回。Teamily Web 重新加载后会恢复上次会话，而此时会话左上角返回无效（历史为空），需经 Artifacts → 聊天 → 返回回到列表——这是产品侧现象，已记录。</p></div></div>
       <div class="limit rise"><div class="m">⚙</div><div><b>前置数据要事先存在</b>
         <p>像「点引用跳到原消息」这类用例依赖会话里已有的数据；测试台还不能稳定地自行构造前置条件，构造不出时报「执行失败」而不是误判。</p></div></div>
       <div class="limit rise"><div class="m">◔</div><div><b>「未复现」不等于没问题</b>
@@ -538,7 +561,7 @@ code{font-family:var(--mono);font-size:.9em;background:var(--card-sunk);border:1
 <footer>
   <div class="wrap">
     <span>Teamily 客户端测试台 · multi-test-agent · 团队内部工具</span>
-    <span>启动：<code>pnpm platform</code> → <code>http://localhost:3210</code>　·　文档：<code>README.md</code> <code>docs/m5-acceptance.md</code> <code>docs/imui.md</code></span>
+    <span>启动：<code>pnpm platform</code> → <code>http://localhost:3210</code>　·　文档：<code>README.md</code> <code>docs/m6-acceptance.md</code> <code>docs/m5-acceptance.md</code> <code>docs/imui.md</code></span>
   </div>
 </footer>
 

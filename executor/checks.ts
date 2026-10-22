@@ -7,6 +7,7 @@ import type { Driver } from '../drivers/types';
 import { modelCalls } from '../issue/llm';
 import type { CheckPoint } from '../platform/schema/test-plan';
 import { type Profile, SKILL_DIR, SkillStaleError } from '../skills/profile';
+import { onAndroid } from '../platform/accounts/types';
 
 export const MATCH_DISTANCE = 12;
 /** Region counts as matching the reference when fewer than this fraction of its pixels differ. */
@@ -160,7 +161,7 @@ export async function visionAsker(driver: Driver & { page?: unknown; o?: any }):
   return async (q) => {
     try {
       if (!agent) {
-        if (driver.surface === 'android-app') {
+        if (onAndroid(driver.surface)) {
           const { AndroidAgent, AndroidDevice } = await import('@midscene/android');
           const dev = new AndroidDevice(driver.o.udid);
           await dev.connect();
@@ -177,4 +178,31 @@ export async function visionAsker(driver: Driver & { page?: unknown; o?: any }):
       return null;
     }
   };
+}
+
+/** Poll the screen until one of the reference regions shows on two polls in a row (a page that is still
+ *  loading can show a region for a moment and then redraw), or time out. Returns the key, or undefined.
+ *  One screenshot per poll, no model. */
+export async function waitForRegion(driver: Driver, p: Profile, keys: string[], ms = 30_000, every = 1500, tolerance = 0.35): Promise<string | undefined> {
+  const t0 = Date.now();
+  let last: string | undefined;
+  for (;;) {
+    const img = decodePng(await driver.screenshot());
+    let hit: string | undefined;
+    for (const k of keys) {
+      const [page, region] = k.split('/');
+      const r = refFor(p, page, region);
+      const refImg = refImage(p, page);
+      if (!r || !refImg) continue;
+      const m = regionMatch(img, refImg, r.box, dprOf(p, img), SLIDING[k] ?? 0);
+      if (m.fraction <= tolerance) {
+        hit = k;
+        break;
+      }
+    }
+    if (hit && hit === last) return hit;
+    last = hit;
+    if (Date.now() - t0 > ms) return undefined;
+    await new Promise((res) => setTimeout(res, every));
+  }
 }

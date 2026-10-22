@@ -47,7 +47,7 @@
     <section style="margin-top:16px">
       <h2>新建任务</h2>
       <label>类型</label>
-      <select id="type"><option value="mission">自然语言任务（AI 生成计划并执行）</option><option value="explore">AI 探索</option><option value="monkey">Monkey 压测</option><option value="imui">IM 消息压测（界面层，移植自 im-loadtest）</option><option value="issue">Issue 黑盒复现 / 验收</option></select>
+      <select id="type"><option value="mission">自然语言任务（AI 生成计划并执行）</option><option value="explore">AI 探索</option><option value="monkey">Monkey 压测</option><option value="imui">IM 消息压测（界面层，移植自 im-loadtest）</option><option value="issue">Issue 黑盒复现 / 验收</option><option value="sync">多端同步（不同账号，同一会话）</option></select>
       <label>包名</label>
       <input id="package" value="ai.teamily.mobile">
       <div id="missionFields">
@@ -90,6 +90,14 @@
           <div><label>&nbsp;</label><button id="draftBtn">生成计划</button></div>
         </div>
         <div id="draft" class="muted"></div>
+      </div>
+      <div id="syncFields" class="hidden">
+        <label>参与端（每端一个账号；同一台手机可同时有 App 与浏览器）</label>
+        <input id="roles" value="desktop-web,android-web,android-app">
+        <div class="row">
+          <div><label>轮数（每轮一端发送，其余端须看到）</label><input id="rounds" type="number" min="1" max="20" placeholder="端数"></div>
+          <div><label>环境</label><select id="syncEnv"><option value="prod">生产</option><option value="test">测试</option></select></div>
+        </div>
       </div>
       <label>设备</label>
       <select id="device"><option value="">自动分配</option></select>
@@ -166,7 +174,7 @@ async function open(id, what = 'report') {
     return;
   }
   const text = await fetch(`/api/tasks/${id}/report`).then((x) => x.text());
-  const base = t.type === 'mission' ? `/files/missions/${t.id}/` : t.type === 'issue' && t.reportFile ? '/files/' + t.reportFile.replace(/\\/g, '/').split('/midscene_run/')[1].replace(/report\.md$/, '') : '/files/';
+  const base = t.type === 'mission' ? `/files/missions/${t.id}/` : (t.type === 'issue' || t.type === 'sync') && t.reportFile ? '/files/' + t.reportFile.replace(/\\/g, '/').split('/midscene_run/')[1].replace(/report\.md$/, '') : '/files/';
   $('report').innerHTML = md(text, base);
 }
 
@@ -184,6 +192,7 @@ $('type').onchange = () => {
   $('exploreFields').classList.toggle('hidden', t !== 'explore');
   $('imuiFields').classList.toggle('hidden', t !== 'imui');
   $('issueFields').classList.toggle('hidden', t !== 'issue');
+  $('syncFields').classList.toggle('hidden', t !== 'sync');
   $('missionFields').classList.toggle('hidden', t !== 'mission' && t !== 'issue');
   $('request').parentElement && ($('request').style.display = t === 'issue' ? 'none' : '');
   if (t === 'issue') loadIssues();
@@ -224,6 +233,7 @@ $('run').onclick = async () => {
       body.approve = subs.join(',');
     } else if (!draft || draft.id !== body.issue) { $('formErr').textContent = '请先“生成计划”并确认子用例'; return; }
   }
+  if (body.type === 'sync') { body.roles = $('roles').value.trim(); body.env = $('syncEnv').value; if ($('rounds').value) body.rounds = Number($('rounds').value); }
   if (body.type === 'imui') { body.conversation = $('conversation').value.trim(); body.msgTypes = $('msgTypes').value; if ($('web').value) body.web = $('web').value; body.yesProd = $('yesProd').checked; }
   const r = await fetch('/api/tasks', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
   const j = await r.json();

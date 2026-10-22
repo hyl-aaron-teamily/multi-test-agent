@@ -88,7 +88,7 @@
   ],
   "limits": {
     "maxSteps": 1000,
-    "maxMinutes": 30,
+    "maxMinutes": 15,
     "maxIntervalMs": 1000
   },
   "verdictRule": {

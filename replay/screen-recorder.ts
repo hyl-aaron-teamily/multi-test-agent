@@ -74,7 +74,11 @@ export class ScreenRecorder {
       const slot = this.k++ % (this.keep + 1);
       const file = this.engine === 'scrcpy' ? join(resolve(this.o.workDir), `seg-${slot}.mkv`) : `/sdcard/autotest_rec_${slot}.mp4`;
       this.current = file;
-      const startedAt = Date.now();
+      const spawnedAt = Date.now();
+      // Video time 0 is the first recorded frame, which comes after the client has connected (0.5–2.5 s
+      // after spawn on a busy host). scrcpy logs "Recording started" at that point: that host time is the
+      // segment start used to align ops and logs with the video.
+      let startedAt = spawnedAt;
       this.currentStart = startedAt;
       await new Promise<void>((done) => {
         this.child =
@@ -82,16 +86,24 @@ export class ScreenRecorder {
             ? spawn(
                 this.scrcpy!,
                 [...(this.o.udid ? ['-s', this.o.udid] : []), '--no-playback', '--no-window', '--no-audio', `--record=${file}`, `--time-limit=${this.seg}`, '--max-size=1280'],
-                { env: { ...process.env, ADB: resolveAdbPath() }, stdio: 'ignore', windowsHide: true },
+                { env: { ...process.env, ADB: resolveAdbPath() }, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true },
               )
             : spawnAdb(['shell', `screenrecord --time-limit ${this.seg} --size 720x1600 ${file}`], this.o.udid);
+        let out = '';
+        const onData = (d: Buffer) => {
+          if (startedAt !== spawnedAt) return;
+          out = (out + d.toString()).slice(-400);
+          if (/Recording started/.test(out)) startedAt = this.currentStart = Date.now();
+        };
+        this.child.stdout?.on('data', onData);
+        this.child.stderr?.on('data', onData);
         this.child.on('close', () => done());
         this.child.on('error', () => done());
       });
       this.child = undefined;
       this.current = undefined;
       // A segment that ended within 1 s is an error (no device / unsupported); back off instead of spinning.
-      if (Date.now() - startedAt < 1_000) {
+      if (Date.now() - spawnedAt < 1_000) {
         await sleep(2_000);
         continue;
       }

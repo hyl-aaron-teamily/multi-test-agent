@@ -1,5 +1,5 @@
 // Records every primitive driver operation (coordinates, timing) — the source of replay.json and ops.srt.
-import type { Anomaly, Driver, Point } from '../drivers/types';
+import { type Anomaly, type Driver, type LifecycleOp, lifecycle, type Point, sleep } from '../drivers/types';
 
 export interface CoordOp {
   /** Global step number (1-based) the op belongs to. */
@@ -8,7 +8,7 @@ export interface CoordOp {
   /** Host time the op started (ms). */
   at: number;
   durationMs: number;
-  op: 'tap' | 'longPress' | 'type' | 'key' | 'swipe' | 'scroll' | 'back' | 'launch' | 'wait';
+  op: 'tap' | 'longPress' | 'type' | 'key' | 'swipe' | 'scroll' | 'back' | 'launch' | 'wait' | 'idle' | 'focus' | LifecycleOp;
   point?: Point;
   to?: Point;
   value?: string;
@@ -74,6 +74,25 @@ export class RecordingDriver implements Driver {
   }
   back() {
     return this.rec('back', {}, () => this.inner.back());
+  }
+  exitApp() {
+    return this.rec('exitApp', {}, () => lifecycle(this.inner, 'exitApp'));
+  }
+  killApp() {
+    return this.rec('killApp', {}, () => lifecycle(this.inner, 'killApp'));
+  }
+  reload() {
+    return this.rec('reload', {}, () => lifecycle(this.inner, 'reload'));
+  }
+  focus() {
+    return this.rec('focus', {}, async () => this.inner.focus?.());
+  }
+  yieldFocus() {
+    this.inner.yieldFocus?.();
+  }
+  /** No input for `ms` (app in the background, waiting for a reload). Not an action interval. */
+  idle(ms: number) {
+    return this.rec('idle', { ms }, () => sleep(ms));
   }
   screenshot() {
     return this.inner.screenshot();
