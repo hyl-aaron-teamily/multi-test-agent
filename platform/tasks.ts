@@ -221,7 +221,7 @@ export class TaskManager {
     this.procs.set(t.id, child);
     child.stdout.pipe(log, { end: false });
     child.stderr.pipe(log, { end: false });
-    const hardMinutes = t.type === 'issue' ? (t.maxMinutes ?? 30) * 4 + 15 : t.type === 'mission' ? (t.maxMinutes ?? 30) + 5 : Number(process.env.TASK_HARD_MINUTES ?? 60);
+    const hardMinutes = t.type === 'issue' ? (t.maxMinutes ?? 15) * 4 + 15 : t.type === 'mission' ? (t.maxMinutes ?? 15) + 5 : Number(process.env.TASK_HARD_MINUTES ?? 15);
     const hard = setTimeout(() => {
       log.write(`\n[platform] hard limit ${hardMinutes} min reached, killing task\n`);
       if (child.pid) killTree(child.pid);

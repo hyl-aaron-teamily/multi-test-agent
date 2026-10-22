@@ -139,7 +139,7 @@ async function lifecycleSmoke(args: string[], mode: 'warm' | 'cold', x: { env: E
       ],
       // cold: the next round starts from the chat page again
       afterCheck: mode === 'cold' && !web ? [{ type: 'node', node: { name: 'teamily.openConversation', input: { target: 'conv' } }, delayAfterMs: 1000 }] : [],
-      limits: { maxSteps: actions.length * rounds, maxMinutes: 30, maxIntervalMs: 1000 },
+      limits: { maxSteps: actions.length * rounds, maxMinutes: 15, maxIntervalMs: 1000 },
       verdictRule: { anyHit: true },
       provenance: { generatedBy: 'manual', skillVersion: x.SKILL_VERSION },
     },

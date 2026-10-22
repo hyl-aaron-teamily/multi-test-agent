@@ -80,7 +80,7 @@ export type CheckPoint = z.infer<typeof CheckPointZ>;
 export type TestPlan = z.infer<typeof TestPlanZ>;
 export type AcceptanceItem = z.infer<typeof AcceptanceItemZ>;
 
-export const DEFAULT_LIMITS = { maxSteps: 1000, maxMinutes: 30, maxIntervalMs: 1000 as const };
+export const DEFAULT_LIMITS = { maxSteps: 1000, maxMinutes: 15, maxIntervalMs: 1000 as const };
 export const HARD_LIMITS = { maxSteps: 3000, maxMinutes: 120 };
 export const MAX_IDLE_MS = 600_000;
 /** Surfaces with an app process the user can leave / kill (exitApp, killApp). */
