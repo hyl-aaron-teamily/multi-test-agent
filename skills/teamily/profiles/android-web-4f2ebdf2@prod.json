@@ -3,7 +3,7 @@
   "name": "android-web-4f2ebdf2@prod",
   "skillVersion": "2026.10.21-1",
   "env": "prod",
-  "calibratedAt": "2026-10-22T05:57:08.466Z",
+  "calibratedAt": "2026-10-26T10:29:06.059Z",
   "viewport": {
     "width": 1080,
     "height": 2400
@@ -13,43 +13,43 @@
     "nav.chat": {
       "page": "home",
       "box": [
-        11,
-        2055,
-        214,
-        176
+        60,
+        2016,
+        190,
+        162
       ],
       "selfCheck": "pass",
-      "note": "screen Δ218120px"
+      "note": "screen Δ557406px"
     },
     "nav.artifacts": {
       "page": "home",
       "box": [
-        855,
-        2055,
-        214,
-        176
+        827,
+        2016,
+        193,
+        162
       ],
       "selfCheck": "pass",
-      "note": "screen Δ220478px"
+      "note": "screen Δ557745px"
     },
     "nav.me": {
       "page": "home",
       "box": [
         44,
-        317,
+        328,
         99,
         99
       ],
       "selfCheck": "pass",
-      "note": "screen Δ59742px"
+      "note": "screen Δ65552px"
     },
     "chatlist.search": {
       "page": "home",
       "box": [
-        44,
-        504,
-        990,
-        99
+        159,
+        132,
+        678,
+        116
       ],
       "selfCheck": "pending"
     },
@@ -57,29 +57,29 @@
       "page": "chat",
       "box": [
         33,
-        303,
+        306,
         88,
-        91
+        88
       ],
       "selfCheck": "pass",
-      "note": "screen Δ316882px"
+      "note": "screen Δ599890px"
     },
     "chat.composer": {
       "page": "chat",
       "box": [
         66,
-        1934,
+        1912,
         946,
         82
       ],
       "selfCheck": "pass",
-      "note": "keyboard up (screen Δ195255px)"
+      "note": "keyboard up (screen Δ339060px)"
     },
     "chat.send": {
       "page": "chat",
       "box": [
-        960,
-        1348,
+        961,
+        1331,
         8,
         8
       ],
@@ -93,16 +93,16 @@
       "regions": {
         "nav": [
           0,
-          2051,
+          2012,
           1080,
-          184
+          170
         ]
       },
       "hashes": {
-        "nav": "808495d515570000"
+        "nav": "0096929684949200"
       },
       "greys": {
-        "nav": 247
+        "nav": 227
       }
     },
     "artifacts": {
@@ -110,16 +110,16 @@
       "regions": {
         "nav": [
           0,
-          2051,
+          2012,
           1080,
-          184
+          170
         ]
       },
       "hashes": {
-        "nav": "008495d515570000"
+        "nav": "0296929606d6d202"
       },
       "greys": {
-        "nav": 249
+        "nav": 225
       }
     },
     "chat": {
@@ -127,16 +127,16 @@
       "regions": {
         "composer": [
           0,
-          2065,
+          2032,
           1080,
-          92
+          136
         ]
       },
       "hashes": {
-        "composer": "03031b5352531303"
+        "composer": "0103131a12170301"
       },
       "greys": {
-        "composer": 239
+        "composer": 236
       }
     },
     "mention-picker": {
@@ -144,16 +144,16 @@
       "regions": {
         "picker": [
           0,
-          476,
+          452,
           1080,
           24
         ]
       },
       "hashes": {
-        "picker": "a8a8a8a8e8e8a850"
+        "picker": "a8a8a8a8e8e8e868"
       },
       "greys": {
-        "picker": 212
+        "picker": 209
       }
     }
   },

@@ -29,7 +29,11 @@ const KEYCODES: Record<string, number> = { enter: 66, back: 4, home: 3, backspac
 export function classifyLogLine(line: string, pkg: string, pid?: number, appErrorRe?: RegExp): Anomaly | undefined {
   const at = Date.now();
   const p = pkg.replace(/\./g, '\\.');
-  if (/FATAL EXCEPTION/.test(line) || (/\bam_crash\b/.test(line) && new RegExp(p).test(line))) return { kind: 'crash', at, detail: line.trim() };
+  // FATAL EXCEPTION of another process (e.g. "FATAL EXCEPTION: UiAutomation" of a hierarchy dump) is not the
+  // app's crash: with the app pid known, the line's pid (threadtime: date time pid tid …) must be the app's.
+  const linePid = Number(line.trim().split(/\s+/)[2]);
+  if (/FATAL EXCEPTION/.test(line) && !/FATAL EXCEPTION: UiAutomation/.test(line) && (!pid || !Number.isFinite(linePid) || linePid === pid)) return { kind: 'crash', at, detail: line.trim() };
+  if (/\bam_crash\b/.test(line) && new RegExp(p).test(line)) return { kind: 'crash', at, detail: line.trim() };
   if (new RegExp(`ANR in ${p}`).test(line) || (/\bam_anr\b/.test(line) && new RegExp(p).test(line))) return { kind: 'anr', at, detail: line.trim() };
   if ((/\bam_proc_died\b/.test(line) && new RegExp(`,${p}(,|\\])`).test(line)) || new RegExp(`Process ${p} \\(pid \\d+\\) has died`).test(line)) return { kind: 'app-exit', at, detail: line.trim() };
   const resumed = line.match(/\b(?:wm_set_resumed_activity|am_focused_activity|am_focused_root_task|wm_focused_root_task)\b.*?\b([a-zA-Z][\w.]+)\/[\w.$]+/);

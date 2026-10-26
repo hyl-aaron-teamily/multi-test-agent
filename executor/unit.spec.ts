@@ -76,6 +76,10 @@ describe('android anomaly gate (logcat only)', () => {
   const pkg = 'ai.teamily.mobile';
   it('crash / anr / death / left app / app error', () => {
     expect(classifyLogLine('10-21 E AndroidRuntime: FATAL EXCEPTION: main', pkg)?.kind).toBe('crash');
+    // another process (hierarchy dump) or another pid is not the app's crash
+    expect(classifyLogLine('10-26 18:31:00.052 28649 28660 E AndroidRuntime: FATAL EXCEPTION: UiAutomation', pkg, 4321)).toBeUndefined();
+    expect(classifyLogLine('10-26 18:31:00.052 28649 28660 E AndroidRuntime: FATAL EXCEPTION: main', pkg, 4321)).toBeUndefined();
+    expect(classifyLogLine('10-26 18:31:00.052 4321 4330 E AndroidRuntime: FATAL EXCEPTION: main', pkg, 4321)?.kind).toBe('crash');
     expect(classifyLogLine('I am_crash: [123,0,ai.teamily.mobile,1,java.lang.RuntimeException]', pkg)?.kind).toBe('crash');
     expect(classifyLogLine('E ActivityManager: ANR in ai.teamily.mobile (ai.teamily.mobile/.MainActivity)', pkg)?.kind).toBe('anr');
     expect(classifyLogLine('I am_proc_died: [0,4321,ai.teamily.mobile,0,17]', pkg)?.kind).toBe('app-exit');
