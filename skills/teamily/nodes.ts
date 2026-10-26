@@ -18,6 +18,8 @@ export interface NodeContext {
   credentials?: () => Credentials;
   /** Max wait used by nodes that wait for a page (ms). */
   settleMs?: number;
+  /** Tiered locate (prepare-only Nodes): literal texts first, then the description by vision. */
+  locate?: (description: string, texts: string[]) => Promise<Point | null>;
 }
 
 type Exec<I> = (ctx: { input: I; context: NodeContext }) => Promise<{ summary?: string } | void>;
@@ -61,7 +63,9 @@ const openConversation: Exec<{ target: string }> = async ({ input, context: c })
   return { summary: `open ${input.target}` };
 };
 
-const sendMessage: Exec<{ text: string }> = async ({ input, context: c }) => {
+const sendMessage: Exec<{ text: string; kind?: 'plain' | 'markdown-link' }> = async ({ input: raw, context: c }) => {
+  // markdown-link: the text goes out in Markdown link syntax [text](text) (precondition of the 2044 family).
+  const input = raw.kind === 'markdown-link' ? { ...raw, text: `[${raw.text}](${raw.text})` } : raw;
   // Screen checks (no hierarchy reads): the keyboard really came up before Back hides it, and the composer
   // box looks empty again after sending — otherwise send once more with the send button.
   const box = pointBox(c, 'chat.composer');
@@ -97,6 +101,22 @@ const sendMessage: Exec<{ text: string }> = async ({ input, context: c }) => {
   return { summary: `sent ${input.text.length} chars` };
 };
 
+/** prepare-only: quote-reply a message found by its text — long-press it, choose 引用/回复 in its menu,
+ *  type the reply, send. Locating (accessibility first, vision after) happens here, never in the loop. */
+const quoteReply: Exec<{ quote: string; text: string }> = async ({ input, context: c }) => {
+  if (!c.locate) throw new Error('teamily.quoteReply: no locator (prepare-only node)');
+  const msg = await c.locate(`the message bubble containing "${input.quote}" (the newest one)`, [input.quote]);
+  if (!msg) throw new Error(`teamily.quoteReply: message "${input.quote}" not on screen`);
+  await c.driver.longPress(msg);
+  await sleep(1200);
+  const item = await c.locate('the Quote / Reply item of the message action menu', ['引用', '回复', 'Quote', 'Reply']);
+  if (!item) throw new Error('teamily.quoteReply: no quote / reply item in the message menu');
+  await c.driver.tap(item);
+  await sleep(1000);
+  await sendMessage({ input: { text: input.text }, context: c });
+  return { summary: `quote-replied to "${input.quote.slice(0, 30)}"` };
+};
+
 const typeMention: Exec<Record<string, never>> = async ({ context: c }) => {
   await tapEl(c, 'chat.composer');
   await c.driver.type('@');
@@ -129,6 +149,7 @@ const EXEC: Record<NodeName, Exec<any>> = {
   'teamily.clearComposer': clearComposer,
   'teamily.switchConversation': switchConversation,
   'teamily.openPage': openPage,
+  'teamily.quoteReply': quoteReply,
 };
 
 /** Direct execution path used by the executor (same code as the Midscene node). */

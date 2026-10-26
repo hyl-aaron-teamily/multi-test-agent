@@ -1,5 +1,6 @@
 // Rule validation of a TestPlan against the SKILL vocabulary and platform limits (milestone 5 §A.5).
 import { APP_SURFACES, HARD_LIMITS, MAX_IDLE_MS, type PlannedAction, type TestPlan, TestPlanZ } from '../platform/schema/test-plan';
+import { observationOf, OBSERVATIONS } from '../executor/observe';
 import { ELEMENTS, NODES, REGIONS } from '../skills/teamily/vocab';
 
 export interface Validation {
@@ -28,6 +29,8 @@ export function validatePlan(raw: unknown): Validation {
     if (a.type === 'node') {
       const n = NODES.find((x) => x.name === a.node?.name);
       if (!n) errors.push(`${where}: unknown node ${a.node?.name ?? '(missing)'}`);
+      // prepare-only Nodes may locate (hierarchy / vision): never in the loop or the round's restore steps.
+      if (n?.phase === 'prepare-only' && !where.startsWith('prepare')) errors.push(`${where}: node ${n.name} is prepare-only (it locates on screen; the loop is coordinates only)`);
       for (const k of ['target', 'from', 'to'] as const) {
         const v = a.node?.input?.[k];
         if (typeof v === 'string' && n?.input[k] && !targets.has(v)) errors.push(`${where}: node ${n.name} references unknown target ${v}`);
@@ -49,6 +52,16 @@ export function validatePlan(raw: unknown): Validation {
     if (c.kind === 'visual-region' && c.region?.startsWith('element:')) {
       if (!ELEMENTS.some((e) => e.id === c.region!.slice(8))) errors.push(`check: unknown element region ${c.region}`);
     } else if (c.kind === 'visual-region' && !REGIONS.some((r) => r.page === c.page && r.region === c.region)) errors.push(`check: unknown region ${c.page}/${c.region}`);
+  }
+  for (const c of [...plan.checks, ...(plan.prepareCheck ? [plan.prepareCheck] : []), ...(plan.acceptance ?? []).map((a) => a.check)]) {
+    const o = OBSERVATIONS[observationOf(c)];
+    if (o && !o.usable.includes(plan.surface)) errors.push(`check ${c.kind}: observation ${observationOf(c)} has no channel on ${plan.surface}`);
+    if (c.kind === 'text' && !c.match) errors.push('check text: needs match');
+  }
+  if (plan.contract) {
+    const o = OBSERVATIONS[plan.contract.observable.observation];
+    if (o && !o.usable.includes(plan.surface)) errors.push(`contract: observation ${plan.contract.observable.observation} cannot be observed on ${plan.surface}`);
+    for (const p of plan.contract.preconditions) if (p.establish === 'construct' && !plan.prepare.length) errors.push(`contract: precondition ${p.id} must be constructed but the plan has no prepare steps`);
   }
   if (plan.category !== 'feature' && !plan.actions.length) errors.push('actions: empty loop');
   if (plan.category === 'feature' && !plan.acceptance?.length) errors.push('feature plan needs acceptance items');

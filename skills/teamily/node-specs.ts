@@ -25,7 +25,7 @@ export const NODE_SPECS: NodeSpecFull[] = [
   { name: 'teamily.clearComposer', schema: z.object({}), input: {}, doc: '清空输入框（Esc 关闭弹层 + 退格）', description: 'Esc + backspace in the composer', phase: 'any' },
   { name: 'teamily.switchConversation', schema: z.object({ from: z.string(), to: z.string() }), input: { from: 'target id', to: 'target id' }, doc: '切到另一个会话再切回', description: 'Switch to another conversation and back', phase: 'any', effect: { observation: 'region', page: 'chat', region: 'composer' } },
   { name: 'teamily.openPage', schema: z.object({ page: z.enum(['profile', 'artifacts', 'chat']) }), input: { page: 'profile | artifacts | chat' }, doc: '通过导航入口打开固定页面', description: 'Open a fixed page through its navigation entry', phase: 'any' },
-  { name: 'teamily.quoteReply', schema: z.object({ target: z.string(), text: z.string().min(1) }), input: { target: 'message target id (frozen)', text: 'reply text' }, doc: '长按目标消息 → 分层定位「引用/回复」菜单项 → 键入回复 → 发送（只在 prepare 用）', description: 'Long-press a message, choose quote/reply (located), type and send — prepare only', phase: 'prepare-only' },
+  { name: 'teamily.quoteReply', schema: z.object({ quote: z.string().min(1), text: z.string().min(1) }), input: { quote: 'literal text of the message to quote (located on screen)', text: 'reply text' }, doc: '长按目标消息 → 分层定位「引用/回复」菜单项 → 键入回复 → 发送（只在 prepare 用）', description: 'Long-press a message, choose quote/reply (located), type and send — prepare only', phase: 'prepare-only' },
 ];
 
 export const nodeSpec = (name: string) => NODE_SPECS.find((n) => n.name === name);

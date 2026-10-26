@@ -1,5 +1,6 @@
 // Golden: the pattern library builds exactly what issue/planner.ts#templateFor built before the move
-// (issue/__golden__/templates.json, captured on 2026-10-26 from the pre-W2-1 code).
+// (issue/__golden__/templates.json, captured on 2026-10-26 from the pre-W2-1 code). Deliberate changes since:
+// P1 keyboard checks on phones use system state; P2 2044 selects quote-preview-text (was the generic browse).
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { classifyRules } from './classify';
@@ -23,4 +24,5 @@ describe('pattern library = pre-W2-1 templates', () => {
         });
   }
   it('covers every golden entry', () => expect(Object.keys(golden).length).toBe(28));
+  it('2044 (quote preview renders Markdown) observes the quote cards, not crashes', () => expect((golden['2044/main/android-app'] as any).checks[0]).toMatchObject({ kind: 'text', scope: 'quote-cards', want: 'absent' }));
 });

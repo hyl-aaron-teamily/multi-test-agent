@@ -129,6 +129,34 @@ export const PATTERNS: Pattern[] = [
     },
   },
   {
+    // 2044 family: a quoted message whose content is Markdown link syntax must show as display text in the
+    // quote block preview, not as raw "[label](url)". The precondition is constructed (prepare) in an
+    // allow-listed conversation (D5); the observation reads the quote cards' text (① accessibility).
+    id: 'quote-preview-text',
+    trigger: 'view-quote-preview',
+    observation: 'text',
+    needs: ['quoted-message-with-markdown-link'],
+    categories: ['bug-always', 'bug-intermittent', 'suspected-misuse'],
+    featureOnly: false,
+    signal: (t) => /quote (block )?preview|quote block|引用块|markdown/.test(t),
+    build: (surface, params = {}) => {
+      const url = String(params.url ?? 'https://github.com/TensorOpera-Inc/chat-web/pull/654');
+      const conv = String(params.conversation ?? '');
+      const tag = String(params.tag ?? 'autotest-2044');
+      return {
+        title: '引用块预览应显示链接文本而不是 Markdown 源码',
+        targets: [{ id: 'conv', kind: 'group-conversation', guidance: conv ? `the conversation titled "${conv}" (titles may be cut short with …)` : 'a group conversation whose members are all test accounts' }],
+        setup: [node('teamily.openConversation', { target: 'conv' }, 1000)],
+        // Construct once: a message in Markdown link syntax, then a quote-reply to it.
+        prepare: [node('teamily.sendMessage', { text: url, kind: 'markdown-link' }, 1000), node('teamily.quoteReply', { quote: url.replace(/^https?:\/\//, ''), text: `${tag} quote` }, 1000)],
+        prepareCheck: { kind: 'text', scope: 'quote-cards', match: { contains: url.replace(/^https?:\/\//, '').slice(0, 30) }, expect: '会话里出现引用了该链接消息的引用块', want: 'present' },
+        // Each round: leave and reopen the conversation, then read the newest quote block.
+        actions: [...(surface === 'desktop-web' ? [] : [a('tap', { element: 'chat.back', delayAfterMs: 900 })]), node('teamily.openConversation', { target: 'conv' }, 1000), a('wait', { value: '1000', delayAfterMs: 1000 })],
+        checks: [{ kind: 'text', scope: 'quote-cards', match: { regex: '\\]\\(https?://' }, expect: '引用块预览不出现 Markdown 链接语法 [..](..)（链接只显示一次）', want: 'absent' }],
+      };
+    },
+  },
+  {
     id: 'quote-jump',
     trigger: 'tap-quote',
     observation: 'quoted-original',

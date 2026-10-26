@@ -39,6 +39,16 @@ export function confirmationSheet(d: Draft): string {
   for (const s of d.subcases) {
     out.push(`  [${s.substitution ? ' ' : 'x'}] ${s.sub}: ${s.plan.title} — ${s.title}`);
     if (s.substitution) out.push(`      替代: ${s.substitution.from} → ${s.substitution.alternatives.join(' | ')}（默认 ${s.surface}）`, `      理由: ${s.substitution.reason}`);
+    if (s.contract) {
+      const k = s.contract;
+      out.push(
+        `      契约（${k.provenance.by}）：前置条件 ${k.preconditions.map((p) => `${p.text}[${p.establish}]`).join('；')}`,
+        `        触发：${k.trigger.semantics} — ${k.trigger.text.slice(0, 100)}`,
+        `        可观察后置条件：${k.observable.observation} — 现象「${k.observable.phenomenon.slice(0, 120)}」`,
+        ...(k.suspectedMechanism ? [`        推测机制（仅提示，不执行）：${k.suspectedMechanism}`] : []),
+        `        计划：${s.plan.provenance.pattern ? `模式 ${s.plan.provenance.pattern}` : s.plan.provenance.generatedBy === 'model' ? '模型组合' : '通用模板'}；${s.plan.coverage === 'not-covered' ? '⚠ 计划未覆盖 Issue 现象，结论仅说明无崩溃' : '覆盖 Issue 现象'}`,
+      );
+    }
     if (s.planErrors.length) out.push(`      计划校验问题: ${s.planErrors.join('; ')}`);
   }
   return out.join('\n');

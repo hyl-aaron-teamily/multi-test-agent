@@ -9,6 +9,8 @@ import { actionLabel } from './actions';
 import { assertSkillFresh, evaluateAi, evaluateVisual } from './checks';
 import type { RunCtx } from './context';
 import { pickTargets } from './targets';
+import { observeKeyboard, observeText } from './observe';
+import { constructionAllowed, loadConversations } from '../platform/conversations';
 
 const freeze = async (c: RunCtx, phase: 'rows' | 'inside' | 'after-prepare') => {
   for (const t of await pickTargets(c.plan, c.sess.inner, c.sess.profile, c.log, c.locate, phase, c.res.targets)) {
@@ -65,12 +67,14 @@ export async function prepare(c: RunCtx): Promise<void> {
     await redoSetup(c);
   }
   if (c.plan.prepare.length) {
+    assertConstructionAllowed(c);
     for (const a of c.plan.prepare) {
       d.label = `prepare:${actionLabel(a)}`;
       await c.exec(a);
     }
     if (c.plan.prepareCheck) {
-      const pc = c.plan.prepareCheck.kind === 'ai' ? await evaluateAi(c.plan.prepareCheck, c.ask) : await evaluateVisual(d, profile, c.plan.prepareCheck, c.ask);
+      const k = c.plan.prepareCheck;
+      const pc = k.kind === 'ai' ? await evaluateAi(k, c.ask) : k.kind === 'text' ? await observeText(c.sess.inner, k, c.targets, profile.viewport.width) : k.kind === 'keyboard' ? await observeKeyboard(c.sess.inner, k) : await evaluateVisual(d, profile, k, c.ask);
       await writeFile(join(c.o.runDir, 'prepare-check.png'), await d.screenshot());
       c.log(`precondition: ${pc.pass ? 'established' : 'NOT established'} — ${pc.detail}`);
       if (!pc.pass) throw new Error(`前置条件未建立（${c.plan.prepareCheck.expect}）— ${pc.detail}；见 prepare-check.png`);
@@ -79,3 +83,16 @@ export async function prepare(c: RunCtx): Promise<void> {
   }
   c.setupOps = d.ops.filter((x) => x.op !== 'launch');
 }
+
+/** Prepare steps that post into a conversation (send / quote-reply) construct data: only in a conversation
+ *  of the private allow list (members are all pool accounts / the user — W2-1 D5). */
+export function assertConstructionAllowed(c: RunCtx): void {
+  const posts = c.plan.prepare.some((a) => a.node?.name === 'teamily.sendMessage' || a.node?.name === 'teamily.quoteReply');
+  if (!posts || c.plan.issueRef === 'smoke') return;
+  const conv = c.res.targets.find((t) => ROW_KINDS_FOR_CONSTRUCT.has(t.kind));
+  const allow = loadConversations().construct.allow;
+  if (!conv || !constructionAllowed(conv.chosen, allow)) throw new Error(`前置条件需构造，但没有允许的会话（选中 "${conv?.chosen ?? '-'}"；允许清单 platform/conversations.local.yaml 有 ${allow.length} 个）`);
+  c.log(`construction allowed in "${conv.chosen}" (allow list)`);
+}
+
+const ROW_KINDS_FOR_CONSTRUCT = new Set(['group-conversation', 'other-conversation', 'conversation']);

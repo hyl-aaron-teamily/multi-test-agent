@@ -3,7 +3,8 @@
 // the same way. Templates are generic by feature signal (mention / like / keyboard / notification entry /
 // mention aggregation / generic), not per issue.
 import { DEFAULT_LIMITS, type Surface, type TestPlan, testPlanJsonSchema, verdictRuleFor } from '../platform/schema/test-plan';
-import { GENERIC_PATTERN, type PlanFragment, patternForText } from '../skills/teamily/patterns';
+import { type PlanFragment, patternById, patternForText } from '../skills/teamily/patterns';
+import { contractFor, coverageOf } from './contract';
 import { ELEMENTS, NODES, REGIONS, SKILL_VERSION, TARGET_GUIDANCE } from '../skills/teamily/vocab';
 import { AVAILABLE, type Classification, classify } from './classify';
 import { chatJson, modelConfigured } from '../core/model/llm';
@@ -126,30 +127,44 @@ export async function draftIssue(i: NormalizedIssue, opts: { env?: 'test' | 'pro
   const subcases: SubCase[] = [];
   for (const sc of c.category === 'feature' ? [{ sub: 'main', text: `${i.summary} ${i.expected}` }] : splitSubcases(i)) {
     const surf = subst ? 'android-app' : surface;
-    let by: 'model' | 'rules' = 'model';
-    // A specific SKILL template (plan-template.md) is validated on the device: it wins over a model draft.
-    // The model writes plans only for cases no template covers.
-    const specific = patternForText(`${sc.text} ${c.category === 'feature' ? i.featureArea : ''}`, c.category as TestPlan['category']).id !== GENERIC_PATTERN;
-    let tpl = opts.useModel === false || specific ? undefined : await modelTemplate(i, c, sc.text, surf);
-    let plan = tpl && basePlan(i, c, sc.sub, surf, env, tpl, 'model');
-    let v = plan ? validatePlan(plan) : undefined;
+    const text = `${sc.text} ${c.category === 'feature' ? i.featureArea : ''}`;
+    // Stage 1: intent contract (rules where a device-validated pattern applies, the model otherwise).
+    const contract = await contractFor(i, sc.sub, text, c.category as TestPlan['category'], opts.useModel !== false);
+    let plan: TestPlan | undefined;
+    let v: ReturnType<typeof validatePlan> | undefined;
+    if (contract.trigger.pattern) {
+      // Stage 2a: the contract selects a pattern → deterministic compile, no model.
+      plan = { ...basePlan(i, c, sc.sub, surf, env, patternById(contract.trigger.pattern)!.build(surf, contract.trigger.params), 'rules'), contract };
+      plan.provenance.pattern = contract.trigger.pattern;
+      v = validatePlan(plan);
+    } else if (opts.useModel !== false) {
+      // Stage 2b: no pattern → the model composes from the action library (one attempt, validated).
+      const tpl = await modelTemplate(i, c, sc.text, surf);
+      plan = tpl && { ...basePlan(i, c, sc.sub, surf, env, tpl, 'model'), contract };
+      v = plan ? validatePlan(plan) : undefined;
+      if (v && !v.ok) console.warn(`[plan] model plan for ${i.id}/${sc.sub} rejected: ${v.errors.slice(0, 3).join('; ')} — using rule template`);
+    }
     if (!v?.ok) {
-      if (v) console.warn(`[plan] model plan for ${i.id}/${sc.sub} rejected: ${v.errors.slice(0, 3).join('; ')} — using rule template`);
-      by = 'rules';
-      tpl = templateFor(`${sc.text} ${c.category === 'feature' ? i.featureArea : ''}`, c.category as TestPlan['category'], surf);
-      plan = basePlan(i, c, sc.sub, surf, env, tpl, by);
+      // Fallback unchanged (D3): the rule template of the text; coverage tells whether it can observe the Issue.
+      plan = { ...basePlan(i, c, sc.sub, surf, env, templateFor(text, c.category as TestPlan['category'], surf), 'rules'), contract };
       v = validatePlan(plan);
     }
+    const final = { ...(v.plan ?? plan!), contract };
+    final.coverage = coverageOf(final, contract);
     subcases.push({
       sub: sc.sub,
       title: `${sc.text.slice(0, 80)}`,
       surface: surf,
       // Keyboard behaviour only exists with a real soft keyboard: a browser emulation cannot stand in for it.
       substitution: subst ? { from: subst.from, to: surf, reason: subst.reason, alternatives: /keyboard|键盘/i.test(sc.text) ? ['android-app'] : subst.alternatives } : undefined,
-      plan: v.plan ?? plan!,
+      plan: final,
       planErrors: v.errors,
+      contract,
     });
   }
+  const blocked = subcases.filter((s) => s.contract?.preconditions.some((p) => p.establish === 'unconstructible'));
+  if (subcases.length && blocked.length === subcases.length)
+    return { issue: i, classification: c, status: 'deferred', reason: `前置条件黑盒无法构造：${[...new Set(blocked.flatMap((s) => s.contract!.preconditions.filter((p) => p.establish === 'unconstructible').map((p) => p.text)))].join('；')}`, subcases: [] };
   return { issue: i, classification: c, status: 'plannable', reason: c.reason, subcases, deferredPart: c.partialMultiAccount ? '需要第二账号 @ 我才能产生的角标/推送部分：暂缓（账号池多账号调度后执行）' : undefined };
 }
 
@@ -160,7 +175,9 @@ export function applyApproval(d: Draft, approve: { sub: string; surface?: Surfac
     .filter((s) => approve.some((a) => a.sub === s.sub))
     .map((s) => {
       const surf = approve.find((a) => a.sub === s.sub)?.surface ?? s.surface;
-      const tpl = { title: s.plan.title, targets: s.plan.targets, setup: s.plan.setup, prepare: s.plan.prepare, prepareCheck: s.plan.prepareCheck, actions: s.plan.actions, checks: s.plan.checks, afterCheck: s.plan.afterCheck, acceptance: s.plan.acceptance };
+      // A pattern plan is rebuilt for the approved surface (fragments differ per surface); others are kept.
+      const pat = surf !== s.surface && s.plan.provenance.pattern ? patternById(s.plan.provenance.pattern) : undefined;
+      const tpl = pat ? { prepare: [], afterCheck: [], ...pat.build(surf, s.contract?.trigger.params) } : { title: s.plan.title, targets: s.plan.targets, setup: s.plan.setup, prepare: s.plan.prepare, prepareCheck: s.plan.prepareCheck, actions: s.plan.actions, checks: s.plan.checks, afterCheck: s.plan.afterCheck, acceptance: s.plan.acceptance };
       const plan: TestPlan = {
         ...s.plan,
         ...tpl,
@@ -169,6 +186,7 @@ export function applyApproval(d: Draft, approve: { sub: string; surface?: Surfac
         substitution: s.substitution ? { from: s.substitution.from, to: surf, reason: s.substitution.reason } : undefined,
         provenance: { ...s.plan.provenance, confirmedAt: now, draftHash: d.hash },
       };
+      if (plan.contract) plan.coverage = coverageOf(plan, plan.contract);
       return plan;
     });
 }

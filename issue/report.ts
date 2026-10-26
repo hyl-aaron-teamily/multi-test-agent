@@ -35,7 +35,7 @@ export function runMarkdown(d: Draft, results: RunResult[], runDir: string): str
   if (d.deferredPart) lines.push(`- 暂缓部分：${d.deferredPart}`);
   lines.push('');
   for (const r of results) {
-    lines.push(`## ${r.planId} — ${r.conclusion}`, '', `- ${r.title}；执行端 ${r.surface}${r.device ? `（设备 ${r.device}）` : ''}；账号 ${r.account ?? '-'}`, `- ${r.conclusionDetail}`);
+    lines.push(`## ${r.planId} — ${r.conclusion}${r.coverage === 'not-covered' ? '（⚠ 计划未覆盖 Issue 现象，仅说明无崩溃）' : ''}`, '', ...(r.phenomenon ? [`- Issue 现象（契约）：${r.phenomenon.slice(0, 200)}`] : []), `- ${r.title}；执行端 ${r.surface}${r.device ? `（设备 ${r.device}）` : ''}；账号 ${r.account ?? '-'}`, `- ${r.conclusionDetail}`);
     if (r.error) lines.push(`- 错误：${r.error}`);
     if (r.targets.length) lines.push(`- 准备阶段目标（模型决策后冻结）：${r.targets.map((t) => `${t.id}="${t.chosen}" @(${t.point.x},${t.point.y}) [${t.by}]`).join('；')}`);
     const s = r.stats;

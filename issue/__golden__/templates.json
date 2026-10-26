@@ -1049,12 +1049,12 @@
   ]
  },
  "2044/main/android-app": {
-  "title": "按步骤执行并核对预期",
+  "title": "引用块预览应显示链接文本而不是 Markdown 源码",
   "targets": [
    {
     "id": "conv",
     "kind": "group-conversation",
-    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+    "guidance": "a group conversation whose members are all test accounts"
    }
   ],
   "setup": [
@@ -1066,13 +1066,46 @@
       "target": "conv"
      }
     },
-    "delayAfterMs": 800
+    "delayAfterMs": 1000
    }
   ],
+  "prepare": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.sendMessage",
+     "input": {
+      "text": "https://github.com/TensorOpera-Inc/chat-web/pull/654",
+      "kind": "markdown-link"
+     }
+    },
+    "delayAfterMs": 1000
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.quoteReply",
+     "input": {
+      "quote": "github.com/TensorOpera-Inc/chat-web/pull/654",
+      "text": "autotest-2044 quote"
+     }
+    },
+    "delayAfterMs": 1000
+   }
+  ],
+  "prepareCheck": {
+   "kind": "text",
+   "scope": "quote-cards",
+   "match": {
+    "contains": "github.com/TensorOpera-Inc/cha"
+   },
+   "expect": "会话里出现引用了该链接消息的引用块",
+   "want": "present"
+  },
   "actions": [
    {
     "type": "tap",
-    "delayAfterMs": 700,
+    "delayAfterMs": 900,
     "element": "chat.back"
    },
    {
@@ -1083,34 +1116,33 @@
       "target": "conv"
      }
     },
-    "delayAfterMs": 900
+    "delayAfterMs": 1000
    },
    {
-    "type": "scroll",
-    "delayAfterMs": 700,
-    "value": "up"
-   },
-   {
-    "type": "scroll",
-    "delayAfterMs": 700,
-    "value": "down"
+    "type": "wait",
+    "delayAfterMs": 1000,
+    "value": "1000"
    }
   ],
   "checks": [
    {
-    "kind": "crash",
-    "expect": "无崩溃 / 页面错误",
+    "kind": "text",
+    "scope": "quote-cards",
+    "match": {
+     "regex": "\\]\\(https?://"
+    },
+    "expect": "引用块预览不出现 Markdown 链接语法 [..](..)（链接只显示一次）",
     "want": "absent"
    }
   ]
  },
  "2044/main/android-web": {
-  "title": "按步骤执行并核对预期",
+  "title": "引用块预览应显示链接文本而不是 Markdown 源码",
   "targets": [
    {
     "id": "conv",
     "kind": "group-conversation",
-    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+    "guidance": "a group conversation whose members are all test accounts"
    }
   ],
   "setup": [
@@ -1122,13 +1154,46 @@
       "target": "conv"
      }
     },
-    "delayAfterMs": 800
+    "delayAfterMs": 1000
    }
   ],
+  "prepare": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.sendMessage",
+     "input": {
+      "text": "https://github.com/TensorOpera-Inc/chat-web/pull/654",
+      "kind": "markdown-link"
+     }
+    },
+    "delayAfterMs": 1000
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.quoteReply",
+     "input": {
+      "quote": "github.com/TensorOpera-Inc/chat-web/pull/654",
+      "text": "autotest-2044 quote"
+     }
+    },
+    "delayAfterMs": 1000
+   }
+  ],
+  "prepareCheck": {
+   "kind": "text",
+   "scope": "quote-cards",
+   "match": {
+    "contains": "github.com/TensorOpera-Inc/cha"
+   },
+   "expect": "会话里出现引用了该链接消息的引用块",
+   "want": "present"
+  },
   "actions": [
    {
     "type": "tap",
-    "delayAfterMs": 700,
+    "delayAfterMs": 900,
     "element": "chat.back"
    },
    {
@@ -1139,34 +1204,33 @@
       "target": "conv"
      }
     },
-    "delayAfterMs": 900
+    "delayAfterMs": 1000
    },
    {
-    "type": "scroll",
-    "delayAfterMs": 700,
-    "value": "up"
-   },
-   {
-    "type": "scroll",
-    "delayAfterMs": 700,
-    "value": "down"
+    "type": "wait",
+    "delayAfterMs": 1000,
+    "value": "1000"
    }
   ],
   "checks": [
    {
-    "kind": "page-error",
-    "expect": "无崩溃 / 页面错误",
+    "kind": "text",
+    "scope": "quote-cards",
+    "match": {
+     "regex": "\\]\\(https?://"
+    },
+    "expect": "引用块预览不出现 Markdown 链接语法 [..](..)（链接只显示一次）",
     "want": "absent"
    }
   ]
  },
  "2044/main/mobile-web": {
-  "title": "按步骤执行并核对预期",
+  "title": "引用块预览应显示链接文本而不是 Markdown 源码",
   "targets": [
    {
     "id": "conv",
     "kind": "group-conversation",
-    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+    "guidance": "a group conversation whose members are all test accounts"
    }
   ],
   "setup": [
@@ -1178,13 +1242,46 @@
       "target": "conv"
      }
     },
-    "delayAfterMs": 800
+    "delayAfterMs": 1000
    }
   ],
+  "prepare": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.sendMessage",
+     "input": {
+      "text": "https://github.com/TensorOpera-Inc/chat-web/pull/654",
+      "kind": "markdown-link"
+     }
+    },
+    "delayAfterMs": 1000
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.quoteReply",
+     "input": {
+      "quote": "github.com/TensorOpera-Inc/chat-web/pull/654",
+      "text": "autotest-2044 quote"
+     }
+    },
+    "delayAfterMs": 1000
+   }
+  ],
+  "prepareCheck": {
+   "kind": "text",
+   "scope": "quote-cards",
+   "match": {
+    "contains": "github.com/TensorOpera-Inc/cha"
+   },
+   "expect": "会话里出现引用了该链接消息的引用块",
+   "want": "present"
+  },
   "actions": [
    {
     "type": "tap",
-    "delayAfterMs": 700,
+    "delayAfterMs": 900,
     "element": "chat.back"
    },
    {
@@ -1195,34 +1292,33 @@
       "target": "conv"
      }
     },
-    "delayAfterMs": 900
+    "delayAfterMs": 1000
    },
    {
-    "type": "scroll",
-    "delayAfterMs": 700,
-    "value": "up"
-   },
-   {
-    "type": "scroll",
-    "delayAfterMs": 700,
-    "value": "down"
+    "type": "wait",
+    "delayAfterMs": 1000,
+    "value": "1000"
    }
   ],
   "checks": [
    {
-    "kind": "page-error",
-    "expect": "无崩溃 / 页面错误",
+    "kind": "text",
+    "scope": "quote-cards",
+    "match": {
+     "regex": "\\]\\(https?://"
+    },
+    "expect": "引用块预览不出现 Markdown 链接语法 [..](..)（链接只显示一次）",
     "want": "absent"
    }
   ]
  },
  "2044/main/desktop-web": {
-  "title": "按步骤执行并核对预期",
+  "title": "引用块预览应显示链接文本而不是 Markdown 源码",
   "targets": [
    {
     "id": "conv",
     "kind": "group-conversation",
-    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+    "guidance": "a group conversation whose members are all test accounts"
    }
   ],
   "setup": [
@@ -1234,9 +1330,42 @@
       "target": "conv"
      }
     },
-    "delayAfterMs": 800
+    "delayAfterMs": 1000
    }
   ],
+  "prepare": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.sendMessage",
+     "input": {
+      "text": "https://github.com/TensorOpera-Inc/chat-web/pull/654",
+      "kind": "markdown-link"
+     }
+    },
+    "delayAfterMs": 1000
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.quoteReply",
+     "input": {
+      "quote": "github.com/TensorOpera-Inc/chat-web/pull/654",
+      "text": "autotest-2044 quote"
+     }
+    },
+    "delayAfterMs": 1000
+   }
+  ],
+  "prepareCheck": {
+   "kind": "text",
+   "scope": "quote-cards",
+   "match": {
+    "contains": "github.com/TensorOpera-Inc/cha"
+   },
+   "expect": "会话里出现引用了该链接消息的引用块",
+   "want": "present"
+  },
   "actions": [
    {
     "type": "node",
@@ -1246,23 +1375,22 @@
       "target": "conv"
      }
     },
-    "delayAfterMs": 900
+    "delayAfterMs": 1000
    },
    {
-    "type": "scroll",
-    "delayAfterMs": 700,
-    "value": "up"
-   },
-   {
-    "type": "scroll",
-    "delayAfterMs": 700,
-    "value": "down"
+    "type": "wait",
+    "delayAfterMs": 1000,
+    "value": "1000"
    }
   ],
   "checks": [
    {
-    "kind": "page-error",
-    "expect": "无崩溃 / 页面错误",
+    "kind": "text",
+    "scope": "quote-cards",
+    "match": {
+     "regex": "\\]\\(https?://"
+    },
+    "expect": "引用块预览不出现 Markdown 链接语法 [..](..)（链接只显示一次）",
     "want": "absent"
    }
   ]

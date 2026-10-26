@@ -18,7 +18,7 @@ import type { PlannedAction, TestPlan } from '../platform/schema/test-plan';
 import { loadProfile, SkillStaleError } from '../skills/profile';
 import type { NodeContext } from '../skills/teamily/nodes';
 import { execAction } from './actions';
-import { locateTally } from './locate';
+import { locate, locateTally } from './locate';
 import { visionAsker } from './checks';
 import type { RunCtx } from './context';
 import { runLoop } from './loop';
@@ -56,6 +56,10 @@ export interface RunResult {
   surface: TestPlan['surface'];
   substitution?: TestPlan['substitution'];
   env: TestPlan['env'];
+  /** Plan coverage of the contract's postcondition (report note when not covered). */
+  coverage?: TestPlan['coverage'];
+  /** Contract phenomenon (what a hit means). */
+  phenomenon?: string;
   account?: string;
   device?: string;
   conclusion: Conclusion;
@@ -81,7 +85,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   const stats = newStats();
   const calls0 = { ...modelCalls, byPurpose: { ...modelCalls.byPurpose } };
   const locate0 = JSON.parse(JSON.stringify(locateTally)) as typeof locateTally;
-  const res: RunResult = { planId: plan.id, issue: plan.issueRef, title: plan.title, category: plan.category, surface: plan.surface, substitution: plan.substitution, env: plan.env, conclusion: '执行失败', conclusionDetail: '', startedAt: new Date(t0).toISOString(), finishedAt: '', stats, hits: [], incidents: [], targets: [], roundLog: [] };
+  const res: RunResult = { planId: plan.id, issue: plan.issueRef, title: plan.title, category: plan.category, surface: plan.surface, substitution: plan.substitution, env: plan.env, coverage: plan.coverage, phenomenon: plan.contract?.observable.phenomenon, conclusion: '执行失败', conclusionDetail: '', startedAt: new Date(t0).toISOString(), finishedAt: '', stats, hits: [], incidents: [], targets: [], roundLog: [] };
   const done = () => {
     stats.locateTiers = Object.fromEntries(Object.entries(locateTally).map(([k, v]) => [k, { n: v.n - (locate0[k]?.n ?? 0), ms: v.ms - (locate0[k]?.ms ?? 0) }]).filter(([, v]) => (v as { n: number }).n > 0));
     return finish(res, t0, stats, calls0);
@@ -125,7 +129,14 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     stats.launches++;
 
     const targets: Record<string, import('../drivers/types').Point> = {};
-    const nodeCtx: NodeContext = { driver: s.d, profile: s.profile, targets, credentials: () => o.pool.backend.get(account.id) };
+    const nodeCtx: NodeContext = {
+      driver: s.d,
+      profile: s.profile,
+      targets,
+      credentials: () => o.pool.backend.get(account.id),
+      // prepare-only Nodes (validator keeps them out of the loop)
+      locate: async (desc, texts) => (await locate(s.d, desc, { texts, purpose: 'prep' }))?.point ?? null,
+    };
     const c: RunCtx = {
       plan,
       o,
@@ -154,7 +165,9 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     }
     const correctPathOk = await runCorrectPath(c);
     setModelPurpose('checkpoint');
-    const reviewIssue = o.evidenceReview === false || !visionConfigured() ? undefined : loadIssueOf(plan.issueRef);
+    const issue = o.evidenceReview === false || !visionConfigured() ? undefined : loadIssueOf(plan.issueRef);
+    // Evidence review compares against the contract's phenomenon (W2-1 §5.6), else the Issue's actual result.
+    const reviewIssue = issue && plan.contract ? { ...issue, actual: plan.contract.observable.phenomenon } : issue;
     await runLoop(c, { reviewIssue, correctPathOk });
     return done();
   } catch (err) {
