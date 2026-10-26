@@ -4,7 +4,7 @@
 //      layer (web: rendered rows, android: uiautomator), or located by the vision model for non-row targets
 //   2. decision: the model picks per SKILL guidance (TARGET_GUIDANCE); rules only if no model
 //   3. freeze: the chosen row centre becomes the target point; the choice + reason go to the run record
-import { visionEnabled, visionLocateRect } from '../core/model/midscene';
+import { literalsOf, locate } from './locate';
 import type { AndroidDriver } from '../drivers/android';
 import type { Driver, Point } from '../drivers/types';
 import type { WebDriver } from '../drivers/web';
@@ -204,11 +204,7 @@ export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, lo
   return out;
 }
 
-/** Midscene vision locate (preparation only), counted as a vision call; agent cached per device / page. */
+/** Preparation-time locator: tier ① literal texts quoted in the description, then ③ vision (executor/locate). */
 export async function visionLocator(driver: Driver & { page?: unknown; o?: any }): Promise<((q: string) => Promise<Point | null>) | undefined> {
-  if (!visionEnabled()) return undefined;
-  return async (q) => {
-    const r = await visionLocateRect(driver, q);
-    return r ? { x: Math.round(r.x + r.w / 2), y: Math.round(r.y + r.h / 2) } : null;
-  };
+  return async (q) => (await locate(driver, q, { texts: literalsOf(q), purpose: 'prep' }))?.point ?? null;
 }

@@ -24,13 +24,18 @@ export const PlannedActionZ = z.object({
 });
 
 export const CheckPointZ = z.object({
-  kind: z.enum(['visual-region', 'crash', 'process-alive', 'console-error', 'page-error', 'ai', 'baseline']),
+  /** keyboard: soft keyboard shown (Android system state); text: a text on screen (accessibility / page text). */
+  kind: z.enum(['visual-region', 'crash', 'process-alive', 'console-error', 'page-error', 'ai', 'baseline', 'keyboard', 'text']),
   page: z.string().optional(),
   region: z.string().optional(),
   expect: z.string(),
   /** visual-region: the reference state that counts as "as expected" ('present' = matches the ref, 'absent' = differs). */
   want: z.enum(['present', 'absent']).default('present'),
   onlyOnAnomaly: z.boolean().optional(),
+  /** text: what to find (exact text, substring or regex). */
+  match: z.union([z.object({ exact: z.string() }), z.object({ contains: z.string() }), z.object({ regex: z.string() })]).optional(),
+  /** text: where — whole screen (default), the quote cards, or near a frozen target (± px vertically). */
+  scope: z.union([z.literal('screen'), z.literal('quote-cards'), z.object({ target: z.string(), within: z.number().default(250) })]).optional(),
 });
 
 export const LimitsZ = z.object({

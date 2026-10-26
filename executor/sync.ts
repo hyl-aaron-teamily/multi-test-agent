@@ -12,6 +12,9 @@ import { join, relative, resolve } from 'node:path';
 import { AndroidDriver } from '../drivers/android';
 import { type Driver, type Point, sleep } from '../drivers/types';
 import { dumpTree } from '../core/ui-tree';
+import { WebDriver } from '../drivers/web';
+import { pageHasText } from './observe';
+import { addTier } from './stats';
 import { RecordingDriver } from '../incident/recording-driver';
 import { modelCalls } from '../core/model/llm';
 import type { AccountPool, Lease } from '../platform/accounts/account-pool';
@@ -86,6 +89,8 @@ export interface SyncResult {
   conclusion: '全部同步' | '存在未同步' | '执行失败';
   detail: string;
   visionCalls: number;
+  /** Delivery checks by tier (① accessibility / page text, ③ vision). */
+  checkTiers?: Record<string, { n: number; ms: number }>;
 }
 
 interface Role {
@@ -197,6 +202,7 @@ export async function runSync(o: SyncOptions): Promise<SyncResult> {
   }
   result.finishedAt = new Date().toISOString();
   result.visionCalls = modelCalls.vision - v0;
+  result.checkTiers = { ...syncTiers };
   await writeFile(join(o.runDir, 'result.json'), JSON.stringify(result, null, 2));
   await writeFile(join(o.runDir, 'report.md'), syncMarkdown(result, o.runDir));
   return result;
@@ -264,23 +270,38 @@ async function awaitLine(rs: Role[], text: string, sentAt: number, o: SyncOption
   return rs.map((r) => out.get(r)!);
 }
 
-/** Is the line on the receiver's screen? App: accessibility text. Web: vision on the screenshot. */
+/** Is the line on the receiver's screen? ① App: accessibility text; Playwright web: page text (read-only,
+ *  W2-1 D4); phone browser: accessibility text when its tree is fresh. ③ vision on the screenshot otherwise.
+ *  Each answer's tier is recorded (report). */
 async function lineVisible(r: Role, text: string): Promise<boolean | null> {
-  if (r.spec.surface === 'android-app' && r.inner instanceof AndroidDriver) {
+  const key = text.match(/\d{6} r\d+/)?.[0] ?? text;
+  const t0 = Date.now();
+  const done = (v: boolean | null, tier: string) => {
+    addTier(syncTiers, `${tier} ${r.spec.surface}`, Date.now() - t0);
+    return v;
+  };
+  if (onAndroid(r.spec.surface) && r.inner instanceof AndroidDriver) {
     const nodes = await dumpTree(r.inner.o.udid, r.inner.o.packageName, 2);
-    return nodes.some((n) => n.text.includes(text) || n.desc.includes(text));
+    if (nodes.some((n) => n.text.includes(key) || n.desc.includes(key))) return done(true, '①');
+    if (r.spec.surface === 'android-app' && nodes.length) return done(false, '①');
+  } else if (r.inner instanceof WebDriver && r.inner.page) {
+    const v = await pageHasText(r.inner.page, { contains: key });
+    if (v !== null) return done(v, '①');
   }
   if (!r.ask) return null;
   // Key on the unique part: the end of a bubble can sit under a floating button (the "@" jump badge).
-  const key = text.match(/\d{6} r\d+/)?.[0] ?? text;
-  return r.ask(`The chat on screen shows a message bubble containing "${key}" (its full text is "${text}"; the end of the text may be hidden behind a floating round button). Look at the newest messages at the bottom.`);
+  return done(await r.ask(`The chat on screen shows a message bubble containing "${key}" (its full text is "${text}"; the end of the text may be hidden behind a floating round button). Look at the newest messages at the bottom.`), '③');
 }
+
+/** Tier tally of delivery checks (this process). */
+export const syncTiers: Record<string, { n: number; ms: number }> = {};
 
 export function syncMarkdown(r: SyncResult, runDir: string): string {
   const lines = [
     `# 多端同步测试 — ${r.conclusion}`,
     '',
     `- 环境：${r.env}；${r.startedAt} → ${r.finishedAt}；视觉模型调用 ${r.visionCalls}`,
+    `- 投递核对分层：${Object.entries(r.checkTiers ?? {}).map(([k, v]) => `${k} ×${v.n}（平均 ${Math.round(v.ms / v.n)}ms）`).join('，') || '-'}`,
     `- ${r.detail}`,
     '',
     '| 端 | 执行端 | 设备 / 主机 | 账号 | 会话 | 就绪 |',

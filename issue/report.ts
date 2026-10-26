@@ -40,6 +40,9 @@ export function runMarkdown(d: Draft, results: RunResult[], runDir: string): str
     if (r.targets.length) lines.push(`- 准备阶段目标（模型决策后冻结）：${r.targets.map((t) => `${t.id}="${t.chosen}" @(${t.point.x},${t.point.y}) [${t.by}]`).join('；')}`);
     const s = r.stats;
     lines.push('', '| 统计 | 值 |', '|---|---|', `| 总步数 / 轮数 | ${s.steps} / ${s.rounds} |`, `| 总时长 | ${s.durationSec}s |`, `| 动作间隔 平均 / 最大 | ${s.avgIntervalMs}ms / ${s.maxIntervalMs}ms（>1s: ${s.intervalsOverCap} 次） |`, `| App 启动次数 | ${s.launches} |`, `| 操作偏离（重进，不计命中） | ${s.drifts ?? 0} |`, `| 异常门触发 / 可疑信号 | ${s.anomalyGateTriggers} / ${s.suspectSignals} |`, `| 检查点截图 | ${s.checkpointScreenshots} |`, `| 视觉模型调用 | ${s.visionCalls}${s.evidenceReviews ? `（含证据复核 ${s.evidenceReviews} 次）` : ''} |`, `| 文本模型调用 | ${s.textModelCalls} |`, '');
+    const tierRows = (t: Record<string, { n: number; ms: number }> | undefined) => Object.entries(t ?? {}).map(([k, v]) => `| ${k} | ${v.n} | ${Math.round(v.ms / Math.max(1, v.n))}ms |`);
+    if (s.observeTiers || s.locateTiers || s.modelCallsByPurpose)
+      lines.push('### 判定分层统计', '', '①=确定性（日志 / 进程 / 系统状态 / 无障碍或页面文字 / 区域比对），③=视觉模型。', '', '| 层 · 判定 / 定位 | 次数 | 平均耗时 |', '|---|---|---|', ...tierRows(s.observeTiers), ...tierRows(s.locateTiers).map((r) => r.replace('| ', '| 定位 ')), '', `模型调用按用途：${Object.entries(s.modelCallsByPurpose ?? {}).map(([k, v]) => `${k} ${v}`).join('，') || '无'}`, '');
     if (r.acceptance) {
       lines.push('| 验收项 | 结果 | 依据 |', '|---|---|---|');
       for (const a of r.acceptance) lines.push(`| ${a.text} | ${a.pass === null ? '未验证' : a.pass ? '✅ 已实现' : '❌ 缺项'} | ${a.detail}${a.evidence ? ` · [截图](${r.planId}/${a.evidence})` : ''} |`);

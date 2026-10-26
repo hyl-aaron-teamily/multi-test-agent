@@ -53,10 +53,9 @@
   ],
   "checks": [
     {
-      "kind": "ai",
+      "kind": "keyboard",
       "expect": "The on-screen keyboard is shown after a single tap on the message input",
-      "want": "present",
-      "onlyOnAnomaly": false
+      "want": "present"
     }
   ],
   "afterCheck": [],
@@ -71,7 +70,8 @@
   "provenance": {
     "generatedBy": "rules",
     "skillVersion": "2026.10.21-1",
-    "confirmedAt": "2026-10-21T16:05:57.933Z"
+    "confirmedAt": "2026-10-26T10:42:05.769Z",
+    "draftHash": "2ea94afb67dc2123"
   },
   "substitution": {
     "from": "ios",

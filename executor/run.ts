@@ -18,6 +18,7 @@ import type { PlannedAction, TestPlan } from '../platform/schema/test-plan';
 import { loadProfile, SkillStaleError } from '../skills/profile';
 import type { NodeContext } from '../skills/teamily/nodes';
 import { execAction } from './actions';
+import { locateTally } from './locate';
 import { visionAsker } from './checks';
 import type { RunCtx } from './context';
 import { runLoop } from './loop';
@@ -79,8 +80,12 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   const t0 = Date.now();
   const stats = newStats();
   const calls0 = { ...modelCalls, byPurpose: { ...modelCalls.byPurpose } };
+  const locate0 = JSON.parse(JSON.stringify(locateTally)) as typeof locateTally;
   const res: RunResult = { planId: plan.id, issue: plan.issueRef, title: plan.title, category: plan.category, surface: plan.surface, substitution: plan.substitution, env: plan.env, conclusion: '执行失败', conclusionDetail: '', startedAt: new Date(t0).toISOString(), finishedAt: '', stats, hits: [], incidents: [], targets: [], roundLog: [] };
-  const done = () => finish(res, t0, stats, calls0);
+  const done = () => {
+    stats.locateTiers = Object.fromEntries(Object.entries(locateTally).map(([k, v]) => [k, { n: v.n - (locate0[k]?.n ?? 0), ms: v.ms - (locate0[k]?.ms ?? 0) }]).filter(([, v]) => (v as { n: number }).n > 0));
+    return finish(res, t0, stats, calls0);
+  };
 
   // ---- lease: account + slot of an endpoint (a phone for Android surfaces, this computer otherwise)
   const taskId = o.taskId ?? `run-${plan.id}-${t0}`;

@@ -90,6 +90,11 @@ export async function runLoop(c: RunCtx, lo: LoopOptions = {}): Promise<void> {
     const results = await checkpoint.evaluate(png);
     let failed = results.find((r) => r.pass === false);
     const hardHit = !!roundHitReason;
+    // Deterministic checks need no screenshot; a failed one still gets one (drift check, evidence frames).
+    if (failed && !hardHit && !png) {
+      png = await d.screenshot();
+      stats.checkpointScreenshots++;
+    }
     if (failed && !hardHit && png && !(await onChat(c, png))) {
       // Operation drift (we are not where the plan thinks): not a finding. Re-enter and continue.
       stats.drifts++;

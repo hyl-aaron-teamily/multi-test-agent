@@ -304,10 +304,9 @@
         ],
         "checks": [
           {
-            "kind": "ai",
+            "kind": "keyboard",
             "expect": "The on-screen keyboard is shown after a single tap on the message input",
-            "want": "present",
-            "onlyOnAnomaly": false
+            "want": "present"
           }
         ],
         "afterCheck": [],
@@ -326,5 +325,8 @@
       },
       "planErrors": []
     }
-  ]
+  ],
+  "hash": "2ea94afb67dc2123",
+  "issueHash": "24a4cc92ff5b388b",
+  "env": "prod"
 }

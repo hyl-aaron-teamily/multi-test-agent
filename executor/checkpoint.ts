@@ -7,6 +7,8 @@ import { AndroidDriver } from '../drivers/android';
 import type { CheckPoint } from '../platform/schema/test-plan';
 import { type CheckResult, evaluateAi, evaluateVisual, regionMatch } from './checks';
 import type { RunCtx } from './context';
+import { type Observed, observationOf, observeKeyboard, observeText } from './observe';
+import { addTier } from './stats';
 import { quotedOriginalVisible } from './targets';
 
 /** Baseline check: fraction of the reference bubble's marks that may be missing. Diagnostic override
@@ -28,12 +30,21 @@ export class Checkpoint {
     const { d, profile, inner } = c.sess;
     const results: CheckResult[] = [];
     for (const k of c.plan.checks) {
-      if (k.kind === 'visual-region' && png) results.push(await evaluateVisual(d, profile, k, c.ask, png));
-      else if (k.kind === 'ai' && png && k.onlyOnAnomaly === false) results.push(await evaluateAi(k, c.ask));
+      const t0 = Date.now();
+      let r: Observed | undefined;
+      if (k.kind === 'visual-region' && png) r = await evaluateVisual(d, profile, k, c.ask, png);
+      else if (k.kind === 'ai' && png && k.onlyOnAnomaly === false) r = { ...(await evaluateAi(k, c.ask)), tier: '③' };
       else if (k.kind === 'process-alive' && inner instanceof AndroidDriver) {
         const alive = await inner.processAlive();
-        results.push({ check: k, pass: k.want === 'absent' ? !alive : alive, detail: `process ${alive ? 'running' : 'not running'}` });
-      } else if (k.kind === 'baseline' && png) results.push(await this.baselineCheck(k, png));
+        r = { check: k, pass: k.want === 'absent' ? !alive : alive, detail: `process ${alive ? 'running' : 'not running'}`, tier: '①' };
+      } else if (k.kind === 'baseline' && png) r = { ...(await this.baselineCheck(k, png)), tier: '①' };
+      else if (k.kind === 'keyboard') r = await observeKeyboard(inner, k);
+      else if (k.kind === 'text') r = await observeText(inner, k, c.targets, profile.viewport.width);
+      if (!r) continue;
+      r.tier ??= r.vision ? '③' : '①';
+      r.ms ??= Date.now() - t0;
+      addTier((c.stats.observeTiers ??= {}), `${r.tier} ${observationOf(k)}`, r.ms);
+      results.push(r);
     }
     return results;
   }

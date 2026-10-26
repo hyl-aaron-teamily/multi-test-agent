@@ -86,7 +86,8 @@
   "provenance": {
     "generatedBy": "rules",
     "skillVersion": "2026.10.21-1",
-    "confirmedAt": "2026-10-21T16:46:03.066Z"
+    "confirmedAt": "2026-10-26T10:34:23.872Z",
+    "draftHash": "7e281ed412537cce"
   },
   "substitution": {
     "from": "ios",

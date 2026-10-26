@@ -167,7 +167,8 @@ export const PATTERNS: Pattern[] = [
       setup: [node('teamily.openConversation', { target: 'conv' }, 800)],
       // chat.back (the on-screen button): the back KEY would only close the keyboard.
       actions: surface === 'desktop-web' ? [a('tap', { element: 'chatlist.search', delayAfterMs: 500 }), node('teamily.openConversation', { target: 'conv' }, 700), a('tap', { element: 'chat.composer', delayAfterMs: 800 })] : [a('tap', { element: 'chat.back', delayAfterMs: 700 }), node('teamily.openConversation', { target: 'conv' }, 900), a('tap', { element: 'chat.composer', delayAfterMs: 900 })],
-      checks: [{ kind: 'ai', expect: 'The on-screen keyboard is shown after a single tap on the message input', want: 'present', onlyOnAnomaly: false }],
+      // Phones: system state (dumpsys input_method, ①); elsewhere the vision model (③).
+      checks: [surface === 'android-app' || surface === 'android-web' ? { kind: 'keyboard', expect: 'The on-screen keyboard is shown after a single tap on the message input', want: 'present' } : { kind: 'ai', expect: 'The on-screen keyboard is shown after a single tap on the message input', want: 'present', onlyOnAnomaly: false }],
     };
     },
   },

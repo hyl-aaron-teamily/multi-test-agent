@@ -567,10 +567,9 @@
   ],
   "checks": [
    {
-    "kind": "ai",
+    "kind": "keyboard",
     "expect": "The on-screen keyboard is shown after a single tap on the message input",
-    "want": "present",
-    "onlyOnAnomaly": false
+    "want": "present"
    }
   ]
  },
@@ -619,10 +618,9 @@
   ],
   "checks": [
    {
-    "kind": "ai",
+    "kind": "keyboard",
     "expect": "The on-screen keyboard is shown after a single tap on the message input",
-    "want": "present",
-    "onlyOnAnomaly": false
+    "want": "present"
    }
   ]
  },
