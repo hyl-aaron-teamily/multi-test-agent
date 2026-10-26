@@ -1,4 +1,4 @@
-// Android calibration: `uiautomator dump` is read here (calibration time) and nowhere at run time.
+// Android calibration: reads the accessibility tree (core/ui-tree). At run time the tree is read only outside the loop (preparation, round-end text checks, warm-up, self-heal) — never per step.
 // Finds fixed elements, writes coordinates + reference regions into profiles/android-<udid>@<env>.json
 // and self-checks every element (tap → screenshot → expected visible change).
 import { mkdir, writeFile } from 'node:fs/promises';
