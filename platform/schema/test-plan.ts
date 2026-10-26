@@ -3,7 +3,9 @@
 // the profile of its surface. The JSON Schema export is what the LLM gets as structured-output contract.
 import { z } from 'zod';
 
-export const SurfaceZ = z.enum(['android-app', 'android-web', 'mobile-web', 'desktop-web']);
+/** The single definition of execution surfaces (platform/accounts/types re-exports it). */
+export const SURFACES = ['android-app', 'android-web', 'mobile-web', 'desktop-web'] as const;
+export const SurfaceZ = z.enum(SURFACES);
 export const CategoryZ = z.enum(['bug-always', 'bug-intermittent', 'feature', 'suspected-misuse']);
 export const PreCategoryZ = z.enum([...CategoryZ.options, 'server-side', 'multi-account', 'deferred', 'not-executable']);
 

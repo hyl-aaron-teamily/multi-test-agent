@@ -21,6 +21,8 @@ export interface DriverSpec {
 
 export const APP_ERROR_RE = /Exception|Error:|TypeError|ReferenceError|Invariant Violation/;
 export const CONSOLE_IGNORE = /favicon|Download the React DevTools|sentry|analytics/i;
+/** The Teamily Android app package (the one place it is spelled). */
+export const TEAMILY_PACKAGE = process.env.TEAMILY_PACKAGE ?? 'ai.teamily.mobile';
 export const BROWSER_PACKAGE = process.env.ANDROID_BROWSER_PACKAGE ?? 'com.android.browser';
 
 /** Profile key of a surface: per phone for Android surfaces, per environment otherwise. */
@@ -38,7 +40,7 @@ export function createDriver(s: DriverSpec): Driver {
       return new AndroidDriver({
         udid: s.udid,
         surface: s.surface,
-        packageName: s.profile.packageName ?? (s.surface === 'android-web' ? BROWSER_PACKAGE : 'ai.teamily.mobile'),
+        packageName: s.profile.packageName ?? (s.surface === 'android-web' ? BROWSER_PACKAGE : TEAMILY_PACKAGE),
         url: s.surface === 'android-web' ? s.url : undefined,
         onLog: s.onLog,
         appErrorRe: s.surface === 'android-app' ? APP_ERROR_RE : undefined,

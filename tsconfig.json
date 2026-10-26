@@ -10,5 +10,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["tests", "fixtures", "core", "android", "scripts", "vitest.config.ts"]
+  "include": ["tests", "fixtures", "core", "android", "scripts", "bin", "drivers", "executor", "explore", "imui", "incident", "issue", "mission", "monkey", "platform", "replay", "report", "skills", "vitest.config.ts"]
 }

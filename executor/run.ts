@@ -11,7 +11,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { decodePng, dHash, hamming } from '../core/image';
 import { AndroidDriver } from '../drivers/android';
-import { type Anomaly, type Driver, lifecycle, type Point, sleep } from '../drivers/types';
+import { type Anomaly, type Driver, HARD_ANOMALIES, lifecycle, type Point, sleep } from '../drivers/types';
 import { WebDriver } from '../drivers/web';
 import { AndroidFlightRecorder } from '../incident/android-recorder';
 import { type IncidentKind, incidentDir, incidentKind, type ReplayFile, type RoundFrame, writeIncident } from '../incident/bundle';
@@ -24,7 +24,8 @@ import type { AccountPool, Lease } from '../platform/accounts/account-pool';
 import { ensureWebSession, type PlaywrightSurface } from '../platform/accounts/sessions';
 import { mobileLayout, onAndroid, onPlaywright } from '../platform/accounts/types';
 import { ensureUiLogin } from '../platform/accounts/ui-login';
-import { createDriver, profileKey } from '../drivers/factory';
+import { profileKey, TEAMILY_PACKAGE } from '../drivers/factory';
+import { closeSession, enterApp, openSession, type Session, staleShotPath } from './session';
 import type { DevicePool } from '../platform/device-pool';
 import { HARD_LIMITS, LIFECYCLE_OPS, MAX_IDLE_MS, type PlannedAction, type TestPlan } from '../platform/schema/test-plan';
 import { loadProfile, pointOf, type Profile, SkillStaleError } from '../skills/profile';
@@ -94,7 +95,7 @@ export interface RunResult {
   error?: string;
 }
 
-const HARD: Anomaly['kind'][] = ['crash', 'anr', 'app-exit', 'page-crash'];
+const HARD = HARD_ANOMALIES;
 const WATCHDOG_MS = 20_000;
 /** Baseline check: fraction of the reference bubble's marks that may be missing. Diagnostic override
  *  AUTOTEST_BASELINE_TOLERANCE (e.g. 0.05 restores the strict pre-fix threshold that raised 1329's false hits). */
@@ -145,78 +146,26 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   const udid = lease.device?.kind === 'android' ? lease.device.udid : (o.udid ?? (onAndroid(plan.surface) ? account.boundDevice : undefined));
   res.device = onAndroid(plan.surface) ? udid : undefined;
 
-  let inner: Driver | undefined;
+  let sess: Session | undefined;
   let afr: AndroidFlightRecorder | undefined;
   let wfr: WebFlightRecorder | undefined;
   const flightDir = join(o.runDir, '.flight');
   try {
-    // ---- profile + driver
-    const profName = profileKey(plan.surface, plan.env, udid);
-    const profile = loadProfile(profName);
-    if (!profile) throw new Error(`no SKILL profile ${profName} — run \`pnpm autotest skill calibrate --surface ${plan.surface} --env ${plan.env}${udid ? ` --device ${udid}` : ''}\``);
-    const url = o.pool.webUrl(plan.env);
-    let storageState: string | undefined;
-    if (onPlaywright(plan.surface)) {
-      const sess = await ensureWebSession(o.pool, account.id, plan.surface as PlaywrightSurface);
-      if (!sess.ok) throw new Error(`login failed for ${account.id}: ${sess.error}`);
-      storageState = sess.file;
-      wfr = new WebFlightRecorder(flightDir);
-    }
-    if (onAndroid(plan.surface)) {
-      if (!udid) throw new Error(`${plan.surface} plan without a device`);
-      afr = new AndroidFlightRecorder(udid, profile.packageName ?? 'ai.teamily.mobile', flightDir);
-    }
-    inner = createDriver({ surface: plan.surface, profile, url, udid, storageState, headless: !o.headed, onLog: afr?.onLog, onConsole: wfr?.onConsole });
+    // ---- session: profile + driver + flight recorder, launch once, sign in, home list, SKILL check
+    if (onPlaywright(plan.surface)) wfr = new WebFlightRecorder(flightDir);
+    if (onAndroid(plan.surface) && udid) afr = new AndroidFlightRecorder(udid, loadProfile(profileKey(plan.surface, plan.env, udid))?.packageName ?? TEAMILY_PACKAGE, flightDir);
+    sess = await openSession({ surface: plan.surface, env: plan.env, account: account.id, udid, pool: o.pool, headed: o.headed, onLog: afr?.onLog, onConsole: wfr?.onConsole, log });
+    const { profile, inner, d, web } = sess;
     await afr?.start();
-    const d = new RecordingDriver(inner);
-    const web = inner instanceof WebDriver ? inner : undefined;
-
-    // ---- launch once
-    d.label = 'launch';
-    await d.launch();
+    await enterApp(sess, {
+      afterLaunch: async () => {
+        if (web) await wfr!.start(web.context!, web.page!);
+      },
+      // Phones: the bottom bar looks the same on every tab — make sure the chat tab is the one showing.
+      chatTab: plan.setup.some((a) => a.node?.name === 'teamily.openConversation'),
+      staleShot: staleShotPath(o.runDir),
+    });
     stats.launches++;
-    if (web) {
-      await wfr!.start(web.context!, web.page!);
-      await sleep(8000);
-    } else if (plan.surface === 'android-web') {
-      // The phone browser loads slowly: wait for the list, a restored conversation or the login form.
-      await waitForRegion(d, profile, ['home/nav', 'chat/composer', 'login/form'], 45_000);
-    }
-    if (profile.refs.banner) {
-      // Mobile web shows a "download the app" dialog on some loads: dismiss it only if it is visibly there.
-      const banner = await evaluateVisual(d, profile, { kind: 'visual-region', page: 'banner', region: 'dismiss', expect: 'app banner shown', want: 'present' });
-      if (banner.pass) {
-        log('app download banner visible — dismissing');
-        await d.tap(pointOf(profile, 'popup.appBannerDismiss'));
-        await sleep(1500);
-      }
-    }
-    // The phone's browser keeps its own sign-in: sign in by coordinates if needed.
-    if (plan.surface === 'android-web') await d.redacted(() => ensureUiLogin(d, profile, o.pool, account.id, log));
-    for (let i = 0; ; i++) {
-      try {
-        await assertSkillFresh(d, profile);
-        break;
-      } catch (e) {
-        // Phones restore their last screen (app) / conversation (browser): back out to the home screen first.
-        if (e instanceof SkillStaleError && plan.surface === 'android-web' && i < 2) {
-          await toChatListAndroidWeb(d, inner as AndroidDriver, profile, log);
-          continue;
-        }
-        if (!(e instanceof SkillStaleError) || !onAndroid(plan.surface) || i >= 3) {
-          if (e instanceof SkillStaleError) await writeFile(join(o.runDir, 'skill-stale.png'), await d.screenshot()).catch(() => {});
-          throw e;
-        }
-        await d.back();
-        await sleep(1500);
-      }
-    }
-    // Phones: the bottom bar looks the same on every tab — make sure the chat tab is the one showing.
-    if (onAndroid(plan.surface) && profile.elements['nav.chat'] && plan.setup.some((a) => a.node?.name === 'teamily.openConversation')) {
-      await d.tap(pointOf(profile, 'nav.chat'));
-      await sleep(1500);
-    }
-    d.drainAnomalies(); // page-load noise before the test starts
 
     // ---- prepare: dynamic targets
     const ask = await visionAsker(web ?? (inner as any));
@@ -250,9 +199,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
         if (await onChat()) break;
         // Never back out of the home screen (that would leave the app).
         if ((await assertSkillFresh(d, profile).then(() => true, () => false)) === true) break;
-        // In the phone browser the system Back closes the tab: use the conversation's own back arrow.
-        if (plan.surface === 'android-web') await d.tap(pointOf(profile, 'chat.back'));
-        else await d.back();
+        await sess!.adapter.leaveConversation(d, profile);
         await sleep(1200);
       }
       for (const a of plan.setup) {
@@ -511,6 +458,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
         url: web ? o.pool.webUrl(plan.env) : undefined,
         packageName: profile!.packageName,
         account: account.id,
+        device: udid,
         launch: plan.launch,
         category: plan.category,
         verdictRule: plan.verdictRule,
@@ -553,8 +501,8 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     return finish(res, t0, stats, vision0, text0);
   } finally {
     await afr?.stop().catch(() => {});
-    if (inner instanceof WebDriver) await wfr?.stop(inner.context).catch(() => {});
-    await inner?.close().catch(() => {});
+    if (sess?.web) await wfr?.stop(sess.web.context).catch(() => {});
+    await closeSession(sess);
     o.pool.release(lease, o.devices);
   }
 }
@@ -565,40 +513,6 @@ function finish(res: RunResult, t0: number, stats: Stats, vision0: number, text0
   stats.visionCalls = modelCalls.vision - vision0;
   stats.textModelCalls = modelCalls.text - text0;
   return res;
-}
-
-/** android-web: Teamily web reopens the last conversation on load, and that conversation's back arrow
- *  does nothing (it goes back in an empty history). The user's way out: another page (Artifacts), then
- *  聊天, then the back arrow — which now has an in-app page to return to. */
-export async function toChatListAndroidWeb(d: Driver, a: AndroidDriver, profile: Profile, log: (s: string) => void): Promise<boolean> {
-  log('android-web: not on the chat list (last conversation restored?) — Artifacts → 聊天 → back');
-  await a.openUrl('/artifacts');
-  if (!(await waitPastDialog(d, a, profile, ['artifacts/nav', 'home/nav'], 40_000, log))) return false;
-  await d.tap(pointOf(profile, 'nav.chat'));
-  const where = await waitPastDialog(d, a, profile, ['chat/composer', 'home/nav'], 20_000, log);
-  if (where === 'chat/composer') {
-    await d.tap(pointOf(profile, 'chat.back'));
-    return !!(await waitPastDialog(d, a, profile, ['home/nav'], 15_000, log));
-  }
-  return where === 'home/nav';
-}
-
-/** Wait for a reference region; Teamily web shows a "download the app" dialog on some page loads, which
- *  dims the page: dismiss it (its calibrated button, or — preparation only — the vision model locates
- *  "忽略") and keep waiting. */
-async function waitPastDialog(d: Driver, a: AndroidDriver, profile: Profile, keys: string[], ms: number, log: (s: string) => void): Promise<string | undefined> {
-  const banner = profile.refs.banner ? ['banner/dismiss'] : [];
-  const t0 = Date.now();
-  for (let tries = 0; tries < 3; tries++) {
-    const hit = await waitForRegion(d, profile, [...keys, ...banner], Math.max(5000, ms - (Date.now() - t0)) / (tries ? 2 : 1));
-    if (hit && hit !== 'banner/dismiss') return hit;
-    let p: Point | null = hit ? pointOf(profile, 'popup.appBannerDismiss') : null;
-    if (!p) p = await (await visionLocator(a as any))?.('the "忽略" (Ignore) button of a dialog asking to download the Teamily mobile app') ?? null;
-    if (!p) return undefined;
-    log('android-web: app download dialog over the page — dismissing');
-    await d.tap(p);
-  }
-  return undefined;
 }
 
 /** The Issue a plan comes from (issues/<id>.md), for evidence review; none for smoke / ad-hoc plans. */

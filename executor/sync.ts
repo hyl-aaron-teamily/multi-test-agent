@@ -25,7 +25,7 @@ import type { TestPlan } from '../platform/schema/test-plan';
 import { loadProfile, pointOf, type Profile, SkillStaleError } from '../skills/profile';
 import { runNode } from '../skills/teamily/nodes';
 import { assertSkillFresh, visionAsker, type VisionAsk, waitForRegion } from './checks';
-import { toChatListAndroidWeb } from './run';
+import { enterApp, openSession, type Session } from './session';
 import { pickTargets, visionLocator } from './targets';
 
 export interface SyncRoleSpec {
@@ -99,6 +99,7 @@ interface Role {
   profile?: Profile;
   inner?: Driver;
   d?: RecordingDriver;
+  sess?: Session;
   ask?: VisionAsk;
   target?: Point;
 }
@@ -204,45 +205,15 @@ export async function runSync(o: SyncOptions): Promise<SyncResult> {
 }
 
 async function prepareRole(r: Role, o: SyncOptions, log: (s: string) => void, focus: (r: Role) => Promise<void>, chosenTitle: string): Promise<void> {
-  const name = profileKey(r.spec.surface, o.env, r.udid);
-  const profile = loadProfile(name);
-  if (!profile) throw new Error(`no SKILL profile ${name} — calibrate it first`);
-  r.profile = profile;
-  const url = o.pool.webUrl(o.env);
-  let storageState: string | undefined;
-  if (onPlaywright(r.spec.surface)) {
-    const s = await ensureWebSession(o.pool, r.res.account, r.spec.surface as PlaywrightSurface);
-    if (!s.ok) throw new Error(`login ${r.res.account}: ${s.error}`);
-    storageState = s.file;
-  }
-  r.inner = createDriver({ surface: r.spec.surface, profile, url, udid: r.udid, storageState, headless: !o.headed });
-  r.d = new RecordingDriver(r.inner);
-  const d = r.d;
+  const sess = await openSession({ surface: r.spec.surface, env: o.env, account: r.res.account, udid: r.udid, pool: o.pool, headed: o.headed, log: (s) => log(`${r.spec.id}: ${s}`) });
+  r.sess = sess;
+  r.profile = sess.profile;
+  r.inner = sess.inner;
+  r.d = sess.d;
+  const { d, profile } = sess;
   // Another role on this phone may have the screen: launching takes it (and tells the other one).
   if (r.udid) await focus(r).catch(() => {});
-  await d.launch();
-  if (r.inner instanceof WebDriver) await sleep(8000);
-  else if (r.spec.surface === 'android-web') await waitForRegion(d, profile, ['home/nav', 'chat/composer', 'login/form'], 45_000);
-  if (r.spec.surface === 'android-web') await d.redacted(() => ensureUiLogin(d, profile, o.pool, r.res.account, log));
-  for (let i = 0; ; i++) {
-    try {
-      await assertSkillFresh(d, profile);
-      break;
-    } catch (e) {
-      if (!(e instanceof SkillStaleError) || i >= 3) throw e;
-      if (r.spec.surface === 'android-web') await toChatListAndroidWeb(d, r.inner as AndroidDriver, profile, log);
-      else if (r.spec.surface === 'android-app') {
-        await d.back();
-        await sleep(1500);
-      } else throw e;
-    }
-  }
-  // The bottom bar looks the same on every tab: make sure the chat tab is the one showing.
-  if (onAndroid(r.spec.surface) && profile.elements['nav.chat']) {
-    await d.tap(pointOf(profile, 'nav.chat'));
-    await sleep(1500);
-  }
-  d.drainAnomalies();
+  await enterApp(sess, { chatTab: true });
   const guidance = chosenTitle
     ? `the conversation titled "${chosenTitle}" (the same group the other test clients opened; titles may be cut short with …)`
     : (o.conversation ?? DEFAULT_CONVERSATION);

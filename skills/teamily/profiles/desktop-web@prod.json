@@ -3,7 +3,7 @@
   "name": "desktop-web@prod",
   "skillVersion": "2026.10.21-1",
   "env": "prod",
-  "calibratedAt": "2026-10-22T06:29:53.209Z",
+  "calibratedAt": "2026-10-26T09:56:07.078Z",
   "viewport": {
     "width": 2040,
     "height": 1148
@@ -14,20 +14,20 @@
       "page": "login",
       "box": [
         825,
-        720,
+        713,
         390,
-        40
+        44
       ],
       "selfCheck": "pass",
-      "note": "focus probe: 777 px changed in element"
+      "note": "focus probe: 790 px changed in element"
     },
     "login.emailContinue": {
       "page": "login",
       "box": [
         825,
-        784,
+        781,
         390,
-        40
+        44
       ],
       "selfCheck": "pass",
       "note": "no self-check (covered by flow)"
@@ -36,20 +36,20 @@
       "page": "login-password",
       "box": [
         825,
-        611,
+        603,
         390,
-        40
+        44
       ],
       "selfCheck": "pass",
-      "note": "focus probe: 1923 px changed in element"
+      "note": "focus probe: 6298 px changed in element"
     },
     "login.continue": {
       "page": "login-password",
       "box": [
         835,
-        693,
+        689,
         370,
-        40
+        44
       ],
       "selfCheck": "pass",
       "note": "expected state reached"
@@ -58,52 +58,52 @@
       "page": "home",
       "box": [
         14,
-        90,
+        84,
         44,
-        36
+        44
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ18"
+      "note": "url changed, screen Δ19"
     },
     "nav.artifacts": {
       "page": "home",
       "box": [
         14,
-        350,
+        344,
         44,
-        36
+        44
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ17"
+      "note": "url changed, screen Δ19"
     },
     "nav.me": {
       "page": "home",
       "box": [
         14,
-        402,
+        396,
         44,
-        36
+        44
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ19"
+      "note": "url changed, screen Δ12"
     },
     "chatlist.search": {
       "page": "home",
       "box": [
-        88,
-        16,
-        223,
-        36
+        135,
+        29,
+        220,
+        34
       ],
       "selfCheck": "pass",
-      "note": "focus probe: 1165 px changed in element"
+      "note": "focus probe: 3726 px changed in element"
     },
     "chat.composer": {
       "page": "chat",
       "box": [
-        401,
-        1037,
-        1578,
+        465,
+        1029,
+        1494,
         24
       ],
       "selfCheck": "pass",
@@ -112,56 +112,34 @@
     "chat.send": {
       "page": "chat",
       "box": [
-        1979,
-        1083,
-        36,
-        36
+        1955,
+        1075,
+        40,
+        40
       ],
       "selfCheck": "pending"
     },
     "profile.bell": {
       "page": "profile",
       "box": [
-        1291,
-        33,
+        1582,
+        52,
         36,
         36
       ],
       "selfCheck": "pass",
-      "note": "screen Δ123"
+      "note": "screen Δ89"
     },
     "artifacts.bell": {
       "page": "artifacts",
       "box": [
-        1988,
-        8,
+        1980,
+        24,
         32,
         32
       ],
       "selfCheck": "pass",
-      "note": "screen Δ132"
-    },
-    "artifacts.firstCard": {
-      "page": "artifacts",
-      "box": [
-        353,
-        116,
-        298,
-        224
-      ],
-      "selfCheck": "pass",
-      "note": "opened docs in a new tab"
-    },
-    "clouddoc.bell": {
-      "page": "clouddoc",
-      "box": [
-        1884,
-        6,
-        32,
-        32
-      ],
-      "selfCheck": "pass",
-      "note": "no self-check (covered by flow)"
+      "note": "screen Δ91"
     }
   },
   "refs": {
@@ -170,30 +148,30 @@
       "regions": {
         "form": [
           825,
-          720,
+          713,
           390,
-          40
+          44
         ]
       },
       "hashes": {
-        "form": "0000000180000000"
+        "form": "0101010181010101"
       },
       "greys": {
-        "form": 247
+        "form": 239
       }
     },
     "home": {
       "image": "refs/desktop-web@prod/home.png",
       "regions": {
         "nav": [
-          80,
-          10,
-          283,
-          48
+          127,
+          23,
+          280,
+          46
         ]
       },
       "hashes": {
-        "nav": "0083038383838300"
+        "nav": "0001010101010100"
       },
       "greys": {
         "nav": 243
@@ -204,58 +182,58 @@
       "regions": {
         "composer": [
           0,
-          1081,
+          1071,
           2040,
-          40
+          48
         ]
       },
       "hashes": {
-        "composer": "0001010303030100"
+        "composer": "00414282c3424140"
       },
       "greys": {
-        "composer": 239
+        "composer": 238
       }
     },
     "mention-picker": {
       "image": "refs/desktop-web@prod/mention-picker.png",
       "regions": {
         "picker": [
-          409,
-          769,
+          473,
+          761,
           368,
           28
         ]
       },
       "hashes": {
-        "picker": "0000e8d8d8c80000"
+        "picker": "0000e8d8d8d80000"
       },
       "greys": {
-        "picker": 244
+        "picker": 243
       }
     },
     "profile": {
       "image": "refs/desktop-web@prod/profile.png",
       "regions": {
         "bell": [
-          1285,
-          27,
+          1576,
+          46,
           48,
           48
         ]
       },
       "hashes": {
-        "bell": "0000302828100000"
+        "bell": "0000302868100000"
       },
       "greys": {
-        "bell": 248
+        "bell": 240
       }
     },
     "artifacts": {
       "image": "refs/desktop-web@prod/artifacts.png",
       "regions": {
         "bell": [
-          1982,
-          2,
+          1974,
+          18,
           44,
           44
         ]
@@ -264,26 +242,15 @@
         "bell": "0000302828100000"
       },
       "greys": {
-        "bell": 252
-      }
-    },
-    "clouddoc": {
-      "image": "refs/desktop-web@prod/clouddoc.png",
-      "regions": {
-        "bell": [
-          1878,
-          0,
-          44,
-          44
-        ]
-      },
-      "hashes": {
-        "bell": "0000302828100000"
-      },
-      "greys": {
-        "bell": 251
+        "bell": 243
       }
     }
   },
-  "reviewQueue": []
+  "reviewQueue": [
+    {
+      "element": "artifacts.firstCard",
+      "image": "",
+      "reason": "not found during calibration"
+    }
+  ]
 }

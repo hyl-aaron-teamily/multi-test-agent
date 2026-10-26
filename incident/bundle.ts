@@ -36,6 +36,8 @@ export interface ReplayFile {
   url?: string;
   packageName?: string;
   account?: string;
+  /** Android surfaces: the phone (older files: parsed from the profile name). */
+  device?: string;
   launch: TestPlan['launch'];
   category: TestPlan['category'];
   verdictRule: TestPlan['verdictRule'];

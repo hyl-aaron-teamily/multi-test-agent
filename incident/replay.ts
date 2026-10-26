@@ -9,11 +9,11 @@ import { dirname, join } from 'node:path';
 import { decodePng, dHash, hamming } from '../core/image';
 import { evaluateVisual } from '../executor/checks';
 import { VerdictTracker } from '../executor/verdict';
-import { type Anomaly, type Driver, lifecycle, sleep } from '../drivers/types';
+import { type Anomaly, type Driver, HARD_ANOMALIES, lifecycle, sleep } from '../drivers/types';
 import { AccountPool } from '../platform/accounts/account-pool';
 import { ensureWebSession, type PlaywrightSurface } from '../platform/accounts/sessions';
 import { onPlaywright } from '../platform/accounts/types';
-import { createDriver } from '../drivers/factory';
+import { openSession } from '../executor/session';
 import { loadProfile } from '../skills/profile';
 import type { ReplayFile } from './bundle';
 import type { CoordOp } from './recording-driver';
@@ -82,21 +82,17 @@ export async function replayIncident(file: string, variant: Variant, log = (s: s
   if (profile.skillVersion !== r.skillVersion) log(`warning: SKILL ${profile.skillVersion} ≠ recorded ${r.skillVersion}`);
   const pool = new AccountPool();
   await pool.reload();
-  const udid = r.profile.match(/^android-(?:web-)?(.+)@/)?.[1];
-  let storageState: string | undefined;
-  if (onPlaywright(r.surface)) {
-    const s = await ensureWebSession(pool, r.account!, r.surface as PlaywrightSurface);
-    if (!s.ok) throw new Error(`login ${r.account}: ${s.error}`);
-    storageState = s.file;
-  }
-  const d: Driver = createDriver({ surface: r.surface, profile, url: r.url ?? pool.webUrl(r.env), udid, storageState });
+  // Older replay files carry the phone only in the profile name.
+  const udid = r.device ?? r.profile.match(/^android-(?:web-)?(.+)@/)?.[1];
+  const sess = await openSession({ surface: r.surface, env: r.env, account: r.account!, udid, pool, profile, url: r.url, log });
+  const d: Driver = sess.inner;
   if (variant === 'cold' && d.killApp) await d.killApp();
   const tracker = new VerdictTracker(r.verdictRule);
   const res: VariantResult = { variant, reproduced: false, hits: 0, rounds: 0, deviations: [], hitDetails: [] };
   const anomalies: Anomaly[] = [];
   try {
     await d.launch();
-    await sleep(r.surface === 'android-app' ? 2500 : 8000);
+    await sess.adapter.waitFirstScreen(sess);
     d.drainAnomalies();
     const play = async (ops: CoordOp[]) => {
       for (let i = 0; i < ops.length; i++) {
@@ -117,7 +113,7 @@ export async function replayIncident(file: string, variant: Variant, log = (s: s
         await play(round.ops);
         const png = await d.screenshot();
         now.push(dHash(decodePng(png)));
-        let hit = anomalies.find((a) => ['crash', 'anr', 'app-exit', 'page-crash'].includes(a.kind))?.detail;
+        let hit = anomalies.find((a) => HARD_ANOMALIES.includes(a.kind))?.detail;
         if (!hit) {
           for (const c of r.checks.filter((c) => c.kind === 'visual-region')) {
             const cr = await evaluateVisual(d, profile, c, undefined, png);

@@ -8,6 +8,7 @@
 //   pnpm autotest evidence review <incidentDir> | snapshot <incidentDir> --id <case> --expect .. | cases
 //   pnpm autotest sync [--roles desktop-web,android-web,android-app] [--rounds N] [--env prod] [--timeout S]
 import 'dotenv/config';
+import { TEAMILY_PACKAGE } from '../drivers/factory';
 import { AccountPool } from '../platform/accounts/account-pool';
 import type { Env, Surface } from '../platform/accounts/types';
 
@@ -53,7 +54,7 @@ async function smoke(args: string[]): Promise<number> {
     const udid = flag(args, 'device') ?? (await devices.refresh()).find((x) => x.status === 'idle')?.udid;
     setTimeout(() => {
       console.log(`[smoke] injecting: am crash ai.teamily.mobile`);
-      void adb(['shell', 'am', 'crash', 'ai.teamily.mobile'], udid).catch((e) => console.error(e.message));
+      void adb(['shell', 'am', 'crash', TEAMILY_PACKAGE], udid).catch((e) => console.error(e.message));
     }, crashAfter * 1000);
   }
   const loopActions = [
@@ -181,7 +182,7 @@ async function skill(args: string[]): Promise<number> {
   }
   if (surface === 'android-app') {
     const { calibrateAndroid } = await import('../skills/calibrate-android');
-    const p = await calibrateAndroid({ udid: flag(args, 'device'), env, packageName: flag(args, 'package') ?? 'ai.teamily.mobile' });
+    const p = await calibrateAndroid({ udid: flag(args, 'device'), env, packageName: flag(args, 'package') ?? TEAMILY_PACKAGE });
     return Object.values(p.elements).some((e) => e.selfCheck === 'fail') ? 1 : 0;
   }
   const { calibrateWeb } = await import('../skills/calibrate-web');
