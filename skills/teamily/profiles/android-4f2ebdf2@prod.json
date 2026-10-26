@@ -1,9 +1,9 @@
 {
   "surface": "android-app",
   "name": "android-4f2ebdf2@prod",
-  "skillVersion": "2026.10.21-1",
+  "skillVersion": "2026.10.26-1",
   "env": "prod",
-  "calibratedAt": "2026-10-21T14:08:22.042Z",
+  "calibratedAt": "2026-10-26T11:20:26.123Z",
   "viewport": {
     "width": 1080,
     "height": 2400
@@ -19,7 +19,11 @@
         149
       ],
       "selfCheck": "pass",
-      "note": "screen Δ11199px"
+      "fingerprint": {
+        "desc": "聊天",
+        "cls": "android.widget.Button"
+      },
+      "note": "screen Δ360801px"
     },
     "nav.me": {
       "page": "home",
@@ -30,7 +34,11 @@
         110
       ],
       "selfCheck": "pass",
-      "note": "screen Δ304575px"
+      "fingerprint": {
+        "desc": "我的",
+        "cls": "android.widget.Button"
+      },
+      "note": "screen Δ302340px"
     },
     "chatlist.search": {
       "page": "home",
@@ -41,7 +49,11 @@
         127
       ],
       "selfCheck": "pass",
-      "note": "screen Δ285291px"
+      "fingerprint": {
+        "desc": "搜索",
+        "cls": "android.view.ViewGroup"
+      },
+      "note": "screen Δ285884px"
     },
     "chat.back": {
       "page": "chat",
@@ -52,7 +64,11 @@
         132
       ],
       "selfCheck": "pass",
-      "note": "screen Δ350837px"
+      "fingerprint": {
+        "desc": "返回",
+        "cls": "android.widget.Button"
+      },
+      "note": "screen Δ348254px"
     },
     "chat.composer": {
       "page": "chat",
@@ -63,7 +79,11 @@
         84
       ],
       "selfCheck": "pass",
-      "note": "screen Δ516534px"
+      "fingerprint": {
+        "text": "输入消息...",
+        "cls": "android.widget.EditText"
+      },
+      "note": "screen Δ724826px"
     },
     "chat.send": {
       "page": "chat",

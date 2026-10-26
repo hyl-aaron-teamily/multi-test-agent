@@ -94,7 +94,7 @@ export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
     const fp = pt ? nodeAt(nodes, pt.x, pt.y) : undefined;
     const st: WarmupStep = { step: i + 1, action: actionLabel(a), expected: eff ? describeEffect(eff) : '（不核验）', observed: '', pass: null, ms: 0, point: pt, fingerprint: fp ? { text: fp.text, desc: fp.desc, cls: fp.cls } : undefined };
     const attempt = async () => {
-      const before = eff?.kind === 'change' ? decodePng(await d.screenshot()) : undefined;
+      const before = eff?.kind === 'change' || (eff?.kind === 'focus' && android) ? decodePng(await d.screenshot()) : undefined;
       d.label = `warmup:${actionLabel(a)}`;
       await c.exec(a);
       if (!eff) return { pass: null as boolean | null, observed: 'not verified', tier: undefined as string | undefined };
@@ -112,9 +112,14 @@ export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
           return { pass: px >= min, observed: `screen Δ${px}px (min ${min})`, tier: '① pixels' };
         }
         case 'focus': {
+          // Focus = the keyboard comes up, or (e.g. the App's search box) a page opens.
           if (android) {
             const k = await keyboardShown(android.o.udid);
-            if (k !== null) return { pass: k, observed: `keyboard ${k ? 'shown' : 'not shown'}`, tier: '① system' };
+            if (k) return { pass: true, observed: 'keyboard shown', tier: '① system' };
+            const after = decodePng(await d.screenshot());
+            const px = pixelDiff(before!, after);
+            const min = Math.max(2000, Math.round(after.width * after.height * CHANGE_FRACTION));
+            return { pass: px >= min, observed: `keyboard ${k === null ? 'unknown' : 'not shown'}, screen Δ${px}px (min ${min})`, tier: '① system + pixels' };
           }
           return { pass: null, observed: 'focus not observable here', tier: undefined };
         }
