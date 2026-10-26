@@ -1,7 +1,7 @@
 // Pure-function checks for instant replay.
 import { describe, expect, it } from 'vitest';
 import { sliceFromLastLaunch } from './ops';
-import { ScreenRecorder } from './screen-recorder';
+import { ScreenRecorder } from '../core/screen-recorder';
 
 describe('replay', () => {
   it('slices ops from the last launch and rebases time', () => {
