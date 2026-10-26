@@ -51,7 +51,10 @@ export async function calibrateAndroidWeb(o: CalibrateAndroidWebOptions): Promis
   const web = () => nodes.find((n) => /WebView$/.test(n.cls) && n.y2 - n.y1 > 800);
   const inWeb = (n: N) => {
     const w = web();
-    return !w || (n.y1 >= w.y1 && n.y2 <= w.y2 + 2 && n.y2 > n.y1);
+    // No WebView node (the browser did not expose the page): keep clear of its address bar and toolbar.
+    if (!w) return n.y1 >= 260 && n.y2 <= prof.viewport.height - 180 && n.y2 > n.y1;
+    // The browser's address bar (its hint is also 搜索…) is never page content.
+    return n.y1 >= Math.max(w.y1, 250) && n.y2 <= w.y2 + 2 && n.y2 > n.y1 && !/EditText/.test(n.cls) || (n.y1 >= Math.max(w.y1, 250) && /EditText/.test(n.cls) && n.y2 <= w.y2 + 2 && !/网址|URL/i.test(n.hint));
   };
   const tapNode = (n: { x1: number; y1: number; x2: number; y2: number }) => d.tap({ x: Math.round((n.x1 + n.x2) / 2), y: Math.round((n.y1 + n.y2) / 2) });
 
@@ -91,8 +94,14 @@ export async function calibrateAndroidWeb(o: CalibrateAndroidWebOptions): Promis
     const before = await shot();
     await d.tap({ x: e.box[0] + e.box[2] / 2, y: e.box[1] + e.box[3] / 2 });
     await sleep(1800);
-    const after = await shot();
-    const px = pixelDiff(before, after);
+    let after = await shot();
+    let px = pixelDiff(before, after);
+    if (px < minPx) {
+      // Slow page: give the tap time to take effect before judging.
+      await sleep(3000);
+      after = await shot();
+      px = pixelDiff(before, after);
+    }
     mark(id, px >= minPx, `screen Δ${px}px`, after);
   };
   /** Tap an input until the keyboard is up (big screen change). */
@@ -228,12 +237,12 @@ export async function calibrateAndroidWeb(o: CalibrateAndroidWebOptions): Promis
     }
     const w = web();
     const bottom = (w?.y2 ?? prof.viewport.height) - 320;
-    const clickableAround = (n: N | undefined) => (n ? (nodes.filter((x) => x.clickable && x.x1 <= n.x1 && x.x2 >= n.x2 && x.y1 <= n.y1 && x.y2 >= n.y2).sort((a, b) => (a.x2 - a.x1) * (a.y2 - a.y1) - (b.x2 - b.x1) * (b.y2 - b.y1))[0] ?? n) : undefined);
+    const clickableAround = (n: N | undefined) => (n ? (nodes.filter((x) => x.clickable && inWeb(x) && x.x1 <= n.x1 && x.x2 >= n.x2 && x.y1 <= n.y1 && x.y2 >= n.y2).sort((a, b) => (a.x2 - a.x1) * (a.y2 - a.y1) - (b.x2 - b.x1) * (b.y2 - b.y1))[0] ?? n) : undefined);
     const navNode = (re: RegExp) => clickableAround(nodes.filter((n) => has(n, re) && inWeb(n) && n.y1 > bottom).sort((a, b) => b.y1 - a.y1)[0]);
     put('nav.chat', navNode(/^(聊天|Chat)$/));
     put('nav.artifacts', navNode(/^Artifacts$/i));
     // Phone layout: "我" is the avatar at the top-left, not in the bottom bar.
-    put('nav.me', clickableAround(find(/^(我|Me)$/, undefined, inWeb)));
+    put('nav.me', clickableAround(find(/^(我|Me)$/, undefined, inWeb)) ?? (await locate('the round user avatar ("我" / Me entry) at the top-left of the chat list header')));
     put('chatlist.search', clickableAround(find(/^(搜索|Search)/, undefined, inWeb)));
     const nb = prof.elements['nav.chat']?.box;
     const navBand: Box | undefined = nb && w ? [w.x1, nb[1] - 4, w.x2 - w.x1, nb[3] + 8] : undefined;

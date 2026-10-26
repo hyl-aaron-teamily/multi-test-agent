@@ -1,9 +1,9 @@
 {
   "surface": "android-web",
   "name": "android-web-4f2ebdf2@prod",
-  "skillVersion": "2026.10.21-1",
+  "skillVersion": "2026.10.26-1",
   "env": "prod",
-  "calibratedAt": "2026-10-26T10:29:06.059Z",
+  "calibratedAt": "2026-10-26T12:40:22.970Z",
   "viewport": {
     "width": 1080,
     "height": 2400
@@ -19,7 +19,11 @@
         162
       ],
       "selfCheck": "pass",
-      "note": "screen Δ557406px"
+      "note": "screen Δ524741px",
+      "fingerprint": {
+        "desc": "聊天",
+        "cls": "android.view.View"
+      }
     },
     "nav.artifacts": {
       "page": "home",
@@ -30,7 +34,11 @@
         162
       ],
       "selfCheck": "pass",
-      "note": "screen Δ557745px"
+      "note": "screen Δ543197px",
+      "fingerprint": {
+        "desc": "Artifacts",
+        "cls": "android.view.View"
+      }
     },
     "nav.me": {
       "page": "home",
@@ -41,15 +49,19 @@
         99
       ],
       "selfCheck": "pass",
-      "note": "screen Δ65552px"
+      "note": "screen Δ163827px",
+      "fingerprint": {
+        "desc": "我",
+        "cls": "android.view.View"
+      }
     },
     "chatlist.search": {
       "page": "home",
       "box": [
-        159,
-        132,
-        678,
-        116
+        313,
+        537,
+        699,
+        121
       ],
       "selfCheck": "pending"
     },
@@ -62,7 +74,7 @@
         88
       ],
       "selfCheck": "pass",
-      "note": "screen Δ599890px"
+      "note": "screen Δ419866px"
     },
     "chat.composer": {
       "page": "chat",
@@ -73,13 +85,17 @@
         82
       ],
       "selfCheck": "pass",
-      "note": "keyboard up (screen Δ339060px)"
+      "note": "keyboard up (screen Δ317393px)",
+      "fingerprint": {
+        "text": "\n",
+        "cls": "android.widget.EditText"
+      }
     },
     "chat.send": {
       "page": "chat",
       "box": [
-        961,
-        1331,
+        966,
+        1334,
         8,
         8
       ],
@@ -144,16 +160,16 @@
       "regions": {
         "picker": [
           0,
-          452,
+          455,
           1080,
           24
         ]
       },
       "hashes": {
-        "picker": "a8a8a8a8e8e8e868"
+        "picker": "a8a8a8e8e8e86850"
       },
       "greys": {
-        "picker": 209
+        "picker": 216
       }
     }
   },
