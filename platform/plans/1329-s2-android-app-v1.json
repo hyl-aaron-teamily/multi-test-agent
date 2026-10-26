@@ -83,12 +83,50 @@
   "verdictRule": {
     "anyHit": true
   },
+  "contract": {
+    "issueRef": "1329",
+    "sub": "s2",
+    "preconditions": [
+      {
+        "id": "logged-in",
+        "text": "已登录",
+        "establish": "executor"
+      },
+      {
+        "id": "group-conversation",
+        "text": "存在成员 ≥3 的群聊",
+        "establish": "existing-data"
+      },
+      {
+        "id": "quote-reply-exists",
+        "text": "会话里已有一条引用回复",
+        "establish": "existing-data"
+      }
+    ],
+    "trigger": {
+      "semantics": "tap-quote",
+      "text": "on the latest version, tapping a message location link often jumps to a very old message instead of the target ",
+      "pattern": "quote-jump",
+      "params": {}
+    },
+    "observable": {
+      "observation": "quoted-original",
+      "text": "Likes should display immediately after tapping; message location should jump to the target message; the keyboard should auto-populate when the input box is focused.",
+      "phenomenon": "on the latest version, tapping a message location link often jumps to a very old message instead of the target "
+    },
+    "provenance": {
+      "by": "rules",
+      "skillVersion": "2026.10.21-1"
+    }
+  },
   "provenance": {
     "generatedBy": "rules",
     "skillVersion": "2026.10.21-1",
-    "confirmedAt": "2026-10-26T10:34:23.872Z",
-    "draftHash": "7e281ed412537cce"
+    "pattern": "quote-jump",
+    "confirmedAt": "2026-10-26T11:54:15.887Z",
+    "draftHash": "c7ca377461684228"
   },
+  "coverage": "covered",
   "substitution": {
     "from": "ios",
     "to": "android-app",

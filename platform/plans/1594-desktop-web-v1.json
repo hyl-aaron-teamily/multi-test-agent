@@ -96,9 +96,48 @@
   "verdictRule": {
     "anyHit": true
   },
+  "contract": {
+    "issueRef": "1594",
+    "sub": "main",
+    "preconditions": [
+      {
+        "id": "logged-in",
+        "text": "已登录",
+        "establish": "executor"
+      },
+      {
+        "id": "group-conversation",
+        "text": "存在成员 ≥3 的群聊",
+        "establish": "existing-data"
+      },
+      {
+        "id": "other-conversation",
+        "text": "存在另一个会话（切换用）",
+        "establish": "existing-data"
+      }
+    ],
+    "trigger": {
+      "semantics": "repeat-switch-and-mention",
+      "text": "On the Teamily Web client, typing \"@\" in the message input of a chat conversation intermittently fails to open the member/agent selection picker, so the user cannot mention anyone. Switching to another conversation and back restores the picker. Reproduced during a live meeting by the reporter. Suspe",
+      "pattern": "mention-picker",
+      "params": {}
+    },
+    "observable": {
+      "observation": "region",
+      "text": "Typing \"@\" in the message input box reliably opens the member/agent selection picker, allowing the user to mention any member or agent, regardless of how the conversation was entered.",
+      "phenomenon": "The @-mention selection picker sometimes does not appear after typing \"@\" — no member/agent list is shown and the user cannot mention anyone. The feature only recovers after switching to another conversation and back. Confirmed on the Web client, also reproduced during a meeting."
+    },
+    "provenance": {
+      "by": "rules",
+      "skillVersion": "2026.10.21-1"
+    }
+  },
   "provenance": {
     "generatedBy": "rules",
     "skillVersion": "2026.10.21-1",
-    "confirmedAt": "2026-10-26T10:06:33.349Z"
-  }
+    "pattern": "mention-picker",
+    "confirmedAt": "2026-10-26T11:05:44.344Z",
+    "draftHash": "9f4ca44943cb4ef0"
+  },
+  "coverage": "covered"
 }

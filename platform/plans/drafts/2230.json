@@ -34,5 +34,8 @@
   },
   "status": "deferred",
   "reason": "前置条件需要写满浏览器存储（localStorage 配额），黑盒无法构造，记入未来计划",
-  "subcases": []
+  "subcases": [],
+  "hash": "612745b29960773e",
+  "issueHash": "601c8797c693574f",
+  "env": "prod"
 }

@@ -35,5 +35,8 @@
   },
   "status": "deferred",
   "reason": "需要第二账号或同账号多端配合观察，等待账号池/设备池多客户端支持",
-  "subcases": []
+  "subcases": [],
+  "hash": "a1758af7b6ae7944",
+  "issueHash": "96a630e4b336f9a5",
+  "env": "prod"
 }

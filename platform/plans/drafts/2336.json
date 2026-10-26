@@ -198,15 +198,69 @@
         "verdictRule": {
           "anyHit": true
         },
+        "contract": {
+          "issueRef": "2336",
+          "sub": "main",
+          "preconditions": [
+            {
+              "id": "logged-in",
+              "text": "已登录",
+              "establish": "executor"
+            }
+          ],
+          "trigger": {
+            "semantics": "open-pages-inventory",
+            "text": "yara (QA) reports that Teamily exposes at least three separate 🔔 notification entries, each with its own independent unread state, so a user has to check several places to see all notifications and easily misses them. Evidence: three screenshots showing the bell in (1) the profile page header (top-",
+            "pattern": "notification-inventory",
+            "params": {}
+          },
+          "observable": {
+            "observation": "element",
+            "text": "One consolidated notification entry: a single notification center, reachable from one consistent location, that aggregates notifications from every module under a SINGLE shared unread state (badge / count) kept in sync everywhere. Reading or clearing a notification updates the unified state. If module-level entries are kept, they must read from the same unread state instead of maintaining independent ones — so the badge can never disagree between surfaces. Concrete proposal to confirm with product: an aggregated 'Notifications' entry in the global navigation (e.g. the left icon rail) that show",
+            "phenomenon": "At least three separate 🔔 entries exist, each with an independent unread state: (1) the profile page header, (2) the Artifacts page header, and (3) the CloudDoc / deliverable document header. A user must visit each module separately to check notifications, and the unread badges disagree between surfaces — e.g. on the Artifacts page the in-page bell reports unread while the left-sidebar Artifacts entry reports none (#2334)."
+          },
+          "provenance": {
+            "by": "rules",
+            "skillVersion": "2026.10.21-1"
+          }
+        },
         "provenance": {
           "generatedBy": "rules",
+          "skillVersion": "2026.10.21-1",
+          "pattern": "notification-inventory"
+        },
+        "coverage": "covered"
+      },
+      "planErrors": [],
+      "contract": {
+        "issueRef": "2336",
+        "sub": "main",
+        "preconditions": [
+          {
+            "id": "logged-in",
+            "text": "已登录",
+            "establish": "executor"
+          }
+        ],
+        "trigger": {
+          "semantics": "open-pages-inventory",
+          "text": "yara (QA) reports that Teamily exposes at least three separate 🔔 notification entries, each with its own independent unread state, so a user has to check several places to see all notifications and easily misses them. Evidence: three screenshots showing the bell in (1) the profile page header (top-",
+          "pattern": "notification-inventory",
+          "params": {}
+        },
+        "observable": {
+          "observation": "element",
+          "text": "One consolidated notification entry: a single notification center, reachable from one consistent location, that aggregates notifications from every module under a SINGLE shared unread state (badge / count) kept in sync everywhere. Reading or clearing a notification updates the unified state. If module-level entries are kept, they must read from the same unread state instead of maintaining independent ones — so the badge can never disagree between surfaces. Concrete proposal to confirm with product: an aggregated 'Notifications' entry in the global navigation (e.g. the left icon rail) that show",
+          "phenomenon": "At least three separate 🔔 entries exist, each with an independent unread state: (1) the profile page header, (2) the Artifacts page header, and (3) the CloudDoc / deliverable document header. A user must visit each module separately to check notifications, and the unread badges disagree between surfaces — e.g. on the Artifacts page the in-page bell reports unread while the left-sidebar Artifacts entry reports none (#2334)."
+        },
+        "provenance": {
+          "by": "rules",
           "skillVersion": "2026.10.21-1"
         }
-      },
-      "planErrors": []
+      }
     }
   ],
-  "hash": "e4344cc361546c1c",
+  "hash": "14e0534117739a8e",
   "issueHash": "3687362a43ac598f",
   "env": "prod"
 }

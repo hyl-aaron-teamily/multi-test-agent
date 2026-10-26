@@ -23,7 +23,7 @@
     {
       "id": "like",
       "kind": "like-action",
-      "guidance": "长按消息后出现的点赞/👍 表情按钮"
+      "guidance": "长按消息后出现的点赞 \"👍\" 表情按钮"
     }
   ],
   "setup": [
@@ -38,6 +38,7 @@
       "delayAfterMs": 800
     }
   ],
+  "prepare": [],
   "actions": [
     {
       "type": "longPress",
@@ -52,10 +53,16 @@
   ],
   "checks": [
     {
-      "kind": "ai",
+      "kind": "text",
       "expect": "The liked message shows a like / 👍 reaction under it",
       "want": "present",
-      "onlyOnAnomaly": false
+      "match": {
+        "exact": "👍"
+      },
+      "scope": {
+        "target": "msg",
+        "within": 160
+      }
     }
   ],
   "afterCheck": [
@@ -78,11 +85,50 @@
   "verdictRule": {
     "anyHit": true
   },
+  "contract": {
+    "issueRef": "1329",
+    "sub": "s1",
+    "preconditions": [
+      {
+        "id": "logged-in",
+        "text": "已登录",
+        "establish": "executor"
+      },
+      {
+        "id": "group-conversation",
+        "text": "存在成员 ≥3 的群聊",
+        "establish": "existing-data"
+      },
+      {
+        "id": "others-text-message",
+        "text": "会话里有别人发的普通文本消息",
+        "establish": "existing-data"
+      }
+    ],
+    "trigger": {
+      "semantics": "like-message",
+      "text": "tapping like on a message gives no visible feedback - the like is not displayed ",
+      "pattern": "like-visible",
+      "params": {}
+    },
+    "observable": {
+      "observation": "visual-question",
+      "text": "Likes should display immediately after tapping; message location should jump to the target message; the keyboard should auto-populate when the input box is focused.",
+      "phenomenon": "tapping like on a message gives no visible feedback - the like is not displayed "
+    },
+    "provenance": {
+      "by": "rules",
+      "skillVersion": "2026.10.21-1"
+    }
+  },
   "provenance": {
     "generatedBy": "rules",
     "skillVersion": "2026.10.21-1",
-    "confirmedAt": "2026-10-21T12:51:17.047Z"
+    "pattern": "like-visible",
+    "confirmedAt": "2026-10-26T10:59:40.618Z",
+    "draftHash": "c7ca377461684228"
   },
+  "coverage": "not-covered",
   "substitution": {
     "from": "ios",
     "to": "android-app",
