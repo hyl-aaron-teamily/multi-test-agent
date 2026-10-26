@@ -36,6 +36,9 @@ export const CheckPointZ = z.object({
   match: z.union([z.object({ exact: z.string() }), z.object({ contains: z.string() }), z.object({ regex: z.string() })]).optional(),
   /** text: where — whole screen (default), the quote cards, or near a frozen target (± px vertically). */
   scope: z.union([z.literal('screen'), z.literal('quote-cards'), z.object({ target: z.string(), within: z.number().default(250) })]).optional(),
+  /** A failure counts only if this holds (read ① at the checkpoint); otherwise it is an operation drift.
+   *  composerHas: the message input contains this text (e.g. the "@" just typed). */
+  requires: z.object({ composerHas: z.string() }).optional(),
 });
 
 export const LimitsZ = z.object({

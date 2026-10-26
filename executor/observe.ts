@@ -114,3 +114,21 @@ export async function pageHasText(page: Page, m: TextMatch): Promise<boolean | n
     return null;
   }
 }
+
+/** ① What the message input contains (Android: the EditText's text; Playwright: the contenteditable's
+ *  text, read-only). null = not readable. */
+export async function composerText(d: Driver): Promise<string | null> {
+  if (d instanceof AndroidDriver) {
+    const nodes = await dumpTree(d.o.udid, d.o.packageName, 2);
+    const e = nodes.filter((n) => /EditText/.test(n.cls)).sort((a, b) => b.y1 - a.y1)[0];
+    return e ? (e.text === e.hint ? '' : e.text) : null;
+  }
+  if (d instanceof WebDriver && d.page) {
+    try {
+      return (await d.page.locator('[contenteditable="true"]').filter({ visible: true }).last().innerText({ timeout: 1000 })).trim();
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}

@@ -42,9 +42,18 @@ export async function healElements(s: Session, ids: string[], runDir?: string): 
   } else if (s.inner instanceof WebDriver && s.inner.page) {
     for (const id of fps) {
       const fp = p.elements[id].fingerprint!;
-      const label = fp.text || fp.desc!;
-      const b = await s.inner.page.getByText(label, { exact: true }).filter({ visible: true }).first().boundingBox({ timeout: 1000 }).catch(() => null);
-      if (b) out.push({ element: id, from: p.elements[id].box, to: [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)], by: `page text "${label}"` });
+      const page = s.inner.page;
+      // Accessible label first (icon buttons), then visible text (read-only locators).
+      const tries: [string, () => Promise<{ x: number; y: number; width: number; height: number } | null>][] = [
+        ...(fp.desc ? [[`label "${fp.desc}"`, () => page.getByLabel(fp.desc!, { exact: true }).filter({ visible: true }).first().boundingBox({ timeout: 1000 })] as [string, () => Promise<any>]] : []),
+        ...(fp.text ? [[`page text "${fp.text}"`, () => page.getByText(fp.text!, { exact: true }).filter({ visible: true }).first().boundingBox({ timeout: 1000 })] as [string, () => Promise<any>]] : []),
+      ];
+      for (const [by, f] of tries) {
+        const b = await f().catch(() => null);
+        if (!b) continue;
+        out.push({ element: id, from: p.elements[id].box, to: [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)], by });
+        break;
+      }
     }
   }
   const moved = out.filter((h) => h.from.join() !== h.to.join());

@@ -119,7 +119,10 @@
             "region": "picker",
             "expect": "输入 @ 后成员/智能体选择器弹出",
             "want": "present",
-            "onlyOnAnomaly": true
+            "onlyOnAnomaly": true,
+            "requires": {
+              "composerHas": "@"
+            }
           },
           {
             "kind": "page-error",
@@ -169,12 +172,12 @@
           },
           "provenance": {
             "by": "rules",
-            "skillVersion": "2026.10.21-1"
+            "skillVersion": "2026.10.26-1"
           }
         },
         "provenance": {
           "generatedBy": "rules",
-          "skillVersion": "2026.10.21-1",
+          "skillVersion": "2026.10.26-1",
           "pattern": "mention-picker"
         },
         "coverage": "covered"
@@ -213,12 +216,12 @@
         },
         "provenance": {
           "by": "rules",
-          "skillVersion": "2026.10.21-1"
+          "skillVersion": "2026.10.26-1"
         }
       }
     }
   ],
-  "hash": "9f4ca44943cb4ef0",
+  "hash": "3cedbed9efd89816",
   "issueHash": "71c5e6ece0ff2833",
   "env": "prod"
 }

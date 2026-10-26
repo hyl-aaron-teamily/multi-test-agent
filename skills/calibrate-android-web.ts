@@ -256,6 +256,11 @@ export async function calibrateAndroidWeb(o: CalibrateAndroidWebOptions): Promis
       await look();
     }
     const groupTitle = () => nodes.find((n) => inWeb(n) && /TextView/.test(n.cls) && /,/.test(n.text) && n.y1 > (w?.y1 ?? 0) + 150);
+    // The list loads progressively (skeleton rows while "连接中…"): wait up to ~40 s for a group title.
+    for (let i = 0; i < 16 && !groupTitle(); i++) {
+      await sleep(2500);
+      await look();
+    }
     for (let i = 0; i < 3; i++) {
       const g = groupTitle();
       if (!g || g.y2 < (nb?.[1] ?? prof.viewport.height) - 200) break;
@@ -264,9 +269,11 @@ export async function calibrateAndroidWeb(o: CalibrateAndroidWebOptions): Promis
       await look();
     }
     const title = groupTitle();
-    const row = clickableAround(title);
+    // The browser builds its accessibility tree at page load; rows that arrive later are only on screen:
+    // let the vision model find a group row then (calibration time only).
+    const row = clickableAround(title) ?? (await locate('a conversation row in the chat list whose title lists several member names separated by commas (a group chat)'));
     if (!row) throw new Error('no group conversation row on the chat list');
-    log(`  conversation for chat-page calibration: "${label(title!).slice(0, 40)}"`);
+    log(`  conversation for chat-page calibration: "${title ? label(title).slice(0, 40) : '(vision)'}"`);
     await tapNode(row);
     await sleep(3000);
     if (!(await until(atChat, 20_000))) throw new Error('conversation did not open');

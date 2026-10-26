@@ -122,7 +122,7 @@ export const PATTERNS: Pattern[] = [
       setup: [node('teamily.openConversation', { target: 'group' }, 800)],
       actions: [node('teamily.clearComposer', {}, 200), node('teamily.openConversation', { target: 'other' }, 500), node('teamily.openConversation', { target: 'group' }, 700), node('teamily.typeMention', {}, 700)],
       checks: [
-        { kind: 'visual-region', page: 'mention-picker', region: 'picker', expect: '输入 @ 后成员/智能体选择器弹出', want: 'present', onlyOnAnomaly: true },
+        { kind: 'visual-region', page: 'mention-picker', region: 'picker', expect: '输入 @ 后成员/智能体选择器弹出', want: 'present', onlyOnAnomaly: true, requires: { composerHas: '@' } },
         { kind: surface === 'android-app' ? 'crash' : 'page-error', expect: '无崩溃 / 页面错误', want: 'absent' },
       ],
     };

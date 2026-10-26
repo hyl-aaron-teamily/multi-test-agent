@@ -79,7 +79,10 @@
       "region": "picker",
       "expect": "输入 @ 后成员/智能体选择器弹出",
       "want": "present",
-      "onlyOnAnomaly": true
+      "onlyOnAnomaly": true,
+      "requires": {
+        "composerHas": "@"
+      }
     },
     {
       "kind": "page-error",
@@ -129,15 +132,15 @@
     },
     "provenance": {
       "by": "rules",
-      "skillVersion": "2026.10.21-1"
+      "skillVersion": "2026.10.26-1"
     }
   },
   "provenance": {
     "generatedBy": "rules",
-    "skillVersion": "2026.10.21-1",
+    "skillVersion": "2026.10.26-1",
     "pattern": "mention-picker",
-    "confirmedAt": "2026-10-26T11:05:44.344Z",
-    "draftHash": "9f4ca44943cb4ef0"
+    "confirmedAt": "2026-10-26T12:18:48.062Z",
+    "draftHash": "3cedbed9efd89816"
   },
   "coverage": "covered"
 }

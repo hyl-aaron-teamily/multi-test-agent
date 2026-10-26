@@ -1,9 +1,9 @@
 {
   "surface": "desktop-web",
   "name": "desktop-web@prod",
-  "skillVersion": "2026.10.21-1",
+  "skillVersion": "2026.10.26-1",
   "env": "prod",
-  "calibratedAt": "2026-10-26T09:56:07.078Z",
+  "calibratedAt": "2026-10-26T12:14:59.102Z",
   "viewport": {
     "width": 2040,
     "height": 1148
@@ -30,7 +30,10 @@
         44
       ],
       "selfCheck": "pass",
-      "note": "no self-check (covered by flow)"
+      "note": "no self-check (covered by flow)",
+      "fingerprint": {
+        "text": "通过邮箱继续"
+      }
     },
     "login.password": {
       "page": "login-password",
@@ -52,7 +55,10 @@
         44
       ],
       "selfCheck": "pass",
-      "note": "expected state reached"
+      "note": "expected state reached",
+      "fingerprint": {
+        "text": "继续"
+      }
     },
     "nav.chat": {
       "page": "home",
@@ -63,7 +69,10 @@
         44
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ19"
+      "note": "url changed, screen Δ18",
+      "fingerprint": {
+        "desc": "聊天"
+      }
     },
     "nav.artifacts": {
       "page": "home",
@@ -74,7 +83,10 @@
         44
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ19"
+      "note": "url changed, screen Δ18",
+      "fingerprint": {
+        "desc": "Artifacts"
+      }
     },
     "nav.me": {
       "page": "home",
@@ -85,18 +97,24 @@
         44
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ12"
+      "note": "url changed, screen Δ16",
+      "fingerprint": {
+        "desc": "我"
+      }
     },
     "chatlist.search": {
       "page": "home",
       "box": [
-        135,
+        175,
         29,
-        220,
+        180,
         34
       ],
       "selfCheck": "pass",
-      "note": "focus probe: 3726 px changed in element"
+      "note": "focus probe: 3086 px changed in element",
+      "fingerprint": {
+        "desc": "搜索"
+      }
     },
     "chat.composer": {
       "page": "chat",
@@ -117,7 +135,10 @@
         40,
         40
       ],
-      "selfCheck": "pending"
+      "selfCheck": "pending",
+      "fingerprint": {
+        "desc": "发送"
+      }
     },
     "profile.bell": {
       "page": "profile",
@@ -128,7 +149,10 @@
         36
       ],
       "selfCheck": "pass",
-      "note": "screen Δ89"
+      "note": "screen Δ89",
+      "fingerprint": {
+        "desc": "通知"
+      }
     },
     "artifacts.bell": {
       "page": "artifacts",
@@ -139,7 +163,10 @@
         32
       ],
       "selfCheck": "pass",
-      "note": "screen Δ91"
+      "note": "screen Δ94",
+      "fingerprint": {
+        "desc": "通知"
+      }
     }
   },
   "refs": {
@@ -164,9 +191,9 @@
       "image": "refs/desktop-web@prod/home.png",
       "regions": {
         "nav": [
-          127,
+          167,
           23,
-          280,
+          240,
           46
         ]
       },
@@ -174,7 +201,7 @@
         "nav": "0001010101010100"
       },
       "greys": {
-        "nav": 243
+        "nav": 245
       }
     },
     "chat": {
@@ -242,7 +269,7 @@
         "bell": "0000302828100000"
       },
       "greys": {
-        "bell": 243
+        "bell": 242
       }
     }
   },

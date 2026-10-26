@@ -13,6 +13,7 @@ import { actionLabel, idleMs } from './actions';
 import { Checkpoint, needsScreenshot } from './checkpoint';
 import type { RunCtx } from './context';
 import { recordIncident } from './incident-hook';
+import { composerText } from './observe';
 import { onChat, redoSetup } from './prepare';
 import { applyIntervals } from './stats';
 import { VerdictTracker } from './verdict';
@@ -95,7 +96,14 @@ export async function runLoop(c: RunCtx, lo: LoopOptions = {}): Promise<void> {
       png = await d.screenshot();
       stats.checkpointScreenshots++;
     }
-    if (failed && !hardHit && png && !(await onChat(c, png))) {
+    // The check's own precondition (e.g. "@" really in the composer): not met = the input did not land.
+    let unmet = '';
+    if (failed && !hardHit && failed.check.requires?.composerHas) {
+      const t = await composerText(c.sess.inner);
+      if (t !== null && !t.includes(failed.check.requires.composerHas)) unmet = `composer is "${t.slice(0, 40)}", not containing "${failed.check.requires.composerHas}"`;
+    }
+    if (failed && !hardHit && png && (unmet || !(await onChat(c, png)))) {
+      if (unmet) log(`round ${round}: check precondition not met (${unmet}) — operation drift, not counted`);
       // Operation drift (we are not where the plan thinks): not a finding. Re-enter and continue.
       stats.drifts++;
       await writeFile(join(c.o.runDir, `drift-round-${round}.png`), png);

@@ -25,9 +25,17 @@ export interface CalibrateWebOptions {
   sessionFile: string;
 }
 
+/** Text fingerprint of a located element (self-heal): its accessible label or visible text. */
+const fingerprints = new WeakMap<Box, { text?: string; desc?: string }>();
+
 const box = async (l: Locator): Promise<Box | undefined> => {
   const b = await l.boundingBox().catch(() => null);
-  return b && b.width > 0 ? [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)] : undefined;
+  if (!b || b.width <= 0) return undefined;
+  const out: Box = [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)];
+  const label = (await l.getAttribute('aria-label', { timeout: 500 }).catch(() => null))?.trim();
+  const text = (await l.innerText({ timeout: 500 }).catch(() => ''))?.trim().split('\n')[0].slice(0, 40);
+  if (label || text) fingerprints.set(out, { ...(text ? { text } : {}), ...(label ? { desc: label } : {}) });
+  return out;
 };
 
 const first = async (page: Page, ...sels: string[]): Promise<Locator | undefined> => {
@@ -57,7 +65,7 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
       queueReview(prof, id, 'not found during calibration');
       return;
     }
-    prof.elements[id] = { page: spec.page, box: b, selfCheck: 'pending', note } satisfies ElementCal;
+    prof.elements[id] = { page: spec.page, box: b, selfCheck: 'pending', note, ...(fingerprints.get(b) ? { fingerprint: fingerprints.get(b) } : {}) } satisfies ElementCal;
     log(`  · ${id} ${JSON.stringify(b)}`);
   };
 
