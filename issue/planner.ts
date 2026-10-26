@@ -2,11 +2,13 @@
 // vocabulary), validated by rules; on any failure a rule template of the category is used and validated
 // the same way. Templates are generic by feature signal (mention / like / keyboard / notification entry /
 // mention aggregation / generic), not per issue.
-import { DEFAULT_LIMITS, type PlannedAction, type Surface, type TestPlan, testPlanJsonSchema, verdictRuleFor } from '../platform/schema/test-plan';
+import { DEFAULT_LIMITS, type Surface, type TestPlan, testPlanJsonSchema, verdictRuleFor } from '../platform/schema/test-plan';
+import { GENERIC_PATTERN, type PlanFragment, patternForText } from '../skills/teamily/patterns';
 import { ELEMENTS, NODES, REGIONS, SKILL_VERSION, TARGET_GUIDANCE } from '../skills/teamily/vocab';
 import { AVAILABLE, type Classification, classify } from './classify';
 import { chatJson, modelConfigured } from '../core/model/llm';
 import type { NormalizedIssue } from './parse';
+import type { IssueContract } from '../platform/schema/contract';
 import { validatePlan } from './validate';
 
 export interface SubCase {
@@ -18,6 +20,8 @@ export interface SubCase {
   substitution?: { from: string; to: Surface; reason: string; alternatives: Surface[] };
   plan: TestPlan;
   planErrors: string[];
+  /** Intent contract of the sub-case (P2). */
+  contract?: IssueContract;
 }
 
 export interface Draft {
@@ -28,10 +32,13 @@ export interface Draft {
   subcases: SubCase[];
   /** Part deferred inside a plannable issue (2122: second-account part). */
   deferredPart?: string;
+  /** Content hash (issue/drafts.ts) — what the user confirms. */
+  hash?: string;
+  /** Hash of the Issue file the draft came from. */
+  issueHash?: string;
+  env?: string;
 }
 
-const a = (type: PlannedAction['type'], extra: Partial<PlannedAction> = {}): PlannedAction => ({ type, delayAfterMs: 300, ...extra });
-const node = (name: string, input: Record<string, unknown> = {}, delayAfterMs = 300): PlannedAction => ({ type: 'node', node: { name, input }, delayAfterMs });
 
 /** Split "(1) … (2) … (3) …" in the summary into sub-cases. */
 export function splitSubcases(i: NormalizedIssue): { sub: string; text: string }[] {
@@ -42,133 +49,11 @@ export function splitSubcases(i: NormalizedIssue): { sub: string; text: string }
   return out;
 }
 
-type Template = Pick<TestPlan, 'targets' | 'setup' | 'actions' | 'checks'> & { prepare?: TestPlan['prepare']; prepareCheck?: TestPlan['prepareCheck']; afterCheck?: TestPlan['afterCheck']; acceptance?: TestPlan['acceptance']; title: string };
+type Template = PlanFragment;
 
-const T = TARGET_GUIDANCE;
-
-/** Pure: generic template by feature signal of the (sub-)case text. */
+/** Pure: plan fragment of the pattern a (sub-)case text selects (rule path; patterns in skills/teamily/patterns.ts). */
 export function templateFor(text: string, category: TestPlan['category'], surface: Surface): Template {
-  const t = text.toLowerCase();
-  if (category === 'feature' && /bell|🔔|notification entr|通知入口|notification center/.test(t)) {
-    const pages = surface === 'android-app' ? [] : (['profile', 'artifacts'] as const);
-    return {
-      title: '通知入口盘点（一次性验收）',
-      targets: [],
-      setup: [],
-      actions: [],
-      checks: [],
-      acceptance: [
-        ...pages.map((p) => ({
-          id: `no-separate-bell-${p}`,
-          text: `${p === 'profile' ? '个人主页' : 'Artifacts 页'}不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）`,
-          actions: [node('teamily.openPage', { page: p }, 1000), a('wait', { value: '1000', delayAfterMs: 1000 })],
-          check: { kind: 'visual-region' as const, page: p, region: 'element:' + `${p}.bell`, expect: `${p} 页头部仍有独立 🔔`, want: 'absent' as const },
-        })),
-        ...(surface === 'desktop-web'
-          ? [
-              {
-                id: 'no-separate-bell-clouddoc',
-                text: 'CloudDoc / 交付物文档头部不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）',
-                actions: [node('teamily.openPage', { page: 'artifacts' }, 1000), a('wait', { value: '1000', delayAfterMs: 1000 }), { type: 'tap' as const, element: 'artifacts.firstCard', delayAfterMs: 1000 }, a('wait', { value: '1000', delayAfterMs: 1000 }), a('wait', { value: '1000', delayAfterMs: 1000 }), a('wait', { value: '1000', delayAfterMs: 1000 })],
-                check: { kind: 'visual-region' as const, page: 'clouddoc', region: 'element:clouddoc.bell', expect: 'CloudDoc 头部仍有独立 🔔', want: 'absent' as const },
-              },
-            ]
-          : []),
-        {
-          id: 'single-center',
-          text: '存在一个汇总所有模块通知、共享同一未读状态的通知中心入口',
-          actions: [a('back', { delayAfterMs: 1000 }), node('teamily.openPage', { page: 'chat' }, 1000)],
-          check: { kind: 'ai' as const, expect: 'The far-left global navigation rail (the narrow icon column at the left edge) contains a bell-shaped (🔔) notification icon. Answer false if no bell-shaped icon is in that rail; gift, memory, download or other icons do not count', want: 'present' as const, onlyOnAnomaly: false },
-        },
-      ],
-    };
-  }
-  if (category === 'feature' && /mention|@/.test(t)) {
-    return {
-      title: '@我 聚合入口 / 免打扰群 @ 提示（单账号可验部分）',
-      targets: [{ id: 'mutedGroup', kind: 'muted-group', guidance: '会话列表里带免打扰（划线铃铛）图标、且预览中出现 “@” 的群' }],
-      setup: [],
-      actions: [],
-      checks: [],
-      acceptance: [
-        {
-          id: 'mentions-entry',
-          text: '存在 “@我 / Mentions” 聚合入口（列出所有 @ 我的消息）',
-          actions: [node('teamily.openPage', { page: 'chat' }, 1000)],
-          check: { kind: 'ai', expect: 'There is a visible entry named like "@我", "Mentions" or "提及" that lists messages mentioning the user', want: 'present', onlyOnAnomaly: false },
-        },
-        {
-          id: 'muted-mention-badge',
-          text: '免打扰群被 @ 时，会话列表有显著提示（角标/徽标，而不只是小号绿色 “[有人@你]” 文本）',
-          actions: [],
-          check: { kind: 'ai', expect: 'In the conversation list, the muted group row that mentions the user shows a prominent badge (a count or @ badge on the avatar or at the right side), not only small green preview text', want: 'present', onlyOnAnomaly: false },
-        },
-      ],
-    };
-  }
-  if (/@|mention|picker|selector|选择器/.test(t)) {
-    return {
-      title: '@ 成员选择器弹出（切换会话后循环）',
-      targets: [
-        { id: 'group', kind: 'group-conversation', guidance: T['group-conversation'] },
-        { id: 'other', kind: 'other-conversation', guidance: T['other-conversation'] },
-      ],
-      setup: [node('teamily.openConversation', { target: 'group' }, 800)],
-      actions: [node('teamily.clearComposer', {}, 200), node('teamily.openConversation', { target: 'other' }, 500), node('teamily.openConversation', { target: 'group' }, 700), node('teamily.typeMention', {}, 700)],
-      checks: [
-        { kind: 'visual-region', page: 'mention-picker', region: 'picker', expect: '输入 @ 后成员/智能体选择器弹出', want: 'present', onlyOnAnomaly: true },
-        { kind: surface === 'android-app' ? 'crash' : 'page-error', expect: '无崩溃 / 页面错误', want: 'absent' },
-      ],
-    };
-  }
-  if (/location link|jumps? to|定位|跳转|message link/.test(t)) {
-    // A quote card (reply with quote) is a location link back to the quoted message. Round 1 checks the
-    // first jump really shows the quoted original and keeps that screen; later rounds must land there too.
-    return {
-      title: '点引用定位应稳定跳到被引用消息',
-      targets: [
-        { id: 'conv', kind: 'group-conversation', guidance: T['group-conversation'] },
-        { id: 'link', kind: 'quote-card', guidance: '会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文）' },
-      ],
-      setup: [node('teamily.openConversation', { target: 'conv' }, 1000)],
-      actions: [{ type: 'tap', element: 'target.link', delayAfterMs: 1000 }, a('wait', { value: '1000', delayAfterMs: 1000 })],
-      checks: [{ kind: 'baseline', expect: '点引用块后跳到被引用的原消息（每轮落在同一位置）', want: 'present' }],
-      afterCheck: [...(surface === 'desktop-web' ? [] : [a('tap', { element: 'chat.back', delayAfterMs: 900 })]), node('teamily.openConversation', { target: 'conv' }, 1000), a('wait', { value: '1000', delayAfterMs: 1000 })],
-    };
-  }
-  if (/keyboard|键盘/.test(t)) {
-    return {
-      title: '点一次输入框键盘即弹出',
-      targets: [{ id: 'conv', kind: 'group-conversation', guidance: T['group-conversation'] }],
-      setup: [node('teamily.openConversation', { target: 'conv' }, 800)],
-      // chat.back (the on-screen button): the back KEY would only close the keyboard.
-      actions: surface === 'desktop-web' ? [a('tap', { element: 'chatlist.search', delayAfterMs: 500 }), node('teamily.openConversation', { target: 'conv' }, 700), a('tap', { element: 'chat.composer', delayAfterMs: 800 })] : [a('tap', { element: 'chat.back', delayAfterMs: 700 }), node('teamily.openConversation', { target: 'conv' }, 900), a('tap', { element: 'chat.composer', delayAfterMs: 900 })],
-      checks: [{ kind: 'ai', expect: 'The on-screen keyboard is shown after a single tap on the message input', want: 'present', onlyOnAnomaly: false }],
-    };
-  }
-  if (/like|点赞|reaction/.test(t)) {
-    return {
-      title: '点赞后立即可见',
-      targets: [
-        { id: 'conv', kind: 'group-conversation', guidance: T['group-conversation'] },
-        { id: 'msg', kind: 'others-text-message', guidance: T['others-text-message'] },
-        { id: 'like', kind: 'like-action', guidance: '长按消息后出现的点赞/👍 表情按钮' },
-      ],
-      setup: [node('teamily.openConversation', { target: 'conv' }, 800)],
-      actions: [{ type: 'longPress', element: 'target.msg', delayAfterMs: 900 }, { type: 'tap', element: 'target.like', delayAfterMs: 1000 }],
-      checks: [{ kind: 'ai', expect: 'The liked message shows a like / 👍 reaction under it', want: 'present', onlyOnAnomaly: false }],
-      // Toggle back so every round starts from "not liked".
-      afterCheck: [{ type: 'longPress', element: 'target.msg', delayAfterMs: 900 }, { type: 'tap', element: 'target.like', delayAfterMs: 1000 }],
-    };
-  }
-  return {
-    title: '按步骤执行并核对预期',
-    targets: [{ id: 'conv', kind: 'group-conversation', guidance: T['group-conversation'] }],
-    setup: [node('teamily.openConversation', { target: 'conv' }, 800)],
-    // Loop without side effects for other people (no sending): reopen + scroll the history.
-    actions: [...(surface === 'desktop-web' ? [] : [a('tap', { element: 'chat.back', delayAfterMs: 700 })]), node('teamily.openConversation', { target: 'conv' }, 900), a('scroll', { value: 'up', delayAfterMs: 700 }), a('scroll', { value: 'down', delayAfterMs: 700 })],
-    checks: [{ kind: surface === 'android-app' ? 'crash' : 'page-error', expect: '无崩溃 / 页面错误', want: 'absent' }],
-  };
+  return patternForText(text, category).build(surface);
 }
 
 export function substitutionOptions(issueSurfaces: string[]): { from: string; reason: string; alternatives: Surface[] } | undefined {
@@ -244,8 +129,7 @@ export async function draftIssue(i: NormalizedIssue, opts: { env?: 'test' | 'pro
     let by: 'model' | 'rules' = 'model';
     // A specific SKILL template (plan-template.md) is validated on the device: it wins over a model draft.
     // The model writes plans only for cases no template covers.
-    const ruleTpl = templateFor(`${sc.text} ${c.category === 'feature' ? i.featureArea : ''}`, c.category as TestPlan['category'], surf);
-    const specific = ruleTpl.title !== '按步骤执行并核对预期';
+    const specific = patternForText(`${sc.text} ${c.category === 'feature' ? i.featureArea : ''}`, c.category as TestPlan['category']).id !== GENERIC_PATTERN;
     let tpl = opts.useModel === false || specific ? undefined : await modelTemplate(i, c, sc.text, surf);
     let plan = tpl && basePlan(i, c, sc.sub, surf, env, tpl, 'model');
     let v = plan ? validatePlan(plan) : undefined;
@@ -283,7 +167,7 @@ export function applyApproval(d: Draft, approve: { sub: string; surface?: Surfac
         id: s.plan.id.replace(s.surface, surf),
         surface: surf,
         substitution: s.substitution ? { from: s.substitution.from, to: surf, reason: s.substitution.reason } : undefined,
-        provenance: { ...s.plan.provenance, confirmedAt: now },
+        provenance: { ...s.plan.provenance, confirmedAt: now, draftHash: d.hash },
       };
       return plan;
     });

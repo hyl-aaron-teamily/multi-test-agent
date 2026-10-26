@@ -10,6 +10,7 @@
 import 'dotenv/config';
 import { TEAMILY_PACKAGE } from '../drivers/factory';
 import { openPools } from '../platform/pools';
+import { patternById } from '../skills/teamily/patterns';
 import { AccountPool } from '../platform/accounts/account-pool';
 import type { Env, Surface } from '../platform/accounts/types';
 
@@ -102,41 +103,21 @@ async function lifecycleSmoke(args: string[], mode: 'warm' | 'cold', x: { env: E
   const rounds = Number(flag(args, 'rounds') ?? 2);
   // android-web: the same on the phone's browser (Teamily web reopens the last conversation after a cold load).
   const surface = (flag(args, 'surface') === 'android-web' ? 'android-web' : 'android-app') as 'android-app' | 'android-web';
-  const web = surface === 'android-web';
   const id = `lifecycle-${mode}-${surface}-${x.env}`;
-  const actions = [
-    { type: 'exitApp' as const, delayAfterMs: 300 },
-    { type: 'idle' as const, value: idle, delayAfterMs: 0 },
-    ...(mode === 'cold' ? [{ type: 'killApp' as const, delayAfterMs: 300 }, { type: 'idle' as const, value: idle, delayAfterMs: 0 }] : []),
-    { type: 'launch' as const, delayAfterMs: 1000 },
-    // The page loads over the network after a cold browser start.
-    web && mode === 'cold' ? { type: 'idle' as const, value: '15000', delayAfterMs: 0 } : { type: 'wait' as const, value: '1000', delayAfterMs: 0 },
-  ];
+  const frag = patternById('lifecycle')!.build(surface, { mode, idle });
   const r = await x.runPlan({
     plan: {
       id,
       issueRef: 'lifecycle',
-      title: web
-        ? mode === 'cold' ? '离开浏览器 → 后台等待 → 杀浏览器进程 → 等待 → 重新打开网址（应重新加载并回到上次的会话）' : '离开浏览器 → 后台等待 → 回到浏览器（应仍在原会话）'
-        : mode === 'cold' ? '退出 App → 后台等待 → 杀进程 → 等待 → 冷启动（应回到首页且进程新建）' : '退出 App → 后台等待 → 重新打开（应恢复到原聊天页）',
+      ...frag,
       category: 'bug-intermittent',
       surface,
       issueSurfaces: [],
       env: x.env,
       launch: 'once',
-      targets: [{ id: 'conv', kind: 'other-conversation', guidance: "the user's own Personal AI conversation (disturbs no one)" }],
-      setup: [{ type: 'node', node: { name: 'teamily.openConversation', input: { target: 'conv' } }, delayAfterMs: 1000 }],
       prepare: [],
-      actions,
-      checks: [
-        { kind: 'process-alive', expect: 'App 进程在重新打开后存在', want: 'present' },
-        mode === 'cold' && !web
-          ? { kind: 'visual-region', page: 'home', region: 'nav', expect: '冷启动后回到首页（底栏可见）', want: 'present' }
-          : { kind: 'visual-region', page: 'chat', region: 'composer', expect: '热启动后恢复到原聊天页（输入框可见）', want: 'present' },
-      ],
-      // cold: the next round starts from the chat page again
-      afterCheck: mode === 'cold' && !web ? [{ type: 'node', node: { name: 'teamily.openConversation', input: { target: 'conv' } }, delayAfterMs: 1000 }] : [],
-      limits: { maxSteps: actions.length * rounds, maxMinutes: 15, maxIntervalMs: 1000 },
+      afterCheck: frag.afterCheck ?? [],
+      limits: { maxSteps: frag.actions.length * rounds, maxMinutes: 15, maxIntervalMs: 1000 },
       verdictRule: { anyHit: true },
       provenance: { generatedBy: 'manual', skillVersion: x.SKILL_VERSION },
     },

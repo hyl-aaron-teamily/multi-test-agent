@@ -37,11 +37,11 @@
   "reason": "需求类：按 Expected/AC 一次性验收",
   "subcases": [
     {
-      "sub": "s1",
-      "title": "the profile page header (top-right, with a green unread badge '9')",
+      "sub": "main",
+      "title": "yara (QA) reports that Teamily exposes at least three separate 🔔 notification e",
       "surface": "desktop-web",
       "plan": {
-        "id": "2336-s1-desktop-web-v1",
+        "id": "2336-desktop-web-v1",
         "issueRef": "2336",
         "title": "通知入口盘点（一次性验收）",
         "category": "feature",
@@ -54,8 +54,10 @@
         "launch": "once",
         "targets": [],
         "setup": [],
+        "prepare": [],
         "actions": [],
         "checks": [],
+        "afterCheck": [],
         "acceptance": [
           {
             "id": "no-separate-bell-profile",
@@ -114,95 +116,8 @@
             }
           },
           {
-            "id": "single-center",
-            "text": "存在一个汇总所有模块通知、共享同一未读状态的通知中心入口",
-            "actions": [
-              {
-                "type": "node",
-                "node": {
-                  "name": "teamily.openPage",
-                  "input": {
-                    "page": "chat"
-                  }
-                },
-                "delayAfterMs": 1000
-              }
-            ],
-            "check": {
-              "kind": "ai",
-              "expect": "The screen shows ONE global notification center entry (e.g. a bell in the global navigation rail) that aggregates notifications from all modules",
-              "want": "present",
-              "onlyOnAnomaly": false
-            }
-          }
-        ],
-        "limits": {
-          "maxSteps": 1000,
-          "maxMinutes": 15,
-          "maxIntervalMs": 1000
-        },
-        "verdictRule": {
-          "anyHit": true
-        },
-        "provenance": {
-          "generatedBy": "rules",
-          "skillVersion": "2026.10.21-1"
-        }
-      },
-      "planErrors": []
-    },
-    {
-      "sub": "s2",
-      "title": "the Artifacts module page header (top-right of the main content area, no badge)",
-      "surface": "desktop-web",
-      "plan": {
-        "id": "2336-s2-desktop-web-v1",
-        "issueRef": "2336",
-        "title": "通知入口盘点（一次性验收）",
-        "category": "feature",
-        "surface": "desktop-web",
-        "issueSurfaces": [
-          "web",
-          "desktop"
-        ],
-        "env": "prod",
-        "launch": "once",
-        "targets": [],
-        "setup": [],
-        "actions": [],
-        "checks": [],
-        "acceptance": [
-          {
-            "id": "no-separate-bell-profile",
-            "text": "个人主页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
-            "actions": [
-              {
-                "type": "node",
-                "node": {
-                  "name": "teamily.openPage",
-                  "input": {
-                    "page": "profile"
-                  }
-                },
-                "delayAfterMs": 1000
-              },
-              {
-                "type": "wait",
-                "value": "1000",
-                "delayAfterMs": 1000
-              }
-            ],
-            "check": {
-              "kind": "visual-region",
-              "page": "profile",
-              "region": "element:profile.bell",
-              "expect": "profile 页头部仍有独立 🔔",
-              "want": "absent"
-            }
-          },
-          {
-            "id": "no-separate-bell-artifacts",
-            "text": "Artifacts 页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
+            "id": "no-separate-bell-clouddoc",
+            "text": "CloudDoc / 交付物文档头部不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
             "actions": [
               {
                 "type": "node",
@@ -218,13 +133,33 @@
                 "type": "wait",
                 "value": "1000",
                 "delayAfterMs": 1000
+              },
+              {
+                "type": "tap",
+                "element": "artifacts.firstCard",
+                "delayAfterMs": 1000
+              },
+              {
+                "type": "wait",
+                "value": "1000",
+                "delayAfterMs": 1000
+              },
+              {
+                "type": "wait",
+                "value": "1000",
+                "delayAfterMs": 1000
+              },
+              {
+                "type": "wait",
+                "value": "1000",
+                "delayAfterMs": 1000
               }
             ],
             "check": {
               "kind": "visual-region",
-              "page": "artifacts",
-              "region": "element:artifacts.bell",
-              "expect": "artifacts 页头部仍有独立 🔔",
+              "page": "clouddoc",
+              "region": "element:clouddoc.bell",
+              "expect": "CloudDoc 头部仍有独立 🔔",
               "want": "absent"
             }
           },
@@ -232,6 +167,10 @@
             "id": "single-center",
             "text": "存在一个汇总所有模块通知、共享同一未读状态的通知中心入口",
             "actions": [
+              {
+                "type": "back",
+                "delayAfterMs": 1000
+              },
               {
                 "type": "node",
                 "node": {
@@ -245,122 +184,7 @@
             ],
             "check": {
               "kind": "ai",
-              "expect": "The screen shows ONE global notification center entry (e.g. a bell in the global navigation rail) that aggregates notifications from all modules",
-              "want": "present",
-              "onlyOnAnomaly": false
-            }
-          }
-        ],
-        "limits": {
-          "maxSteps": 1000,
-          "maxMinutes": 15,
-          "maxIntervalMs": 1000
-        },
-        "verdictRule": {
-          "anyHit": true
-        },
-        "provenance": {
-          "generatedBy": "rules",
-          "skillVersion": "2026.10.21-1"
-        }
-      },
-      "planErrors": []
-    },
-    {
-      "sub": "s3",
-      "title": "the CloudDoc / deliverable document header (top-right, between Help and the avat",
-      "surface": "desktop-web",
-      "plan": {
-        "id": "2336-s3-desktop-web-v1",
-        "issueRef": "2336",
-        "title": "通知入口盘点（一次性验收）",
-        "category": "feature",
-        "surface": "desktop-web",
-        "issueSurfaces": [
-          "web",
-          "desktop"
-        ],
-        "env": "prod",
-        "launch": "once",
-        "targets": [],
-        "setup": [],
-        "actions": [],
-        "checks": [],
-        "acceptance": [
-          {
-            "id": "no-separate-bell-profile",
-            "text": "个人主页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
-            "actions": [
-              {
-                "type": "node",
-                "node": {
-                  "name": "teamily.openPage",
-                  "input": {
-                    "page": "profile"
-                  }
-                },
-                "delayAfterMs": 1000
-              },
-              {
-                "type": "wait",
-                "value": "1000",
-                "delayAfterMs": 1000
-              }
-            ],
-            "check": {
-              "kind": "visual-region",
-              "page": "profile",
-              "region": "element:profile.bell",
-              "expect": "profile 页头部仍有独立 🔔",
-              "want": "absent"
-            }
-          },
-          {
-            "id": "no-separate-bell-artifacts",
-            "text": "Artifacts 页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
-            "actions": [
-              {
-                "type": "node",
-                "node": {
-                  "name": "teamily.openPage",
-                  "input": {
-                    "page": "artifacts"
-                  }
-                },
-                "delayAfterMs": 1000
-              },
-              {
-                "type": "wait",
-                "value": "1000",
-                "delayAfterMs": 1000
-              }
-            ],
-            "check": {
-              "kind": "visual-region",
-              "page": "artifacts",
-              "region": "element:artifacts.bell",
-              "expect": "artifacts 页头部仍有独立 🔔",
-              "want": "absent"
-            }
-          },
-          {
-            "id": "single-center",
-            "text": "存在一个汇总所有模块通知、共享同一未读状态的通知中心入口",
-            "actions": [
-              {
-                "type": "node",
-                "node": {
-                  "name": "teamily.openPage",
-                  "input": {
-                    "page": "chat"
-                  }
-                },
-                "delayAfterMs": 1000
-              }
-            ],
-            "check": {
-              "kind": "ai",
-              "expect": "The screen shows ONE global notification center entry (e.g. a bell in the global navigation rail) that aggregates notifications from all modules",
+              "expect": "The far-left global navigation rail (the narrow icon column at the left edge) contains a bell-shaped (🔔) notification icon. Answer false if no bell-shaped icon is in that rail; gift, memory, download or other icons do not count",
               "want": "present",
               "onlyOnAnomaly": false
             }
@@ -381,5 +205,8 @@
       },
       "planErrors": []
     }
-  ]
+  ],
+  "hash": "e4344cc361546c1c",
+  "issueHash": "3687362a43ac598f",
+  "env": "prod"
 }

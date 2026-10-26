@@ -1,32 +1,39 @@
 // `autotest plan` / `autotest run`: Issue → draft → ONE confirmation (category, sub-cases, substitution
 // checkboxes with reasons) → fixed plans in platform/plans/ → executor → report.
+import { readFileSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { basename, join, resolve } from 'node:path';
+import { basename, join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { runDirFor, runPlan, type RunResult } from '../executor/run';
 import { openPools } from '../platform/pools';
-import type { Surface, TestPlan } from '../platform/schema/test-plan';
+import { type Surface, type TestPlan, TestPlanZ } from '../platform/schema/test-plan';
 import { parseIssue } from '../issue/parse';
 import { issuePath } from '../issue/paths';
+import { loadSavedDraft, PLANS_DIR, saveDraft } from '../issue/drafts';
 import { applyApproval, type Draft, draftIssue } from '../issue/planner';
 import { writeIssueReport } from '../issue/report';
 
-export const PLANS_DIR = resolve('platform/plans');
+export { PLANS_DIR };
 
 const flag = (a: string[], n: string) => (a.indexOf(`--${n}`) >= 0 ? a[a.indexOf(`--${n}`) + 1] : undefined);
 const has = (a: string[], n: string) => a.includes(`--${n}`);
 
 export { issuePath };
 
-export async function loadDraft(ref: string, env: 'test' | 'prod', useModel = true): Promise<Draft> {
+/** The confirmed draft: the saved one while the Issue file is unchanged (no model call), else a new draft
+ *  (saved with its hash). `redraft` forces a new one. */
+export async function loadDraft(ref: string, env: 'test' | 'prod', useModel = true, redraft = false): Promise<Draft> {
   const f = issuePath(ref);
   const id = basename(f).replace(/\.md$/, '');
-  return draftIssue(parseIssue(id, await readFile(f, 'utf8')), { env, useModel });
+  const text = await readFile(f, 'utf8');
+  const saved = redraft ? undefined : loadSavedDraft(id, text, env);
+  if (saved) return saved;
+  return saveDraft(await draftIssue(parseIssue(id, text), { env, useModel }), text, env);
 }
 
 /** Human-readable confirmation sheet. */
 export function confirmationSheet(d: Draft): string {
-  const out = [`Issue ${d.issue.id}: ${d.issue.title.slice(0, 120)}`, `预判类别: ${d.classification.category}（${d.classification.by}）— ${d.reason}`];
+  const out = [`Issue ${d.issue.id}: ${d.issue.title.slice(0, 120)}${d.hash ? `  [草稿 ${d.hash}]` : ''}`, `预判类别: ${d.classification.category}（${d.classification.by}）— ${d.reason}`];
   if (d.status !== 'plannable') out.push(`处理: ${d.status === 'refused' ? '拒绝执行' : '暂缓'}`);
   if (d.deferredPart) out.push(`暂缓部分: ${d.deferredPart}`);
   for (const s of d.subcases) {
@@ -79,9 +86,8 @@ export async function planCmd(args: string[]): Promise<number> {
   const ref = args.find((a) => !a.startsWith('--'));
   if (!ref) throw new Error('usage: autotest plan issues/<id>.md [--env prod] [--json] [--no-model]');
   const env = (flag(args, 'env') ?? 'prod') as 'test' | 'prod';
-  const d = await loadDraft(ref, env, !has(args, 'no-model'));
-  await mkdir(join(PLANS_DIR, 'drafts'), { recursive: true });
-  await writeFile(join(PLANS_DIR, 'drafts', `${d.issue.id}.json`), JSON.stringify(d, null, 2));
+  // `plan` always drafts anew (that is its job); `run` reuses the confirmed draft.
+  const d = await loadDraft(ref, env, !has(args, 'no-model'), true);
   if (d.status !== 'plannable') {
     const dir = runDirFor(d.issue.id);
     const f = await writeIssueReport(d, [], dir);
@@ -98,8 +104,11 @@ export async function planCmd(args: string[]): Promise<number> {
 export async function runIssue(d: Draft, approve: { sub: string; surface?: Surface }[], o: { headed?: boolean; maxSteps?: number; maxMinutes?: number; udid?: string; taskId?: string; log?: (s: string) => void }): Promise<{ dir: string; results: RunResult[]; report: string }> {
   const dir = runDirFor(d.issue.id);
   if (d.status !== 'plannable') return { dir, results: [], report: await writeIssueReport(d, [], dir) };
-  const plans = applyApproval(d, approve);
-  await savePlans(plans);
+  // Confirmation = execution: approved plans are frozen to files (with the draft hash) and the executor runs
+  // exactly what is read back from them.
+  const files = await savePlans(applyApproval(d, approve));
+  const plans = files.map((f) => TestPlanZ.parse(JSON.parse(readFileSync(f, 'utf8'))));
+  for (const p of plans) if (p.provenance.draftHash !== d.hash) throw new Error(`plan ${p.id}: draft hash ${p.provenance.draftHash} ≠ confirmed ${d.hash}`);
   const { pool, devices } = await openPools();
   const results: RunResult[] = [];
   for (const p of plans) {
@@ -113,10 +122,13 @@ export async function runIssue(d: Draft, approve: { sub: string; surface?: Surfa
 
 export async function runCmd(args: string[]): Promise<number> {
   const ref = flag(args, 'issue') ?? args.find((a) => !a.startsWith('--'));
-  if (!ref) throw new Error('usage: autotest run --issue <id> [--approve s1,s2:mobile-web|all] [--yes] [--env prod]');
+  if (!ref) throw new Error('usage: autotest run --issue <id> [--approve s1,s2:mobile-web|all] [--yes] [--env prod] [--redraft] [--draft <hash>]');
   const env = (flag(args, 'env') ?? 'prod') as 'test' | 'prod';
-  const d = await loadDraft(ref, env, !has(args, 'no-model'));
+  const d = await loadDraft(ref, env, !has(args, 'no-model'), has(args, 'redraft'));
   console.log(confirmationSheet(d));
+  // The console confirms a draft by its hash: refuse to run anything else.
+  const want = flag(args, 'draft');
+  if (want && want !== d.hash) throw new Error(`draft ${d.hash} is not the confirmed draft ${want} — confirm again`);
   let approve: { sub: string; surface?: Surface }[] = [];
   if (d.status === 'plannable') {
     const subst = d.subcases.some((s) => s.substitution);

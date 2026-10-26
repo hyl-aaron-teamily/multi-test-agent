@@ -231,6 +231,7 @@ $('run').onclick = async () => {
       const subs = [...document.querySelectorAll('[data-sub]')].filter((c) => c.checked).map((c) => { const sel = document.querySelector(`[data-surf="${c.dataset.sub}"]`); return c.dataset.sub + (sel ? ':' + sel.value : ''); });
       if (!subs.length) { $('formErr').textContent = '请至少勾选一个子用例'; return; }
       body.approve = subs.join(',');
+      body.draftHash = draft.hash;
     } else if (!draft || draft.id !== body.issue) { $('formErr').textContent = '请先“生成计划”并确认子用例'; return; }
   }
   if (body.type === 'sync') { body.roles = $('roles').value.trim(); body.env = $('syncEnv').value; if ($('rounds').value) body.rounds = Number($('rounds').value); }

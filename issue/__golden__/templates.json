@@ -1,0 +1,1820 @@
+{
+ "1329/s1/android-app": {
+  "title": "点赞后立即可见",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   },
+   {
+    "id": "msg",
+    "kind": "others-text-message",
+    "guidance": "别人发的普通文本消息（不是图片/卡片/系统消息），点赞类问题用它"
+   },
+   {
+    "id": "like",
+    "kind": "like-action",
+    "guidance": "长按消息后出现的点赞/👍 表情按钮"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 800
+   }
+  ],
+  "actions": [
+   {
+    "type": "longPress",
+    "element": "target.msg",
+    "delayAfterMs": 900
+   },
+   {
+    "type": "tap",
+    "element": "target.like",
+    "delayAfterMs": 1000
+   }
+  ],
+  "checks": [
+   {
+    "kind": "ai",
+    "expect": "The liked message shows a like / 👍 reaction under it",
+    "want": "present",
+    "onlyOnAnomaly": false
+   }
+  ],
+  "afterCheck": [
+   {
+    "type": "longPress",
+    "element": "target.msg",
+    "delayAfterMs": 900
+   },
+   {
+    "type": "tap",
+    "element": "target.like",
+    "delayAfterMs": 1000
+   }
+  ]
+ },
+ "1329/s1/android-web": {
+  "title": "点赞后立即可见",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   },
+   {
+    "id": "msg",
+    "kind": "others-text-message",
+    "guidance": "别人发的普通文本消息（不是图片/卡片/系统消息），点赞类问题用它"
+   },
+   {
+    "id": "like",
+    "kind": "like-action",
+    "guidance": "长按消息后出现的点赞/👍 表情按钮"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 800
+   }
+  ],
+  "actions": [
+   {
+    "type": "longPress",
+    "element": "target.msg",
+    "delayAfterMs": 900
+   },
+   {
+    "type": "tap",
+    "element": "target.like",
+    "delayAfterMs": 1000
+   }
+  ],
+  "checks": [
+   {
+    "kind": "ai",
+    "expect": "The liked message shows a like / 👍 reaction under it",
+    "want": "present",
+    "onlyOnAnomaly": false
+   }
+  ],
+  "afterCheck": [
+   {
+    "type": "longPress",
+    "element": "target.msg",
+    "delayAfterMs": 900
+   },
+   {
+    "type": "tap",
+    "element": "target.like",
+    "delayAfterMs": 1000
+   }
+  ]
+ },
+ "1329/s1/mobile-web": {
+  "title": "点赞后立即可见",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   },
+   {
+    "id": "msg",
+    "kind": "others-text-message",
+    "guidance": "别人发的普通文本消息（不是图片/卡片/系统消息），点赞类问题用它"
+   },
+   {
+    "id": "like",
+    "kind": "like-action",
+    "guidance": "长按消息后出现的点赞/👍 表情按钮"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 800
+   }
+  ],
+  "actions": [
+   {
+    "type": "longPress",
+    "element": "target.msg",
+    "delayAfterMs": 900
+   },
+   {
+    "type": "tap",
+    "element": "target.like",
+    "delayAfterMs": 1000
+   }
+  ],
+  "checks": [
+   {
+    "kind": "ai",
+    "expect": "The liked message shows a like / 👍 reaction under it",
+    "want": "present",
+    "onlyOnAnomaly": false
+   }
+  ],
+  "afterCheck": [
+   {
+    "type": "longPress",
+    "element": "target.msg",
+    "delayAfterMs": 900
+   },
+   {
+    "type": "tap",
+    "element": "target.like",
+    "delayAfterMs": 1000
+   }
+  ]
+ },
+ "1329/s1/desktop-web": {
+  "title": "点赞后立即可见",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   },
+   {
+    "id": "msg",
+    "kind": "others-text-message",
+    "guidance": "别人发的普通文本消息（不是图片/卡片/系统消息），点赞类问题用它"
+   },
+   {
+    "id": "like",
+    "kind": "like-action",
+    "guidance": "长按消息后出现的点赞/👍 表情按钮"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 800
+   }
+  ],
+  "actions": [
+   {
+    "type": "longPress",
+    "element": "target.msg",
+    "delayAfterMs": 900
+   },
+   {
+    "type": "tap",
+    "element": "target.like",
+    "delayAfterMs": 1000
+   }
+  ],
+  "checks": [
+   {
+    "kind": "ai",
+    "expect": "The liked message shows a like / 👍 reaction under it",
+    "want": "present",
+    "onlyOnAnomaly": false
+   }
+  ],
+  "afterCheck": [
+   {
+    "type": "longPress",
+    "element": "target.msg",
+    "delayAfterMs": 900
+   },
+   {
+    "type": "tap",
+    "element": "target.like",
+    "delayAfterMs": 1000
+   }
+  ]
+ },
+ "1329/s2/android-app": {
+  "title": "点引用定位应稳定跳到被引用消息",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   },
+   {
+    "id": "link",
+    "kind": "quote-card",
+    "guidance": "会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文）"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 1000
+   }
+  ],
+  "actions": [
+   {
+    "type": "tap",
+    "element": "target.link",
+    "delayAfterMs": 1000
+   },
+   {
+    "type": "wait",
+    "delayAfterMs": 1000,
+    "value": "1000"
+   }
+  ],
+  "checks": [
+   {
+    "kind": "baseline",
+    "expect": "点引用块后跳到被引用的原消息（每轮落在同一位置）",
+    "want": "present"
+   }
+  ],
+  "afterCheck": [
+   {
+    "type": "tap",
+    "delayAfterMs": 900,
+    "element": "chat.back"
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 1000
+   },
+   {
+    "type": "wait",
+    "delayAfterMs": 1000,
+    "value": "1000"
+   }
+  ]
+ },
+ "1329/s2/android-web": {
+  "title": "点引用定位应稳定跳到被引用消息",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   },
+   {
+    "id": "link",
+    "kind": "quote-card",
+    "guidance": "会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文）"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 1000
+   }
+  ],
+  "actions": [
+   {
+    "type": "tap",
+    "element": "target.link",
+    "delayAfterMs": 1000
+   },
+   {
+    "type": "wait",
+    "delayAfterMs": 1000,
+    "value": "1000"
+   }
+  ],
+  "checks": [
+   {
+    "kind": "baseline",
+    "expect": "点引用块后跳到被引用的原消息（每轮落在同一位置）",
+    "want": "present"
+   }
+  ],
+  "afterCheck": [
+   {
+    "type": "tap",
+    "delayAfterMs": 900,
+    "element": "chat.back"
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 1000
+   },
+   {
+    "type": "wait",
+    "delayAfterMs": 1000,
+    "value": "1000"
+   }
+  ]
+ },
+ "1329/s2/mobile-web": {
+  "title": "点引用定位应稳定跳到被引用消息",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   },
+   {
+    "id": "link",
+    "kind": "quote-card",
+    "guidance": "会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文）"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 1000
+   }
+  ],
+  "actions": [
+   {
+    "type": "tap",
+    "element": "target.link",
+    "delayAfterMs": 1000
+   },
+   {
+    "type": "wait",
+    "delayAfterMs": 1000,
+    "value": "1000"
+   }
+  ],
+  "checks": [
+   {
+    "kind": "baseline",
+    "expect": "点引用块后跳到被引用的原消息（每轮落在同一位置）",
+    "want": "present"
+   }
+  ],
+  "afterCheck": [
+   {
+    "type": "tap",
+    "delayAfterMs": 900,
+    "element": "chat.back"
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 1000
+   },
+   {
+    "type": "wait",
+    "delayAfterMs": 1000,
+    "value": "1000"
+   }
+  ]
+ },
+ "1329/s2/desktop-web": {
+  "title": "点引用定位应稳定跳到被引用消息",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   },
+   {
+    "id": "link",
+    "kind": "quote-card",
+    "guidance": "会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文）"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 1000
+   }
+  ],
+  "actions": [
+   {
+    "type": "tap",
+    "element": "target.link",
+    "delayAfterMs": 1000
+   },
+   {
+    "type": "wait",
+    "delayAfterMs": 1000,
+    "value": "1000"
+   }
+  ],
+  "checks": [
+   {
+    "kind": "baseline",
+    "expect": "点引用块后跳到被引用的原消息（每轮落在同一位置）",
+    "want": "present"
+   }
+  ],
+  "afterCheck": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 1000
+   },
+   {
+    "type": "wait",
+    "delayAfterMs": 1000,
+    "value": "1000"
+   }
+  ]
+ },
+ "1329/s3/android-app": {
+  "title": "点一次输入框键盘即弹出",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 800
+   }
+  ],
+  "actions": [
+   {
+    "type": "tap",
+    "delayAfterMs": 700,
+    "element": "chat.back"
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 900
+   },
+   {
+    "type": "tap",
+    "delayAfterMs": 900,
+    "element": "chat.composer"
+   }
+  ],
+  "checks": [
+   {
+    "kind": "ai",
+    "expect": "The on-screen keyboard is shown after a single tap on the message input",
+    "want": "present",
+    "onlyOnAnomaly": false
+   }
+  ]
+ },
+ "1329/s3/android-web": {
+  "title": "点一次输入框键盘即弹出",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 800
+   }
+  ],
+  "actions": [
+   {
+    "type": "tap",
+    "delayAfterMs": 700,
+    "element": "chat.back"
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 900
+   },
+   {
+    "type": "tap",
+    "delayAfterMs": 900,
+    "element": "chat.composer"
+   }
+  ],
+  "checks": [
+   {
+    "kind": "ai",
+    "expect": "The on-screen keyboard is shown after a single tap on the message input",
+    "want": "present",
+    "onlyOnAnomaly": false
+   }
+  ]
+ },
+ "1329/s3/mobile-web": {
+  "title": "点一次输入框键盘即弹出",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 800
+   }
+  ],
+  "actions": [
+   {
+    "type": "tap",
+    "delayAfterMs": 700,
+    "element": "chat.back"
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 900
+   },
+   {
+    "type": "tap",
+    "delayAfterMs": 900,
+    "element": "chat.composer"
+   }
+  ],
+  "checks": [
+   {
+    "kind": "ai",
+    "expect": "The on-screen keyboard is shown after a single tap on the message input",
+    "want": "present",
+    "onlyOnAnomaly": false
+   }
+  ]
+ },
+ "1329/s3/desktop-web": {
+  "title": "点一次输入框键盘即弹出",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 800
+   }
+  ],
+  "actions": [
+   {
+    "type": "tap",
+    "delayAfterMs": 500,
+    "element": "chatlist.search"
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 700
+   },
+   {
+    "type": "tap",
+    "delayAfterMs": 800,
+    "element": "chat.composer"
+   }
+  ],
+  "checks": [
+   {
+    "kind": "ai",
+    "expect": "The on-screen keyboard is shown after a single tap on the message input",
+    "want": "present",
+    "onlyOnAnomaly": false
+   }
+  ]
+ },
+ "1594/main/android-app": {
+  "title": "@ 成员选择器弹出（切换会话后循环）",
+  "targets": [
+   {
+    "id": "group",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   },
+   {
+    "id": "other",
+    "kind": "other-conversation",
+    "guidance": "与目标群不同的任意会话（用于切换会话再切回）"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "group"
+     }
+    },
+    "delayAfterMs": 800
+   }
+  ],
+  "actions": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.clearComposer",
+     "input": {}
+    },
+    "delayAfterMs": 200
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "other"
+     }
+    },
+    "delayAfterMs": 500
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "group"
+     }
+    },
+    "delayAfterMs": 700
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.typeMention",
+     "input": {}
+    },
+    "delayAfterMs": 700
+   }
+  ],
+  "checks": [
+   {
+    "kind": "visual-region",
+    "page": "mention-picker",
+    "region": "picker",
+    "expect": "输入 @ 后成员/智能体选择器弹出",
+    "want": "present",
+    "onlyOnAnomaly": true
+   },
+   {
+    "kind": "crash",
+    "expect": "无崩溃 / 页面错误",
+    "want": "absent"
+   }
+  ]
+ },
+ "1594/main/android-web": {
+  "title": "@ 成员选择器弹出（切换会话后循环）",
+  "targets": [
+   {
+    "id": "group",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   },
+   {
+    "id": "other",
+    "kind": "other-conversation",
+    "guidance": "与目标群不同的任意会话（用于切换会话再切回）"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "group"
+     }
+    },
+    "delayAfterMs": 800
+   }
+  ],
+  "actions": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.clearComposer",
+     "input": {}
+    },
+    "delayAfterMs": 200
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "other"
+     }
+    },
+    "delayAfterMs": 500
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "group"
+     }
+    },
+    "delayAfterMs": 700
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.typeMention",
+     "input": {}
+    },
+    "delayAfterMs": 700
+   }
+  ],
+  "checks": [
+   {
+    "kind": "visual-region",
+    "page": "mention-picker",
+    "region": "picker",
+    "expect": "输入 @ 后成员/智能体选择器弹出",
+    "want": "present",
+    "onlyOnAnomaly": true
+   },
+   {
+    "kind": "page-error",
+    "expect": "无崩溃 / 页面错误",
+    "want": "absent"
+   }
+  ]
+ },
+ "1594/main/mobile-web": {
+  "title": "@ 成员选择器弹出（切换会话后循环）",
+  "targets": [
+   {
+    "id": "group",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   },
+   {
+    "id": "other",
+    "kind": "other-conversation",
+    "guidance": "与目标群不同的任意会话（用于切换会话再切回）"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "group"
+     }
+    },
+    "delayAfterMs": 800
+   }
+  ],
+  "actions": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.clearComposer",
+     "input": {}
+    },
+    "delayAfterMs": 200
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "other"
+     }
+    },
+    "delayAfterMs": 500
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "group"
+     }
+    },
+    "delayAfterMs": 700
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.typeMention",
+     "input": {}
+    },
+    "delayAfterMs": 700
+   }
+  ],
+  "checks": [
+   {
+    "kind": "visual-region",
+    "page": "mention-picker",
+    "region": "picker",
+    "expect": "输入 @ 后成员/智能体选择器弹出",
+    "want": "present",
+    "onlyOnAnomaly": true
+   },
+   {
+    "kind": "page-error",
+    "expect": "无崩溃 / 页面错误",
+    "want": "absent"
+   }
+  ]
+ },
+ "1594/main/desktop-web": {
+  "title": "@ 成员选择器弹出（切换会话后循环）",
+  "targets": [
+   {
+    "id": "group",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   },
+   {
+    "id": "other",
+    "kind": "other-conversation",
+    "guidance": "与目标群不同的任意会话（用于切换会话再切回）"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "group"
+     }
+    },
+    "delayAfterMs": 800
+   }
+  ],
+  "actions": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.clearComposer",
+     "input": {}
+    },
+    "delayAfterMs": 200
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "other"
+     }
+    },
+    "delayAfterMs": 500
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "group"
+     }
+    },
+    "delayAfterMs": 700
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.typeMention",
+     "input": {}
+    },
+    "delayAfterMs": 700
+   }
+  ],
+  "checks": [
+   {
+    "kind": "visual-region",
+    "page": "mention-picker",
+    "region": "picker",
+    "expect": "输入 @ 后成员/智能体选择器弹出",
+    "want": "present",
+    "onlyOnAnomaly": true
+   },
+   {
+    "kind": "page-error",
+    "expect": "无崩溃 / 页面错误",
+    "want": "absent"
+   }
+  ]
+ },
+ "2044/main/android-app": {
+  "title": "按步骤执行并核对预期",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 800
+   }
+  ],
+  "actions": [
+   {
+    "type": "tap",
+    "delayAfterMs": 700,
+    "element": "chat.back"
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 900
+   },
+   {
+    "type": "scroll",
+    "delayAfterMs": 700,
+    "value": "up"
+   },
+   {
+    "type": "scroll",
+    "delayAfterMs": 700,
+    "value": "down"
+   }
+  ],
+  "checks": [
+   {
+    "kind": "crash",
+    "expect": "无崩溃 / 页面错误",
+    "want": "absent"
+   }
+  ]
+ },
+ "2044/main/android-web": {
+  "title": "按步骤执行并核对预期",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 800
+   }
+  ],
+  "actions": [
+   {
+    "type": "tap",
+    "delayAfterMs": 700,
+    "element": "chat.back"
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 900
+   },
+   {
+    "type": "scroll",
+    "delayAfterMs": 700,
+    "value": "up"
+   },
+   {
+    "type": "scroll",
+    "delayAfterMs": 700,
+    "value": "down"
+   }
+  ],
+  "checks": [
+   {
+    "kind": "page-error",
+    "expect": "无崩溃 / 页面错误",
+    "want": "absent"
+   }
+  ]
+ },
+ "2044/main/mobile-web": {
+  "title": "按步骤执行并核对预期",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 800
+   }
+  ],
+  "actions": [
+   {
+    "type": "tap",
+    "delayAfterMs": 700,
+    "element": "chat.back"
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 900
+   },
+   {
+    "type": "scroll",
+    "delayAfterMs": 700,
+    "value": "up"
+   },
+   {
+    "type": "scroll",
+    "delayAfterMs": 700,
+    "value": "down"
+   }
+  ],
+  "checks": [
+   {
+    "kind": "page-error",
+    "expect": "无崩溃 / 页面错误",
+    "want": "absent"
+   }
+  ]
+ },
+ "2044/main/desktop-web": {
+  "title": "按步骤执行并核对预期",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 800
+   }
+  ],
+  "actions": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 900
+   },
+   {
+    "type": "scroll",
+    "delayAfterMs": 700,
+    "value": "up"
+   },
+   {
+    "type": "scroll",
+    "delayAfterMs": 700,
+    "value": "down"
+   }
+  ],
+  "checks": [
+   {
+    "kind": "page-error",
+    "expect": "无崩溃 / 页面错误",
+    "want": "absent"
+   }
+  ]
+ },
+ "2122/main/android-app": {
+  "title": "@我 聚合入口 / 免打扰群 @ 提示（单账号可验部分）",
+  "targets": [
+   {
+    "id": "mutedGroup",
+    "kind": "muted-group",
+    "guidance": "会话列表里带免打扰（划线铃铛）图标、且预览中出现 “@” 的群"
+   }
+  ],
+  "setup": [],
+  "actions": [],
+  "checks": [],
+  "acceptance": [
+   {
+    "id": "mentions-entry",
+    "text": "存在 “@我 / Mentions” 聚合入口（列出所有 @ 我的消息）",
+    "actions": [
+     {
+      "type": "node",
+      "node": {
+       "name": "teamily.openPage",
+       "input": {
+        "page": "chat"
+       }
+      },
+      "delayAfterMs": 1000
+     }
+    ],
+    "check": {
+     "kind": "ai",
+     "expect": "There is a visible entry named like \"@我\", \"Mentions\" or \"提及\" that lists messages mentioning the user",
+     "want": "present",
+     "onlyOnAnomaly": false
+    }
+   },
+   {
+    "id": "muted-mention-badge",
+    "text": "免打扰群被 @ 时，会话列表有显著提示（角标/徽标，而不只是小号绿色 “[有人@你]” 文本）",
+    "actions": [],
+    "check": {
+     "kind": "ai",
+     "expect": "In the conversation list, the muted group row that mentions the user shows a prominent badge (a count or @ badge on the avatar or at the right side), not only small green preview text",
+     "want": "present",
+     "onlyOnAnomaly": false
+    }
+   }
+  ]
+ },
+ "2122/main/android-web": {
+  "title": "@我 聚合入口 / 免打扰群 @ 提示（单账号可验部分）",
+  "targets": [
+   {
+    "id": "mutedGroup",
+    "kind": "muted-group",
+    "guidance": "会话列表里带免打扰（划线铃铛）图标、且预览中出现 “@” 的群"
+   }
+  ],
+  "setup": [],
+  "actions": [],
+  "checks": [],
+  "acceptance": [
+   {
+    "id": "mentions-entry",
+    "text": "存在 “@我 / Mentions” 聚合入口（列出所有 @ 我的消息）",
+    "actions": [
+     {
+      "type": "node",
+      "node": {
+       "name": "teamily.openPage",
+       "input": {
+        "page": "chat"
+       }
+      },
+      "delayAfterMs": 1000
+     }
+    ],
+    "check": {
+     "kind": "ai",
+     "expect": "There is a visible entry named like \"@我\", \"Mentions\" or \"提及\" that lists messages mentioning the user",
+     "want": "present",
+     "onlyOnAnomaly": false
+    }
+   },
+   {
+    "id": "muted-mention-badge",
+    "text": "免打扰群被 @ 时，会话列表有显著提示（角标/徽标，而不只是小号绿色 “[有人@你]” 文本）",
+    "actions": [],
+    "check": {
+     "kind": "ai",
+     "expect": "In the conversation list, the muted group row that mentions the user shows a prominent badge (a count or @ badge on the avatar or at the right side), not only small green preview text",
+     "want": "present",
+     "onlyOnAnomaly": false
+    }
+   }
+  ]
+ },
+ "2122/main/mobile-web": {
+  "title": "@我 聚合入口 / 免打扰群 @ 提示（单账号可验部分）",
+  "targets": [
+   {
+    "id": "mutedGroup",
+    "kind": "muted-group",
+    "guidance": "会话列表里带免打扰（划线铃铛）图标、且预览中出现 “@” 的群"
+   }
+  ],
+  "setup": [],
+  "actions": [],
+  "checks": [],
+  "acceptance": [
+   {
+    "id": "mentions-entry",
+    "text": "存在 “@我 / Mentions” 聚合入口（列出所有 @ 我的消息）",
+    "actions": [
+     {
+      "type": "node",
+      "node": {
+       "name": "teamily.openPage",
+       "input": {
+        "page": "chat"
+       }
+      },
+      "delayAfterMs": 1000
+     }
+    ],
+    "check": {
+     "kind": "ai",
+     "expect": "There is a visible entry named like \"@我\", \"Mentions\" or \"提及\" that lists messages mentioning the user",
+     "want": "present",
+     "onlyOnAnomaly": false
+    }
+   },
+   {
+    "id": "muted-mention-badge",
+    "text": "免打扰群被 @ 时，会话列表有显著提示（角标/徽标，而不只是小号绿色 “[有人@你]” 文本）",
+    "actions": [],
+    "check": {
+     "kind": "ai",
+     "expect": "In the conversation list, the muted group row that mentions the user shows a prominent badge (a count or @ badge on the avatar or at the right side), not only small green preview text",
+     "want": "present",
+     "onlyOnAnomaly": false
+    }
+   }
+  ]
+ },
+ "2122/main/desktop-web": {
+  "title": "@我 聚合入口 / 免打扰群 @ 提示（单账号可验部分）",
+  "targets": [
+   {
+    "id": "mutedGroup",
+    "kind": "muted-group",
+    "guidance": "会话列表里带免打扰（划线铃铛）图标、且预览中出现 “@” 的群"
+   }
+  ],
+  "setup": [],
+  "actions": [],
+  "checks": [],
+  "acceptance": [
+   {
+    "id": "mentions-entry",
+    "text": "存在 “@我 / Mentions” 聚合入口（列出所有 @ 我的消息）",
+    "actions": [
+     {
+      "type": "node",
+      "node": {
+       "name": "teamily.openPage",
+       "input": {
+        "page": "chat"
+       }
+      },
+      "delayAfterMs": 1000
+     }
+    ],
+    "check": {
+     "kind": "ai",
+     "expect": "There is a visible entry named like \"@我\", \"Mentions\" or \"提及\" that lists messages mentioning the user",
+     "want": "present",
+     "onlyOnAnomaly": false
+    }
+   },
+   {
+    "id": "muted-mention-badge",
+    "text": "免打扰群被 @ 时，会话列表有显著提示（角标/徽标，而不只是小号绿色 “[有人@你]” 文本）",
+    "actions": [],
+    "check": {
+     "kind": "ai",
+     "expect": "In the conversation list, the muted group row that mentions the user shows a prominent badge (a count or @ badge on the avatar or at the right side), not only small green preview text",
+     "want": "present",
+     "onlyOnAnomaly": false
+    }
+   }
+  ]
+ },
+ "2336/main/android-app": {
+  "title": "通知入口盘点（一次性验收）",
+  "targets": [],
+  "setup": [],
+  "actions": [],
+  "checks": [],
+  "acceptance": [
+   {
+    "id": "single-center",
+    "text": "存在一个汇总所有模块通知、共享同一未读状态的通知中心入口",
+    "actions": [
+     {
+      "type": "back",
+      "delayAfterMs": 1000
+     },
+     {
+      "type": "node",
+      "node": {
+       "name": "teamily.openPage",
+       "input": {
+        "page": "chat"
+       }
+      },
+      "delayAfterMs": 1000
+     }
+    ],
+    "check": {
+     "kind": "ai",
+     "expect": "The far-left global navigation rail (the narrow icon column at the left edge) contains a bell-shaped (🔔) notification icon. Answer false if no bell-shaped icon is in that rail; gift, memory, download or other icons do not count",
+     "want": "present",
+     "onlyOnAnomaly": false
+    }
+   }
+  ]
+ },
+ "2336/main/android-web": {
+  "title": "通知入口盘点（一次性验收）",
+  "targets": [],
+  "setup": [],
+  "actions": [],
+  "checks": [],
+  "acceptance": [
+   {
+    "id": "no-separate-bell-profile",
+    "text": "个人主页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
+    "actions": [
+     {
+      "type": "node",
+      "node": {
+       "name": "teamily.openPage",
+       "input": {
+        "page": "profile"
+       }
+      },
+      "delayAfterMs": 1000
+     },
+     {
+      "type": "wait",
+      "delayAfterMs": 1000,
+      "value": "1000"
+     }
+    ],
+    "check": {
+     "kind": "visual-region",
+     "page": "profile",
+     "region": "element:profile.bell",
+     "expect": "profile 页头部仍有独立 🔔",
+     "want": "absent"
+    }
+   },
+   {
+    "id": "no-separate-bell-artifacts",
+    "text": "Artifacts 页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
+    "actions": [
+     {
+      "type": "node",
+      "node": {
+       "name": "teamily.openPage",
+       "input": {
+        "page": "artifacts"
+       }
+      },
+      "delayAfterMs": 1000
+     },
+     {
+      "type": "wait",
+      "delayAfterMs": 1000,
+      "value": "1000"
+     }
+    ],
+    "check": {
+     "kind": "visual-region",
+     "page": "artifacts",
+     "region": "element:artifacts.bell",
+     "expect": "artifacts 页头部仍有独立 🔔",
+     "want": "absent"
+    }
+   },
+   {
+    "id": "single-center",
+    "text": "存在一个汇总所有模块通知、共享同一未读状态的通知中心入口",
+    "actions": [
+     {
+      "type": "back",
+      "delayAfterMs": 1000
+     },
+     {
+      "type": "node",
+      "node": {
+       "name": "teamily.openPage",
+       "input": {
+        "page": "chat"
+       }
+      },
+      "delayAfterMs": 1000
+     }
+    ],
+    "check": {
+     "kind": "ai",
+     "expect": "The far-left global navigation rail (the narrow icon column at the left edge) contains a bell-shaped (🔔) notification icon. Answer false if no bell-shaped icon is in that rail; gift, memory, download or other icons do not count",
+     "want": "present",
+     "onlyOnAnomaly": false
+    }
+   }
+  ]
+ },
+ "2336/main/mobile-web": {
+  "title": "通知入口盘点（一次性验收）",
+  "targets": [],
+  "setup": [],
+  "actions": [],
+  "checks": [],
+  "acceptance": [
+   {
+    "id": "no-separate-bell-profile",
+    "text": "个人主页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
+    "actions": [
+     {
+      "type": "node",
+      "node": {
+       "name": "teamily.openPage",
+       "input": {
+        "page": "profile"
+       }
+      },
+      "delayAfterMs": 1000
+     },
+     {
+      "type": "wait",
+      "delayAfterMs": 1000,
+      "value": "1000"
+     }
+    ],
+    "check": {
+     "kind": "visual-region",
+     "page": "profile",
+     "region": "element:profile.bell",
+     "expect": "profile 页头部仍有独立 🔔",
+     "want": "absent"
+    }
+   },
+   {
+    "id": "no-separate-bell-artifacts",
+    "text": "Artifacts 页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
+    "actions": [
+     {
+      "type": "node",
+      "node": {
+       "name": "teamily.openPage",
+       "input": {
+        "page": "artifacts"
+       }
+      },
+      "delayAfterMs": 1000
+     },
+     {
+      "type": "wait",
+      "delayAfterMs": 1000,
+      "value": "1000"
+     }
+    ],
+    "check": {
+     "kind": "visual-region",
+     "page": "artifacts",
+     "region": "element:artifacts.bell",
+     "expect": "artifacts 页头部仍有独立 🔔",
+     "want": "absent"
+    }
+   },
+   {
+    "id": "single-center",
+    "text": "存在一个汇总所有模块通知、共享同一未读状态的通知中心入口",
+    "actions": [
+     {
+      "type": "back",
+      "delayAfterMs": 1000
+     },
+     {
+      "type": "node",
+      "node": {
+       "name": "teamily.openPage",
+       "input": {
+        "page": "chat"
+       }
+      },
+      "delayAfterMs": 1000
+     }
+    ],
+    "check": {
+     "kind": "ai",
+     "expect": "The far-left global navigation rail (the narrow icon column at the left edge) contains a bell-shaped (🔔) notification icon. Answer false if no bell-shaped icon is in that rail; gift, memory, download or other icons do not count",
+     "want": "present",
+     "onlyOnAnomaly": false
+    }
+   }
+  ]
+ },
+ "2336/main/desktop-web": {
+  "title": "通知入口盘点（一次性验收）",
+  "targets": [],
+  "setup": [],
+  "actions": [],
+  "checks": [],
+  "acceptance": [
+   {
+    "id": "no-separate-bell-profile",
+    "text": "个人主页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
+    "actions": [
+     {
+      "type": "node",
+      "node": {
+       "name": "teamily.openPage",
+       "input": {
+        "page": "profile"
+       }
+      },
+      "delayAfterMs": 1000
+     },
+     {
+      "type": "wait",
+      "delayAfterMs": 1000,
+      "value": "1000"
+     }
+    ],
+    "check": {
+     "kind": "visual-region",
+     "page": "profile",
+     "region": "element:profile.bell",
+     "expect": "profile 页头部仍有独立 🔔",
+     "want": "absent"
+    }
+   },
+   {
+    "id": "no-separate-bell-artifacts",
+    "text": "Artifacts 页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
+    "actions": [
+     {
+      "type": "node",
+      "node": {
+       "name": "teamily.openPage",
+       "input": {
+        "page": "artifacts"
+       }
+      },
+      "delayAfterMs": 1000
+     },
+     {
+      "type": "wait",
+      "delayAfterMs": 1000,
+      "value": "1000"
+     }
+    ],
+    "check": {
+     "kind": "visual-region",
+     "page": "artifacts",
+     "region": "element:artifacts.bell",
+     "expect": "artifacts 页头部仍有独立 🔔",
+     "want": "absent"
+    }
+   },
+   {
+    "id": "no-separate-bell-clouddoc",
+    "text": "CloudDoc / 交付物文档头部不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
+    "actions": [
+     {
+      "type": "node",
+      "node": {
+       "name": "teamily.openPage",
+       "input": {
+        "page": "artifacts"
+       }
+      },
+      "delayAfterMs": 1000
+     },
+     {
+      "type": "wait",
+      "delayAfterMs": 1000,
+      "value": "1000"
+     },
+     {
+      "type": "tap",
+      "element": "artifacts.firstCard",
+      "delayAfterMs": 1000
+     },
+     {
+      "type": "wait",
+      "delayAfterMs": 1000,
+      "value": "1000"
+     },
+     {
+      "type": "wait",
+      "delayAfterMs": 1000,
+      "value": "1000"
+     },
+     {
+      "type": "wait",
+      "delayAfterMs": 1000,
+      "value": "1000"
+     }
+    ],
+    "check": {
+     "kind": "visual-region",
+     "page": "clouddoc",
+     "region": "element:clouddoc.bell",
+     "expect": "CloudDoc 头部仍有独立 🔔",
+     "want": "absent"
+    }
+   },
+   {
+    "id": "single-center",
+    "text": "存在一个汇总所有模块通知、共享同一未读状态的通知中心入口",
+    "actions": [
+     {
+      "type": "back",
+      "delayAfterMs": 1000
+     },
+     {
+      "type": "node",
+      "node": {
+       "name": "teamily.openPage",
+       "input": {
+        "page": "chat"
+       }
+      },
+      "delayAfterMs": 1000
+     }
+    ],
+    "check": {
+     "kind": "ai",
+     "expect": "The far-left global navigation rail (the narrow icon column at the left edge) contains a bell-shaped (🔔) notification icon. Answer false if no bell-shaped icon is in that rail; gift, memory, download or other icons do not count",
+     "want": "present",
+     "onlyOnAnomaly": false
+    }
+   }
+  ]
+ }
+}

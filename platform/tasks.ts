@@ -30,6 +30,7 @@ export interface TaskInput {
   yesProd?: boolean; // imui: explicit production confirmation
   issue?: string; // issue: issues/<id>.md
   approve?: string; // issue: confirmed sub-cases "s1,s3:mobile-web" (the one-time confirmation)
+  draftHash?: string; // issue: hash of the confirmed draft (run refuses any other)
   env?: 'test' | 'prod'; // issue, sync
   roles?: string; // sync: surfaces, one client each ("desktop-web,android-web,android-app")
   rounds?: number; // sync
@@ -76,6 +77,10 @@ export function validateTaskInput(b: any): TaskInput | string {
     if (!['test', 'prod'].includes(env)) return 'env must be test or prod';
     const out: TaskInput = { type: 'issue', package: TEAMILY_PACKAGE, issue, approve: approve || 'all', env };
     if (b.device) out.device = String(b.device);
+    if (b.draftHash !== undefined && b.draftHash !== '') {
+      if (!/^[0-9a-f]{16}$/.test(String(b.draftHash))) return 'draftHash: 16 hex chars';
+      out.draftHash = String(b.draftHash);
+    }
     for (const k of ['maxSteps', 'maxMinutes'] as const) if (b[k] !== undefined && b[k] !== '') out[k] = Number(b[k]);
     return out;
   }
@@ -118,6 +123,7 @@ export function taskArgs(t: Task, udid: string): string[] {
   if (t.type === 'issue') {
     const a = ['bin/autotest.ts', 'run', '--issue', t.issue!, '--approve', t.approve ?? 'all', '--env', t.env ?? 'prod', '--id', t.id];
     if (udid) a.push('--device', udid);
+    if (t.draftHash) a.push('--draft', t.draftHash);
     if (t.maxSteps) a.push('--max-steps', String(t.maxSteps));
     if (t.maxMinutes) a.push('--max-minutes', String(t.maxMinutes));
     return a;

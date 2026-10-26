@@ -2,6 +2,7 @@
 // Plans reference SKILL element ids and Nodes only — never coordinates; the executor resolves ids through
 // the profile of its surface. The JSON Schema export is what the LLM gets as structured-output contract.
 import { z } from 'zod';
+import { IssueContractZ } from './contract';
 
 /** The single definition of execution surfaces (platform/accounts/types re-exports it). */
 export const SURFACES = ['android-app', 'android-web', 'mobile-web', 'desktop-web'] as const;
@@ -71,7 +72,11 @@ export const TestPlanZ = z.object({
   correctPath: z.array(PlannedActionZ).optional(),
   limits: LimitsZ,
   verdictRule: VerdictRuleZ,
-  provenance: z.object({ generatedBy: z.enum(['model', 'rules', 'manual']), skillVersion: z.string(), confirmedAt: z.string().optional() }),
+  /** Intent contract the plan was compiled from (W2-1 §5). */
+  contract: IssueContractZ.optional(),
+  /** Do the plan's checks observe the contract's postcondition? 'not-covered' = generic fallback (report note). */
+  coverage: z.enum(['covered', 'not-covered']).optional(),
+  provenance: z.object({ generatedBy: z.enum(['model', 'rules', 'manual']), skillVersion: z.string(), confirmedAt: z.string().optional(), draftHash: z.string().optional(), pattern: z.string().optional() }),
 });
 
 export type Surface = z.infer<typeof SurfaceZ>;
