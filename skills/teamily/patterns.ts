@@ -164,16 +164,21 @@ export const PATTERNS: Pattern[] = [
     categories: ['bug-always', 'bug-intermittent', 'suspected-misuse', 'feature'],
     featureOnly: false,
     signal: (t) => /location link|jumps? to|定位|跳转|message link/.test(t),
-    build: (surface) => {
+    build: (surface, params = {}) => {
     // A quote card (reply with quote) is a location link back to the quoted message. Round 1 checks the
     // first jump really shows the quoted original and keeps that screen; later rounds must land there too.
+    // With an allow-listed conversation (params.conversation) the precondition is constructed: a plain
+    // message and a quote-reply to it; otherwise an existing quote reply is used.
+    const conv = String(params.conversation ?? '');
+    const src = String(params.source ?? 'autotest-quote-source 1329');
     return {
       title: '点引用定位应稳定跳到被引用消息',
       targets: [
-        { id: 'conv', kind: 'group-conversation', guidance: T['group-conversation'] },
-        { id: 'link', kind: 'quote-card', guidance: '会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文）' },
+        { id: 'conv', kind: 'group-conversation', guidance: conv ? `the conversation titled "${conv}" (titles may be cut short with …)` : T['group-conversation'] },
+        { id: 'link', kind: 'quote-card', guidance: '会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文）', ...(conv ? { afterPrepare: true } : {}) },
       ],
       setup: [node('teamily.openConversation', { target: 'conv' }, 1000)],
+      ...(conv ? { prepare: [node('teamily.sendMessage', { text: src }, 1000), node('teamily.quoteReply', { quote: src, text: 'autotest-quote-reply 1329' }, 1000)] } : {}),
       actions: [{ type: 'tap', element: 'target.link', delayAfterMs: 1000 }, a('wait', { value: '1000', delayAfterMs: 1000 })],
       checks: [{ kind: 'baseline', expect: '点引用块后跳到被引用的原消息（每轮落在同一位置）', want: 'present' }],
       afterCheck: [...(surface === 'desktop-web' ? [] : [a('tap', { element: 'chat.back', delayAfterMs: 900 })]), node('teamily.openConversation', { target: 'conv' }, 1000), a('wait', { value: '1000', delayAfterMs: 1000 })],

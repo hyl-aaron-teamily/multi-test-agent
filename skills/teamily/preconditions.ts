@@ -23,7 +23,7 @@ export const PRECONDITIONS: PreconditionSpec[] = [
   { id: 'other-conversation', meaning: '存在另一个会话（切换用）', establish: 'existing-data', target: 'other-conversation' },
   { id: 'others-text-message', meaning: '会话里有别人发的普通文本消息', establish: 'existing-data', target: 'others-text-message' },
   { id: 'muted-group-with-mention', meaning: '有一个免打扰且被 @ 的群', establish: 'existing-data', target: 'muted-group' },
-  { id: 'quote-reply-exists', meaning: '会话里已有一条引用回复', establish: 'existing-data', target: 'quote-card' },
+  { id: 'quote-reply-exists', meaning: '会话里有一条引用回复（在允许清单会话中构造）', establish: 'construct', target: 'quote-card' },
   { id: 'quoted-message-with-markdown-link', meaning: '一条含 Markdown 链接语法的消息被引用回复', establish: 'construct', surfaces: ['android-app', 'android-web', 'mobile-web', 'desktop-web'] },
   { id: 'app-in-background', meaning: 'App 处于后台 / 被杀后重开', establish: 'executor', surfaces: ['android-app', 'android-web'] },
   { id: 'browser-storage-full', meaning: '浏览器存储（localStorage）写满', establish: 'unconstructible' },

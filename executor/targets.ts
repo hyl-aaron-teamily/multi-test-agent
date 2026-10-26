@@ -67,13 +67,15 @@ export async function browserRows(d: AndroidDriver, p: Profile): Promise<Candida
   const web = nodes.find((n) => /WebView$/.test(n.cls) && n.y2 - n.y1 > 800);
   const w = p.viewport.width;
   const top = Math.max(web?.y1 ?? 0, ...nodes.filter((n) => /搜索/.test(n.hint) && /EditText/.test(n.cls) && n.y1 > (web?.y1 ?? 0)).map((n) => n.y2));
-  const navTop = Math.min(...nodes.filter((n) => /^(\d+ )?(聊天|Chat)$/.test(n.desc) && n.y1 > (web?.y2 ?? p.viewport.height) - 320).map((n) => n.y1), web?.y2 ?? p.viewport.height);
+  // The bottom tab bar (its 聊天 tab may be exposed as desc or as text) is not part of the list.
+  const navTop = Math.min(...nodes.filter((n) => (/^(\d+ )?(聊天|Chat)$/.test(n.desc) || /^(聊天|Chat)$/.test(n.text)) && n.y1 > p.viewport.height * 0.7).map((n) => n.y1 - 20), web?.y2 ?? p.viewport.height);
   const card = nodes.filter((n) => /免费试用|free trial|查看我的任务/i.test(n.text));
   const cardTop = card.length ? Math.min(...card.map((n) => n.y1)) - 140 : navTop;
   const texts = nodes.filter((n) => /TextView/.test(n.cls) && n.text.trim() && n.y1 > top && n.y2 < Math.min(navTop, cardTop) && n.y2 > n.y1);
   const out: Candidate[] = [];
   for (const t of texts) {
     if (t.x1 < w * 0.15 || t.x1 > w * 0.35) continue;
+    if (TAB_LABELS.test(t.text.trim())) continue;
     const time = texts.find((x) => x !== t && x.x1 > w * 0.75 && Math.abs(x.y1 - t.y1) < 40);
     if (!time) continue;
     const preview = texts.find((x) => x !== t && Math.abs(x.x1 - t.x1) < 30 && x.y1 >= t.y2 - 5 && x.y1 < t.y2 + 90);
@@ -86,6 +88,8 @@ export async function browserRows(d: AndroidDriver, p: Profile): Promise<Candida
     if (!out.some((o) => o.box[1] < b.y2 && o.box[1] + o.box[3] > b.y1)) out.push({ title: b.text.trim().slice(0, 60), preview: '', box: [b.x1, b.y1, b.x2 - b.x1, b.y2 - b.y1] });
   return out.sort((a, b) => a.box[1] - b.box[1]);
 }
+
+const TAB_LABELS = /^(聊天|智能体|发现|记忆|Artifacts|Chat|Agents|Discover|Memory)$/;
 
 export interface QuoteCard {
   box: Candidate['box'];

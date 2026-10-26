@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 import type { Locator, Page } from 'playwright';
 import { type Box, decodePng, dHash, drawBox, encodePng, hamming, meanGrey, pixelDiff, scaleBox } from '../core/image';
 import { WebDriver, contextOptions, desktopBrowser } from '../drivers/web';
+import { notifyPromptClose } from '../drivers/web-dialogs';
 import type { Credentials, Env } from '../platform/accounts/types';
 import { queueReview, saveRef } from './calibrate-common';
 import { type ElementCal, type Profile, SKILL_DIR, saveProfile } from './profile';
@@ -156,6 +157,16 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
     await p.waitForTimeout(12_000);
     await mkdir(dirname(o.sessionFile), { recursive: true });
     await d.context!.storageState({ path: o.sessionFile });
+    // The "开启通知" toast covers the header (back arrow / avatar): close it like a user.
+    const closeNotify = async () => {
+      const pt = await notifyPromptClose(p);
+      if (pt) {
+        log('  notification prompt over the header — closing it');
+        await d.tap(pt);
+        await p.waitForTimeout(800);
+      }
+    };
+    await closeNotify();
 
     // ---- home
     if (o.surface === 'mobile-web') {

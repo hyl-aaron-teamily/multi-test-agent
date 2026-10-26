@@ -1,7 +1,7 @@
 {
   "id": "1329-s2-mobile-web-v1",
   "issueRef": "1329",
-  "title": "按步骤执行并核对预期",
+  "title": "点引用定位应稳定跳到被引用消息",
   "category": "bug-intermittent",
   "surface": "mobile-web",
   "issueSurfaces": [
@@ -13,7 +13,13 @@
     {
       "id": "conv",
       "kind": "group-conversation",
-      "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+      "guidance": "the conversation titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" (titles may be cut short with …)"
+    },
+    {
+      "id": "link",
+      "kind": "quote-card",
+      "guidance": "会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文）",
+      "afterPrepare": true
     }
   ],
   "setup": [
@@ -25,14 +31,56 @@
           "target": "conv"
         }
       },
-      "delayAfterMs": 800
+      "delayAfterMs": 1000
+    }
+  ],
+  "prepare": [
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.sendMessage",
+        "input": {
+          "text": "autotest-quote-source 1329"
+        }
+      },
+      "delayAfterMs": 1000
+    },
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.quoteReply",
+        "input": {
+          "quote": "autotest-quote-source 1329",
+          "text": "autotest-quote-reply 1329"
+        }
+      },
+      "delayAfterMs": 1000
     }
   ],
   "actions": [
     {
       "type": "tap",
-      "element": "chat.back",
-      "delayAfterMs": 700
+      "element": "target.link",
+      "delayAfterMs": 1000
+    },
+    {
+      "type": "wait",
+      "delayAfterMs": 1000,
+      "value": "1000"
+    }
+  ],
+  "checks": [
+    {
+      "kind": "baseline",
+      "expect": "点引用块后跳到被引用的原消息（每轮落在同一位置）",
+      "want": "present"
+    }
+  ],
+  "afterCheck": [
+    {
+      "type": "tap",
+      "delayAfterMs": 900,
+      "element": "chat.back"
     },
     {
       "type": "node",
@@ -42,27 +90,14 @@
           "target": "conv"
         }
       },
-      "delayAfterMs": 900
+      "delayAfterMs": 1000
     },
     {
-      "type": "scroll",
-      "value": "up",
-      "delayAfterMs": 700
-    },
-    {
-      "type": "scroll",
-      "value": "down",
-      "delayAfterMs": 700
+      "type": "wait",
+      "delayAfterMs": 1000,
+      "value": "1000"
     }
   ],
-  "checks": [
-    {
-      "kind": "crash",
-      "expect": "无崩溃 / 页面错误",
-      "want": "absent"
-    }
-  ],
-  "afterCheck": [],
   "limits": {
     "maxSteps": 1000,
     "maxMinutes": 15,
@@ -71,11 +106,52 @@
   "verdictRule": {
     "anyHit": true
   },
+  "contract": {
+    "issueRef": "1329",
+    "sub": "s2",
+    "preconditions": [
+      {
+        "id": "logged-in",
+        "text": "已登录",
+        "establish": "executor"
+      },
+      {
+        "id": "group-conversation",
+        "text": "存在成员 ≥3 的群聊",
+        "establish": "existing-data"
+      },
+      {
+        "id": "quote-reply-exists",
+        "text": "会话里有一条引用回复（在允许清单会话中构造）",
+        "establish": "construct"
+      }
+    ],
+    "trigger": {
+      "semantics": "tap-quote",
+      "text": "on the latest version, tapping a message location link often jumps to a very old message instead of the target ",
+      "pattern": "quote-jump",
+      "params": {
+        "conversation": "黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2"
+      }
+    },
+    "observable": {
+      "observation": "quoted-original",
+      "text": "Likes should display immediately after tapping; message location should jump to the target message; the keyboard should auto-populate when the input box is focused.",
+      "phenomenon": "on the latest version, tapping a message location link often jumps to a very old message instead of the target "
+    },
+    "provenance": {
+      "by": "rules",
+      "skillVersion": "2026.10.26-1"
+    }
+  },
   "provenance": {
     "generatedBy": "rules",
-    "skillVersion": "2026.10.21-1",
-    "confirmedAt": "2026-10-21T12:50:56.390Z"
+    "skillVersion": "2026.10.26-1",
+    "pattern": "quote-jump",
+    "confirmedAt": "2026-10-26T13:01:11.977Z",
+    "draftHash": "bae43c785e422102"
   },
+  "coverage": "covered",
   "substitution": {
     "from": "ios",
     "to": "mobile-web",

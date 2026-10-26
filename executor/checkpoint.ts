@@ -54,14 +54,24 @@ export class Checkpoint {
     const inner = c.sess.inner;
     if (!this.baseline) {
       const quoted = c.res.targets.find((t) => t.kind === 'quote-card')?.chosen.match(/^quote of "(.*)"$/)?.[1] ?? '';
-      const box = inner instanceof AndroidDriver && quoted ? await quotedOriginalVisible(inner, quoted) : undefined;
+      let box = inner instanceof AndroidDriver && quoted ? await quotedOriginalVisible(inner, quoted) : undefined;
+      if (!(inner instanceof AndroidDriver)) {
+        // Web: no accessibility read of the jump target — the vision model confirms the first landing once (③),
+        // then the content area of that screen is the reference for later rounds (①).
+        const src = String(c.plan.prepare.find((x) => x.node?.name === 'teamily.quoteReply')?.node?.input?.quote ?? '');
+        const ok = await c.ask?.(src ? `A message bubble with the text "${src}" (the quoted original message itself, not only the small quote block inside a reply) is visible on screen` : 'After tapping the quote block of a reply, the chat now shows the original quoted message (often briefly highlighted), not some unrelated older part of the history');
+        const img = decodePng(png);
+        const dpr = img.width / c.sess.profile.viewport.width;
+        if (ok) box = [0, Math.round(img.height * 0.15), img.width, Math.round(img.height * 0.6)].map((v) => Math.round(v / (dpr || 1))) as [number, number, number, number];
+      }
       this.baseline = { img: decodePng(png), box };
       await writeFile(join(c.o.runDir, 'baseline.png'), png);
       return { check: k, pass: !!box, detail: box ? `first jump shows the quoted original at ${JSON.stringify(box)} (accessibility check) — kept as reference` : 'first jump does NOT show the quoted original message' };
     }
     if (!this.baseline.box) return { check: k, pass: false, detail: 'no reference: the first jump already failed' };
     // 0.35: the jump briefly highlights the target bubble (tint differs by capture moment); another screen scores ~0.7.
-    const m = regionMatch(decodePng(png), this.baseline.img, this.baseline.box, 1, 900);
+    const dpr = c.sess.inner instanceof AndroidDriver ? 1 : this.baseline.img.width / c.sess.profile.viewport.width;
+    const m = regionMatch(decodePng(png), this.baseline.img, this.baseline.box, dpr, 900);
     return { check: k, pass: m.fraction <= BASELINE_TOLERANCE, detail: `quoted original ${m.fraction <= BASELINE_TOLERANCE ? `visible (dy ${m.dy})` : `NOT on screen (${Math.round(m.fraction * 100)}% of its marks missing)`}` };
   }
 }

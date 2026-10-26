@@ -164,12 +164,12 @@
           },
           "provenance": {
             "by": "rules",
-            "skillVersion": "2026.10.21-1"
+            "skillVersion": "2026.10.26-1"
           }
         },
         "provenance": {
           "generatedBy": "rules",
-          "skillVersion": "2026.10.21-1",
+          "skillVersion": "2026.10.26-1",
           "pattern": "like-visible"
         },
         "coverage": "not-covered"
@@ -208,7 +208,7 @@
         },
         "provenance": {
           "by": "rules",
-          "skillVersion": "2026.10.21-1"
+          "skillVersion": "2026.10.26-1"
         }
       }
     },
@@ -240,12 +240,13 @@
           {
             "id": "conv",
             "kind": "group-conversation",
-            "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+            "guidance": "the conversation titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" (titles may be cut short with …)"
           },
           {
             "id": "link",
             "kind": "quote-card",
-            "guidance": "会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文）"
+            "guidance": "会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文）",
+            "afterPrepare": true
           }
         ],
         "setup": [
@@ -260,7 +261,29 @@
             "delayAfterMs": 1000
           }
         ],
-        "prepare": [],
+        "prepare": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.sendMessage",
+              "input": {
+                "text": "autotest-quote-source 1329"
+              }
+            },
+            "delayAfterMs": 1000
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.quoteReply",
+              "input": {
+                "quote": "autotest-quote-source 1329",
+                "text": "autotest-quote-reply 1329"
+              }
+            },
+            "delayAfterMs": 1000
+          }
+        ],
         "actions": [
           {
             "type": "tap",
@@ -326,15 +349,17 @@
             },
             {
               "id": "quote-reply-exists",
-              "text": "会话里已有一条引用回复",
-              "establish": "existing-data"
+              "text": "会话里有一条引用回复（在允许清单会话中构造）",
+              "establish": "construct"
             }
           ],
           "trigger": {
             "semantics": "tap-quote",
             "text": "on the latest version, tapping a message location link often jumps to a very old message instead of the target ",
             "pattern": "quote-jump",
-            "params": {}
+            "params": {
+              "conversation": "黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2"
+            }
           },
           "observable": {
             "observation": "quoted-original",
@@ -343,12 +368,12 @@
           },
           "provenance": {
             "by": "rules",
-            "skillVersion": "2026.10.21-1"
+            "skillVersion": "2026.10.26-1"
           }
         },
         "provenance": {
           "generatedBy": "rules",
-          "skillVersion": "2026.10.21-1",
+          "skillVersion": "2026.10.26-1",
           "pattern": "quote-jump"
         },
         "coverage": "covered"
@@ -370,15 +395,17 @@
           },
           {
             "id": "quote-reply-exists",
-            "text": "会话里已有一条引用回复",
-            "establish": "existing-data"
+            "text": "会话里有一条引用回复（在允许清单会话中构造）",
+            "establish": "construct"
           }
         ],
         "trigger": {
           "semantics": "tap-quote",
           "text": "on the latest version, tapping a message location link often jumps to a very old message instead of the target ",
           "pattern": "quote-jump",
-          "params": {}
+          "params": {
+            "conversation": "黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2"
+          }
         },
         "observable": {
           "observation": "quoted-original",
@@ -387,7 +414,7 @@
         },
         "provenance": {
           "by": "rules",
-          "skillVersion": "2026.10.21-1"
+          "skillVersion": "2026.10.26-1"
         }
       }
     },
@@ -500,12 +527,12 @@
           },
           "provenance": {
             "by": "rules",
-            "skillVersion": "2026.10.21-1"
+            "skillVersion": "2026.10.26-1"
           }
         },
         "provenance": {
           "generatedBy": "rules",
-          "skillVersion": "2026.10.21-1",
+          "skillVersion": "2026.10.26-1",
           "pattern": "keyboard-single-tap"
         },
         "coverage": "covered"
@@ -539,12 +566,12 @@
         },
         "provenance": {
           "by": "rules",
-          "skillVersion": "2026.10.21-1"
+          "skillVersion": "2026.10.26-1"
         }
       }
     }
   ],
-  "hash": "c7ca377461684228",
+  "hash": "bae43c785e422102",
   "issueHash": "24a4cc92ff5b388b",
   "env": "prod"
 }

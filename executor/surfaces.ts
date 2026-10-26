@@ -3,6 +3,7 @@
 // on the surface themselves.
 import { AndroidDriver } from '../drivers/android';
 import { type Driver, type Point, sleep } from '../drivers/types';
+import { notifyPromptClose } from '../drivers/web-dialogs';
 import { ensureUiLogin } from './login/ui-login';
 import type { Surface } from '../platform/accounts/types';
 import { pointOf, type Profile } from '../skills/profile';
@@ -33,6 +34,13 @@ const webAdapter: SurfaceAdapter = {
   },
   async dismissDialogs(s) {
     await dismissBanner(s);
+    // "开启通知" toast covers the header (back arrow / avatar taps do nothing): close it as a user would.
+    const p = s.web?.page ? await notifyPromptClose(s.web.page) : undefined;
+    if (p) {
+      s.log('notification prompt over the header — closing it');
+      await s.d.tap(p);
+      await sleep(800);
+    }
   },
   async ensureLogin() {},
   async recoverHome() {
