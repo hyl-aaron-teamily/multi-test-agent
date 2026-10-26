@@ -26,3 +26,46 @@
 - **产品改版**：desktop-web 与 android-web 的首页参考区域对不上（SKILL 失效被正确报出），重新标定：desktop-web 12 元素 0 失败（`artifacts.firstCard` 未找到，进复核队列）；android-web 7 元素 0 失败。
 - **既有缺陷**：logcat 异常门把 `FATAL EXCEPTION: UiAutomation`（读界面树的 uiautomator 进程自己的异常）记成 App 闪退。现在 FATAL EXCEPTION 必须来自 App 的 pid。
 - desktop-web 首屏等待：固定 8 秒不够（慢加载时仍是骨架列表），改为 8 秒后等首页参考区域（≤30 秒）。
+
+## P1 观察库 + 分层（T6–T8）
+
+| 项 | 结果 | 运行 |
+|---|---|---|
+| 1329 s3 键盘（android-app，15 分钟） | **315 轮**（21 轮/分钟，基线 7.0 的 3 倍）；循环与检查点视觉调用 **0**（`① keyboard-shown` ×315，平均 133 ms，`dumpsys input_method`）；最大动作间隔 967 ms；结论 未复现 | `1329-2026-10-26T10-42-05-769Z` |
+| 1329 s1 点赞：无障碍可读性核实 | 真机核实：长按菜单的表情是可点节点（uiautomator 以 `&#128077;` 写出 👍，已解码）；点赞后消息正下方出现「👍」节点；菜单有「回复」。点赞模式在 App 上改为 ① 文字检查（目标消息 ±160 px） | 本节探针（`.m5tmp/likeprobe*.ts`） |
+| 1329 s1 点赞（android-app，15 分钟） | 128 轮（8.5 轮/分钟，基线 6.2）；循环视觉调用 **0**（`① text` ×129，每次读界面树约 2.9 s——每轮一次，不计入动作间隔）；准备期视觉 1 次（定位「别人的消息」）；结论 未复现。有 2 个动作间隔超过 1 s（最大 5.8 s，出现在操作偏离后的重进中，M5 基线运行最大 9.8 s） | `1329-2026-10-26T10-59-40-618Z` |
+| sync 三端 3 轮 | 9/9 可见；**投递核对全部 ①**：desktop-web 读页面文字 ×3（平均 11 ms，此前每次视觉约 5 s）、android-app 无障碍 ×4、android-web 无障碍 ×3；视觉调用 1 次（准备期选群） | `midscene_run/sync/2026-10-26T11-24-30-783Z` |
+| 报告「判定分层统计」 | 每份运行报告列出各层判定 / 定位次数与平均耗时，模型调用按用途（prep / checkpoint / warmup …）计数 | 上述各 `report.md` |
+
+## P2 契约两阶段（T9–T11）
+
+- 10 份 Issue（`pnpm autotest plan`）：可执行 5 份的每个子用例都有契约（规则阶段：命中设备验证过的模式），1919 / 2235（多账号）与 2230（存储）为暂缓并附契约，写明不可构造的前置条件（`second-account` / `browser-storage-full`）；1614 / 1922 照旧拒绝。确认单（CLI / 控制台）显示前置条件与建立方式、触发语义、可观察后置条件与现象、计划来源（模式 / 模型组合 / 通用模板）和覆盖标注，以及草稿哈希。
+- 回归一致：模式库 golden（`issue/__golden__/templates.json`）对 1594 / 1329 / 2122 / 2336 全部子用例 × 四端与迁移前逐字段相等；有意改变的只有 P1 的手机键盘 / 点赞判定和 2044。
+- 1329 s2 的 mobile-web 子用例：确认到 mobile-web 时由 `quote-jump` 模式按该端重建（单测），不再是通用浏览。
+- **2044 端到端（生产，iOS → android-app 替代，一次性确认）**：契约 = 前置条件「含 Markdown 链接的消息被引用回复」[construct] + 触发 `view-quote-preview` + 观察 `text`。准备阶段在允许清单内的会话（`黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2`）发出 `[url](url)` 并引用回复（`teamily.quoteReply`：① 无障碍定位消息与「回复」菜单项）；预热 2/2 步通过；循环中引用块文字读到 `aaron+test1, [https://github.com/TensorOpera-Inc/chat-web/pull/654](https://gith…` —— **连续 3 轮命中，结论「已复现」**（Android 上引用块预览同样输出 Markdown 源码，原消息气泡则正常渲染为链接）；3 次证据复核均「符合」；循环判定全部 ①（4 次），视觉调用只有准备期 1 次 + 证据复核 6 次。`2044-2026-10-26T11-18-20-205Z`
+  - 过程中修复：prepare-only Node 用了录制包装器而不是设备驱动去定位；`quoteReply` 等待刚发出的消息渲染；引用块范围过滤（x > 宽度 20% 漏掉了这张卡片）。
+- 1594（desktop-web，5 分钟，与手机 s1 运行同时进行）：第 73 轮区域检查失败，视觉与证据复核都判「选择器未弹出」，结论「已复现」。**人工复看判定截图：输入框是空的，键入的「@」不在输入框里**——更像是输入没有落入（同一时间手机端在同群点赞，页面在重绘），不是 Issue 描述的「键入 @ 后选择器不弹出」。记为「待人工确认」，不作为复现结论；后续应在判定前先确认「@」已在输入框（见 README 已知限制）。`1594-2026-10-26T11-05-44-344Z`
+
+## P3 预热闸门 + 指纹（T13–T14）
+
+| 项 | 结果 |
+|---|---|
+| 正常计划的预热 | 1594（4 步，2 步核验）、1329 s1（2 步）、2044（3 步）、lifecycle warm（4 步：离开前台 ① logcat、进程在 ① pidof）全部通过，`warmup.json` 记录每步预期 / 观察 / 判定层 / 点击点指纹 |
+| 不可执行计划（desktop-web，临时 profile 副本中 `nav.me` 错位） | 预热第 1 步「画面变化」未出现（Δ0 px，阈值为屏幕 1%）→ **「计划不可执行」**，未进入循环；正式 profile 未改。过程中发现固定 2000 px 阈值被桌面光标 / 悬停噪声（约 12k px）骗过，改为屏幕像素的 1% |
+| 坐标自愈（android-app，临时副本中 `chatlist.search` 上移 150 px） | 预热第 1 步失败 → 按指纹「搜索」在无障碍树中找回 `[44,125]→[44,275]` → 重做通过，循环继续；报告「坐标自愈」一节 + `healed-profile.json` 候选；`skills/teamily/profiles/` 未被自愈修改（android-app 已重新标定以记录指纹） |
+| 回写草稿 | 「计划不可执行」写入草稿 `warmupFailures`，下次确认单显示 |
+
+## P4 轨迹记录 + TencentDB Agent Memory（T12、T15）
+
+- 每次运行写 `trajectory.jsonl`（`trajectory-v1`）：如 2044 运行 49 条（plan / contract / lease / prep.target / warmup.step / op / observe / hit / incident / verdict …），lifecycle warm 运行含 `model-call`。凭据类字段一律剔除（单测）。
+- TDAI MemoryCore 复制到 `tools/tdai/`（`ref/` 未动），`pnpm install --ignore-workspace --ignore-scripts` 安装，Windows 11 上 `node --import tsx src/gateway/server.ts`（standalone，`127.0.0.1:8420`，SQLite，**不配置 LLM key**）启动成功。
+- `TRAJECTORY_TDAI_URL=http://127.0.0.1:8420`：1329 s1、1594、2044（4 次）运行各在 `tools/tdai/data/sessions/offline/_unassigned/prod-aaron1/<run>/` 下留下一条记录；2044 记录的 `messages` 49 条与 `trajectory.jsonl` 一致，`output.conclusion` = 已复现。
+- 网关不可达（`http://127.0.0.1:9`）：只打印一次「TDAI gateway unreachable (run unaffected)」，结论不变（`计划不可执行` 测试运行）。
+
+## 最终回归
+
+`pnpm typecheck` 通过；`pnpm test:unit` 138/138；`test:web` 1/1；`test:android` 1/1；证据复核预置用例 2/2（`2026-10-26T11-33-38-898Z`）；smoke desktop-web / mobile-web / android-app 均发送成功。
+
+已知问题（如实记录）：
+- **android-web**：生产页面新出现「需要更多用量？升级」横幅，把输入框和发送键顶上去；smoke 键入成功但发送键点空（操作偏离被正确识别，不计命中）。重新标定时会话列表读不到群行而中止（中止的标定现在不会覆盖参考图）。需在横幅稳定后重标定 android-web。
+- **1329 s2**：测试群里最新的引用回复是 2044 构造的链接引用（点它会打开外部浏览器，证据复核正确排除了 3 次），换用不含链接的引用后，屏幕上已没有可用的旧引用 → 「前置条件不存在」。引用跳转模式的前置条件目前只用已有数据，未加构造。

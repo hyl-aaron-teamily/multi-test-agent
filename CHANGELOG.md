@@ -1,5 +1,35 @@
 # Changelog
 
+## [Unreleased] — W2-1：意图契约、循环外分层观察 / 定位、预热闸门、执行基座重构
+
+需求：`dev-week2-milestone1.md`；验收证据：`docs/w2m1-acceptance.md`。
+
+### Changed（P0 基座，行为不变，模式库 golden + 回归门验证）
+- `core/ui-tree`：唯一的界面树读取（按设备加锁、轮换文件、重试、计时）；`parseNodes` 从 imui 移入。`core/model`：唯一的模型客户端（按用途计数、`extractJson`、多数投票）与按设备 / 页面缓存的 Midscene agent。
+- `executor/session` + `executor/surfaces`：「租用 → 建驱动 → 启动 → 登录 → 回首页」一处实现，run / sync / replay / smoke 共用；android-web 与 Web 的特殊处理收进端适配器。
+- `runPlan` 458 → 96 行：`prepare` / `phases` / `loop` / `checkpoint` / `incident-hook` / `stats` / `actions`。
+- 单一来源：Node 表（`node-specs.ts`）、Surface 类型、Teamily 包名、`issuePath`；登录流程移到 `executor/login`，坐标重放移到 `executor/replay`，Issue CLI 移到 `scripts/issue-cli`（消除包级循环）；标定公共步骤 `skills/calibrate-common`；死导出删除。
+- 计划模板 → `skills/teamily/patterns.ts`（含生命周期模式）。
+- **确认即冻结**：草稿带内容哈希与 Issue 文件哈希；`run --issue` 复用确认过的草稿（不再调模型），执行从 `platform/plans/` 读回的计划并核对 `draftHash`；控制台传 `--draft <hash>`；`--redraft` 才重新生成。
+- tsconfig 覆盖全部源码目录；logcat 离线单测移入 unit 项目；sync 默认会话（含姓名）移入私有 `platform/conversations.local.yaml`。
+
+### Added
+- **观察库 + 分层判定**（`executor/observe`）：① 确定性（logcat / pidof / `dumpsys input_method` / 无障碍文字 / Web 页面文字 / 区域）→ ② 排序插槽（空）→ ③ 视觉；新检查 `keyboard`、`text`（范围：整屏 / 引用块 / 目标附近）；报告「判定分层统计」与按用途的模型调用。键盘、App 点赞改为 ① 判定；sync 的 Web 接收端读页面文字。
+- **分层定位**（`executor/locate`）：字面文字优先（无障碍 / getByText），视觉兜底；用于准备期目标、弹窗、prepare-only Node。
+- **意图契约**（`platform/schema/contract.ts`、`issue/contract.ts`）：前置条件（库 `preconditions.ts`，含建立方式）、触发语义、可观察后置条件与现象、推测机制（只提示）；规则 / 模型生成，模式命中则确定性编译；`coverage` 标注；暂缓 Issue 附契约；确认单与控制台展示契约；证据复核对照契约现象。
+- 模式 `quote-preview-text`（2044）；Node `teamily.quoteReply`（prepare-only）、`sendMessage` 的 `kind: markdown-link`；构造前置条件只在私有允许清单的会话。
+- **预热闸门**（`executor/warmup`）：循环前逐步核验预期效果，失败 → 新结论「计划不可执行」并回写草稿。**指纹自愈**（`executor/heal`）：标定记录元素文字指纹，SKILL 失效 / 预热失败时按指纹找回（本次运行生效 + 候选 profile，不改标定文件）。
+- **轨迹**（`core/trajectory`）：每次运行 `trajectory.jsonl`；`TRAJECTORY_TDAI_URL` 时转发到 TencentDB Agent Memory standalone 网关 `/v3/session/add`（网关在 `tools/tdai/`，不配 LLM key）。
+
+### Fixed
+- logcat 异常门把 `FATAL EXCEPTION: UiAutomation`（读界面树进程）记成 App 闪退。
+- Web 首屏固定 8 秒等待不足（等首页参考区域）；中止的标定会覆盖参考图（改为与 profile 一起写）；uiautomator 的表情实体（`&#128077;`）未解码；引用块筛选漏掉左侧卡片；引用跳转选到链接引用；引用原文为 Markdown 链接时基线比对失败。
+- desktop-web / android-web / android-app 重新标定（产品改版）。
+
+### 验证
+- `typecheck` 通过；`test:unit` 138/138；`test:web` 1/1；`test:android` 1/1；证据复核 2/2。
+- 1329 s3 15 分钟 315 轮（基线 3 倍），视觉 0；1329 s1 循环视觉 0；sync 9/9 全部 ①；2044 在 Android 替代执行**已复现**（连续 3 轮，证据复核 3/3 符合）；预热闸门与自愈各一次实跑；TDAI 收到运行记录。
+
 ## [Unreleased] — 证据复核、退出/杀进程、手机浏览器、Edge、端点池与多端同步
 
 验收证据：`docs/m6-acceptance.md`。

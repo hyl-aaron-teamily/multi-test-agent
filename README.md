@@ -1,6 +1,6 @@
 # multi-test-agent
 
-> 项目介绍页：[docs/intro.html](docs/intro.html)（浏览器直接打开）· 验收证据：[docs/m6-acceptance.md](docs/m6-acceptance.md)（本轮）/ [docs/m5-acceptance.md](docs/m5-acceptance.md) · 历史变更：[CHANGELOG.md](CHANGELOG.md)
+> 项目介绍页：[docs/intro.html](docs/intro.html)（浏览器直接打开）· 验收证据：[docs/w2m1-acceptance.md](docs/w2m1-acceptance.md)（本轮，W2-1）/ [docs/m6-acceptance.md](docs/m6-acceptance.md) / [docs/m5-acceptance.md](docs/m5-acceptance.md) · 历史变更：[CHANGELOG.md](CHANGELOG.md)
 
 Teamily 客户端测试台：在 **Android App、手机自带浏览器里的 Web、手机视口 Web、桌面 Web（Windows 上为 Edge 最大化窗口）** 四个执行端上，以**黑盒**方式（只做用户能做的操作、只看用户能看到的现象）复现和验收问题，并留下可回放的证据；多个端可各登录一个账号，在同一会话里做同步测试。
 
@@ -20,6 +20,10 @@ Teamily 客户端测试台：在 **Android App、手机自带浏览器里的 Web
 | 重放 | ✅ 可用 | 按同一判定规则给出能否复现，并指出从第几轮起偏离原路径 |
 | 账号池 | ✅ 可用 | 测试 / 生产账号分开租用，光标登录并缓存会话；凭据只在本地私有文件 |
 | 端点池 + 多端同步 | ✅ 可用 | `platform/devices.yaml`：手机与本机都是端点，按「端点 × 执行端」分槽租用；同一台手机可同时跑 App 和浏览器（轮流占前台），手机上登录的是哪个账号写在配置里；`pnpm autotest sync` 让各端用不同账号进同一会话互发互收 |
+| 意图契约（W2-1） | ✅ 可用 | Issue → 契约（前置条件及建立方式 / 触发语义 / 可观察后置条件与现象 / 推测）→ 模式确定性编译；确认单显示契约与覆盖标注；确认的草稿（哈希）就是执行的计划 |
+| 分层判定 / 定位（W2-1） | ✅ 可用 | ① 日志 / 进程 / 系统状态 / 无障碍或页面文字 / 区域 → ③ 视觉兜底，只在检查点、准备、预热、标定；循环每步仍只按坐标；报告「判定分层统计」 |
+| 预热闸门 + 自愈（W2-1） | ✅ 可用 | 循环前逐步核验，失败 →「计划不可执行」；坐标按标定指纹自愈（不改标定文件） |
+| 轨迹（W2-1） | ✅ 可用 | 每次运行 `trajectory.jsonl`；可选转发 TencentDB Agent Memory（standalone，`TRAJECTORY_TDAI_URL`） |
 | 控制台 | ✅ 可用 | 上传 Issue → 生成计划 → 一次性确认（替代端复选框）→ 执行 → 报告与证据链接 |
 | 自然语言任务 / AI 探索 / Monkey / imui | ✅ 可用 | 早期能力，保留不变 |
 | iOS、WebView、小程序 | ❌ 未接入 | iOS 问题只能经确认后在 Android 或手机 Web 上替代执行 |
@@ -33,6 +37,7 @@ Teamily 客户端测试台：在 **Android App、手机自带浏览器里的 Web
 | 2336 三个独立通知铃铛 | desktop-web | 未实现：个人主页、Artifacts、CloudDoc 仍各有独立 🔔，无统一入口 |
 | 2122 免打扰群 @ 我（单账号部分） | desktop-web | 未实现：无「@我 / Mentions」聚合，免打扰群无显著角标；需第二账号的部分暂缓 |
 | 1329 点赞 / 定位链接 / 键盘（iOS） | android-app（替代） | 三项均未复现，各跑满 30 分钟。**更正**：开发期记为「已复现」的 s2（如 `1329-2026-10-21T16-43-05-544Z`）是误报——跳到的就是被引用消息，只是窄屏下被引用气泡换成两行、跳转后短暂高亮，基线像素比对没对上；现由证据复核排除，并固化为预置用例 |
+| 2044 引用块预览显示 Markdown 源码（iOS） | android-app（替代） | **已复现**（W2-1）：构造「Markdown 链接消息 + 引用回复」后，Android 引用块同样显示 `[url](url)`，连续 3 轮，证据复核 3/3 |
 | 1614 / 1922 | — | 拒绝执行（服务端问题 / 按文档约定） |
 | 1919、2235 / 2230 | — | 暂缓（多账号 / 需构造浏览器存储） |
 
@@ -55,6 +60,7 @@ pnpm platform                              # 控制台 http://localhost:3210
 ## Issue 驱动的黑盒复现
 
 ```bash
+TRAJECTORY_TDAI_URL=http://127.0.0.1:8420   # 可选：轨迹转发到 TDAI 网关（tools/tdai，见 docs/w2m1-acceptance.md P4）
 pnpm autotest plan issues/1594.md                      # 预判类别 + 子用例 + 替代项，草稿写入 platform/plans/drafts/
 pnpm autotest run --issue 1594 --yes                   # 无替代项时确认执行
 pnpm autotest run --issue 1329 --approve s1,s3:mobile-web   # 有替代项：勾选子用例并选执行端
@@ -144,6 +150,8 @@ pnpm autotest sync --roles desktop-web,android-app --rounds 4 --timeout 60
 - **硬拦截**：支付类操作始终禁止。
 
 ## 已知限制
+
+- W2-1：android-web 生产页面新出现「需要更多用量？升级」横幅，发送键位置变化，待横幅稳定后重标定；1594 有一次「命中」经人工复看是「@」未落入输入框（待人工确认，未计为复现），判定前应先确认「@」已在输入框；Web 元素暂无文字指纹（自愈目前只覆盖 Android）。
 
 - 手机浏览器（`android-web`）：浏览器只在页面加载时建立无障碍树，页面内跳转后不更新，标定时用浏览器自带刷新重新加载后再读，临时出现的元素（密码页、@ 选择器、输入时的发送键）由视觉模型定位；软键盘会盖住表单按钮，登录用键盘回车提交；系统返回键会关闭标签页，执行中只用页面里的返回。
 - Teamily Web（产品侧现象，已记录）：页面重新加载后会自动打开上次的会话，而这时会话左上角的返回按钮无效（它做的是浏览器历史后退，历史为空）；用户只能经 Artifacts → 聊天 → 返回回到列表，执行器就按这条路径恢复。
