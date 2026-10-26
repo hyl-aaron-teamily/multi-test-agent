@@ -4,12 +4,13 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { adb } from '../core/adb';
-import { type Box, decodePng, dHash, drawBox, encodePng, meanGrey, pixelDiff } from '../core/image';
+import { type Box, decodePng, drawBox, encodePng, pixelDiff } from '../core/image';
 import { AndroidDriver } from '../drivers/android';
 import { sleep } from '../drivers/types';
 import { listDevices } from '../platform/adb-devices';
 import type { Env } from '../platform/accounts/types';
 import { dumpTree, toBox as nodeBox, type UiNode } from '../core/ui-tree';
+import { queueReview, saveRef } from './calibrate-common';
 import { type Profile, SKILL_DIR, saveProfile } from './profile';
 import { ELEMENTS, SKILL_VERSION } from './teamily/vocab';
 
@@ -42,7 +43,7 @@ export async function calibrateAndroid(o: CalibrateAndroidOptions): Promise<Prof
     const spec = ELEMENTS.find((e) => e.id === id)!;
     if (!n) {
       log(`  ✗ ${id}: not found`);
-      prof.reviewQueue.push({ element: id, image: '', reason: 'not found during calibration' });
+      queueReview(prof, id, 'not found during calibration');
       return;
     }
     prof.elements[id] = { page: spec.page, box: toBox(n), selfCheck: 'pending' };
@@ -67,20 +68,7 @@ export async function calibrateAndroid(o: CalibrateAndroidOptions): Promise<Prof
       prof.reviewQueue.push({ element: id, image: `refs/${name}/review-${id}.png`, reason: e.note });
     }
   };
-  const ref = async (page: string, regions: Record<string, Box | undefined>) => {
-    const buf = await d.screenshot();
-    const img = decodePng(buf);
-    await writeFile(join(refDir, `${page}.png`), buf);
-    const r: Profile['refs'][string] = { image: `refs/${name}/${page}.png`, regions: {}, hashes: {}, greys: {} };
-    for (const [k, b] of Object.entries(regions)) {
-      if (!b) continue;
-      r.regions[k] = b;
-      r.hashes[k] = dHash(img, b);
-      r.greys[k] = Math.round(meanGrey(img, b));
-    }
-    prof.refs[page] = r;
-    log(`  ▣ ref ${page} (${Object.keys(r.regions).join(', ') || 'full'})`);
-  };
+  const ref = async (page: string, regions: Record<string, Box | undefined>) => saveRef(prof, page, await d.screenshot(), regions, 1, log);
 
   try {
     await d.launch();

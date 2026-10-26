@@ -11,7 +11,7 @@ import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, rm } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
-import { adb, resolveAdbPath, spawnAdb } from '../core/adb';
+import { adb, resolveAdbPath, spawnAdb } from './adb';
 
 export type RecorderEngine = 'scrcpy' | 'screenrecord';
 

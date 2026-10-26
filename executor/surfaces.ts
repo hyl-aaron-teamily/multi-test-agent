@@ -3,7 +3,7 @@
 // on the surface themselves.
 import { AndroidDriver } from '../drivers/android';
 import { type Driver, type Point, sleep } from '../drivers/types';
-import { ensureUiLogin } from '../platform/accounts/ui-login';
+import { ensureUiLogin } from './login/ui-login';
 import type { Surface } from '../platform/accounts/types';
 import { pointOf, type Profile } from '../skills/profile';
 import { evaluateVisual, waitForRegion } from './checks';

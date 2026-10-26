@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { decodePng, dHash, encodePng, hamming, type Rgba, regionDiffFraction } from '../core/image';
 import { classifyLogLine } from '../drivers/android';
 import { opsSrt } from '../incident/bundle';
-import { firstDeviation } from '../incident/replay';
+import { firstDeviation } from './replay';
 import { applyApproval, splitSubcases, substitutionOptions, templateFor } from '../issue/planner';
 import { validatePlan } from '../issue/validate';
 import { regionMatch } from './checks';

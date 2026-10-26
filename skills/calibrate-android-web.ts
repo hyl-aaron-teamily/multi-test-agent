@@ -10,13 +10,14 @@
 import { visionLocateRect } from '../core/model/midscene';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { type Box, decodePng, dHash, drawBox, encodePng, meanGrey, pixelDiff } from '../core/image';
+import { type Box, decodePng, drawBox, encodePng, pixelDiff } from '../core/image';
 import { AndroidDriver } from '../drivers/android';
 import { BROWSER_PACKAGE } from '../drivers/factory';
 import { sleep } from '../drivers/types';
 import { modelCalls } from '../core/model/llm';
 import type { Credentials, Env } from '../platform/accounts/types';
 import { dump, type N, toBox } from './calibrate-android';
+import { queueReview, saveRef } from './calibrate-common';
 import { loadProfile, type Profile, SKILL_DIR, saveProfile } from './profile';
 import { ELEMENTS, SKILL_VERSION } from './teamily/vocab';
 
@@ -65,7 +66,7 @@ export async function calibrateAndroidWeb(o: CalibrateAndroidWebOptions): Promis
     const spec = ELEMENTS.find((e) => e.id === id)!;
     if (!n) {
       log(`  ✗ ${id}: not found`);
-      prof.reviewQueue.push({ element: id, image: '', reason: 'not found during calibration' });
+      queueReview(prof, id, 'not found during calibration');
       return;
     }
     prof.elements[id] = { page: spec.page, box: toBox(n), selfCheck: 'pending', note: n.cls === 'vision' ? 'located by vision' : undefined };
@@ -110,20 +111,7 @@ export async function calibrateAndroidWeb(o: CalibrateAndroidWebOptions): Promis
     mark(id, px >= 20_000, `keyboard ${px >= 20_000 ? 'up' : 'not up'} (screen Δ${px}px)`, after);
     if (px < 20_000) throw new Error(`${id}: tapping it does not bring up the keyboard`);
   };
-  const ref = async (page: string, regions: Record<string, Box | undefined>) => {
-    const buf = await d.screenshot();
-    const img = decodePng(buf);
-    await writeFile(join(refDir, `${page}.png`), buf);
-    const r: Profile['refs'][string] = { image: `refs/${name}/${page}.png`, regions: {}, hashes: {}, greys: {} };
-    for (const [k, b] of Object.entries(regions)) {
-      if (!b) continue;
-      r.regions[k] = b;
-      r.hashes[k] = dHash(img, b);
-      r.greys[k] = Math.round(meanGrey(img, b));
-    }
-    prof.refs[page] = r;
-    log(`  ▣ ref ${page} (${Object.keys(r.regions).join(', ') || 'full'})`);
-  };
+  const ref = async (page: string, regions: Record<string, Box | undefined>) => saveRef(prof, page, await d.screenshot(), regions, 1, log);
   /** Browser prompts over the page ("set as default browser"): decline. */
   const dismissBrowserPrompts = async () => {
     await look();

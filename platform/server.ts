@@ -77,7 +77,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   }
   const di = p.match(/^\/api\/issues\/([\w-]+)\/draft$/);
   if (req.method === 'GET' && di) {
-    const { loadDraft } = await import('../issue/cli');
+    const { loadDraft } = await import('../scripts/issue-cli');
     const d = await loadDraft(di[1], (url.searchParams.get('env') as 'test' | 'prod') ?? 'prod', url.searchParams.get('model') !== '0');
     return send(res, 200, {
       id: d.issue.id,

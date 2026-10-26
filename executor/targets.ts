@@ -9,10 +9,9 @@ import type { AndroidDriver } from '../drivers/android';
 import type { Driver, Point } from '../drivers/types';
 import type { WebDriver } from '../drivers/web';
 import { dumpTree } from '../core/ui-tree';
-import { chatJson, modelCalls, modelConfigured } from '../core/model/llm';
+import { chatJson, modelConfigured } from '../core/model/llm';
 import type { TestPlan } from '../platform/schema/test-plan';
 import type { Profile } from '../skills/profile';
-import { onAndroid } from '../platform/accounts/types';
 
 export interface Candidate {
   title: string;
@@ -121,8 +120,6 @@ export function ruleChoice(kind: string, cands: Candidate[], taken: number[]): n
     free.find(({ c }) => !/personal ai/i.test(c.title)) ?? free[0];
   return pick ? pick.i : -1;
 }
-
-export const isRowTarget = (kind: string) => ROW_KINDS.has(kind);
 
 /**
  * phase 'rows'   : conversation targets, on the home list (before setup)

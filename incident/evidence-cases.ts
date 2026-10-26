@@ -9,7 +9,7 @@ import { cpSync, existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import yaml from 'js-yaml';
-import { issuePath } from '../issue/cli';
+import { issuePath } from '../issue/paths';
 import { modelCalls } from '../core/model/llm';
 import { parseIssue } from '../issue/parse';
 import { probeDuration, type ReplayFile } from './bundle';

@@ -9,6 +9,7 @@
 //   pnpm autotest sync [--roles desktop-web,android-web,android-app] [--rounds N] [--env prod] [--timeout S]
 import 'dotenv/config';
 import { TEAMILY_PACKAGE } from '../drivers/factory';
+import { openPools } from '../platform/pools';
 import { AccountPool } from '../platform/accounts/account-pool';
 import type { Env, Surface } from '../platform/accounts/types';
 
@@ -23,7 +24,7 @@ async function accounts(args: string[]): Promise<number> {
   await pool.reload();
   const env = flag(args, 'env') as Env | undefined;
   if (args[0] === 'check') {
-    const { checkAccounts } = await import('../platform/accounts/health');
+    const { checkAccounts } = await import('../executor/login/health');
     const res = await checkAccounts(pool, { env, force: has(args, 'force'), ids: flag(args, 'id')?.split(',') });
     for (const r of res) console.log(`${r.id.padEnd(22)} ${r.env.padEnd(5)} ${r.result.ok ? (r.result.reused ? 'OK (session reused)' : 'OK (logged in, session cached)') : `FAIL ${r.result.error}`}`);
     const byEnv = (e: Env) => res.filter((r) => r.env === e && r.result.ok).length;
@@ -39,13 +40,8 @@ async function smoke(args: string[]): Promise<number> {
   const surface = (flag(args, 'surface') ?? 'desktop-web') as Surface;
   const env = (flag(args, 'env') ?? 'prod') as Env;
   const { runPlan, runDirFor } = await import('../executor/run');
-  const { DevicePool } = await import('../platform/device-pool');
   const { SKILL_VERSION } = await import('../skills/teamily/vocab');
-  const pool = new AccountPool();
-  await pool.reload();
-  const devices = new DevicePool();
-  await devices.reloadConfig();
-  await devices.refresh();
+  const { pool, devices } = await openPools();
   const id = `smoke-${surface}-${env}`;
   // --crash-after S (android): loop open/back and inject `am crash` after S seconds (flight-recorder check).
   const crashAfter = flag(args, 'crash-after') ? Number(flag(args, 'crash-after')) : undefined;
@@ -186,7 +182,7 @@ async function skill(args: string[]): Promise<number> {
     return Object.values(p.elements).some((e) => e.selfCheck === 'fail') ? 1 : 0;
   }
   const { calibrateWeb } = await import('../skills/calibrate-web');
-  const { sessionFile } = await import('../platform/accounts/sessions');
+  const { sessionFile } = await import('../executor/login/sessions');
   const p = await calibrateWeb({ surface: surface as 'desktop-web' | 'mobile-web', env, url: pool.webUrl(env), credentials: pool.backend.get(accountId), headless: !has(args, 'headed'), sessionFile: sessionFile(accountId) });
   await pool.markLogin(accountId, true);
   return Object.values(p.elements).some((e) => e.selfCheck === 'fail') ? 1 : 0;
@@ -195,14 +191,9 @@ async function skill(args: string[]): Promise<number> {
 /** Multi-client sync: each role a surface on a pooled endpoint, signed in as a different account. */
 async function sync(args: string[]): Promise<number> {
   const { runSync } = await import('../executor/sync');
-  const { DevicePool } = await import('../platform/device-pool');
   const { resolve } = await import('node:path');
   const env = (flag(args, 'env') ?? 'prod') as Env;
-  const pool = new AccountPool();
-  await pool.reload();
-  const devices = new DevicePool();
-  await devices.reloadConfig();
-  await devices.refresh();
+  const { pool, devices } = await openPools();
   // --roles desktop-web,android-web,android-app  (a role per surface; repeat a surface with a suffix: desktop-web#2)
   const roles = (flag(args, 'roles') ?? 'desktop-web,android-web,android-app').split(',').map((x) => {
     const [surface] = x.split('#');
@@ -228,9 +219,9 @@ const table: Record<string, (a: string[]) => Promise<number>> = {
   accounts,
   skill,
   nodes,
-  plan: async (a) => (await import('../issue/cli')).planCmd(a),
-  run: async (a) => (await import('../issue/cli')).runCmd(a),
-  replay: async (a) => (await import('../incident/replay')).replayCmd(a),
+  plan: async (a) => (await import('./issue-cli')).planCmd(a),
+  run: async (a) => (await import('./issue-cli')).runCmd(a),
+  replay: async (a) => (await import('../executor/replay')).replayCmd(a),
   evidence: async (a) => (await import('../incident/evidence-cases')).evidenceCmd(a),
   sync,
 };

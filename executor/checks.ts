@@ -3,12 +3,11 @@
 import { visionAsk, visionEnabled } from '../core/model/midscene';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { type Box, decodePng, dHash, hamming, type Rgba, regionDiffFraction, scaleBox } from '../core/image';
+import { type Box, decodePng, type Rgba, regionDiffFraction, scaleBox } from '../core/image';
 import type { Driver } from '../drivers/types';
 import { majority } from '../core/model/llm';
 import type { CheckPoint } from '../platform/schema/test-plan';
 import { type Profile, SKILL_DIR, SkillStaleError } from '../skills/profile';
-import { onAndroid } from '../platform/accounts/types';
 
 export const MATCH_DISTANCE = 12;
 /** Region counts as matching the reference when fewer than this fraction of its pixels differ. */
@@ -28,20 +27,6 @@ export interface CheckResult {
 
 export function dprOf(p: Profile, img: Rgba): number {
   return img.width / p.viewport.width;
-}
-
-/** Pure: best hash distance of a reference region in a screenshot (optionally sliding vertically). */
-export function regionDistance(img: Rgba, box: Box, hash: string, dpr: number, slide = 0): number {
-  let best = 64;
-  const step = Math.max(2, Math.round(4 * dpr));
-  const px = scaleBox(box, dpr);
-  const lo = Math.max(0, px[1] - Math.round(slide * dpr));
-  const hi = Math.min(img.height - px[3], px[1] + Math.round(slide * 0.3 * dpr));
-  for (let y = slide ? lo : px[1]; y <= (slide ? hi : px[1]); y += step) {
-    best = Math.min(best, hamming(dHash(img, [px[0], y, px[2], px[3]]), hash));
-    if (best === 0) break;
-  }
-  return best;
 }
 
 const refImages = new Map<string, Rgba>();

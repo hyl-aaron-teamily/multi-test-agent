@@ -9,7 +9,7 @@ import type { Driver } from '../drivers/types';
 import { WebDriver } from '../drivers/web';
 import { RecordingDriver } from '../incident/recording-driver';
 import type { AccountPool } from '../platform/accounts/account-pool';
-import { ensureWebSession, type PlaywrightSurface } from '../platform/accounts/sessions';
+import { ensureWebSession, type PlaywrightSurface } from './login/sessions';
 import { type Env, onPlaywright, type Surface } from '../platform/accounts/types';
 import { loadProfile, type Profile, SkillStaleError } from '../skills/profile';
 import { assertSkillFresh } from './checks';

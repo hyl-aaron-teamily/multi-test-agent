@@ -8,6 +8,7 @@ import type { Locator, Page } from 'playwright';
 import { type Box, decodePng, dHash, drawBox, encodePng, hamming, meanGrey, pixelDiff, scaleBox } from '../core/image';
 import { WebDriver, contextOptions, desktopBrowser } from '../drivers/web';
 import type { Credentials, Env } from '../platform/accounts/types';
+import { queueReview, saveRef } from './calibrate-common';
 import { type ElementCal, type Profile, SKILL_DIR, saveProfile } from './profile';
 import { ELEMENTS, SKILL_VERSION } from './teamily/vocab';
 
@@ -53,7 +54,7 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
     const spec = ELEMENTS.find((e) => e.id === id)!;
     if (!b) {
       log(`  ✗ ${id}: not found`);
-      prof.reviewQueue.push({ element: id, image: '', reason: 'not found during calibration' });
+      queueReview(prof, id, 'not found during calibration');
       return;
     }
     prof.elements[id] = { page: spec.page, box: b, selfCheck: 'pending', note } satisfies ElementCal;
@@ -106,23 +107,7 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
     }
   };
 
-  const ref = async (page: string, regions: Record<string, Box | undefined>) => {
-    const buf = await d.screenshot();
-    const img = decodePng(buf);
-    const file = join(refDir, `${page}.png`);
-    await mkdir(dirname(file), { recursive: true });
-    await writeFile(file, buf);
-    const r: Profile['refs'][string] = { image: `refs/${name}/${page}.png`, regions: {}, hashes: {}, greys: {} };
-    for (const [k, b] of Object.entries(regions)) {
-      if (!b) continue;
-      const px = scaleBox(b, dpr);
-      r.regions[k] = b;
-      r.hashes[k] = dHash(img, px);
-      r.greys[k] = Math.round(meanGrey(img, px));
-    }
-    prof.refs[page] = r;
-    log(`  ▣ ref ${page} (${Object.keys(r.regions).join(', ') || 'full'})`);
-  };
+  const ref = async (page: string, regions: Record<string, Box | undefined>) => saveRef(prof, page, await d.screenshot(), regions, dpr, log);
 
   try {
     await d.launch();

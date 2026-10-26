@@ -55,10 +55,6 @@ export class SkillStaleError extends Error {
   }
 }
 
-export function profileName(surface: Surface, udid?: string): string {
-  return surface === 'android-app' ? `android-${udid ?? 'default'}` : surface;
-}
-
 export function profilePath(name: string, dir = SKILL_DIR): string {
   return join(dir, 'profiles', `${name}.json`);
 }

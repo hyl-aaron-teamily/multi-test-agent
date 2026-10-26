@@ -1,25 +1,22 @@
 // `autotest plan` / `autotest run`: Issue → draft → ONE confirmation (category, sub-cases, substitution
 // checkboxes with reasons) → fixed plans in platform/plans/ → executor → report.
-import { existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { runDirFor, runPlan, type RunResult } from '../executor/run';
-import { AccountPool } from '../platform/accounts/account-pool';
-import { DevicePool } from '../platform/device-pool';
+import { openPools } from '../platform/pools';
 import type { Surface, TestPlan } from '../platform/schema/test-plan';
-import { parseIssue } from './parse';
-import { applyApproval, type Draft, draftIssue } from './planner';
-import { writeIssueReport } from './report';
+import { parseIssue } from '../issue/parse';
+import { issuePath } from '../issue/paths';
+import { applyApproval, type Draft, draftIssue } from '../issue/planner';
+import { writeIssueReport } from '../issue/report';
 
 export const PLANS_DIR = resolve('platform/plans');
 
 const flag = (a: string[], n: string) => (a.indexOf(`--${n}`) >= 0 ? a[a.indexOf(`--${n}`) + 1] : undefined);
 const has = (a: string[], n: string) => a.includes(`--${n}`);
 
-export function issuePath(ref: string): string {
-  return existsSync(ref) ? ref : resolve('issues', `${ref.replace(/\.md$/, '')}.md`);
-}
+export { issuePath };
 
 export async function loadDraft(ref: string, env: 'test' | 'prod', useModel = true): Promise<Draft> {
   const f = issuePath(ref);
@@ -103,11 +100,7 @@ export async function runIssue(d: Draft, approve: { sub: string; surface?: Surfa
   if (d.status !== 'plannable') return { dir, results: [], report: await writeIssueReport(d, [], dir) };
   const plans = applyApproval(d, approve);
   await savePlans(plans);
-  const pool = new AccountPool();
-  await pool.reload();
-  const devices = new DevicePool();
-  await devices.reloadConfig();
-  await devices.refresh();
+  const { pool, devices } = await openPools();
   const results: RunResult[] = [];
   for (const p of plans) {
     (o.log ?? console.log)(`[run] plan ${p.id} (${p.category}, ${p.surface}${p.substitution ? `, 替代 ${p.substitution.from}` : ''}, env ${p.env})`);

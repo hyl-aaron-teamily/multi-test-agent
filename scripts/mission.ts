@@ -21,7 +21,7 @@ import { createAndroidAgent } from '../fixtures/android';
 import { LIMIT_CAPS, type MissionPlan, planMission } from '../mission/planner';
 import { type MissionRecord, verdictOf, writeMissionReport } from '../mission/report';
 import { type MissionResult, runMission } from '../mission/runner';
-import { ScreenRecorder } from '../replay/screen-recorder';
+import { ScreenRecorder } from '../core/screen-recorder';
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,

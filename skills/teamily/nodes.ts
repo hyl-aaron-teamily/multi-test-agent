@@ -1,13 +1,13 @@
-// Teamily SKILL Nodes (defineNode from @midscene/core). execute() only performs coordinate operations
-// through a black-box Driver; coordinates come from the surface profile and from targets frozen at
-// preparation time. No hierarchy reads, no vision calls here.
-import { defineNode } from '@midscene/core/internal/test-runner';
+// Teamily SKILL Nodes (table: node-specs.ts). Nodes of phase "any" only perform coordinate operations
+// through a black-box Driver (coordinates from the surface profile and the targets frozen at preparation);
+// "prepare-only" Nodes may also locate (hierarchy / vision) and never run in the loop.
 import { z } from 'zod';
 import type { Driver, Point } from '../../drivers/types';
 import { sleep } from '../../drivers/types';
 import { type Credentials, mobileLayout } from '../../platform/accounts/types';
 import { decodePng, pixelDiff } from '../../core/image';
 import { pointOf, type Profile } from '../profile';
+import { NODE_SPECS } from './node-specs';
 
 export interface NodeContext {
   driver: Driver;
@@ -22,19 +22,11 @@ export interface NodeContext {
 
 type Exec<I> = (ctx: { input: I; context: NodeContext }) => Promise<{ summary?: string } | void>;
 
-// Node input schemas (our zod copy; @midscene/core validates against its own zod, so the schemas are
-// kept here for `autotest nodes` and plan validation instead of `inputSchema`).
-export const NODE_SCHEMAS = {
-  'teamily.login': z.object({ account: z.string().optional() }),
-  'teamily.openConversation': z.object({ target: z.string() }),
-  'teamily.sendMessage': z.object({ text: z.string().min(1) }),
-  'teamily.typeMention': z.object({}),
-  'teamily.clearComposer': z.object({}),
-  'teamily.switchConversation': z.object({ from: z.string(), to: z.string() }),
-  'teamily.openPage': z.object({ page: z.enum(['profile', 'artifacts', 'chat']) }),
-} as const;
+// Node input schemas: our zod copy in node-specs.ts (@midscene/core validates against its own zod, so the
+// schemas are used for `autotest nodes` and plan validation instead of `inputSchema`).
+export const NODE_SCHEMAS = Object.fromEntries(NODE_SPECS.map((n) => [n.name, n.schema])) as Record<string, z.ZodObject<any>>;
 
-export type NodeName = keyof typeof NODE_SCHEMAS;
+export type NodeName = string;
 
 const target = (c: NodeContext, id: string): Point => {
   const p = c.targets[id];
@@ -139,25 +131,6 @@ const EXEC: Record<NodeName, Exec<any>> = {
   'teamily.openPage': openPage,
 };
 
-const DESCRIPTIONS: Record<NodeName, string> = {
-  'teamily.login': 'Cursor/keyboard login: email → continue → password → continue (credentials from the account pool)',
-  'teamily.openConversation': 'Tap a conversation frozen at preparation time',
-  'teamily.sendMessage': 'Tap composer, type, Enter',
-  'teamily.typeMention': 'Tap composer, type "@" (picker should open)',
-  'teamily.clearComposer': 'Esc + backspace in the composer',
-  'teamily.switchConversation': 'Switch to another conversation and back',
-  'teamily.openPage': 'Open a fixed page through its navigation entry',
-};
-
-/** Midscene node definitions (context = NodeContext). */
-export const nodes = (Object.keys(EXEC) as NodeName[]).map((name) =>
-  defineNode<unknown, unknown, NodeContext>({
-    name,
-    description: DESCRIPTIONS[name],
-    execute: ({ input, context }) => EXEC[name]({ input: NODE_SCHEMAS[name].parse(input ?? {}) as any, context }),
-  }),
-);
-
 /** Direct execution path used by the executor (same code as the Midscene node). */
 export async function runNode(name: string, input: Record<string, unknown>, context: NodeContext): Promise<string | undefined> {
   const fn = EXEC[name as NodeName];
@@ -166,6 +139,6 @@ export async function runNode(name: string, input: Record<string, unknown>, cont
   return r?.summary;
 }
 
-export function listNodes(): { name: string; description: string; input: unknown }[] {
-  return (Object.keys(EXEC) as NodeName[]).map((name) => ({ name, description: DESCRIPTIONS[name], input: z.toJSONSchema(NODE_SCHEMAS[name]) }));
+export function listNodes(): { name: string; description: string; phase: string; implemented: boolean; input: unknown }[] {
+  return NODE_SPECS.map((n) => ({ name: n.name, description: n.description, phase: n.phase, implemented: !!EXEC[n.name], input: z.toJSONSchema(n.schema) }));
 }

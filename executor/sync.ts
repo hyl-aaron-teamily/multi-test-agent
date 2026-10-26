@@ -10,21 +10,18 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
 import { AndroidDriver } from '../drivers/android';
-import { createDriver, profileKey } from '../drivers/factory';
 import { type Driver, type Point, sleep } from '../drivers/types';
-import { WebDriver } from '../drivers/web';
 import { dumpTree } from '../core/ui-tree';
 import { RecordingDriver } from '../incident/recording-driver';
 import { modelCalls } from '../core/model/llm';
 import type { AccountPool, Lease } from '../platform/accounts/account-pool';
-import { ensureWebSession, type PlaywrightSurface } from '../platform/accounts/sessions';
-import { type Env, onAndroid, onPlaywright, type Surface } from '../platform/accounts/types';
-import { ensureUiLogin } from '../platform/accounts/ui-login';
+import { type Env, onAndroid, type Surface } from '../platform/accounts/types';
+import { loadConversations } from '../platform/conversations';
 import type { DevicePool } from '../platform/device-pool';
 import type { TestPlan } from '../platform/schema/test-plan';
-import { loadProfile, pointOf, type Profile, SkillStaleError } from '../skills/profile';
+import type { Profile } from '../skills/profile';
 import { runNode } from '../skills/teamily/nodes';
-import { assertSkillFresh, visionAsker, type VisionAsk, waitForRegion } from './checks';
+import { visionAsker, type VisionAsk, waitForRegion } from './checks';
 import { enterApp, openSession, type Session } from './session';
 import { pickTargets, visionLocator } from './targets';
 
@@ -104,7 +101,8 @@ interface Role {
   target?: Point;
 }
 
-const DEFAULT_CONVERSATION = 'a group conversation (avatar is a multi-person collage, or the title lists several members separated by commas) that the test accounts aaron+test1, aaron+test2 and aaron+test3 all belong to; prefer the one whose title starts with 黄悦龙Aaron';
+/** Without private settings: any group the test accounts share (no names in the code). */
+const DEFAULT_CONVERSATION = () => loadConversations().sync.defaultConversation ?? 'a group conversation (avatar is a multi-person collage, or the title lists several members separated by commas) that all test accounts of this run belong to';
 
 export async function runSync(o: SyncOptions): Promise<SyncResult> {
   const log = o.log ?? ((s: string) => console.log(`[sync] ${s}`));
@@ -216,7 +214,7 @@ async function prepareRole(r: Role, o: SyncOptions, log: (s: string) => void, fo
   await enterApp(sess, { chatTab: true });
   const guidance = chosenTitle
     ? `the conversation titled "${chosenTitle}" (the same group the other test clients opened; titles may be cut short with …)`
-    : (o.conversation ?? DEFAULT_CONVERSATION);
+    : (o.conversation ?? DEFAULT_CONVERSATION());
   const plan = { targets: [{ id: 'conv', kind: 'group-conversation', guidance }] } as unknown as TestPlan;
   const [t] = await pickTargets(plan, r.inner, profile, (s) => log(`${r.spec.id}: ${s}`), await visionLocator(r.inner as any), 'rows');
   if (!t) throw new Error('conversation not found on the list');

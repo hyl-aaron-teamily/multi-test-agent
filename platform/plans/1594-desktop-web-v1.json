@@ -33,6 +33,7 @@
       "delayAfterMs": 800
     }
   ],
+  "prepare": [],
   "actions": [
     {
       "type": "node",
@@ -86,6 +87,7 @@
       "want": "absent"
     }
   ],
+  "afterCheck": [],
   "limits": {
     "maxSteps": 1000,
     "maxMinutes": 15,
@@ -97,6 +99,6 @@
   "provenance": {
     "generatedBy": "rules",
     "skillVersion": "2026.10.21-1",
-    "confirmedAt": "2026-10-21T11:59:01.205Z"
+    "confirmedAt": "2026-10-26T10:06:33.349Z"
   }
 }
