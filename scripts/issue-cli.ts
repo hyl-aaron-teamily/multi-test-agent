@@ -35,6 +35,7 @@ export async function loadDraft(ref: string, env: 'test' | 'prod', useModel = tr
 export function confirmationSheet(d: Draft): string {
   const out = [`Issue ${d.issue.id}: ${d.issue.title.slice(0, 120)}${d.hash ? `  [草稿 ${d.hash}]` : ''}`, `预判类别: ${d.classification.category}（${d.classification.by}）— ${d.reason}`];
   if (d.status !== 'plannable') out.push(`处理: ${d.status === 'refused' ? '拒绝执行' : '暂缓'}`);
+  for (const k of d.contracts ?? []) out.push(`  契约：前置条件 ${k.preconditions.map((p) => `${p.text}[${p.establish}]`).join('；')}`);
   if (d.deferredPart) out.push(`暂缓部分: ${d.deferredPart}`);
   for (const w of d.warmupFailures ?? []) out.push(`⚠ 上次预热失败 ${w.planId}（${w.at}）：${w.detail}`);
   for (const s of d.subcases) {

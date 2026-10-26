@@ -35,7 +35,22 @@ export function rulesContract(i: NormalizedIssue, sub: string, text: string, cat
     sub,
     preconditions: pre,
     trigger: { semantics: specific ? p.trigger : 'unmapped', text: text.slice(0, 300), pattern: specific ? p.id : undefined, params: specific ? patternParams(p.id) : {} },
-    observable: { observation, text: i.expected.slice(0, 600), phenomenon: (i.actual || i.summary).slice(0, 800) },
+    // A split sub-case's phenomenon is its own text; otherwise the Issue's actual result.
+    observable: { observation, text: i.expected.slice(0, 600), phenomenon: (sub !== 'main' ? text : i.actual || i.summary).slice(0, 800) },
+    provenance: { by: 'rules', skillVersion: SKILL_VERSION },
+  };
+}
+
+/** Deferred Issues (second account / storage the robot cannot fill): a contract that says which
+ *  precondition cannot be established, so the deferral is explicit. */
+export function deferredContract(i: NormalizedIssue, kind: 'multi-account' | 'deferred'): IssueContract {
+  const spec = preconditionById(kind === 'multi-account' ? 'second-account' : 'browser-storage-full')!;
+  return {
+    issueRef: i.id,
+    sub: 'main',
+    preconditions: [{ id: 'logged-in', text: '已登录', establish: 'executor' }, { id: spec.id, text: spec.meaning, establish: 'unconstructible' }],
+    trigger: { semantics: 'unmapped', text: i.summary.slice(0, 300), params: {} },
+    observable: { observation: 'unmapped', text: i.expected.slice(0, 600), phenomenon: (i.actual || i.summary).slice(0, 800) },
     provenance: { by: 'rules', skillVersion: SKILL_VERSION },
   };
 }

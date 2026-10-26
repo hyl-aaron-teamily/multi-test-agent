@@ -26,7 +26,7 @@ export function canonical(v: unknown): string {
 
 /** Pure: content hash of what the user confirms (classification, contracts, sub-cases and their plans). */
 export function draftHash(d: Draft): string {
-  return sha(canonical({ issue: d.issue.id, classification: d.classification.category, status: d.status, subcases: d.subcases.map((s) => ({ sub: s.sub, surface: s.surface, substitution: s.substitution, plan: s.plan, contract: s.contract })) }));
+  return sha(canonical({ issue: d.issue.id, classification: d.classification.category, status: d.status, contracts: d.contracts, subcases: d.subcases.map((s) => ({ sub: s.sub, surface: s.surface, substitution: s.substitution, plan: s.plan, contract: s.contract })) }));
 }
 
 export async function saveDraft(d: Draft, issueText: string, env: string): Promise<Draft> {

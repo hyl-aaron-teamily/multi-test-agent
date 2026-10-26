@@ -4,7 +4,7 @@
 // mention aggregation / generic), not per issue.
 import { DEFAULT_LIMITS, type Surface, type TestPlan, testPlanJsonSchema, verdictRuleFor } from '../platform/schema/test-plan';
 import { type PlanFragment, patternById, patternForText } from '../skills/teamily/patterns';
-import { contractFor, coverageOf } from './contract';
+import { contractFor, coverageOf, deferredContract } from './contract';
 import { ELEMENTS, NODES, REGIONS, SKILL_VERSION, TARGET_GUIDANCE } from '../skills/teamily/vocab';
 import { AVAILABLE, type Classification, classify } from './classify';
 import { chatJson, modelConfigured } from '../core/model/llm';
@@ -38,6 +38,8 @@ export interface Draft {
   /** Hash of the Issue file the draft came from. */
   issueHash?: string;
   env?: string;
+  /** Contracts of a deferred Issue (which precondition cannot be established). */
+  contracts?: IssueContract[];
   /** Warm-up failures fed back from runs (plan not executable on the current UI). */
   warmupFailures?: { planId: string; at: string; detail: string }[];
 }
@@ -123,7 +125,7 @@ export async function draftIssue(i: NormalizedIssue, opts: { env?: 'test' | 'pro
   const env = opts.env ?? 'prod';
   const c = await classify(i);
   if (c.category === 'server-side' || c.category === 'not-executable') return { issue: i, classification: c, status: 'refused', reason: c.reason, subcases: [] };
-  if (c.category === 'multi-account' || c.category === 'deferred') return { issue: i, classification: c, status: 'deferred', reason: c.reason, subcases: [] };
+  if (c.category === 'multi-account' || c.category === 'deferred') return { issue: i, classification: c, status: 'deferred', reason: c.reason, subcases: [], contracts: [deferredContract(i, c.category)] };
   const subst = substitutionOptions(i.platforms);
   const surface: Surface = c.surfaces.find((s) => AVAILABLE.includes(s) && s === 'desktop-web') ?? c.surfaces[0] ?? 'android-app';
   const subcases: SubCase[] = [];
