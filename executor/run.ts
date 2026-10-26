@@ -160,7 +160,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       targets,
       credentials: () => o.pool.backend.get(account.id),
       // prepare-only Nodes (validator keeps them out of the loop)
-      locate: async (desc, texts) => (await locate(s.d, desc, { texts, purpose: 'prep' }))?.point ?? null,
+      locate: async (desc, texts) => (await locate(s.inner, desc, { texts, purpose: 'prep' }))?.point ?? null,
     };
     const c: RunCtx = {
       plan,

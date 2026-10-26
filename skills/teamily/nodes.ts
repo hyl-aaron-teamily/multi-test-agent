@@ -105,7 +105,12 @@ const sendMessage: Exec<{ text: string; kind?: 'plain' | 'markdown-link' }> = as
  *  type the reply, send. Locating (accessibility first, vision after) happens here, never in the loop. */
 const quoteReply: Exec<{ quote: string; text: string }> = async ({ input, context: c }) => {
   if (!c.locate) throw new Error('teamily.quoteReply: no locator (prepare-only node)');
-  const msg = await c.locate(`the message bubble containing "${input.quote}" (the newest one)`, [input.quote]);
+  // The message just sent may still be rendering: look a few times.
+  let msg: Point | null = null;
+  for (let i = 0; i < 4 && !msg; i++) {
+    if (i) await sleep(1500);
+    msg = await c.locate(`the message bubble containing "${input.quote}" (the newest one)`, [input.quote]);
+  }
   if (!msg) throw new Error(`teamily.quoteReply: message "${input.quote}" not on screen`);
   await c.driver.longPress(msg);
   await sleep(1200);

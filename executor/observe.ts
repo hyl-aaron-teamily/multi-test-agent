@@ -76,7 +76,7 @@ const describeMatch = (m: TextMatch) => ('exact' in m ? `"${m.exact}"` : 'contai
 export function scopeNodes(nodes: UiNode[], k: CheckPoint, targets: Record<string, Point>, viewportWidth: number): UiNode[] {
   const s = k.scope ?? 'screen';
   if (s === 'screen') return nodes;
-  if (s === 'quote-cards') return nodes.filter((n) => n.clickable && /^[^,]{1,60}, .+/.test(n.desc) && n.x1 > viewportWidth * 0.2);
+  if (s === 'quote-cards') return nodes.filter((n) => n.clickable && /^[^,]{1,60}, .+/.test(n.desc) && n.x1 > viewportWidth * 0.1);
   const p = targets[s.target];
   if (!p) return [];
   return nodes.filter((n) => Math.abs((n.y1 + n.y2) / 2 - p.y) <= (s.within ?? 250));
