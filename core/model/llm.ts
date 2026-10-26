@@ -6,8 +6,12 @@
 export const modelCalls = { text: 0, vision: 0, byPurpose: {} as Record<string, number> };
 
 /** Count one call; `purpose` defaults to the current phase (setModelPurpose). */
+/** Listeners of every model call (trajectory). */
+export const modelCallListeners = new Set<(e: { kind: 'text' | 'vision'; purpose: string }) => void>();
+
 export function countCall(kind: 'text' | 'vision', purpose = currentPurpose): void {
   modelCalls[kind]++;
+  for (const l of modelCallListeners) l({ kind, purpose });
   const k = `${kind}:${purpose}`;
   modelCalls.byPurpose[k] = (modelCalls.byPurpose[k] ?? 0) + 1;
 }

@@ -4,7 +4,9 @@
 //   → verdict. Phases live in prepare.ts / phases.ts / loop.ts / checkpoint.ts / incident-hook.ts.
 import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import { modelCalls, setModelPurpose, visionConfigured } from '../core/model/llm';
+import { modelCallListeners, modelCalls, setModelPurpose, visionConfigured } from '../core/model/llm';
+import { isoMs, openTrajectory, type Trajectory } from '../core/trajectory';
+import type { CoordOp } from '../incident/recording-driver';
 import { profileKey, TEAMILY_PACKAGE } from '../drivers/factory';
 import { sleep } from '../drivers/types';
 import { AndroidFlightRecorder } from '../incident/android-recorder';
@@ -93,10 +95,21 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   const calls0 = { ...modelCalls, byPurpose: { ...modelCalls.byPurpose } };
   const locate0 = JSON.parse(JSON.stringify(locateTally)) as typeof locateTally;
   const res: RunResult = { planId: plan.id, issue: plan.issueRef, title: plan.title, category: plan.category, surface: plan.surface, substitution: plan.substitution, env: plan.env, coverage: plan.coverage, phenomenon: plan.contract?.observable.phenomenon, conclusion: '执行失败', conclusionDetail: '', startedAt: new Date(t0).toISOString(), finishedAt: '', stats, hits: [], incidents: [], targets: [], roundLog: [] };
-  const done = () => {
+  // Raw trajectory (trajectory-v1): live model calls; the rest is written when the run ends.
+  const traj = openTrajectory(join(o.runDir, 'trajectory.jsonl'));
+  traj.emit('plan', { planId: plan.id, issue: plan.issueRef, category: plan.category, surface: plan.surface, env: plan.env, draftHash: plan.provenance.draftHash, pattern: plan.provenance.pattern, coverage: plan.coverage });
+  if (plan.contract) traj.emit('contract', plan.contract as unknown as Record<string, unknown>);
+  const onCall = (e: { kind: string; purpose: string }) => traj.emit('model-call', e);
+  modelCallListeners.add(onCall);
+  const done = async () => {
+    modelCallListeners.delete(onCall);
     stats.locateTiers = Object.fromEntries(Object.entries(locateTally).map(([k, v]) => [k, { n: v.n - (locate0[k]?.n ?? 0), ms: v.ms - (locate0[k]?.ms ?? 0) }]).filter(([, v]) => (v as { n: number }).n > 0));
-    return finish(res, t0, stats, calls0);
+    const out = finish(res, t0, stats, calls0);
+    writeTrajectory(traj, out, opsOf());
+    await traj.close({ runId: `${plan.id}-${t0}`, query: `Issue ${plan.issueRef} ${plan.title}`, startedAt: isoMs(t0), endedAt: isoMs(Date.now()), model: process.env.MIDSCENE_MODEL_NAME ?? '', account: res.account ?? '', output: { conclusion: out.conclusion, detail: out.conclusionDetail, stats: out.stats, coverage: out.coverage } });
+    return out;
   };
+  let opsOf: () => CoordOp[] = () => [];
 
   // ---- lease: account + slot of an endpoint (a phone for Android surfaces, this computer otherwise)
   const taskId = o.taskId ?? `run-${plan.id}-${t0}`;
@@ -124,6 +137,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     if (onAndroid(plan.surface) && udid) afr = new AndroidFlightRecorder(udid, loadProfile(profileKey(plan.surface, plan.env, udid))?.packageName ?? TEAMILY_PACKAGE, flightDir);
     sess = await openSession({ surface: plan.surface, env: plan.env, account: account.id, udid, pool: o.pool, headed: o.headed, onLog: afr?.onLog, onConsole: wfr?.onConsole, log });
     const s = sess;
+    opsOf = () => s.d.ops;
     await afr?.start();
     await enterApp(s, {
       afterLaunch: async () => {
@@ -202,6 +216,21 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     await closeSession(sess);
     o.pool.release(lease, o.devices);
   }
+}
+
+/** Run record → trajectory events (targets, warm-up, ops, round checks, hits, incidents, verdict). */
+function writeTrajectory(traj: Trajectory, r: RunResult, ops: CoordOp[]): void {
+  if (r.account) traj.emit('lease', { account: r.account, device: r.device, surface: r.surface });
+  for (const t of r.targets) traj.emit('prep.target', { id: t.id, targetKind: t.kind, chosen: t.chosen, point: t.point, by: t.by, reason: t.reason });
+  for (const w of r.warmup?.steps ?? []) traj.emit('warmup.step', { ...w });
+  for (const h of r.healed ?? []) traj.emit('healed', { ...h });
+  for (const op of ops) traj.emit('op', { ...op });
+  for (const l of r.roundLog) traj.emit('observe', { round: l.round, step: l.step, results: l.results });
+  for (const [tier, v] of Object.entries(r.stats.locateTiers ?? {})) traj.emit('locate', { tier, ...v });
+  for (const h of r.hits) traj.emit('hit', { ...h });
+  for (const x of r.dismissed ?? []) traj.emit('dismissed', { ...x });
+  for (const i of r.incidents) traj.emit('incident', { dir: i });
+  traj.emit('verdict', { conclusion: r.conclusion, detail: r.conclusionDetail, error: r.error, stats: r.stats });
 }
 
 function finish(res: RunResult, t0: number, stats: Stats, calls0: typeof modelCalls): RunResult {
