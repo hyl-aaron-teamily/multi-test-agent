@@ -41,3 +41,15 @@ describe('intent contract (rules)', () => {
     expect(v.errors.join('\n')).toMatch(/keyboard-shown has no channel on mobile-web/);
   });
 });
+
+describe('approval on another surface', () => {
+  it('1329 s2 approved for mobile-web is rebuilt from the quote-jump pattern (no generic browse)', async () => {
+    const { applyApproval } = await import('./planner');
+    const d = await draftIssue(issue('1329'), { useModel: false });
+    const [p] = applyApproval(d, [{ sub: 's2', surface: 'mobile-web' }]);
+    expect(p.surface).toBe('mobile-web');
+    expect(p.provenance.pattern).toBe('quote-jump');
+    expect(p.checks[0].kind).toBe('baseline');
+    expect(p.coverage).toBe('covered');
+  });
+});

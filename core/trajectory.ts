@@ -69,7 +69,8 @@ export class Trajectory {
         this.events.splice(i, 1);
         this.dropped++;
       }
-      const e = scrub({ t: new Date().toISOString(), kind, ...data }) as TrajectoryEvent;
+      // The event kind always wins over a data field of the same name.
+      const e = scrub({ t: new Date().toISOString(), ...data, kind }) as TrajectoryEvent;
       this.events.push(e);
       appendFileSync(this.file, `${JSON.stringify(e)}\n`);
       for (const s of this.extra) s.emit(e);

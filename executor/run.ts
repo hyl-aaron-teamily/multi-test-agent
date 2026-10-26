@@ -101,7 +101,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   const traj = openTrajectory(join(o.runDir, 'trajectory.jsonl'));
   traj.emit('plan', { planId: plan.id, issue: plan.issueRef, category: plan.category, surface: plan.surface, env: plan.env, draftHash: plan.provenance.draftHash, pattern: plan.provenance.pattern, coverage: plan.coverage });
   if (plan.contract) traj.emit('contract', plan.contract as unknown as Record<string, unknown>);
-  const onCall = (e: { kind: string; purpose: string }) => traj.emit('model-call', e);
+  const onCall = (e: { kind: string; purpose: string }) => traj.emit('model-call', { model: e.kind, purpose: e.purpose });
   modelCallListeners.add(onCall);
   const done = async () => {
     modelCallListeners.delete(onCall);
