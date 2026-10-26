@@ -9,7 +9,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { visionConfigured, visionJson } from '../issue/llm';
+import { visionConfigured, visionJson } from '../core/model/llm';
 import type { NormalizedIssue } from '../issue/parse';
 import { type ReplayFile, type VideoSeg, videoTimeOf } from './bundle';
 import type { CoordOp } from './recording-driver';

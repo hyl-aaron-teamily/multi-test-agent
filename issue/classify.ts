@@ -4,7 +4,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import yaml from 'js-yaml';
 import type { PreCategory, Surface } from '../platform/schema/test-plan';
-import { chatJson, modelConfigured } from './llm';
+import { chatJson, modelConfigured } from '../core/model/llm';
 import type { NormalizedIssue } from './parse';
 
 export interface Classification {

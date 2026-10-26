@@ -4,12 +4,12 @@
 //      layer (web: rendered rows, android: uiautomator), or located by the vision model for non-row targets
 //   2. decision: the model picks per SKILL guidance (TARGET_GUIDANCE); rules only if no model
 //   3. freeze: the chosen row centre becomes the target point; the choice + reason go to the run record
-import { adb } from '../core/adb';
+import { visionEnabled, visionLocateRect } from '../core/model/midscene';
 import type { AndroidDriver } from '../drivers/android';
 import type { Driver, Point } from '../drivers/types';
 import type { WebDriver } from '../drivers/web';
-import { parseNodes } from '../imui/clients/android';
-import { chatJson, modelCalls, modelConfigured } from '../issue/llm';
+import { dumpTree } from '../core/ui-tree';
+import { chatJson, modelCalls, modelConfigured } from '../core/model/llm';
 import type { TestPlan } from '../platform/schema/test-plan';
 import type { Profile } from '../skills/profile';
 import { onAndroid } from '../platform/accounts/types';
@@ -34,8 +34,7 @@ const ROW_KINDS = new Set(['group-conversation', 'other-conversation', 'muted-gr
 export async function conversationCandidates(driver: Driver, p: Profile): Promise<Candidate[]> {
   if (driver.surface === 'android-app') {
     const d = driver as AndroidDriver;
-    await adb(['shell', 'uiautomator', 'dump', '/sdcard/autotest_ui.xml'], d.o.udid);
-    const nodes = parseNodes(await adb(['exec-out', 'cat', '/sdcard/autotest_ui.xml'], d.o.udid), d.o.packageName);
+    const nodes = await dumpTree(d.o.udid, d.o.packageName);
     const rows = nodes.filter((n) => n.clickable && n.x2 - n.x1 > p.viewport.width * 0.8 && n.y2 - n.y1 > 150 && n.y2 - n.y1 < 400 && n.y1 > 300 && n.y2 < p.viewport.height - 260);
     return rows
       .map((r) => {
@@ -64,8 +63,7 @@ export async function conversationCandidates(driver: Driver, p: Profile): Promis
  *  web content): a title line with a time at the right end of the same row, the preview line under it.
  *  Rows under a floating card (free-trial banner) or the bottom bar are left out (a tap would hit those). */
 export async function browserRows(d: AndroidDriver, p: Profile): Promise<Candidate[]> {
-  await adb(['shell', 'uiautomator', 'dump', '/sdcard/autotest_ui.xml'], d.o.udid);
-  const nodes = parseNodes(await adb(['exec-out', 'cat', '/sdcard/autotest_ui.xml'], d.o.udid), d.o.packageName);
+  const nodes = await dumpTree(d.o.udid, d.o.packageName);
   const web = nodes.find((n) => /WebView$/.test(n.cls) && n.y2 - n.y1 > 800);
   const w = p.viewport.width;
   const top = Math.max(web?.y1 ?? 0, ...nodes.filter((n) => /搜索/.test(n.hint) && /EditText/.test(n.cls) && n.y1 > (web?.y1 ?? 0)).map((n) => n.y2));
@@ -97,8 +95,7 @@ export interface QuoteCard {
 
 /** Quote cards on the Android chat screen (preparation-time accessibility read). */
 export async function quoteCards(d: AndroidDriver, p: Profile): Promise<QuoteCard[]> {
-  await adb(['shell', 'uiautomator', 'dump', '/sdcard/autotest_ui.xml'], d.o.udid);
-  const nodes = parseNodes(await adb(['exec-out', 'cat', '/sdcard/autotest_ui.xml'], d.o.udid), d.o.packageName);
+  const nodes = await dumpTree(d.o.udid, d.o.packageName);
   return nodes
     .filter((n) => n.clickable && /^[^,]{1,60}, .+/.test(n.desc) && n.x1 > p.viewport.width * 0.2 && n.y1 > 300 && n.y2 < p.viewport.height - 300)
     .map((n) => ({ box: [n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1] as Candidate['box'], sender: n.desc.split(', ')[0], quoted: n.desc.slice(n.desc.indexOf(', ') + 2).trim() }))
@@ -107,8 +104,7 @@ export async function quoteCards(d: AndroidDriver, p: Profile): Promise<QuoteCar
 
 /** After a jump: is the quoted original shown as a message (text node outside any quote card)? */
 export async function quotedOriginalVisible(d: AndroidDriver, quoted: string): Promise<[number, number, number, number] | undefined> {
-  await adb(['shell', 'uiautomator', 'dump', '/sdcard/autotest_ui.xml'], d.o.udid);
-  const nodes = parseNodes(await adb(['exec-out', 'cat', '/sdcard/autotest_ui.xml'], d.o.udid), d.o.packageName);
+  const nodes = await dumpTree(d.o.udid, d.o.packageName);
   const cards = nodes.filter((n) => n.clickable && /^[^,]{1,60}, .+/.test(n.desc));
   const norm = (s: string) => s.replace(/\s+/g, ' ').trim().slice(0, 30);
   const n = nodes.find((n) => n.text && norm(n.text) === norm(quoted) && !cards.some((c) => n.x1 >= c.x1 && n.x2 <= c.x2 && n.y1 >= c.y1 && n.y2 <= c.y2));
@@ -211,27 +207,11 @@ export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, lo
   return out;
 }
 
-/** Midscene vision locate (preparation only), counted as a vision call. */
+/** Midscene vision locate (preparation only), counted as a vision call; agent cached per device / page. */
 export async function visionLocator(driver: Driver & { page?: unknown; o?: any }): Promise<((q: string) => Promise<Point | null>) | undefined> {
-  if (process.env.ISSUE_NO_VISION === '1' || !process.env.MIDSCENE_MODEL_API_KEY) return undefined;
+  if (!visionEnabled()) return undefined;
   return async (q) => {
-    try {
-      modelCalls.vision++;
-      let agent: any;
-      if (onAndroid(driver.surface)) {
-        const { AndroidAgent, AndroidDevice } = await import('@midscene/android');
-        const dev = new AndroidDevice(driver.o.udid);
-        await dev.connect();
-        agent = new AndroidAgent(dev, { generateReport: false } as any);
-      } else {
-        const { PlaywrightAgent } = await import('@midscene/web/playwright');
-        agent = new PlaywrightAgent(driver.page as any, { generateReport: false } as any);
-      }
-      const r = await agent.aiLocate(q);
-      return r?.center ? { x: r.center[0], y: r.center[1] } : null;
-    } catch (err) {
-      console.warn(`[vision] locate failed: ${(err as Error).message.split('\n')[0]}`);
-      return null;
-    }
+    const r = await visionLocateRect(driver, q);
+    return r ? { x: Math.round(r.x + r.w / 2), y: Math.round(r.y + r.h / 2) } : null;
   };
 }

@@ -18,7 +18,7 @@ import { type IncidentKind, incidentDir, incidentKind, type ReplayFile, type Rou
 import { type CoordOp, RecordingDriver } from '../incident/recording-driver';
 import { type EvidenceVerdict, reviewIncident } from '../incident/evidence-review';
 import { WebFlightRecorder } from '../incident/web-recorder';
-import { modelCalls, visionConfigured } from '../issue/llm';
+import { modelCalls, visionConfigured } from '../core/model/llm';
 import { type NormalizedIssue, parseIssue } from '../issue/parse';
 import type { AccountPool, Lease } from '../platform/accounts/account-pool';
 import { ensureWebSession, type PlaywrightSurface } from '../platform/accounts/sessions';

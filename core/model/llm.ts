@@ -1,9 +1,40 @@
 // JSON chat against the OpenAI-compatible endpoint Midscene is configured with (same as mission/planner).
 // chatJson is text-only; visionJson gets recorded evidence frames (incident review, never the hot loop).
 // Neither ever receives credentials. Every call is counted (report: "model calls").
-import { extractJson } from '../mission/planner';
 
-export const modelCalls = { text: 0, vision: 0 };
+/** Every model call, also by purpose (plan / prep / checkpoint / evidence / warmup / calibrate / sync / locate). */
+export const modelCalls = { text: 0, vision: 0, byPurpose: {} as Record<string, number> };
+
+/** Count one call; `purpose` defaults to the current phase (setModelPurpose). */
+export function countCall(kind: 'text' | 'vision', purpose = currentPurpose): void {
+  modelCalls[kind]++;
+  const k = `${kind}:${purpose}`;
+  modelCalls.byPurpose[k] = (modelCalls.byPurpose[k] ?? 0) + 1;
+}
+let currentPurpose = 'other';
+export function setModelPurpose(p: string): void {
+  currentPurpose = p;
+}
+
+/** Pure: first {...} JSON object in a model answer (code fences tolerated). */
+export function extractJson(text: string): unknown {
+  const s = text.replace(/```(?:json)?/g, '');
+  const start = s.indexOf('{');
+  const end = s.lastIndexOf('}');
+  if (start < 0 || end <= start) return undefined;
+  try {
+    return JSON.parse(s.slice(start, end + 1));
+  } catch {
+    return undefined;
+  }
+}
+
+/** Pure: majority of boolean votes; null when no vote was cast or the vote is tied. */
+export function majority(answers: (boolean | null)[]): { value: boolean | null; yes: number; no: number } {
+  const yes = answers.filter((x) => x === true).length;
+  const no = answers.filter((x) => x === false).length;
+  return { value: !yes && !no ? null : yes === no ? null : yes > no, yes, no };
+}
 
 function cfg() {
   const base = process.env.MIDSCENE_PLANNING_MODEL_BASE_URL ?? process.env.MIDSCENE_MODEL_BASE_URL;
@@ -19,7 +50,7 @@ export function modelConfigured(): boolean {
 export async function chatJson(system: string, user: string, timeoutMs = 90_000): Promise<unknown> {
   const c = cfg();
   if (!c || process.env.ISSUE_NO_MODEL === '1') return undefined;
-  modelCalls.text++;
+  countCall('text');
   try {
     const res = await fetch(`${c.base.replace(/\/$/, '')}/chat/completions`, {
       method: 'POST',
@@ -54,7 +85,7 @@ export type VisionPart = string | { label: string; png: Buffer };
 export async function visionJson(system: string, parts: VisionPart[], timeoutMs = 120_000): Promise<unknown> {
   const c = visionCfg();
   if (!c || process.env.ISSUE_NO_VISION === '1') return undefined;
-  modelCalls.vision++;
+  countCall('vision');
   const content = parts.flatMap((p) =>
     typeof p === 'string' ? [{ type: 'text', text: p }] : [{ type: 'text', text: p.label }, { type: 'image_url', image_url: { url: `data:image/png;base64,${p.png.toString('base64')}` } }],
   );

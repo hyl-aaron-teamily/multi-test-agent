@@ -134,17 +134,9 @@ export function rulePlan(request: string): MissionPlan {
 }
 
 /** Pull the first JSON object out of a model answer (tolerates ```json fences). Pure. */
-export function extractJson(text: string): unknown {
-  const s = text.replace(/```(?:json)?/g, '');
-  const start = s.indexOf('{');
-  const end = s.lastIndexOf('}');
-  if (start < 0 || end <= start) return undefined;
-  try {
-    return JSON.parse(s.slice(start, end + 1));
-  } catch {
-    return undefined;
-  }
-}
+import { extractJson } from '../core/model/llm';
+
+export { extractJson };
 
 export async function planMission(request: string, ctx: { packageName: string; appHint?: string }): Promise<MissionPlan> {
   const base = process.env.MIDSCENE_PLANNING_MODEL_BASE_URL ?? process.env.MIDSCENE_MODEL_BASE_URL;

@@ -5,7 +5,7 @@
 import { DEFAULT_LIMITS, type PlannedAction, type Surface, type TestPlan, testPlanJsonSchema, verdictRuleFor } from '../platform/schema/test-plan';
 import { ELEMENTS, NODES, REGIONS, SKILL_VERSION, TARGET_GUIDANCE } from '../skills/teamily/vocab';
 import { AVAILABLE, type Classification, classify } from './classify';
-import { chatJson, modelConfigured } from './llm';
+import { chatJson, modelConfigured } from '../core/model/llm';
 import type { NormalizedIssue } from './parse';
 import { validatePlan } from './validate';
 

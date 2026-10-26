@@ -9,14 +9,13 @@
 // Black-box throughout: coordinates from the SKILL profiles, targets picked by the model at preparation.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
-import { adb } from '../core/adb';
 import { AndroidDriver } from '../drivers/android';
 import { createDriver, profileKey } from '../drivers/factory';
 import { type Driver, type Point, sleep } from '../drivers/types';
 import { WebDriver } from '../drivers/web';
-import { parseNodes } from '../imui/clients/android';
+import { dumpTree } from '../core/ui-tree';
 import { RecordingDriver } from '../incident/recording-driver';
-import { modelCalls } from '../issue/llm';
+import { modelCalls } from '../core/model/llm';
 import type { AccountPool, Lease } from '../platform/accounts/account-pool';
 import { ensureWebSession, type PlaywrightSurface } from '../platform/accounts/sessions';
 import { type Env, onAndroid, onPlaywright, type Surface } from '../platform/accounts/types';
@@ -299,8 +298,7 @@ async function awaitLine(rs: Role[], text: string, sentAt: number, o: SyncOption
 /** Is the line on the receiver's screen? App: accessibility text. Web: vision on the screenshot. */
 async function lineVisible(r: Role, text: string): Promise<boolean | null> {
   if (r.spec.surface === 'android-app' && r.inner instanceof AndroidDriver) {
-    await adb(['shell', 'uiautomator', 'dump', '/sdcard/autotest_ui.xml'], r.inner.o.udid).catch(() => '');
-    const nodes = parseNodes(await adb(['exec-out', 'cat', '/sdcard/autotest_ui.xml'], r.inner.o.udid).catch(() => ''), r.inner.o.packageName);
+    const nodes = await dumpTree(r.inner.o.udid, r.inner.o.packageName, 2);
     return nodes.some((n) => n.text.includes(text) || n.desc.includes(text));
   }
   if (!r.ask) return null;

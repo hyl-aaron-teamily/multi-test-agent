@@ -9,7 +9,7 @@ import { AndroidDriver } from '../drivers/android';
 import { sleep } from '../drivers/types';
 import { listDevices } from '../platform/adb-devices';
 import type { Env } from '../platform/accounts/types';
-import { parseNodes } from '../imui/clients/android';
+import { dumpTree, toBox as nodeBox, type UiNode } from '../core/ui-tree';
 import { type Profile, SKILL_DIR, saveProfile } from './profile';
 import { ELEMENTS, SKILL_VERSION } from './teamily/vocab';
 
@@ -20,23 +20,11 @@ export interface CalibrateAndroidOptions {
   log?: (s: string) => void;
 }
 
-export type N = ReturnType<typeof parseNodes>[number];
-export const toBox = (n: N): Box => [n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1];
+export type N = UiNode;
+export const toBox = (n: N): Box => nodeBox(n);
 
-export async function dump(udid: string, pkg: string): Promise<N[]> {
-  for (let i = 0; i < 4; i++) {
-    try {
-      await adb(['shell', 'uiautomator', 'dump', '/sdcard/autotest_ui.xml'], udid);
-      const xml = await adb(['exec-out', 'cat', '/sdcard/autotest_ui.xml'], udid);
-      const nodes = parseNodes(xml, pkg);
-      if (nodes.length) return nodes;
-    } catch {
-      /* UI not idle yet */
-    }
-    await sleep(800);
-  }
-  return [];
-}
+/** Calibration read of the accessibility tree (core/ui-tree: locked, retried, timed). */
+export const dump = (udid: string, pkg: string): Promise<N[]> => dumpTree(udid, pkg);
 
 export async function calibrateAndroid(o: CalibrateAndroidOptions): Promise<Profile> {
   const log = o.log ?? ((s) => console.log(`[calibrate] ${s}`));

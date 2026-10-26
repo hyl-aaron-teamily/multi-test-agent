@@ -10,7 +10,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import yaml from 'js-yaml';
 import { issuePath } from '../issue/cli';
-import { modelCalls } from '../issue/llm';
+import { modelCalls } from '../core/model/llm';
 import { parseIssue } from '../issue/parse';
 import { probeDuration, type ReplayFile } from './bundle';
 import { type EvidenceVerdict, type IncidentMeta, pickWindows, reviewIncident, scalePng, VERDICT_TEXT } from './evidence-review';

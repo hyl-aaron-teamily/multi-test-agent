@@ -7,13 +7,14 @@
 //     located on the screenshot by the vision model (Midscene aiLocate).
 // Runs use coordinates only. Signs in the account that owns this surface (the browser keeps the session);
 // the form is submitted with the keyboard's Enter, because the on-screen keyboard covers the form buttons.
+import { visionLocateRect } from '../core/model/midscene';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { type Box, decodePng, dHash, drawBox, encodePng, meanGrey, pixelDiff } from '../core/image';
 import { AndroidDriver } from '../drivers/android';
 import { BROWSER_PACKAGE } from '../drivers/factory';
 import { sleep } from '../drivers/types';
-import { modelCalls } from '../issue/llm';
+import { modelCalls } from '../core/model/llm';
 import type { Credentials, Env } from '../platform/accounts/types';
 import { dump, type N, toBox } from './calibrate-android';
 import { loadProfile, type Profile, SKILL_DIR, saveProfile } from './profile';
@@ -54,24 +55,10 @@ export async function calibrateAndroidWeb(o: CalibrateAndroidWebOptions): Promis
   const tapNode = (n: { x1: number; y1: number; x2: number; y2: number }) => d.tap({ x: Math.round((n.x1 + n.x2) / 2), y: Math.round((n.y1 + n.y2) / 2) });
 
   // ---- vision locate (Midscene, counted)
-  let agent: any;
   const locate = async (q: string): Promise<N | undefined> => {
-    try {
-      if (!agent) {
-        const { AndroidAgent, AndroidDevice } = await import('@midscene/android');
-        const dev = new AndroidDevice(o.udid);
-        await dev.connect();
-        agent = new AndroidAgent(dev, { generateReport: false } as any);
-      }
-      modelCalls.vision++;
-      const r = await agent.aiLocate(q);
-      const rect = r?.rect;
-      if (!rect) return undefined;
-      return { x1: Math.round(rect.left), y1: Math.round(rect.top), x2: Math.round(rect.left + rect.width), y2: Math.round(rect.top + rect.height), text: q, hint: '', desc: '(vision)', cls: 'vision', clickable: true };
-    } catch (err) {
-      log(`  vision locate failed: ${(err as Error).message.split('\n')[0]}`);
-      return undefined;
-    }
+    const r = await visionLocateRect({ surface: 'android-web', o: { udid: o.udid } }, q, 'calibrate');
+    if (!r) return undefined;
+    return { x1: r.x, y1: r.y, x2: r.x + r.w, y2: r.y + r.h, text: q, hint: '', desc: '(vision)', cls: 'vision', clickable: true };
   };
 
   const put = (id: string, n: N | undefined) => {

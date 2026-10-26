@@ -1,10 +1,11 @@
 // Checkpoint evaluation. Cheap first: region perceptual hash against the SKILL reference; only a
 // mismatch (or an explicit ai check) goes to the vision model — and every vision call is counted.
+import { visionAsk, visionEnabled } from '../core/model/midscene';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { type Box, decodePng, dHash, hamming, type Rgba, regionDiffFraction, scaleBox } from '../core/image';
 import type { Driver } from '../drivers/types';
-import { modelCalls } from '../issue/llm';
+import { majority } from '../core/model/llm';
 import type { CheckPoint } from '../platform/schema/test-plan';
 import { type Profile, SKILL_DIR, SkillStaleError } from '../skills/profile';
 import { onAndroid } from '../platform/accounts/types';
@@ -136,8 +137,7 @@ export async function evaluateAi(c: CheckPoint, ask?: VisionAsk, votes = 3): Pro
     const no = answers.filter((x) => x === false).length;
     if (yes > votes / 2 || no > votes / 2) break;
   }
-  const yes = answers.filter((x) => x === true).length;
-  const no = answers.filter((x) => x === false).length;
+  const { yes, no } = majority(answers);
   if (!yes && !no) return { check: c, pass: null, detail: 'vision call failed — 未验证', vision: true };
   const v = yes > no;
   return { check: c, pass: c.want === 'absent' ? !v : v, detail: `vision: ${v} (votes yes ${yes} / no ${no})`, vision: true };
@@ -154,30 +154,10 @@ export async function assertSkillFresh(driver: Driver, p: Profile, page = 'home'
   return m.fraction;
 }
 
-/** Midscene vision ask bound to a driver (web: PlaywrightAgent, android: AndroidAgent). */
+/** Midscene vision ask bound to a driver (web: PlaywrightAgent, android: AndroidAgent), agent cached. */
 export async function visionAsker(driver: Driver & { page?: unknown; o?: any }): Promise<VisionAsk | undefined> {
-  if (process.env.ISSUE_NO_VISION === '1' || !process.env.MIDSCENE_MODEL_API_KEY) return undefined;
-  let agent: { aiBoolean(q: string): Promise<boolean> } | undefined;
-  return async (q) => {
-    try {
-      if (!agent) {
-        if (onAndroid(driver.surface)) {
-          const { AndroidAgent, AndroidDevice } = await import('@midscene/android');
-          const dev = new AndroidDevice(driver.o.udid);
-          await dev.connect();
-          agent = new AndroidAgent(dev, { generateReport: false } as any) as any;
-        } else {
-          const { PlaywrightAgent } = await import('@midscene/web/playwright');
-          agent = new PlaywrightAgent(driver.page as any, { generateReport: false } as any) as any;
-        }
-      }
-      modelCalls.vision++;
-      return await agent!.aiBoolean(q);
-    } catch (err) {
-      console.warn(`[vision] ${(err as Error).message.split('\n')[0]}`);
-      return null;
-    }
-  };
+  if (!visionEnabled()) return undefined;
+  return (q) => visionAsk(driver, q);
 }
 
 /** Poll the screen until one of the reference regions shows on two polls in a row (a page that is still

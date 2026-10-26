@@ -7,34 +7,11 @@
 // and each sighting is timestamped at the middle of the dump window.
 import { AndroidDevice } from '@midscene/android';
 import { adb, launchApp, resolveAdbPath } from '../../core/adb';
+import { parseNodes, readUiXml, type UiNode } from '../../core/ui-tree';
 import { bubbleClusters, type Box, leadingToken } from '../tokens';
 import type { SeenHandler, UiClient } from './types';
 
-interface UiNode extends Box {
-  text: string;
-  /** Placeholder; an empty EditText reports its hint as `text`. */
-  hint: string;
-  desc: string;
-  cls: string;
-  clickable: boolean;
-}
-
-const attr = (n: string, k: string) => n.match(new RegExp(`\\s${k}="([^"]*)"`))?.[1] ?? '';
-const unescape = (s: string) => s.replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
-
-/** Pure: uiautomator XML → nodes of `pkg`. */
-export function parseNodes(xml: string, pkg: string): UiNode[] {
-  const out: UiNode[] = [];
-  for (const m of xml.matchAll(/<node\b[^>]*>/g)) {
-    const n = m[0];
-    if (attr(n, 'package') !== pkg) continue;
-    const b = attr(n, 'bounds').match(/\[(\d+),(\d+)\]\[(\d+),(\d+)\]/);
-    if (!b) continue;
-    const [x1, y1, x2, y2] = b.slice(1).map(Number);
-    out.push({ x1, y1, x2, y2, text: unescape(attr(n, 'text')), hint: unescape(attr(n, 'hint')), desc: unescape(attr(n, 'content-desc')), cls: attr(n, 'class'), clickable: attr(n, 'clickable') === 'true' });
-  }
-  return out;
-}
+export { parseNodes };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const center = (b: Box) => ({ x: Math.round((b.x1 + b.x2) / 2), y: Math.round((b.y1 + b.y2) / 2) });
@@ -57,24 +34,13 @@ export class AndroidClient implements UiClient {
     this.id = `android:${udid}`;
   }
 
-  private dumpLock: Promise<unknown> = Promise.resolve();
-  private dumpSeq = 0;
-
-  /**
-   * One uiautomator dump at a time per device: the watcher and the send check used to run
-   * concurrently on the same file, and one could read the other's older snapshot.
-   */
+  /** Serialised per device in core/ui-tree (the watcher and the send check share one device). */
   dump(): Promise<{ nodes: UiNode[]; at: number }> {
-    const run = this.dumpLock.then(() => this.dumpOnce(), () => this.dumpOnce());
-    this.dumpLock = run.catch(() => {});
-    return run;
+    return this.dumpOnce();
   }
 
   private async dumpOnce(): Promise<{ nodes: UiNode[]; at: number }> {
-    const t0 = Date.now();
-    const f = `/sdcard/imui_ui_${this.dumpSeq++ % 4}.xml`;
-    const xml = await adb(['shell', `rm -f ${f}; uiautomator dump ${f} >/dev/null 2>&1; cat ${f}`], this.udid, 20_000);
-    const t1 = Date.now();
+    const { xml, t0, t1 } = await readUiXml(this.udid);
     this.dumpMs.push(t1 - t0);
     if (this.dumpMs.length > 50) this.dumpMs.shift();
     this.resolutionMs = Math.round(this.dumpMs.reduce((a, b) => a + b, 0) / this.dumpMs.length);
