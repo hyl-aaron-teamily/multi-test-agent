@@ -7,7 +7,7 @@ import { type Box, decodePng, type Rgba, regionDiffFraction, scaleBox } from '..
 import type { Driver } from '../drivers/types';
 import { majority } from '../core/model/llm';
 import type { CheckPoint } from '../platform/schema/test-plan';
-import { type Profile, SKILL_DIR, SkillStaleError } from '../skills/profile';
+import { type Profile, SKILL_DIR, SkillStaleError, stagedRef } from '../skills/profile';
 
 export const MATCH_DISTANCE = 12;
 /** Region counts as matching the reference when fewer than this fraction of its pixels differ. */
@@ -33,6 +33,8 @@ const refImages = new Map<string, Rgba>();
 function refImage(p: Profile, page: string): Rgba | undefined {
   const f = p.refs[page]?.image;
   if (!f) return undefined;
+  const staged = stagedRef(p.name, `${page}.png`);
+  if (staged) return decodePng(staged);
   if (!refImages.has(f)) refImages.set(f, decodePng(readFileSync(join(SKILL_DIR, f))));
   return refImages.get(f);
 }

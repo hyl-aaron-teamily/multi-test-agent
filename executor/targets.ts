@@ -97,7 +97,7 @@ export interface QuoteCard {
 export async function quoteCards(d: AndroidDriver, p: Profile): Promise<QuoteCard[]> {
   const nodes = await dumpTree(d.o.udid, d.o.packageName);
   return nodes
-    .filter((n) => n.clickable && /^[^,]{1,60}, .+/.test(n.desc) && n.x1 > p.viewport.width * 0.2 && n.y1 > 300 && n.y2 < p.viewport.height - 300)
+    .filter((n) => n.clickable && /^[^,]{1,60}, .+/.test(n.desc) && n.x1 > p.viewport.width * 0.1 && n.y1 > 300 && n.y2 < p.viewport.height - 300)
     .map((n) => ({ box: [n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1] as Candidate['box'], sender: n.desc.split(', ')[0], quoted: n.desc.slice(n.desc.indexOf(', ') + 2).trim() }))
     .sort((a, b) => a.box[1] - b.box[1]);
 }
@@ -106,7 +106,8 @@ export async function quoteCards(d: AndroidDriver, p: Profile): Promise<QuoteCar
 export async function quotedOriginalVisible(d: AndroidDriver, quoted: string): Promise<[number, number, number, number] | undefined> {
   const nodes = await dumpTree(d.o.udid, d.o.packageName);
   const cards = nodes.filter((n) => n.clickable && /^[^,]{1,60}, .+/.test(n.desc));
-  const norm = (s: string) => s.replace(/\s+/g, ' ').trim().slice(0, 30);
+  // A quoted Markdown link [label](url) shows as its label in the message itself.
+  const norm = (s: string) => s.replace(/\[([^\]]*)\]\([^)]*\)?/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 30);
   const n = nodes.find((n) => n.text && norm(n.text) === norm(quoted) && !cards.some((c) => n.x1 >= c.x1 && n.x2 <= c.x2 && n.y1 >= c.y1 && n.y2 <= c.y2));
   return n ? [n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1] : undefined;
 }

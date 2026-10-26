@@ -66,9 +66,25 @@ export function loadProfile(name: string, dir = SKILL_DIR): Profile | undefined 
   return existsSync(f) ? (JSON.parse(readFileSync(f, 'utf8')) as Profile) : undefined;
 }
 
+const staged = new Map<string, Map<string, Buffer>>();
+
+/** A staged (not yet saved) reference image, e.g. read by region waits during calibration. */
+export const stagedRef = (profile: string, file: string) => staged.get(profile)?.get(file);
+
+/** Reference image of a calibration in progress; written by saveProfile (atomic with the profile). */
+export function stageRef(profile: string, file: string, buf: Buffer): void {
+  if (!staged.has(profile)) staged.set(profile, new Map());
+  staged.get(profile)!.set(file, buf);
+}
+
 export async function saveProfile(p: Profile, dir = SKILL_DIR): Promise<string> {
   const f = profilePath(p.name, dir);
   await mkdir(dirname(f), { recursive: true });
+  for (const [file, buf] of staged.get(p.name) ?? []) {
+    await mkdir(join(dir, 'refs', p.name), { recursive: true });
+    await writeFile(join(dir, 'refs', p.name, file), buf);
+  }
+  staged.delete(p.name);
   await writeFile(f, JSON.stringify(p, null, 2));
   return f;
 }
