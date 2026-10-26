@@ -170,7 +170,15 @@ export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, lo
       if (idx < 0) {
         // No readable rows (the phone browser's accessibility tree can lag behind the page): let the vision
         // model find the row on the screenshot instead (preparation only).
-        const pt = !cands.length && locate ? await locate(`the conversation row in the chat list that matches: ${t.guidance}`) : null;
+        // The phone browser's own bars (address bar / toolbar) are never a conversation row: a point there
+        // means the page was not ready — wait and look again (up to 3 times).
+        const inPage = (q: Point | null) => !!q && (driver.surface !== 'android-web' || (q.y > 260 && q.y < p.viewport.height - 200));
+        let pt: (Point & { tier?: string }) | null = null;
+        for (let k = 0; k < 3 && !cands.length && locate && !inPage(pt); k++) {
+          if (k) await new Promise((r) => setTimeout(r, 4000));
+          pt = await locate(`the conversation row in the chat list that matches: ${t.guidance}`);
+        }
+        if (!inPage(pt)) pt = null;
         if (!pt) throw new Error(`prep: no candidate for target ${t.id} (${t.kind})`);
         const chosen = t.guidance.match(/titled "([^"]+)"/)?.[1] ?? t.guidance;
         out.push({ id: t.id, kind: t.kind, point: pt, chosen, reason: 'vision locate (no readable rows)', by: 'vision' });

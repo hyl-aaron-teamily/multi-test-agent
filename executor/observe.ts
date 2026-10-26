@@ -106,10 +106,16 @@ export async function observeText(d: Driver, k: CheckPoint, targets: Record<stri
 }
 
 /** Read-only: does the visible page text contain the match? (Playwright locator text; nothing evaluated in the page.) */
-export async function pageHasText(page: Page, m: TextMatch): Promise<boolean | null> {
+export async function pageHasText(page: Page, m: TextMatch, area?: { minX?: number; maxY?: number; minY?: number }): Promise<boolean | null> {
   try {
-    const loc = 'exact' in m ? page.getByText(m.exact, { exact: true }) : 'contains' in m ? page.getByText(m.contains) : page.getByText(new RegExp(m.regex));
-    return (await loc.filter({ visible: true }).count()) > 0;
+    const loc = ('exact' in m ? page.getByText(m.exact, { exact: true }) : 'contains' in m ? page.getByText(m.contains) : page.getByText(new RegExp(m.regex))).filter({ visible: true });
+    if (!area) return (await loc.count()) > 0;
+    // Only matches inside an area (e.g. the chat pane, not the conversation list's preview line).
+    for (const el of await loc.all()) {
+      const b = await el.boundingBox().catch(() => null);
+      if (b && b.x >= (area.minX ?? 0) && b.y >= (area.minY ?? -1e9) && b.y <= (area.maxY ?? 1e9)) return true;
+    }
+    return false;
   } catch {
     return null;
   }

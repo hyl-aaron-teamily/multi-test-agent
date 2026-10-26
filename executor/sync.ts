@@ -104,6 +104,8 @@ interface Role {
   sess?: Session;
   ask?: VisionAsk;
   target?: Point;
+  /** The conversation title was read from the screen (not a vision guess). */
+  titleRead?: boolean;
 }
 
 /** Without private settings: any group the test accounts share (no names in the code). */
@@ -119,7 +121,9 @@ export async function runSync(o: SyncOptions): Promise<SyncResult> {
   const result: SyncResult = { env: o.env, startedAt: new Date(t0).toISOString(), finishedAt: '', roles: [], rounds: [], conclusion: '执行失败', detail: '', visionCalls: 0 };
   // Phone roles lease first: their account is the one signed in on the phone; host roles take what is left.
   const roles: Role[] = [...o.roles]
-    .sort((a, b) => Number(onAndroid(b.surface)) - Number(onAndroid(a.surface)))
+    // Phones first (their account is fixed); the App before the browser — it reads the list reliably, so its
+    // chosen title guides the others.
+    .sort((a, b) => Number(onAndroid(b.surface)) - Number(onAndroid(a.surface)) || Number(b.surface === 'android-app') - Number(a.surface === 'android-app'))
     .map((spec) => ({ spec, res: { id: spec.id, surface: spec.surface, endpoint: '', account: '', ready: false } }));
   result.roles = roles.map((r) => r.res);
   /** Which role has the screen of each phone. */
@@ -150,7 +154,8 @@ export async function runSync(o: SyncOptions): Promise<SyncResult> {
     for (const r of roles) {
       try {
         await prepareRole(r, o, log, focus, chosenTitle);
-        chosenTitle ||= r.res.conversation ?? '';
+        // Only a title read from the screen guides the others (a vision-located row has no reliable title).
+        if (!chosenTitle && r.titleRead) chosenTitle = r.res.conversation ?? '';
         r.res.ready = true;
       } catch (e) {
         r.res.error = (e as Error).message.split('\n')[0];
@@ -226,8 +231,25 @@ async function prepareRole(r: Role, o: SyncOptions, log: (s: string) => void, fo
   if (!t) throw new Error('conversation not found on the list');
   r.target = t.point;
   r.res.conversation = t.chosen;
+  r.titleRead = t.by !== 'vision';
   await runNode('teamily.openConversation', { target: 'conv' }, { driver: d, profile, targets: { conv: t.point } });
   const open = await waitForRegion(d, profile, ['chat/composer'], 20_000);
+  // The list re-sorts when messages arrive: make sure the header shows the chosen conversation (web: page
+  // text in the chat pane header); otherwise pick and open again once.
+  if (r.inner instanceof WebDriver && r.inner.page && t.by !== 'vision') {
+    const head = t.chosen.replace(/[…\.]+$/, '').slice(0, 12);
+    const inPane = r.spec.surface === 'desktop-web' ? { minX: chatPaneX(profile), maxY: 120 } : { maxY: 140 };
+    if (!(await pageHasText(r.inner.page, { contains: head }, inPane))) {
+      log(`${r.spec.id}: opened conversation is not "${head}" (list re-sorted) — opening again`);
+      const [t2] = await pickTargets(plan, r.inner, profile, (s) => log(`${r.spec.id}: ${s}`), await visionLocator(r.inner as any), 'rows');
+      if (t2) {
+        if (r.spec.surface !== 'desktop-web') await sess.adapter.leaveConversation(d, profile);
+        await runNode('teamily.openConversation', { target: 'conv' }, { driver: d, profile, targets: { conv: t2.point } });
+        await waitForRegion(d, profile, ['chat/composer'], 20_000);
+        r.target = t2.point;
+      }
+    }
+  }
   if (!open) throw new Error('conversation did not open (composer not on screen)');
   // The app reopens a conversation where it was last scrolled to: scroll to the newest messages, as a
   // reader would, so new lines land on screen instead of behind a "↓ new" badge.
@@ -285,13 +307,17 @@ async function lineVisible(r: Role, text: string): Promise<boolean | null> {
     if (nodes.some((n) => n.text.includes(key) || n.desc.includes(key))) return done(true, '①');
     if (r.spec.surface === 'android-app' && nodes.length) return done(false, '①');
   } else if (r.inner instanceof WebDriver && r.inner.page) {
-    const v = await pageHasText(r.inner.page, { contains: key });
+    // Desktop: only the chat pane (right of the conversation list, whose preview shows the line too).
+    const v = await pageHasText(r.inner.page, { contains: key }, r.spec.surface === 'desktop-web' ? { minX: chatPaneX(r.profile!) } : { minY: r.profile!.viewport.height * 0.12 });
     if (v !== null) return done(v, '①');
   }
   if (!r.ask) return null;
   // Key on the unique part: the end of a bubble can sit under a floating button (the "@" jump badge).
   return done(await r.ask(`The chat on screen shows a message bubble containing "${key}" (its full text is "${text}"; the end of the text may be hidden behind a floating round button). Look at the newest messages at the bottom.`), '③');
 }
+
+/** Left edge of the desktop chat pane: right of the conversation list (search box right edge + margin). */
+const chatPaneX = (p: Profile) => { const b = p.elements['chatlist.search']?.box; return b ? b[0] + b[2] + 60 : p.viewport.width * 0.22; };
 
 /** Tier tally of delivery checks (this process). */
 export const syncTiers: Record<string, { n: number; ms: number }> = {};

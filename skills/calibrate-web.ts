@@ -95,8 +95,9 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
       note = `url ${d.p.url() !== url0 ? 'changed' : 'same'}, screen Δ${fullDiff.toFixed(0)}`;
     } else if (spec.selfCheck === 'focus') {
       const px = pixelDiff(before, after, near);
-      ok = px >= 15;
-      note = `focus probe: ${px} px changed in element`;
+      // Some inputs open their own panel (the search box): the typed probe shows there, not in the box.
+      ok = px >= 15 || fullDiff >= 6;
+      note = `focus probe: ${px} px changed in element${px < 15 && fullDiff >= 6 ? `, screen Δ${fullDiff.toFixed(0)} (opened a panel)` : ''}`;
     } else if (spec.selfCheck === 'popup') {
       ok = fullDiff >= 3;
       note = `screen Δ${fullDiff.toFixed(0)}`;
@@ -274,6 +275,15 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
       for (const l of await p.locator('button[aria-label]').filter({ visible: true }).all()) {
         const b = await box(l);
         if (b && b[0] > 320 && b[2] > 200 && b[3] > 150 && (!cardBox || b[1] < cardBox[1] || (b[1] === cardBox[1] && b[0] < cardBox[0]))) cardBox = b;
+      }
+      if (!cardBox) {
+        // Cards without an accessible name: the innermost block holding a type tag (DOC …) and an 更新于 line.
+        const cards = p.locator('div').filter({ has: p.getByText(/^(DOC|SHEET|SLIDE|PDF|HTML|WEB)$/) }).filter({ hasText: /更新于|Updated/ }).filter({ visible: true });
+        const n = await cards.count().catch(() => 0);
+        for (let i = n - 1; i >= 0 && !cardBox; i--) {
+          const b = await box(cards.nth(i));
+          if (b && b[0] > 60 && b[2] > 150 && b[3] > 120) cardBox = b;
+        }
       }
       put('artifacts.firstCard', cardBox);
       if (prof.elements['artifacts.firstCard']) {

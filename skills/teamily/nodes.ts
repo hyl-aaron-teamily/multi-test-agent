@@ -76,12 +76,19 @@ const sendMessage: Exec<{ text: string; kind?: 'plain' | 'markdown-link' }> = as
   let focused = await shot();
   // Phones: type only once the soft keyboard is up — text typed with nothing focused lands elsewhere
   // (the phone browser puts it into its address bar). One retap, then give up (a drift, not a send).
-  if (mobileLayout(c.driver.surface) && c.driver.surface !== 'mobile-web' && pixelDiff(empty, focused) <= 20_000) {
-    await sleep(1000);
-    await tapEl(c, 'chat.composer');
-    await sleep(800);
-    focused = await shot();
-    if (pixelDiff(empty, focused) <= 20_000) throw new Error('teamily.sendMessage: the composer did not take focus (keyboard not up) — not typing');
+  if (mobileLayout(c.driver.surface) && c.driver.surface !== 'mobile-web') {
+    const up = async () => {
+      for (let i = 0; i < 6; i++) {
+        if (pixelDiff(empty, focused) > 20_000) return true;
+        await sleep(500);
+        focused = await shot();
+      }
+      return false;
+    };
+    if (!(await up())) {
+      await tapEl(c, 'chat.composer');
+      if (!(await up())) throw new Error('teamily.sendMessage: the composer did not take focus (keyboard not up) — not typing');
+    }
   }
   await c.driver.type(input.text);
   if (c.driver.surface === 'android-app') {
@@ -151,8 +158,17 @@ const switchConversation: Exec<{ from: string; to: string }> = async ({ input, c
 };
 
 const openPage: Exec<{ page: 'profile' | 'artifacts' | 'chat' }> = async ({ input, context: c }) => {
+  const before = decodePng(await c.driver.screenshot());
   await tapEl(c, input.page === 'profile' ? 'nav.me' : input.page === 'artifacts' ? 'nav.artifacts' : 'nav.chat');
   await sleep(c.settleMs ?? 1500);
+  // A slow page: judging "absent" on the page we came from would be wrong — wait (≤ 10 s) until it changed.
+  if (input.page !== 'chat')
+    for (let i = 0; i < 10; i++) {
+      const now = decodePng(await c.driver.screenshot());
+      if (pixelDiff(before, now) >= now.width * now.height * 0.05) break;
+      if (i === 4) await tapEl(c, input.page === 'profile' ? 'nav.me' : 'nav.artifacts');
+      await sleep(1000);
+    }
 };
 
 const EXEC: Record<NodeName, Exec<any>> = {
