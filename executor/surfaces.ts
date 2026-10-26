@@ -12,6 +12,8 @@ import type { Session } from './session';
 import { visionLocator } from './targets';
 
 export interface SurfaceAdapter {
+  /** Before the first launch (e.g. start a stuck browser fresh). */
+  beforeLaunch?(s: Session): Promise<void>;
   /** Wait until the first screen after launch is usable. */
   waitFirstScreen(s: Session): Promise<void>;
   /** Dismiss dialogs that appear on load (only when they are visibly there). */
@@ -75,6 +77,12 @@ const androidAppAdapter: SurfaceAdapter = {
 };
 
 const androidWebAdapter: SurfaceAdapter = {
+  // The phone browser can sit on "连接中…" (no connection, sending disabled) until it is restarted: start it
+  // cold, as a user would after closing it.
+  async beforeLaunch(s) {
+    const a = s.inner as AndroidDriver;
+    await a.killApp().catch(() => {});
+  },
   // The phone browser loads slowly: wait for the list, a restored conversation or the login form.
   async waitFirstScreen(s) {
     await waitForRegion(s.d, s.profile, ['home/nav', 'chat/composer', 'login/form'], 45_000);

@@ -62,9 +62,10 @@ export async function visionLocateRect(t: VisionTarget, q: string, purpose?: str
     countCall('vision', purpose);
     const r = await agent.aiLocate(q);
     const rect = r?.rect;
-    if (rect) return { x: Math.round(rect.left), y: Math.round(rect.top), w: Math.round(rect.width), h: Math.round(rect.height) };
-    if (r?.center) return { x: r.center[0], y: r.center[1], w: 0, h: 0 };
-    return null;
+    let out: VisionRect | null = rect ? { x: Math.round(rect.left), y: Math.round(rect.top), w: Math.round(rect.width), h: Math.round(rect.height) } : r?.center ? { x: r.center[0], y: r.center[1], w: 0, h: 0 } : null;
+    // Emulated phones (mobile-web, DPR 2.625) can come back in device pixels: taps are in CSS px.
+    if (out && t.page) out = await toCssPx(t.page as any, out);
+    return out;
   } catch (err) {
     console.warn(`[vision] locate failed: ${(err as Error).message.split('\n')[0]}`);
     return null;
@@ -74,4 +75,14 @@ export async function visionLocateRect(t: VisionTarget, q: string, purpose?: str
 /** Drop the cached agent of a page / device (after the page closed). */
 export function forgetVision(t: VisionTarget): void {
   agents.delete(t.page ?? t.o?.udid ?? t);
+}
+
+/** Scale a located rect to CSS px when it lies outside the CSS viewport (device-pixel answer). */
+async function toCssPx(page: { viewportSize(): { width: number; height: number } | null; screenshot(): Promise<Buffer> }, r: VisionRect): Promise<VisionRect> {
+  const vp = page.viewportSize();
+  if (!vp || (r.x + r.w / 2 <= vp.width && r.y + r.h / 2 <= vp.height)) return r;
+  const png = await page.screenshot();
+  const dpr = png.readUInt32BE(16) / vp.width; // PNG IHDR width
+  if (!(dpr > 1.05)) return r;
+  return { x: Math.round(r.x / dpr), y: Math.round(r.y / dpr), w: Math.round(r.w / dpr), h: Math.round(r.h / dpr) };
 }

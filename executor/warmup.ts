@@ -48,7 +48,7 @@ export class WarmupError extends Error {
 }
 
 /** Pure: the effect a step should have, or undefined when it is not verified. */
-export function expectedEffect(a: PlannedAction): { kind: 'region'; key: string } | { kind: 'change' | 'focus' | 'foreground-left' | 'process-gone' | 'process-up' } | undefined {
+export function expectedEffect(a: PlannedAction): { kind: 'region'; key: string } | { kind: 'change' | 'soft-change' | 'focus' | 'foreground-left' | 'process-gone' | 'process-up' } | undefined {
   if (a.type === 'node') {
     const e = nodeSpec(a.node?.name ?? '')?.effect;
     return e ? { kind: 'region', key: `${e.page}/${e.region}` } : undefined;
@@ -57,7 +57,8 @@ export function expectedEffect(a: PlannedAction): { kind: 'region'; key: string 
   if (a.type === 'killApp') return { kind: 'process-gone' };
   if (a.type === 'launch') return { kind: 'process-up' };
   if ((a.type === 'tap' || a.type === 'longPress') && a.element) {
-    if (a.element.startsWith('target.')) return a.type === 'longPress' ? { kind: 'change' } : undefined;
+    // Tapping a frozen target (a quote block, a reaction) or long-pressing one changes the screen.
+    if (a.element.startsWith('target.')) return a.type === 'longPress' ? { kind: 'change' } : { kind: 'soft-change' };
     const s = ELEMENTS.find((e) => e.id === a.element)?.selfCheck;
     return s === 'navigate' || s === 'popup' ? { kind: 'change' } : s === 'focus' ? { kind: 'focus' } : undefined;
   }
@@ -65,7 +66,7 @@ export function expectedEffect(a: PlannedAction): { kind: 'region'; key: string 
 }
 
 const describeEffect = (e: NonNullable<ReturnType<typeof expectedEffect>>) =>
-  e.kind === 'region' ? `参考区域 ${e.key} 出现` : e.kind === 'change' ? '画面变化' : e.kind === 'focus' ? '获得焦点 / 键盘弹出' : e.kind === 'foreground-left' ? '离开前台' : e.kind === 'process-gone' ? '进程结束' : '进程在运行';
+  e.kind === 'region' ? `参考区域 ${e.key} 出现` : e.kind === 'change' ? '画面变化' : e.kind === 'soft-change' ? '画面变化（目标已在视野内时可无变化）' : e.kind === 'focus' ? '获得焦点 / 键盘弹出' : e.kind === 'foreground-left' ? '离开前台' : e.kind === 'process-gone' ? '进程结束' : '进程在运行';
 
 /** Point an action taps (for its fingerprint), if any. */
 function tapPoint(c: RunCtx, a: PlannedAction): Point | undefined {
@@ -94,7 +95,7 @@ export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
     const fp = pt ? nodeAt(nodes, pt.x, pt.y) : undefined;
     const st: WarmupStep = { step: i + 1, action: actionLabel(a), expected: eff ? describeEffect(eff) : '（不核验）', observed: '', pass: null, ms: 0, point: pt, fingerprint: fp ? { text: fp.text, desc: fp.desc, cls: fp.cls } : undefined };
     const attempt = async () => {
-      const before = eff?.kind === 'change' || (eff?.kind === 'focus' && android) ? decodePng(await d.screenshot()) : undefined;
+      const before = eff?.kind === 'change' || eff?.kind === 'soft-change' || (eff?.kind === 'focus' && android) ? decodePng(await d.screenshot()) : undefined;
       d.label = `warmup:${actionLabel(a)}`;
       await c.exec(a);
       if (!eff) return { pass: null as boolean | null, observed: 'not verified', tier: undefined as string | undefined };
@@ -110,6 +111,14 @@ export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
           // A real page change moves far more than cursor / hover / caret noise (desktop: ~12k px of 3.6M).
           const min = Math.max(2000, Math.round(after.width * after.height * CHANGE_FRACTION));
           return { pass: px >= min, observed: `screen Δ${px}px (min ${min})`, tier: '① pixels' };
+        }
+        case 'soft-change': {
+          // Tapping a frozen target (e.g. a quote whose source is already in view) may legitimately change
+          // nothing: a change verifies the step, no change leaves it unverified (never gates the plan).
+          const after = decodePng(await d.screenshot());
+          const px = pixelDiff(before!, after);
+          const min = Math.max(2000, Math.round(after.width * after.height * CHANGE_FRACTION));
+          return { pass: px >= min ? true : null, observed: `screen Δ${px}px (min ${min})${px >= min ? '' : ' — no visible change, not verified'}`, tier: '① pixels' };
         }
         case 'focus': {
           // Focus = the keyboard comes up, or (e.g. the App's search box) a page opens.

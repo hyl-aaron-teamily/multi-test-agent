@@ -78,6 +78,7 @@ export interface EnterOptions {
  *  home list and check the SKILL is still valid (SkillStaleError otherwise). */
 export async function enterApp(s: Session, o: EnterOptions = {}): Promise<void> {
   const { d, profile, adapter } = s;
+  await adapter.beforeLaunch?.(s);
   d.label = 'launch';
   await d.launch();
   await o.afterLaunch?.();

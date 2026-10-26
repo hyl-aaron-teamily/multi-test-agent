@@ -73,7 +73,16 @@ const sendMessage: Exec<{ text: string; kind?: 'plain' | 'markdown-link' }> = as
   const empty = await shot();
   await tapEl(c, 'chat.composer');
   await sleep(500);
-  const focused = await shot();
+  let focused = await shot();
+  // Phones: type only once the soft keyboard is up — text typed with nothing focused lands elsewhere
+  // (the phone browser puts it into its address bar). One retap, then give up (a drift, not a send).
+  if (mobileLayout(c.driver.surface) && c.driver.surface !== 'mobile-web' && pixelDiff(empty, focused) <= 20_000) {
+    await sleep(1000);
+    await tapEl(c, 'chat.composer');
+    await sleep(800);
+    focused = await shot();
+    if (pixelDiff(empty, focused) <= 20_000) throw new Error('teamily.sendMessage: the composer did not take focus (keyboard not up) — not typing');
+  }
   await c.driver.type(input.text);
   if (c.driver.surface === 'android-app') {
     // RN composer: Enter is a newline. Hide the keyboard (only if it is up: Back would otherwise leave the
