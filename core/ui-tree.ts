@@ -19,7 +19,16 @@ export interface UiNode {
 export type UiBox = [number, number, number, number];
 
 const attr = (n: string, k: string) => n.match(new RegExp(`\\s${k}="([^"]*)"`))?.[1] ?? '';
-const unescape = (s: string) => s.replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+// uiautomator writes emoji as numeric character references (&#128077; = 👍).
+const unescape = (s: string) =>
+  s
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, d) => String.fromCodePoint(Number(d)))
+    .replace(/&amp;/g, '&');
 
 /** Pure: uiautomator XML → nodes of `pkg` (all packages when pkg is empty). */
 export function parseNodes(xml: string, pkg: string): UiNode[] {

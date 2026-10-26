@@ -15,7 +15,7 @@
    {
     "id": "like",
     "kind": "like-action",
-    "guidance": "长按消息后出现的点赞/👍 表情按钮"
+    "guidance": "长按消息后出现的点赞 \"👍\" 表情按钮"
    }
   ],
   "setup": [
@@ -44,10 +44,16 @@
   ],
   "checks": [
    {
-    "kind": "ai",
+    "kind": "text",
+    "match": {
+     "exact": "👍"
+    },
+    "scope": {
+     "target": "msg",
+     "within": 160
+    },
     "expect": "The liked message shows a like / 👍 reaction under it",
-    "want": "present",
-    "onlyOnAnomaly": false
+    "want": "present"
    }
   ],
   "afterCheck": [
@@ -79,7 +85,7 @@
    {
     "id": "like",
     "kind": "like-action",
-    "guidance": "长按消息后出现的点赞/👍 表情按钮"
+    "guidance": "长按消息后出现的点赞 \"👍\" 表情按钮"
    }
   ],
   "setup": [
@@ -143,7 +149,7 @@
    {
     "id": "like",
     "kind": "like-action",
-    "guidance": "长按消息后出现的点赞/👍 表情按钮"
+    "guidance": "长按消息后出现的点赞 \"👍\" 表情按钮"
    }
   ],
   "setup": [
@@ -207,7 +213,7 @@
    {
     "id": "like",
     "kind": "like-action",
-    "guidance": "长按消息后出现的点赞/👍 表情按钮"
+    "guidance": "长按消息后出现的点赞 \"👍\" 表情按钮"
    }
   ],
   "setup": [

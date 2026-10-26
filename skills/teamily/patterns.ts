@@ -214,11 +214,13 @@ export const PATTERNS: Pattern[] = [
       targets: [
         { id: 'conv', kind: 'group-conversation', guidance: T['group-conversation'] },
         { id: 'msg', kind: 'others-text-message', guidance: T['others-text-message'] },
-        { id: 'like', kind: 'like-action', guidance: '长按消息后出现的点赞/👍 表情按钮' },
+        { id: 'like', kind: 'like-action', guidance: '长按消息后出现的点赞 "👍" 表情按钮' },
       ],
       setup: [node('teamily.openConversation', { target: 'conv' }, 800)],
       actions: [{ type: 'longPress', element: 'target.msg', delayAfterMs: 900 }, { type: 'tap', element: 'target.like', delayAfterMs: 1000 }],
-      checks: [{ kind: 'ai', expect: 'The liked message shows a like / 👍 reaction under it', want: 'present', onlyOnAnomaly: false }],
+      // Android App: the reaction is an accessible "👍" node right under the message (verified on device
+      // 2026-10-26) → ① text near the target; other surfaces: the vision model.
+      checks: [surface === 'android-app' ? { kind: 'text', match: { exact: '👍' }, scope: { target: 'msg', within: 160 }, expect: 'The liked message shows a like / 👍 reaction under it', want: 'present' } : { kind: 'ai', expect: 'The liked message shows a like / 👍 reaction under it', want: 'present', onlyOnAnomaly: false }],
       // Toggle back so every round starts from "not liked".
       afterCheck: [{ type: 'longPress', element: 'target.msg', delayAfterMs: 900 }, { type: 'tap', element: 'target.like', delayAfterMs: 1000 }],
     };
