@@ -1,7 +1,7 @@
 ---
 name: teamily
 description: Black-box test SKILL for the Teamily IM app (web + Android). Fixed UI elements are calibrated to coordinates per execution surface; dynamic targets are chosen by the model at preparation time; the loop runs by coordinates only.
-version: 2026.10.21-1
+version: 2026.10.26-1
 ---
 
 # Teamily SKILL

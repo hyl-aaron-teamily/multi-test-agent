@@ -4,7 +4,7 @@
 import type { Surface } from '../../platform/accounts/types';
 import { NODE_SPECS } from './node-specs';
 
-export const SKILL_VERSION = '2026.10.21-1';
+export const SKILL_VERSION = '2026.10.26-1';
 
 export interface ElementSpec {
   id: string;

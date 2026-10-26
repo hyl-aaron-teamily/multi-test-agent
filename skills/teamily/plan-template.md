@@ -7,6 +7,22 @@
 | feature | acceptance：每条 Expected/AC 一项（动作 + 一次检查），只跑一次 | 全满足 已实现 / 全不满足 未实现 / 其余 部分实现 |
 | suspected-misuse | correctPath 先跑一次，再循环 Issue 路径 | 正确路径正常而 Issue 路径命中 = 疑似误操作；正确路径也异常 = 转为 bug |
 
+## 模式库（`patterns.ts`，W2-1）
+
+计划由「意图契约」选出的模式确定性生成（契约见 `platform/schema/contract.ts`）。每个模式 = 触发语义 + 所需前置条件（`preconditions.ts`）+ 观察（`executor/observe.ts#OBSERVATIONS`）+ 计划片段。
+
+| 模式 | 触发语义 | 观察（各端判定层） | 前置条件 |
+|---|---|---|---|
+| `mention-picker` | 切换会话后键入 @ | 区域 `mention-picker/picker`（①，不一致才 ③） | 成员 ≥3 的群 + 另一会话 |
+| `quote-jump` | 点引用块 | 第 1 轮无障碍确认原消息，之后像素比对（①） | 已有引用回复 |
+| `quote-preview-text` | 查看引用块预览 | 引用块文字不含 `](https://`（① 无障碍文字） | **构造**：在允许清单会话发 Markdown 链接消息并引用回复 |
+| `keyboard-single-tap` | 点一次输入框 | 手机：`dumpsys input_method`（①）；其他端 ③ | 群 |
+| `like-visible` | 长按 → 点赞 | App：消息下方的「👍」无障碍节点（①）；其他端 ③；afterCheck 取消点赞 | 群 + 别人的文本消息 |
+| `lifecycle` | 退出 / 后台 / 杀进程 / 重开 | 进程存活（①）+ 首页 / 聊天页区域（①） | — |
+| `notification-inventory`（feature） | 逐页盘点 | 元素区域（①）+ 统一通知中心（③） | — |
+| `mention-aggregation`（feature） | 查看会话列表 | ③ | 免打扰且被 @ 的群 |
+| `generic-browse` | 进会话滚动历史 | 只看崩溃（①）—— 用作兜底时报告标注「计划未覆盖 Issue 现象」 | 群 |
+
 通用模板（`issue/planner.ts#templateFor`，按特征选）：
 - **@ 选择器**：targets 群（成员 ≥3）+ 另一会话；循环：清空输入框 → 切到另一会话 → 切回 → 键入 @；检查 `mention-picker/picker` present。
 - **键盘一次弹出**：循环：返回 → 进会话 → 点一次输入框；ai 检查键盘可见。

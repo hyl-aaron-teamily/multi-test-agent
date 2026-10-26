@@ -25,7 +25,8 @@ export interface FrozenTarget {
   point: Point;
   chosen: string;
   reason: string;
-  by: 'model' | 'rules' | 'vision';
+  /** model / rules (rows), text (① literal text on screen), vision (③). */
+  by: 'model' | 'rules' | 'text' | 'vision';
 }
 
 const ROW_KINDS = new Set(['group-conversation', 'other-conversation', 'muted-group', 'conversation']);
@@ -197,7 +198,7 @@ export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, lo
         await new Promise((r) => setTimeout(r, 800));
       }
       if (!pt) throw new Error(`prep: target ${t.id} (${t.kind}) needs vision localisation, which is unavailable`);
-      out.push({ id: t.id, kind: t.kind, point: pt, chosen: t.guidance, reason: 'vision locate', by: 'vision' });
+      out.push({ id: t.id, kind: t.kind, point: { x: pt.x, y: pt.y }, chosen: t.guidance, reason: (pt as { tier?: string }).tier === '①' ? 'located by its text (①)' : 'vision locate (③)', by: (pt as { tier?: string }).tier === '①' ? 'text' : 'vision' });
     }
     log(`prep: target ${t.id} → "${out.at(-1)!.chosen}" @ ${JSON.stringify(out.at(-1)!.point)} (${out.at(-1)!.by}: ${out.at(-1)!.reason})`);
   }
@@ -205,6 +206,9 @@ export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, lo
 }
 
 /** Preparation-time locator: tier ① literal texts quoted in the description, then ③ vision (executor/locate). */
-export async function visionLocator(driver: Driver & { page?: unknown; o?: any }): Promise<((q: string) => Promise<Point | null>) | undefined> {
-  return async (q) => (await locate(driver, q, { texts: literalsOf(q), purpose: 'prep' }))?.point ?? null;
+export async function visionLocator(driver: Driver & { page?: unknown; o?: any }): Promise<((q: string) => Promise<(Point & { tier?: string }) | null>) | undefined> {
+  return async (q) => {
+    const r = await locate(driver, q, { texts: literalsOf(q), purpose: 'prep' });
+    return r ? { ...r.point, tier: r.tier } : null;
+  };
 }

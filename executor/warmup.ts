@@ -34,6 +34,9 @@ export interface WarmupStep {
   healed?: string;
 }
 
+/** Fraction of the screen's pixels a navigation / popup changes at least. */
+export const CHANGE_FRACTION = 0.01;
+
 export class WarmupError extends Error {
   constructor(
     readonly step: WarmupStep,
@@ -102,8 +105,11 @@ export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
           return { pass: !!hit, observed: hit ? `${eff.key} on screen` : `${eff.key} not on screen`, tier: '① region' };
         }
         case 'change': {
-          const px = pixelDiff(before!, decodePng(await d.screenshot()));
-          return { pass: px >= 2000, observed: `screen Δ${px}px`, tier: '① pixels' };
+          const after = decodePng(await d.screenshot());
+          const px = pixelDiff(before!, after);
+          // A real page change moves far more than cursor / hover / caret noise (desktop: ~12k px of 3.6M).
+          const min = Math.max(2000, Math.round(after.width * after.height * CHANGE_FRACTION));
+          return { pass: px >= min, observed: `screen Δ${px}px (min ${min})`, tier: '① pixels' };
         }
         case 'focus': {
           if (android) {

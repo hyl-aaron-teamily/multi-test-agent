@@ -51,6 +51,8 @@ export interface RunOptions {
   evidenceReview?: boolean;
   /** Warm-up round with per-step verification before the loop (default on). */
   warmup?: boolean;
+  /** Use this profile instead of the calibrated one (acceptance tests with a modified copy). */
+  profile?: import('../skills/profile').Profile;
 }
 
 export interface RunResult {
@@ -135,7 +137,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     // ---- session: profile + driver + flight recorder, launch once, sign in, home list, SKILL check
     if (onPlaywright(plan.surface)) wfr = new WebFlightRecorder(flightDir);
     if (onAndroid(plan.surface) && udid) afr = new AndroidFlightRecorder(udid, loadProfile(profileKey(plan.surface, plan.env, udid))?.packageName ?? TEAMILY_PACKAGE, flightDir);
-    sess = await openSession({ surface: plan.surface, env: plan.env, account: account.id, udid, pool: o.pool, headed: o.headed, onLog: afr?.onLog, onConsole: wfr?.onConsole, log });
+    sess = await openSession({ surface: plan.surface, env: plan.env, account: account.id, udid, pool: o.pool, headed: o.headed, profile: o.profile, onLog: afr?.onLog, onConsole: wfr?.onConsole, log });
     const s = sess;
     opsOf = () => s.d.ops;
     await afr?.start();
