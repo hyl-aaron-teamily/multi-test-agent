@@ -46,7 +46,7 @@ export async function calibrateAndroid(o: CalibrateAndroidOptions): Promise<Prof
       queueReview(prof, id, 'not found during calibration');
       return;
     }
-    prof.elements[id] = { page: spec.page, box: toBox(n), selfCheck: 'pending' };
+    prof.elements[id] = { page: spec.page, box: toBox(n), selfCheck: 'pending', ...(n.text || n.desc ? { fingerprint: { text: n.text || undefined, desc: n.desc || undefined, cls: n.cls } } : {}) };
     log(`  · ${id} ${JSON.stringify(toBox(n))}`);
   };
   const selfCheck = async (id: string, minPx = 2000) => {

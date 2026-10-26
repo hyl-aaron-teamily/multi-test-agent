@@ -17,6 +17,8 @@ export interface ElementCal {
   selfCheck: SelfCheck;
   /** What the self-check observed (or why it failed). */
   note?: string;
+  /** Text fingerprint recorded at calibration (W2-1 self-heal): accessibility text / desc / class, or page text. */
+  fingerprint?: { text?: string; desc?: string; cls?: string };
 }
 
 export interface PageRef {

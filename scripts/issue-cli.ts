@@ -9,7 +9,7 @@ import { openPools } from '../platform/pools';
 import { type Surface, type TestPlan, TestPlanZ } from '../platform/schema/test-plan';
 import { parseIssue } from '../issue/parse';
 import { issuePath } from '../issue/paths';
-import { loadSavedDraft, PLANS_DIR, saveDraft } from '../issue/drafts';
+import { DRAFTS_DIR, loadSavedDraft, PLANS_DIR, saveDraft } from '../issue/drafts';
 import { applyApproval, type Draft, draftIssue } from '../issue/planner';
 import { writeIssueReport } from '../issue/report';
 
@@ -36,6 +36,7 @@ export function confirmationSheet(d: Draft): string {
   const out = [`Issue ${d.issue.id}: ${d.issue.title.slice(0, 120)}${d.hash ? `  [草稿 ${d.hash}]` : ''}`, `预判类别: ${d.classification.category}（${d.classification.by}）— ${d.reason}`];
   if (d.status !== 'plannable') out.push(`处理: ${d.status === 'refused' ? '拒绝执行' : '暂缓'}`);
   if (d.deferredPart) out.push(`暂缓部分: ${d.deferredPart}`);
+  for (const w of d.warmupFailures ?? []) out.push(`⚠ 上次预热失败 ${w.planId}（${w.at}）：${w.detail}`);
   for (const s of d.subcases) {
     out.push(`  [${s.substitution ? ' ' : 'x'}] ${s.sub}: ${s.plan.title} — ${s.title}`);
     if (s.substitution) out.push(`      替代: ${s.substitution.from} → ${s.substitution.alternatives.join(' | ')}（默认 ${s.surface}）`, `      理由: ${s.substitution.reason}`);
@@ -127,6 +128,12 @@ export async function runIssue(d: Draft, approve: { sub: string; surface?: Surfa
     (o.log ?? console.log)(`[run] ${p.id}: ${r.conclusion} — ${r.conclusionDetail}${r.error ? ` (error: ${r.error})` : ''}`);
     results.push(r);
   }
+  // Warm-up gate feedback: a plan that is not executable on the current UI goes back to the draft.
+  const failed = results.filter((r) => r.conclusion === '计划不可执行');
+  if (failed.length && d.hash) {
+    d.warmupFailures = [...(d.warmupFailures ?? []), ...failed.map((r) => ({ planId: r.planId, at: r.finishedAt, detail: r.conclusionDetail }))];
+    await writeFile(join(DRAFTS_DIR, `${d.issue.id}.json`), JSON.stringify(d, null, 2));
+  }
   return { dir, results, report: await writeIssueReport(d, results, dir) };
 }
 
@@ -155,5 +162,5 @@ export async function runCmd(args: string[]): Promise<number> {
   const num = (n: string) => (flag(args, n) ? Number(flag(args, n)) : undefined);
   const { report, results } = await runIssue(d, approve, { headed: has(args, 'headed'), maxSteps: num('max-steps'), maxMinutes: num('max-minutes'), udid: flag(args, 'device'), taskId: flag(args, 'id') });
   console.log(`[run] report → ${report}`);
-  return results.some((r) => r.conclusion === '执行失败' || r.conclusion === 'SKILL 失效') ? 3 : results.some((r) => r.conclusion === '已复现') ? 1 : 0;
+  return results.some((r) => r.conclusion === '执行失败' || r.conclusion === 'SKILL 失效' || r.conclusion === '计划不可执行') ? 3 : results.some((r) => r.conclusion === '已复现') ? 1 : 0;
 }

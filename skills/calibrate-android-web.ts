@@ -69,7 +69,7 @@ export async function calibrateAndroidWeb(o: CalibrateAndroidWebOptions): Promis
       queueReview(prof, id, 'not found during calibration');
       return;
     }
-    prof.elements[id] = { page: spec.page, box: toBox(n), selfCheck: 'pending', note: n.cls === 'vision' ? 'located by vision' : undefined };
+    prof.elements[id] = { page: spec.page, box: toBox(n), selfCheck: 'pending', note: n.cls === 'vision' ? 'located by vision' : undefined, ...(n.cls !== 'vision' && (n.text || n.desc) ? { fingerprint: { text: n.text || undefined, desc: n.desc || undefined, cls: n.cls } } : {}) };
     log(`  · ${id} ${JSON.stringify(toBox(n))} "${label(n).slice(0, 30)}"`);
   };
   const mark = (id: string, ok: boolean, note: string, img?: ReturnType<typeof decodePng>) => {

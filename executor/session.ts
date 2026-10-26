@@ -13,6 +13,7 @@ import { ensureWebSession, type PlaywrightSurface } from './login/sessions';
 import { type Env, onPlaywright, type Surface } from '../platform/accounts/types';
 import { loadProfile, type Profile, SkillStaleError } from '../skills/profile';
 import { assertSkillFresh } from './checks';
+import { fingerprintedOf, type Healed, healElements } from './heal';
 import { adapterFor, type SurfaceAdapter } from './surfaces';
 
 export interface SessionOptions {
@@ -68,6 +69,9 @@ export interface EnterOptions {
   chatTab?: boolean;
   /** Where to save the screen when the SKILL is stale. */
   staleShot?: string;
+  /** Self-heal by fingerprint before reporting a stale SKILL: candidate profile goes here. */
+  healDir?: string;
+  onHeal?: (h: Healed[]) => void;
 }
 
 /** Launch once, wait for the first screen, dismiss known dialogs, sign in if needed, get back to the
@@ -86,6 +90,15 @@ export async function enterApp(s: Session, o: EnterOptions = {}): Promise<void> 
       break;
     } catch (e) {
       if (!(e instanceof SkillStaleError) || !(await adapter.recoverHome(s, i))) {
+        // Layout moved but the home elements are still there (found by their fingerprints): heal and go on.
+        if (e instanceof SkillStaleError && o.healDir) {
+          const healed = await healElements(s, fingerprintedOf(profile, 'home'), o.healDir);
+          if (healed.length) {
+            s.log(`SKILL check failed but ${healed.length} home element(s) re-resolved by fingerprint — continuing with healed coordinates (calibrated profile unchanged): ${healed.map((h) => h.element).join(', ')}`);
+            o.onHeal?.(healed);
+            break;
+          }
+        }
         if (e instanceof SkillStaleError && o.staleShot) await writeFile(o.staleShot, await d.screenshot()).catch(() => {});
         throw e;
       }

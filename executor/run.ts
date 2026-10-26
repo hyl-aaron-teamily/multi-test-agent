@@ -24,6 +24,7 @@ import type { RunCtx } from './context';
 import { runLoop } from './loop';
 import { runAcceptance, runCorrectPath } from './phases';
 import { prepare } from './prepare';
+import { runWarmup, WarmupError } from './warmup';
 import { closeSession, enterApp, openSession, type Session, staleShotPath } from './session';
 import { newStats, type Stats } from './stats';
 import { type FrozenTarget, visionLocator } from './targets';
@@ -46,6 +47,8 @@ export interface RunOptions {
   /** Check-based hits are reviewed against the Issue on their recorded evidence before they count
    *  (default: on when the Issue file exists and a vision model is configured). */
   evidenceReview?: boolean;
+  /** Warm-up round with per-step verification before the loop (default on). */
+  warmup?: boolean;
 }
 
 export interface RunResult {
@@ -60,6 +63,10 @@ export interface RunResult {
   coverage?: TestPlan['coverage'];
   /** Contract phenomenon (what a hit means). */
   phenomenon?: string;
+  /** Warm-up round: per-step verification and its (recorded only) checkpoint. */
+  warmup?: { steps: import('./warmup').WarmupStep[]; checks: { kind: string; pass: boolean | null; detail: string }[] };
+  /** Fixed elements re-resolved by fingerprint this run (calibrated profile unchanged). */
+  healed?: import('./heal').Healed[];
   account?: string;
   device?: string;
   conclusion: Conclusion;
@@ -125,6 +132,8 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       // Phones: the bottom bar looks the same on every tab — make sure the chat tab is the one showing.
       chatTab: plan.setup.some((a) => a.node?.name === 'teamily.openConversation'),
       staleShot: staleShotPath(o.runDir),
+      healDir: o.runDir,
+      onHeal: (h) => (res.healed ??= []).push(...h),
     });
     stats.launches++;
 
@@ -164,6 +173,9 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       return done();
     }
     const correctPathOk = await runCorrectPath(c);
+    setModelPurpose('warmup');
+    // Smoke plans send for real: no extra round.
+    if (o.warmup !== false && plan.issueRef !== 'smoke') await runWarmup(c);
     setModelPurpose('checkpoint');
     const issue = o.evidenceReview === false || !visionConfigured() ? undefined : loadIssueOf(plan.issueRef);
     // Evidence review compares against the contract's phenomenon (W2-1 §5.6), else the Issue's actual result.
@@ -174,6 +186,11 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     if (err instanceof SkillStaleError) {
       res.conclusion = 'SKILL 失效';
       res.conclusionDetail = err.message;
+    }
+    if (err instanceof WarmupError) {
+      res.conclusion = '计划不可执行';
+      res.conclusionDetail = err.message;
+      res.warmup = { steps: err.steps, checks: [] };
     }
     res.error = (err as Error).message.split('\n')[0];
     log(`error: ${res.error}`);

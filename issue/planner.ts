@@ -38,6 +38,8 @@ export interface Draft {
   /** Hash of the Issue file the draft came from. */
   issueHash?: string;
   env?: string;
+  /** Warm-up failures fed back from runs (plan not executable on the current UI). */
+  warmupFailures?: { planId: string; at: string; detail: string }[];
 }
 
 
