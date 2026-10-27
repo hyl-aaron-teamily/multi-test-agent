@@ -133,14 +133,19 @@ const quoteReply: Exec<{ quote: string; text: string }> = async ({ input, contex
   }
   if (!msg) throw new Error(`teamily.quoteReply: message "${input.quote}" not on screen`);
   // The menu item must really be the message menu's: on the App it is read from the accessibility tree only
-  // (a vision guess once picked a composer-toolbar icon and opened the meeting-minutes sheet). One retry.
+  // (a vision guess once picked a composer-toolbar icon and opened the meeting-minutes sheet). The menu is
+  // polled a few times (slow to settle); one more long-press in place, never Back — on the App, Back with the
+  // menu up leaves the chat.
   const textOnly = c.driver.surface === 'android-app';
   let item: Point | null = null;
   for (let i = 0; i < 2 && !item; i++) {
-    if (i) await c.driver.back().then(() => sleep(800));
     await c.driver.longPress(msg);
-    await sleep(1500);
-    item = await c.locate('the Quote / Reply item of the message action menu', ['引用', '回复', 'Quote', 'Reply'], false, textOnly);
+    // A system float (HyperOS 「文本识别」) may take the long-press: close it and press again.
+    if (await c.driver.dismissSystemOverlay?.()) await c.driver.longPress(msg);
+    for (let j = 0; j < (textOnly ? 3 : 1) && !item; j++) {
+      await sleep(j ? 1000 : 1500);
+      item = await c.locate('the Quote / Reply item of the message action menu', ['引用', '回复', 'Quote', 'Reply'], false, textOnly);
+    }
   }
   if (!item) throw new Error('teamily.quoteReply: the message menu (引用 / 回复) did not open');
   await c.driver.tap(item);

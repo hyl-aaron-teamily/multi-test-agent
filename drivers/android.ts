@@ -12,6 +12,9 @@ import { adb, launchApp, resolveAdbPath, screencap, spawnAdb } from '../core/adb
 import { keyboardShown } from '../core/ui-tree';
 import { type Anomaly, type Driver, type Point, sleep } from './types';
 
+/** OS floats seen grabbing long-presses on test phones (HyperOS Taplus 「文本识别」). */
+const SYSTEM_OVERLAY = /Taplus|ContentCatcher/i;
+
 export interface AndroidDriverOptions {
   udid: string;
   packageName: string;
@@ -159,6 +162,16 @@ export class AndroidDriver implements Driver {
 
   keyboardShown(): Promise<boolean | null> {
     return keyboardShown(this.o.udid);
+  }
+
+  /** System state (`dumpsys window` focus): a known OS float over the app is closed with Back, which goes to
+   *  the float only (Back on the app's own menu would leave the chat). */
+  async dismissSystemOverlay(): Promise<boolean> {
+    const out = await adb(['shell', 'dumpsys window | grep -m1 mCurrentFocus'], this.o.udid).catch(() => '');
+    if (!SYSTEM_OVERLAY.test(out)) return false;
+    await this.back();
+    await sleep(600);
+    return true;
   }
 
   yieldFocus(): void {

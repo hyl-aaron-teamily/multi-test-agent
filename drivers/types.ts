@@ -47,6 +47,8 @@ export interface Driver {
   yieldFocus?(): void;
   /** Is the soft keyboard up? (system state; null = unknown). Phones only. */
   keyboardShown?(): Promise<boolean | null>;
+  /** Close a system float that grabbed the screen (e.g. HyperOS 「文本识别」 on long-press); true = one was closed. Phones only. */
+  dismissSystemOverlay?(): Promise<boolean>;
 }
 
 export type LifecycleOp = 'exitApp' | 'killApp' | 'reload';
