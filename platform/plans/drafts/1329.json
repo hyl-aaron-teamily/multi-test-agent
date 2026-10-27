@@ -172,7 +172,7 @@
           "skillVersion": "2026.10.26-1",
           "pattern": "like-visible"
         },
-        "coverage": "not-covered"
+        "coverage": "covered"
       },
       "planErrors": [],
       "contract": {
@@ -245,7 +245,7 @@
           {
             "id": "link",
             "kind": "quote-card",
-            "guidance": "会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文）",
+            "guidance": "会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文；引用的是普通文字，不是链接 / URL）",
             "afterPrepare": true
           }
         ],
@@ -571,19 +571,7 @@
       }
     }
   ],
-  "hash": "bae43c785e422102",
+  "hash": "b2399250dd48d72f",
   "issueHash": "24a4cc92ff5b388b",
-  "env": "prod",
-  "warmupFailures": [
-    {
-      "planId": "1329-s2-mobile-web-v1",
-      "at": "2026-10-26T13:31:21.940Z",
-      "detail": "计划不可执行（预热第 1 步：target.link 预期 画面变化 未出现 — screen Δ0px (min 23826)）"
-    },
-    {
-      "planId": "1329-s2-mobile-web-v1",
-      "at": "2026-10-26T13:35:56.133Z",
-      "detail": "计划不可执行（预热第 1 步：target.link 预期 画面变化 未出现 — screen Δ0px (min 23826)）"
-    }
-  ]
+  "env": "prod"
 }
