@@ -48,7 +48,7 @@ export class WarmupError extends Error {
 }
 
 /** Pure: the effect a step should have, or undefined when it is not verified. */
-export function expectedEffect(a: PlannedAction): { kind: 'region'; key: string } | { kind: 'change' | 'soft-change' | 'focus' | 'foreground-left' | 'process-gone' | 'process-up' } | undefined {
+export function expectedEffect(a: PlannedAction): { kind: 'region'; key: string } | { kind: 'change' | 'navigate' | 'soft-change' | 'focus' | 'foreground-left' | 'process-gone' | 'process-up' } | undefined {
   if (a.type === 'node') {
     const e = nodeSpec(a.node?.name ?? '')?.effect;
     return e ? { kind: 'region', key: `${e.page}/${e.region}` } : undefined;
@@ -60,13 +60,13 @@ export function expectedEffect(a: PlannedAction): { kind: 'region'; key: string 
     // Tapping a frozen target (a quote block, a reaction) or long-pressing one changes the screen.
     if (a.element.startsWith('target.')) return a.type === 'longPress' ? { kind: 'change' } : { kind: 'soft-change' };
     const s = ELEMENTS.find((e) => e.id === a.element)?.selfCheck;
-    return s === 'navigate' || s === 'popup' ? { kind: 'change' } : s === 'focus' ? { kind: 'focus' } : undefined;
+    return s === 'navigate' ? { kind: 'navigate' } : s === 'popup' ? { kind: 'change' } : s === 'focus' ? { kind: 'focus' } : undefined;
   }
   return undefined;
 }
 
 const describeEffect = (e: NonNullable<ReturnType<typeof expectedEffect>>) =>
-  e.kind === 'region' ? `参考区域 ${e.key} 出现` : e.kind === 'change' ? '画面变化' : e.kind === 'soft-change' ? '画面变化（目标已在视野内时可无变化）' : e.kind === 'focus' ? '获得焦点 / 键盘弹出' : e.kind === 'foreground-left' ? '离开前台' : e.kind === 'process-gone' ? '进程结束' : '进程在运行';
+  e.kind === 'region' ? `参考区域 ${e.key} 出现` : e.kind === 'change' ? '画面变化' : e.kind === 'navigate' ? '页面切换' : e.kind === 'soft-change' ? '画面变化（目标已在视野内时可无变化）' : e.kind === 'focus' ? '获得焦点 / 键盘弹出' : e.kind === 'foreground-left' ? '离开前台' : e.kind === 'process-gone' ? '进程结束' : '进程在运行';
 
 /** Point an action taps (for its fingerprint), if any. */
 function tapPoint(c: RunCtx, a: PlannedAction): Point | undefined {
@@ -83,6 +83,7 @@ function tapPoint(c: RunCtx, a: PlannedAction): Point | undefined {
 export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
   const { d, inner, profile } = c.sess;
   const android = inner instanceof AndroidDriver ? inner : undefined;
+  const web = c.sess.web?.page ? c.sess.web : undefined;
   const steps: WarmupStep[] = [];
   d.round = 0;
   c.log(`warm-up: ${c.plan.actions.length} steps with per-step verification`);
@@ -95,7 +96,8 @@ export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
     const fp = pt ? nodeAt(nodes, pt.x, pt.y) : undefined;
     const st: WarmupStep = { step: i + 1, action: actionLabel(a), expected: eff ? describeEffect(eff) : '（不核验）', observed: '', pass: null, ms: 0, point: pt, fingerprint: fp ? { text: fp.text, desc: fp.desc, cls: fp.cls } : undefined };
     const attempt = async () => {
-      const before = eff?.kind === 'change' || eff?.kind === 'soft-change' || (eff?.kind === 'focus' && android) ? decodePng(await d.screenshot()) : undefined;
+      const url0 = web?.page?.url() ?? '';
+      const before = eff?.kind === 'change' || eff?.kind === 'navigate' || eff?.kind === 'soft-change' || (eff?.kind === 'focus' && android) ? decodePng(await d.screenshot()) : undefined;
       d.label = `warmup:${actionLabel(a)}`;
       await c.exec(a);
       if (!eff) return { pass: null as boolean | null, observed: 'not verified', tier: undefined as string | undefined };
@@ -109,6 +111,18 @@ export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
           const after = decodePng(await d.screenshot());
           const px = pixelDiff(before!, after);
           // A real page change moves far more than cursor / hover / caret noise (desktop: ~12k px of 3.6M).
+          const min = Math.max(2000, Math.round(after.width * after.height * CHANGE_FRACTION));
+          return { pass: px >= min, observed: `screen Δ${px}px (min ${min})`, tier: '① pixels' };
+        }
+        case 'navigate': {
+          // Web: the route changes (page noise such as hover / loading moves as many pixels as a real
+          // navigation on a large desktop screen); phones: the screen changes.
+          if (web) {
+            const ok = web.page!.url() !== url0;
+            return { pass: ok, observed: `url ${ok ? 'changed' : 'same'} (${new URL(web.page!.url()).pathname})`, tier: '① url' };
+          }
+          const after = decodePng(await d.screenshot());
+          const px = pixelDiff(before!, after);
           const min = Math.max(2000, Math.round(after.width * after.height * CHANGE_FRACTION));
           return { pass: px >= min, observed: `screen Δ${px}px (min ${min})`, tier: '① pixels' };
         }

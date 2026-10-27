@@ -16,7 +16,7 @@ const { pool, devices } = await openPools();
 const udid = surface.startsWith('android') ? (await devices.refresh()).find((x) => x.kind === 'android')?.udid : undefined;
 const profile = structuredClone(loadProfile(profileKey(surface, 'prod', udid))!);
 // Broken: nav.me moved into the empty middle of the left navigation rail (nothing to tap there).
-if (mode === 'broken') profile.elements['nav.me'] = { ...profile.elements['nav.me'], box: [profile.elements['nav.me'].box[0], Math.round(profile.viewport.height * 0.58), 10, 10] };
+if (mode === 'broken') profile.elements['nav.me'] = { ...profile.elements['nav.me'], box: [profile.elements['nav.me'].box[0], Math.round(profile.viewport.height * 0.58), 10, 10], fingerprint: undefined };
 else if (!surface.startsWith('android')) {
   // Web: nav.chat moved into the empty middle of the page (tapping there changes nothing).
   const b = profile.elements['nav.chat'].box;

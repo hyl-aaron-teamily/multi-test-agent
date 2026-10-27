@@ -112,7 +112,11 @@ export async function quotedOriginalVisible(d: AndroidDriver, quoted: string): P
   const cards = nodes.filter((n) => n.clickable && /^[^,]{1,60}, .+/.test(n.desc));
   // A quoted Markdown link [label](url) shows as its label in the message itself.
   const norm = (s: string) => s.replace(/\[([^\]]*)\]\([^)]*\)?/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 30);
-  const n = nodes.find((n) => n.text && norm(n.text) === norm(quoted) && !cards.some((c) => n.x1 >= c.x1 && n.x2 <= c.x2 && n.y1 >= c.y1 && n.y2 <= c.y2));
+  // Only real on-screen boxes (uiautomator reports half-scrolled-out nodes with y2 < y1); with the same text
+  // repeated in the history, the newest (bottom-most) copy is the jump target.
+  const n = nodes
+    .filter((n) => n.text && n.y2 - n.y1 > 10 && n.x2 > n.x1 && norm(n.text) === norm(quoted) && !cards.some((c) => n.x1 >= c.x1 && n.x2 <= c.x2 && n.y1 >= c.y1 && n.y2 <= c.y2))
+    .sort((a, b) => b.y1 - a.y1)[0];
   return n ? [n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1] : undefined;
 }
 
