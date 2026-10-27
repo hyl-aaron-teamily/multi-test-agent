@@ -104,6 +104,8 @@ export function coverageOf(plan: Pick<TestPlan, 'checks' | 'acceptance'>, contra
   if (want === 'unmapped') return 'not-covered';
   const have = new Set([...plan.checks, ...(plan.acceptance ?? []).map((a) => a.check)].map(observationOf));
   if (want === 'region' && have.has('element')) return 'covered';
+  // A visual question is the ③ tier of a visible state: any deterministic check of the screen observes it too.
+  if (want === 'visual-question' && ['text', 'region', 'element', 'quoted-original', 'keyboard-shown'].some((o) => have.has(o))) return 'covered';
   return have.has(want) ? 'covered' : 'not-covered';
 }
 

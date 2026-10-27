@@ -20,6 +20,7 @@ describe('intent contract (rules)', () => {
     const c = { observable: { observation: 'text' } } as any;
     expect(coverageOf({ checks: [{ kind: 'crash', expect: '', want: 'absent' }] }, c)).toBe('not-covered');
     expect(coverageOf({ checks: [{ kind: 'text', expect: '', want: 'absent', match: { contains: 'x' } }] }, c)).toBe('covered');
+    expect(coverageOf({ checks: [{ kind: 'text', expect: '', want: 'present', match: { exact: '👍' } }] }, { observable: { observation: 'visual-question' } } as any)).toBe('covered');
   });
   it('drafts (no model): every plan carries a contract and a coverage; specific patterns compile deterministically', async () => {
     for (const id of ['1594', '1329', '2336', '2122', '2044']) {

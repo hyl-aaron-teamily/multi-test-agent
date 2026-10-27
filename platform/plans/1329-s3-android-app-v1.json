@@ -67,12 +67,45 @@
   "verdictRule": {
     "anyHit": true
   },
+  "contract": {
+    "issueRef": "1329",
+    "sub": "s3",
+    "preconditions": [
+      {
+        "id": "logged-in",
+        "text": "已登录",
+        "establish": "executor"
+      },
+      {
+        "id": "group-conversation",
+        "text": "存在成员 ≥3 的群聊",
+        "establish": "existing-data"
+      }
+    ],
+    "trigger": {
+      "semantics": "tap-composer-once",
+      "text": "the keyboard does not auto-populate - the user must tap the input box once before the keyboard appears ",
+      "pattern": "keyboard-single-tap",
+      "params": {}
+    },
+    "observable": {
+      "observation": "keyboard-shown",
+      "text": "Likes should display immediately after tapping; message location should jump to the target message; the keyboard should auto-populate when the input box is focused.",
+      "phenomenon": "the keyboard does not auto-populate - the user must tap the input box once before the keyboard appears "
+    },
+    "provenance": {
+      "by": "rules",
+      "skillVersion": "2026.10.26-1"
+    }
+  },
   "provenance": {
     "generatedBy": "rules",
-    "skillVersion": "2026.10.21-1",
-    "confirmedAt": "2026-10-26T10:42:05.769Z",
-    "draftHash": "2ea94afb67dc2123"
+    "skillVersion": "2026.10.26-1",
+    "pattern": "keyboard-single-tap",
+    "confirmedAt": "2026-10-26T16:01:39.264Z",
+    "draftHash": "bae43c785e422102"
   },
+  "coverage": "covered",
   "substitution": {
     "from": "ios",
     "to": "android-app",

@@ -118,17 +118,17 @@
     },
     "provenance": {
       "by": "rules",
-      "skillVersion": "2026.10.21-1"
+      "skillVersion": "2026.10.26-1"
     }
   },
   "provenance": {
     "generatedBy": "rules",
-    "skillVersion": "2026.10.21-1",
+    "skillVersion": "2026.10.26-1",
     "pattern": "like-visible",
-    "confirmedAt": "2026-10-26T10:59:40.618Z",
-    "draftHash": "c7ca377461684228"
+    "confirmedAt": "2026-10-26T16:03:22.321Z",
+    "draftHash": "bae43c785e422102"
   },
-  "coverage": "not-covered",
+  "coverage": "covered",
   "substitution": {
     "from": "ios",
     "to": "android-app",
