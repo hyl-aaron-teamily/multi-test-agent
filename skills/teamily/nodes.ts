@@ -19,7 +19,7 @@ export interface NodeContext {
   /** Max wait used by nodes that wait for a page (ms). */
   settleMs?: number;
   /** Tiered locate (prepare-only Nodes): literal texts first, then the description by vision. */
-  locate?: (description: string, texts: string[]) => Promise<Point | null>;
+  locate?: (description: string, texts: string[], newest?: boolean) => Promise<Point | null>;
 }
 
 type Exec<I> = (ctx: { input: I; context: NodeContext }) => Promise<{ summary?: string } | void>;
@@ -125,7 +125,7 @@ const quoteReply: Exec<{ quote: string; text: string }> = async ({ input, contex
   let msg: Point | null = null;
   for (let i = 0; i < 4 && !msg; i++) {
     if (i) await sleep(1500);
-    msg = await c.locate(`the message bubble containing "${input.quote}" (the newest one)`, [input.quote]);
+    msg = await c.locate(`the message bubble containing "${input.quote}" (the newest one)`, [input.quote], true);
   }
   if (!msg) throw new Error(`teamily.quoteReply: message "${input.quote}" not on screen`);
   await c.driver.longPress(msg);

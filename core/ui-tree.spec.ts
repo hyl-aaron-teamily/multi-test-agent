@@ -42,3 +42,11 @@ describe('pngComplete', () => {
     expect(pngComplete(png.subarray(0, png.length - 10))).toBe(false);
   });
 });
+
+describe('findByText newest', () => {
+  it('skips quote blocks and takes the bottom-most message', () => {
+    const n = (y: number, text: string, desc = '', clickable = false, x2 = 900) => ({ x1: 100, y1: y, x2, y2: y + 60, text, hint: '', desc, cls: 'TextView', clickable });
+    const nodes = [n(100, 'src text'), n(400, '', 'aaron, src text', true, 950), n(410, 'src text'), n(800, 'src text')];
+    expect(findByText(nodes as any, 'src text', undefined, { newest: true })?.node.y1).toBe(800);
+  });
+});

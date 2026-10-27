@@ -24,12 +24,12 @@ export interface Located {
 export const locateTally: Record<string, { n: number; ms: number }> = {};
 
 /** Locate by literal text (① only). */
-export async function locateText(d: Driver, texts: string[]): Promise<Located | undefined> {
+export async function locateText(d: Driver, texts: string[], newest = false): Promise<Located | undefined> {
   const t0 = Date.now();
   if (d instanceof AndroidDriver) {
     const nodes = await dumpTree(d.o.udid, d.o.packageName, 3);
     for (const t of texts) {
-      const f = findByText(nodes, t);
+      const f = findByText(nodes, t, undefined, { newest });
       if (!f) continue;
       const target = clickableAncestor(nodes, f.node) ?? f.node;
       return { point: nodeCenter(target), tier: '①', ms: Date.now() - t0, how: `accessibility ${f.how} "${t}"` };
@@ -56,12 +56,14 @@ export interface LocateOptions {
   texts?: string[];
   ranker?: Ranker;
   purpose?: string;
+  /** Prefer the bottom-most match outside quote blocks (the newest message). */
+  newest?: boolean;
 }
 
 /** ① → ② → ③. undefined when nothing found. */
 export async function locate(d: Driver, description: string, o: LocateOptions = {}): Promise<Located | undefined> {
   const t0 = Date.now();
-  let r = o.texts?.length ? await locateText(d, o.texts) : undefined;
+  let r = o.texts?.length ? await locateText(d, o.texts, o.newest) : undefined;
   if (!r && (o.ranker ?? noRanker) !== noRanker) {
     /* ② slot: rankers rank accessibility texts; none is configured this milestone. */
   }

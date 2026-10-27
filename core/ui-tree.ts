@@ -108,12 +108,15 @@ export function matches(n: UiNode, m: TextMatch): boolean {
 }
 
 /** Pure: nodes matching text, exact before substring (tier ① locate). */
-export function findByText(nodes: UiNode[], q: string, within?: UiBox): { node: UiNode; how: 'exact' | 'contains' } | undefined {
+export function findByText(nodes: UiNode[], q: string, within?: UiBox, o: { newest?: boolean } = {}): { node: UiNode; how: 'exact' | 'contains' } | undefined {
   const inBox = (n: UiNode) => !within || (n.x1 >= within[0] && n.y1 >= within[1] && n.x2 <= within[0] + within[2] && n.y2 <= within[1] + within[3]);
-  const pool = nodes.filter(inBox);
-  const ex = pool.find((n) => matches(n, { exact: q }));
+  // newest: the bottom-most message carrying the text, not a quote block ("<sender>, <quoted text>") that repeats it.
+  const cards = o.newest ? nodes.filter((n) => n.clickable && /^[^,]{1,60}, .+/.test(n.desc)) : [];
+  const pool = nodes.filter(inBox).filter((n) => !cards.some((c) => c !== n && inside(n, c)) && !cards.includes(n));
+  const pick = (xs: UiNode[]) => (o.newest ? [...xs].sort((a, b) => b.y1 - a.y1)[0] : xs[0]);
+  const ex = pick(pool.filter((n) => matches(n, { exact: q })));
   if (ex) return { node: ex, how: 'exact' };
-  const ct = pool.find((n) => matches(n, { contains: q }));
+  const ct = pick(pool.filter((n) => matches(n, { contains: q })));
   return ct ? { node: ct, how: 'contains' } : undefined;
 }
 
