@@ -45,6 +45,8 @@ export interface Driver {
   focus?(): Promise<void>;
   /** Another surface took the shared screen: leaving the foreground is expected, not a finding. */
   yieldFocus?(): void;
+  /** Is the soft keyboard up? (system state; null = unknown). Phones only. */
+  keyboardShown?(): Promise<boolean | null>;
 }
 
 export type LifecycleOp = 'exitApp' | 'killApp' | 'reload';

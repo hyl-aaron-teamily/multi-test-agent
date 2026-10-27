@@ -6,9 +6,9 @@ import { AndroidDriver } from '../drivers/android';
 import { sleep } from '../drivers/types';
 import { mobileLayout } from '../platform/accounts/types';
 import { actionLabel } from './actions';
-import { assertSkillFresh, evaluateAi, evaluateVisual } from './checks';
+import { assertSkillFresh, evaluateAi, evaluateVisual, waitForRegion } from './checks';
 import type { RunCtx } from './context';
-import { pickTargets } from './targets';
+import { isRowKind, pickTargets } from './targets';
 import { observeKeyboard, observeText } from './observe';
 import { constructionAllowed, loadConversations } from '../platform/conversations';
 
@@ -55,6 +55,12 @@ export async function redoSetup(c: RunCtx): Promise<void> {
 export async function prepare(c: RunCtx): Promise<void> {
   const { d, profile } = c.sess;
   c.res.targets = [];
+  // Conversation rows are picked on the home list: a restored conversation (phone browser) or a sheet left
+  // open would make the row pick tap something else — get back to the list first.
+  if (c.plan.targets.some((t) => isRowKind(t.kind)) && c.sess.profile.refs.home && !(await waitForRegion(d, profile, ['home/nav'], 6000))) {
+    c.log('not on the home list before picking conversations — going back to it');
+    for (let i = 0; i < 2 && !(await waitForRegion(d, profile, ['home/nav'], 4000)); i++) await c.sess.adapter.recoverHome(c.sess, i);
+  }
   await freeze(c, 'rows');
   for (const a of c.plan.setup) {
     d.label = actionLabel(a);

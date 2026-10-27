@@ -30,6 +30,7 @@ export interface FrozenTarget {
 }
 
 const ROW_KINDS = new Set(['group-conversation', 'other-conversation', 'muted-group', 'conversation']);
+export const isRowKind = (kind: string) => ROW_KINDS.has(kind);
 
 export async function conversationCandidates(driver: Driver, p: Profile): Promise<Candidate[]> {
   if (driver.surface === 'android-app') {

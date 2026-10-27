@@ -62,7 +62,7 @@ export const NODES: NodeSpec[] = NODE_SPECS.map((n) => ({ name: n.name, input: n
 export const TARGET_GUIDANCE: Record<string, string> = {
   'group-conversation': '成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它',
   'other-conversation': '与目标群不同的任意会话（用于切换会话再切回）',
-  'others-text-message': '别人发的普通文本消息（不是图片/卡片/系统消息），点赞类问题用它',
+  'others-text-message': '别人发的普通文本消息（不是图片/卡片/系统消息，也不是链接/URL——点到链接会打开浏览器），点赞类问题用它',
   'doc-artifact': 'Artifacts 列表中的任意文档卡片（DOC），用于打开 CloudDoc',
 };
 

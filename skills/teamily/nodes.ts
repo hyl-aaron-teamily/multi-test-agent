@@ -80,7 +80,9 @@ const sendMessage: Exec<{ text: string; kind?: 'plain' | 'markdown-link' }> = as
   if (mobileLayout(c.driver.surface) && c.driver.surface !== 'mobile-web') {
     const up = async () => {
       for (let i = 0; i < 6; i++) {
-        if (pixelDiff(empty, focused) > 20_000) return true;
+        // System state when available (screen changes from new messages fooled the pixel test).
+        const kb = c.driver.keyboardShown ? await c.driver.keyboardShown() : null;
+        if (kb === true || (kb === null && pixelDiff(empty, focused) > 20_000)) return true;
         await sleep(500);
         focused = await shot();
       }
@@ -95,7 +97,8 @@ const sendMessage: Exec<{ text: string; kind?: 'plain' | 'markdown-link' }> = as
   if (c.driver.surface === 'android-app') {
     // RN composer: Enter is a newline. Hide the keyboard (only if it is up: Back would otherwise leave the
     // conversation), then tap the (calibrated, keyboard-down) send button.
-    if (pixelDiff(empty, focused) > 20_000) {
+    const kbUp = c.driver.keyboardShown ? await c.driver.keyboardShown() : null;
+    if (kbUp === true || (kbUp === null && pixelDiff(empty, focused) > 20_000)) {
       await c.driver.back();
       await sleep(400);
     }

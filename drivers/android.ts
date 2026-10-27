@@ -9,6 +9,7 @@ import { AndroidDevice } from '@midscene/android';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { adb, launchApp, resolveAdbPath, screencap, spawnAdb } from '../core/adb';
+import { keyboardShown } from '../core/ui-tree';
 import { type Anomaly, type Driver, type Point, sleep } from './types';
 
 export interface AndroidDriverOptions {
@@ -154,6 +155,10 @@ export class AndroidDriver implements Driver {
     this.foreground = true;
     await sleep(1200);
     this.away = false;
+  }
+
+  keyboardShown(): Promise<boolean | null> {
+    return keyboardShown(this.o.udid);
   }
 
   yieldFocus(): void {
