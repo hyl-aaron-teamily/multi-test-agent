@@ -175,7 +175,7 @@ export const PATTERNS: Pattern[] = [
       title: '点引用定位应稳定跳到被引用消息',
       targets: [
         { id: 'conv', kind: 'group-conversation', guidance: conv ? `the conversation titled "${conv}" (titles may be cut short with …)` : T['group-conversation'] },
-        { id: 'link', kind: 'quote-card', guidance: '会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文）', ...(conv ? { afterPrepare: true } : {}) },
+        { id: 'link', kind: 'quote-card', guidance: '会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文；引用的是普通文字，不是链接 / URL）', ...(conv ? { afterPrepare: true } : {}) },
       ],
       setup: [node('teamily.openConversation', { target: 'conv' }, 1000)],
       ...(conv ? { prepare: [node('teamily.sendMessage', { text: src }, 1000), node('teamily.quoteReply', { quote: src, text: 'autotest-quote-reply 1329' }, 1000)] } : {}),

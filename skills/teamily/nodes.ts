@@ -19,7 +19,8 @@ export interface NodeContext {
   /** Max wait used by nodes that wait for a page (ms). */
   settleMs?: number;
   /** Tiered locate (prepare-only Nodes): literal texts first, then the description by vision. */
-  locate?: (description: string, texts: string[], newest?: boolean) => Promise<Point | null>;
+  /** textOnly: ① literal text only — never a vision guess (where a wrong guess would tap something else). */
+  locate?: (description: string, texts: string[], newest?: boolean, textOnly?: boolean) => Promise<Point | null>;
 }
 
 type Exec<I> = (ctx: { input: I; context: NodeContext }) => Promise<{ summary?: string } | void>;
@@ -128,10 +129,17 @@ const quoteReply: Exec<{ quote: string; text: string }> = async ({ input, contex
     msg = await c.locate(`the message bubble containing "${input.quote}" (the newest one)`, [input.quote], true);
   }
   if (!msg) throw new Error(`teamily.quoteReply: message "${input.quote}" not on screen`);
-  await c.driver.longPress(msg);
-  await sleep(1200);
-  const item = await c.locate('the Quote / Reply item of the message action menu', ['引用', '回复', 'Quote', 'Reply']);
-  if (!item) throw new Error('teamily.quoteReply: no quote / reply item in the message menu');
+  // The menu item must really be the message menu's: on the App it is read from the accessibility tree only
+  // (a vision guess once picked a composer-toolbar icon and opened the meeting-minutes sheet). One retry.
+  const textOnly = c.driver.surface === 'android-app';
+  let item: Point | null = null;
+  for (let i = 0; i < 2 && !item; i++) {
+    if (i) await c.driver.back().then(() => sleep(800));
+    await c.driver.longPress(msg);
+    await sleep(1500);
+    item = await c.locate('the Quote / Reply item of the message action menu', ['引用', '回复', 'Quote', 'Reply'], false, textOnly);
+  }
+  if (!item) throw new Error('teamily.quoteReply: the message menu (引用 / 回复) did not open');
   await c.driver.tap(item);
   await sleep(1000);
   await sendMessage({ input: { text: input.text }, context: c });

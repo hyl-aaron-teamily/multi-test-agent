@@ -2,7 +2,7 @@
 //   lease (account + endpoint slot) → session (launch once, sign in, home list, SKILL check)
 //   → prepare (dynamic targets frozen, setup, precondition) → feature acceptance | [correct path] → loop
 //   → verdict. Phases live in prepare.ts / phases.ts / loop.ts / checkpoint.ts / incident-hook.ts.
-import { mkdir } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { modelCallListeners, modelCalls, setModelPurpose, visionConfigured } from '../core/model/llm';
 import { isoMs, openTrajectory, type Trajectory } from '../core/trajectory';
@@ -20,7 +20,7 @@ import type { PlannedAction, TestPlan } from '../platform/schema/test-plan';
 import { loadProfile, SkillStaleError } from '../skills/profile';
 import type { NodeContext } from '../skills/teamily/nodes';
 import { execAction } from './actions';
-import { locate, locateTally } from './locate';
+import { locate, locateTally, locateText } from './locate';
 import { visionAsker } from './checks';
 import type { RunCtx } from './context';
 import { runLoop } from './loop';
@@ -160,7 +160,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       targets,
       credentials: () => o.pool.backend.get(account.id),
       // prepare-only Nodes (validator keeps them out of the loop)
-      locate: async (desc, texts, newest) => (await locate(s.inner, desc, { texts, newest, purpose: 'prep' }))?.point ?? null,
+      locate: async (desc, texts, newest, textOnly) => (textOnly ? await locateText(s.inner, texts, newest) : await locate(s.inner, desc, { texts, newest, purpose: 'prep' }))?.point ?? null,
     };
     const c: RunCtx = {
       plan,
@@ -210,6 +210,8 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     }
     res.error = (err as Error).message.split('\n')[0];
     log(`error: ${res.error}`);
+    // The screen at the moment of the error (diagnosis).
+    if (sess) await sess.d.screenshot().then((png) => writeFile(join(o.runDir, 'error.png'), png)).catch(() => {});
     return done();
   } finally {
     setModelPurpose('other');
