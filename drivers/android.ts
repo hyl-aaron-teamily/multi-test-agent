@@ -242,8 +242,15 @@ export class AndroidDriver implements Driver {
     await this.key('back');
   }
 
-  screenshot(): Promise<Buffer> {
-    return screencap(this.o.udid);
+  /** One screencap; a truncated PNG (adb pipe cut short) is taken again (up to 3 tries). */
+  async screenshot(): Promise<Buffer> {
+    let last: Buffer = Buffer.alloc(0);
+    for (let i = 0; i < 3; i++) {
+      last = await screencap(this.o.udid);
+      if (pngComplete(last)) return last;
+      await sleep(300);
+    }
+    return last;
   }
 
   drainAnomalies(): Anomaly[] {
@@ -259,4 +266,9 @@ export class AndroidDriver implements Driver {
     this.logcat = undefined;
     this.shell = undefined;
   }
+}
+
+/** Pure: a PNG that ends with its IEND chunk. */
+export function pngComplete(b: Buffer): boolean {
+  return b.length > 20 && b.readUInt32BE(0) === 0x89504e47 && b.subarray(b.length - 8, b.length - 4).toString('latin1') === 'IEND';
 }

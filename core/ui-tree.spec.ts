@@ -32,3 +32,13 @@ describe('core/ui-tree', () => {
     expect(clickableAncestor(nodes, nodes[1])?.y1).toBe(400);
   });
 });
+
+describe('pngComplete', () => {
+  it('detects a truncated PNG', async () => {
+    const { pngComplete } = await import('../drivers/android');
+    const { encodePng } = await import('./image');
+    const png = encodePng({ width: 2, height: 2, data: new Uint8Array(16) });
+    expect(pngComplete(png)).toBe(true);
+    expect(pngComplete(png.subarray(0, png.length - 10))).toBe(false);
+  });
+});

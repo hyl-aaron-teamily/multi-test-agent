@@ -7,6 +7,7 @@ import { notifyPromptClose } from '../drivers/web-dialogs';
 import { ensureUiLogin } from './login/ui-login';
 import type { Surface } from '../platform/accounts/types';
 import { pointOf, type Profile } from '../skills/profile';
+import { visionAsk } from '../core/model/midscene';
 import { evaluateVisual, waitForRegion } from './checks';
 import type { Session } from './session';
 import { visionLocator } from './targets';
@@ -89,6 +90,7 @@ const androidWebAdapter: SurfaceAdapter = {
   },
   async dismissDialogs(s) {
     await dismissBanner(s);
+    await awaitConnected(s);
   },
   async ensureLogin(s) {
     await s.d.redacted(() => ensureUiLogin(s.d, s.profile, s.pool, s.account, s.log));
@@ -152,4 +154,24 @@ async function waitPastDialog(d: Driver, a: AndroidDriver, profile: Profile, key
     await d.tap(p);
   }
   return undefined;
+}
+
+/** Phone browser: the page header can stay on "连接中…" (no live connection: nothing is received and sends
+ *  stay pending). Its accessibility tree is not refreshed, so the screen is asked (preparation only, ③);
+ *  still connecting after ~30 s → restart the browser cold, at most twice. */
+async function awaitConnected(s: Session): Promise<void> {
+  const a = s.inner as AndroidDriver;
+  for (let restart = 0; restart < 3; restart++) {
+    for (let i = 0; i < 4; i++) {
+      const connecting = await visionAsk(a as any, 'The page header shows a "连接中" (connecting) indicator with a spinner next to the title', 'prep');
+      if (connecting !== true) return;
+      await sleep(8000);
+    }
+    if (restart === 2) break;
+    s.log('android-web: still "连接中…" after ~30 s — restarting the browser');
+    await a.killApp().catch(() => {});
+    await s.d.launch();
+    await waitForRegion(s.d, s.profile, ['home/nav', 'chat/composer', 'login/form'], 45_000);
+  }
+  s.log('android-web: page still not connected — continuing (sync / sends may fail)');
 }
