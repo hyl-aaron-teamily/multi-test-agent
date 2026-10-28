@@ -31,7 +31,11 @@ export async function execAction(a: PlannedAction, ctx: NodeContext, profile: Pr
   switch (a.type) {
     case 'node':
       if (a.node?.name === 'teamily.login' && d instanceof RecordingDriver) await d.redacted(() => runNode(a.node!.name, a.node!.input ?? {}, ctx));
-      else await runNode(a.node!.name, a.node!.input ?? {}, ctx);
+      else {
+        // What the Node reports it did (e.g. how long the rewrite ran) goes into the op log / trajectory.
+        const summary = await runNode(a.node!.name, a.node!.input ?? {}, ctx);
+        if (summary && d instanceof RecordingDriver) d.note(`${a.node!.name}: ${summary}`);
+      }
       break;
     case 'tap':
       await d.tap(pt());

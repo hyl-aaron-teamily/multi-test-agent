@@ -152,7 +152,9 @@ export async function preflightAndroid(udid: string, pkg: string, surface: Surfa
   const tap = taplusWith(s.taplus, pkg);
   if (tap) {
     await sh(`settings put global taplus_blacklist '${tap}'`);
-    changes.push(`HyperOS 文本识别（Taplus）对 ${pkg} 关闭：加入 global taplus_blacklist`);
+    // The system restores the list later (seen 2026-10-28): written again by every run's preflight; the
+    // long-press flows still close the float on demand (dismissSystemOverlay).
+    changes.push(`HyperOS 文本识别（Taplus）对 ${pkg} 关闭：加入 global taplus_blacklist（系统稍后会还原，每次预检重写）`);
   }
   // A known system float holding the focus: Back goes to the float only.
   if (KNOWN_FLOAT.test(s.focus ?? '')) {

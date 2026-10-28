@@ -102,6 +102,10 @@ export class RecordingDriver implements Driver {
   idle(ms: number) {
     return this.rec('idle', { ms }, () => sleep(ms));
   }
+  /** A note in the op log (e.g. what a Node reports it did); not an input. */
+  note(text: string): void {
+    this.ops.push({ step: this.step, round: this.round, at: Date.now(), durationMs: 0, op: 'observe', value: text.slice(0, 300), label: this.label });
+  }
   /** A ① read inside a round (not an input, not an action interval). */
   observe<T>(what: string, fn: () => Promise<T>): Promise<T> {
     return this.rec('observe', { value: what }, fn);

@@ -362,14 +362,15 @@ export function checkLocation(k: TestPlan['checks'][number]): string {
 }
 
 /** Pure: report lead lines of a bug run (W2-2 §3.2). */
-export function leadOf(plan: TestPlan, r: Pick<RunResult, 'hits' | 'attempts'>): NonNullable<RunResult['lead']> {
+export function leadOf(plan: TestPlan, r: Pick<RunResult, 'hits' | 'attempts' | 'runTag'>): NonNullable<RunResult['lead']> {
+  const tag = (s: string) => s.replace(/\{token\}/g, r.runTag ?? '<运行标记>').replace(/\{round\}/g, '<轮号>');
   const step = (a: PlannedAction) => (a.type === 'node' ? a.node!.name.replace('teamily.', '') : a.type === 'type' ? `键入「${a.value}」` : a.type === 'require' ? `确认输入框含「${a.requires?.composerHas}」` : a.element ? `${a.type} ${a.element}` : a.type);
   const hitRounds = r.hits.map((h) => h.round).slice(0, 10);
   const k = plan.checks[0];
   return {
-    trigger: plan.actions.map(step).join(' → '),
+    trigger: tag(plan.actions.map(step).join(' → ')),
     triggerBasis: `计划动作，每轮执行${r.attempts ? `；${r.attempts.valid} 次有效尝试` : ''}${hitRounds.length ? `，命中轮次 ${hitRounds.join(', ')}` : '，无命中'}`,
-    location: k ? checkLocation(k) : '（计划无检查）',
+    location: k ? tag(checkLocation(k)) : '（计划无检查）',
     locationBasis: k ? `检查「${k.expect}」${r.hits[0] ? `；首次命中：${r.hits[0].reason.slice(0, 160)}` : ''}` : '-',
     mechanism: plan.contract?.suspectedMechanism || '契约未给出',
   };
