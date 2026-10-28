@@ -21,6 +21,7 @@ let dir: string;
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'w2m3v-'));
   process.env.AUTOTEST_STATE_DIR = dir;
+  process.env.AUTOTEST_POLICY_FILE = join(dir, 'no-policy.yaml'); // full access off unless a test turns it on
 });
 afterEach(() => {
   delete process.env.AUTOTEST_STATE_DIR;
@@ -62,7 +63,8 @@ describe('W2-3 T5 approval policy', () => {
     const p = plan('2010-android-app-v1');
     const h = planHash(p);
     const def = classifyPlan(p);
-    expect(approve({ planId: 'x/main:android-app@v1', planHash: h, confirmedHash: h, facts: FACTS, classified: def, via: 'cli' }).by).toBe('policy');
+    expect(approve({ planId: 'x/main:android-app@v1', planHash: h, confirmedHash: h, facts: FACTS, classified: def, via: 'cli' }).by).toBe('cli');
+    expect(approve({ planId: 'x/main:android-app@v1', planHash: h, confirmedHash: h, facts: FACTS, classified: def, via: 'cli', auto: true }).by).toBe('policy');
     expect(code(() => approve({ planId: 'x', planHash: h, confirmedHash: 'zzz', facts: FACTS, classified: def, via: 'cli' }))).toBe('PLAN_HASH_MISMATCH');
     const sens = classifyPlan(p, { series: 21 });
     expect(code(() => approve({ planId: 'y', planHash: h, confirmedHash: h, facts: FACTS, classified: sens, series: 21, via: 'cli' }))).toBe('APPROVAL_REQUIRED');
@@ -194,6 +196,19 @@ describe('W2-3 T7 API envelope and CLI help', () => {
     expect((await call('POST', '/full-access', { on: true })).code).toBe('APPROVAL_REQUIRED'); // Web only
   });
 
+  it('full access (default from platform/policy.yaml) approves sensitive plans and consents configuration items', async () => {
+    const { writeFileSync } = await import('node:fs');
+    writeFileSync(process.env.AUTOTEST_POLICY_FILE!, 'fullAccessDefault: true\n');
+    ready();
+    const id = pid2010();
+    const s = await call('POST', '/tasks', { planId: id, series: 21 });
+    expect(s.code).toBe('ACCEPTED');
+    expect(getApproval(id)!.by).toMatch(/^full-access/);
+    expect(getEnv(ENV)!.configItems[0].consentedBy).toMatch(/^full-access/);
+    expect((await call('POST', '/full-access', { on: false }, true)).code).toBe('OK'); // the Web switch overrides the default
+    expect((await call('POST', '/tasks', { planId: id, series: 22 })).code).toBe('APPROVAL_REQUIRED');
+  });
+
   it('environment states map to 50–53', async () => {
     ready();
     consentConfig(ENV, 'taplus', 'aaron');
@@ -213,6 +228,11 @@ describe('W2-3 T7 API envelope and CLI help', () => {
     const r = await call('GET', '/results/tt');
     expect(r).toMatchObject({ code: 'NOT_REPRODUCED', exit: 10 });
     expect(getEnv(ENV)!.state).toBe('ready');
+  });
+
+  it('docs/cli-reference.md is generated from help --json (up to date)', async () => {
+    const { cliReference } = await import('../scripts/cli-ref');
+    expect(readFileSync(resolve('docs/cli-reference.md'), 'utf8')).toBe(cliReference());
   });
 
   it('help --json lists every command with an argument schema and the full status table', () => {

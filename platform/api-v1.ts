@@ -104,7 +104,12 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
   if (env.state === 'quarantined') return fail('ENV_QUARANTINED', `环境 ${env.id} 已隔离：${env.reason ?? ''}`, env.suggestion ?? webUrl(`/env.html?id=${encodeURIComponent(env.id)}`));
   if (env.state === 'offline') return fail('ENV_OFFLINE', `环境 ${env.id} 已下线`, 'autotest env check <envId>（或在环境页点「重新检查」）');
   if (env.state === 'unfit') return fail(/锁屏/.test(env.reason ?? '') ? 'ENV_LOCKED' : /不在线|离线/.test(env.reason ?? '') ? 'ENV_OFFLINE' : 'ENV_UNFIT', `环境 ${env.id} 不合格：${env.reason ?? ''}`, env.suggestion);
-  const pending = unconsented(env);
+  let pending = unconsented(env);
+  // Full access consents the environment configuration items too (recorded as such).
+  if (pending.length && getFullAccess().on) {
+    for (const c of pending) consentConfig(env.id, c.id, `full-access（${getFullAccess().by}）`);
+    pending = [];
+  }
   if (pending.length) return fail('APPROVAL_REQUIRED', `环境 ${env.id} 的配置项尚未同意：${pending.map((c) => c.what).join('；')}`, webUrl(`/env.html?id=${encodeURIComponent(env.id)}`));
   const classified = classifyPlan(r.plan, { series, maxRounds, allow: allowList() });
   if (classified.category === 'refused') return fail('PLAN_NOT_EXECUTABLE', `计划触及硬约束：${classified.reasons.join('；')}`);
@@ -122,10 +127,10 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
   // honoured strictly: its run count runs out → 33).
   const cur = getApproval(planId);
   const curLive = cur && !cur.rejected && cur.planHash === r.hash && cur.runsUsed + n <= cur.runsAllowed;
-  if (!cur?.rejected && !curLive && (!cur || cur.by === 'policy' || cur.planHash !== r.hash) && (classified.category === 'default' || getFullAccess().on))
-    approve({ planId, planHash: r.hash, confirmedHash: r.hash, facts, classified, series, runs: n, via });
+  if (!cur?.rejected && !curLive && (!cur || cur.auto || cur.by === 'policy' || cur.planHash !== r.hash) && (classified.category === 'default' || getFullAccess().on))
+    approve({ planId, planHash: r.hash, confirmedHash: r.hash, facts, classified, series, runs: n, via, auto: true });
   // Sensitive: only a person's sensitive approval (Web) counts; a policy approval of the plain plan does not.
-  if (classified.category === 'sensitive' && !getFullAccess().on && !(cur && !cur.rejected && cur.category === 'sensitive' && cur.planHash === r.hash && cur.by !== 'policy'))
+  if (classified.category === 'sensitive' && !getFullAccess().on && !(cur && !cur.rejected && cur.category === 'sensitive' && cur.planHash === r.hash && !cur.auto && cur.by !== 'policy' && !cur.by.startsWith('full-access')))
     return fail('APPROVAL_REQUIRED', `敏感计划需要人在 Web 上同意：${classified.reasons.join('；')}`, webUrl(`/plan.html?id=${encodeURIComponent(planId)}${series ? `&series=${series}` : ''}`));
   const ap = useApproval(planId, r.hash, facts, n);
   const id = newTaskId();

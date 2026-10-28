@@ -114,15 +114,27 @@ export function checkText(k: CheckPoint, p: Pick<TestPlan, 'targets'>): string {
   return `看${where}${m ? `是否${k.want === 'absent' ? '不' : ''}为${m}` : ''}：应「${tagText(k.expect)}」`;
 }
 
-export interface EstimateInput {
-  /** Durations (s) of earlier runs of the same plan. */
-  history: number[];
+/** One earlier run of the same plan: its duration and how many loop rounds it ran (warm-up excluded). */
+export interface PastRun {
+  sec: number;
+  rounds: number;
+  at?: string;
 }
 
-/** Pure: duration interval of one run. History → median ~ max; none → steps × budget ("首次估算"). */
-export function estimate(p: TestPlan, h: number[], maxRounds?: number): PlanView['estimate'] {
+const overheadOf = (p: TestPlan) => 60 + p.targets.length * 15 + (p.prepare.length ? 20 : 0);
+
+/** Pure: duration interval of one run. History → each past run rescaled to this run's round count
+ *  (overhead + per-round time), then median ~ max; none → steps × budget ("首次估算"). */
+export function estimate(p: TestPlan, h: (number | PastRun)[], maxRounds?: number): PlanView['estimate'] {
+  const rounds = maxRounds ?? p.limits.maxRounds ?? 20;
+  const overhead = overheadOf(p);
   if (h.length) {
-    const s = [...h].sort((a, b) => a - b);
+    const pred = h.map((x) => {
+      if (typeof x === 'number') return x;
+      const a = Math.min(overhead, x.sec * 0.8);
+      return a + ((x.sec - a) / Math.max(1, x.rounds + 1)) * (rounds + 1);
+    });
+    const s = [...pred].sort((a, b) => a - b);
     const med = s[Math.floor((s.length - 1) / 2)];
     const max = s[s.length - 1];
     const lo = Math.round(med * 0.8);
@@ -130,19 +142,17 @@ export function estimate(p: TestPlan, h: number[], maxRounds?: number): PlanView
     return { minSec: lo, maxSec: hi, basis: 'history', samples: h.length, text: `约 ${fmtSec(lo)} – ${fmtSec(hi)}（同计划最近 ${h.length} 次运行）` };
   }
   const per = p.actions.reduce((n, a) => n + 1.5 + (a.delayAfterMs ?? 300) / 1000 + (a.type === 'idle' ? Number(a.value ?? 0) / 1000 : 0) + (a.node?.name === 'teamily.tapRewrite' ? 6 : 0), 0) + p.checks.length * 2;
-  const overhead = 60 + p.targets.length * 15 + (p.prepare.length ? 20 : 0);
-  const rounds = maxRounds ?? p.limits.maxRounds ?? 20;
   const lo = Math.round(overhead + per * (rounds + 1) * 0.7);
-  const hi = Math.round(overhead * 2 + per * (roundBound(p, maxRounds) + 1) * 1.5);
-  return { minSec: lo, maxSec: Math.min(hi, p.limits.maxMinutes * 60 + overhead * 2), basis: 'first-estimate', samples: 0, text: `约 ${fmtSec(lo)} – ${fmtSec(Math.min(hi, p.limits.maxMinutes * 60 + overhead * 2))}（首次估算：步数 × 步骤预算）` };
+  const hi = Math.min(Math.round(overhead * 2 + per * (roundBound(p, maxRounds) + 1) * 1.5), p.limits.maxMinutes * 60 + overhead * 2);
+  return { minSec: lo, maxSec: hi, basis: 'first-estimate', samples: 0, text: `约 ${fmtSec(lo)} – ${fmtSec(hi)}（首次估算：步数 × 步骤预算）` };
 }
 
 export const fmtSec = (s: number) => (s < 90 ? `${s} 秒` : `${Math.round(s / 60)} 分钟`);
 
 /** Durations of earlier runs of a plan (TestPlan id, e.g. 2010-android-app-v1): new task results and old
  *  Issue run dirs. Runs that never reached the app (环境不合格) are left out. */
-export function planHistory(testPlanId: string, roots = [resolve('platform/state/tasks'), resolve('midscene_run/issues')]): number[] {
-  const out: { at: string; sec: number }[] = [];
+export function planHistory(testPlanId: string, roots = [resolve('platform/state/tasks'), resolve('midscene_run/issues')], before?: string): PastRun[] {
+  const out: PastRun[] = [];
   for (const root of roots) {
     if (!existsSync(root)) continue;
     for (const d of readdirSync(root)) {
@@ -150,19 +160,22 @@ export function planHistory(testPlanId: string, roots = [resolve('platform/state
       if (!existsSync(f)) continue;
       try {
         const r = JSON.parse(readFileSync(f, 'utf8')) as { results?: RunResult[]; runs?: RunResult[] };
-        for (const x of [...(r.results ?? []), ...(r.runs ?? [])]) if (x.planId === testPlanId && x.stats?.durationSec && x.conclusion !== '环境不合格' && !x.cancelled) out.push({ at: x.startedAt, sec: x.stats.durationSec });
+        for (const x of [...(r.results ?? []), ...(r.runs ?? [])])
+          if (x.planId === testPlanId && x.stats?.durationSec && x.conclusion !== '环境不合格' && !x.cancelled && (!before || x.startedAt < before)) out.push({ at: x.startedAt, sec: x.stats.durationSec, rounds: x.attempts?.rounds ?? x.stats.rounds ?? 0 });
       } catch {
         /* torn / old format */
       }
     }
   }
+  // The same run is in both roots when a task wrote its Issue report: keep one per start time.
+  const seen = new Set<string>();
   return out
-    .sort((a, b) => b.at.localeCompare(a.at))
-    .slice(0, 10)
-    .map((x) => x.sec);
+    .filter((x) => (seen.has(x.at!) ? false : (seen.add(x.at!), true)))
+    .sort((a, b) => b.at!.localeCompare(a.at!))
+    .slice(0, 10);
 }
 
-export function planView(o: { id: string; hash: string; plan: TestPlan; classified: Classified; envConfig?: string[]; history?: number[]; approval?: Approval; maxRounds?: number; warmupFailures?: { at: string; detail: string }[] }): PlanView {
+export function planView(o: { id: string; hash: string; plan: TestPlan; classified: Classified; envConfig?: string[]; history?: (number | PastRun)[]; approval?: Approval; maxRounds?: number; warmupFailures?: { at: string; detail: string }[] }): PlanView {
   const p = o.plan;
   const steps: PlanStep[] = [];
   const add = (stage: PlanStep['stage'], xs: PlannedAction[] | undefined) => {

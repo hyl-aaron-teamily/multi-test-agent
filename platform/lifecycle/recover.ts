@@ -17,6 +17,11 @@ export type DriverFactory = (env: EnvRecord) => Drivers;
 export const RECOVERY_LIMIT_MS = Number(process.env.AUTOTEST_RECOVERY_MS ?? 180_000);
 
 async function walk(env: EnvRecord, dr: Drivers, fix: boolean): Promise<Walk> {
+  // The default input method is declared by the first check (what the phone uses when it is registered).
+  if (env.surface === 'android-app' && dr.android && !env.ime && (await dr.android.online().catch(() => false))) {
+    const ime = await dr.android.ime().catch(() => undefined);
+    if (ime) env = updateEnv(env.id, (e) => void (e.ime = ime));
+  }
   const ledger = env.lastTask ? readLedger(env.lastTask) : [];
   if (env.surface === 'android-app' && dr.android) return walkAndroid(dr.android, env, touchedConversations(ledger), fix, dr.host);
   return walkWeb(dr.host, fix);

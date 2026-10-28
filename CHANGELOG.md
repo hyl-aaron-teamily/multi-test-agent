@@ -1,6 +1,28 @@
 # Changelog
 
-## [Unreleased] — W2-2：可信结论 + 运行清单 / 预检 / 隔离 + 窄范围 MVP（2010、1903）
+## [Unreleased] — W2-3：可用性——任务与环境分离、收尾可恢复、Agent 用命令行、人用 Web
+
+需求：`dev-week2-milestone3.md`；验收证据：`docs/w2m3-acceptance.md`；命令行参考：`docs/cli-reference.md`。
+
+### Added
+- **环境**（`platform/lifecycle/env.ts`）：`<端>:<设备>@<服务环境>`，状态机 offline / checking / ready / leased / recovering / unfit / quarantined / draining，原子写的记录（`platform/state/envs/`）、一环境一租约（锁 + 原子写，租约带 pid + 进程启动时间）、脏标记、环境配置项（Taplus 黑名单、USB 充电常亮：注册时同意一次）、审计（`platform/state/audit.ndjson`）。由 `platform/devices.yaml` × 账号池自动登记（`registry.ts`）。
+- **任务**（`platform/lifecycle/task.ts`）：queued / waiting-env / preflight / running / finishing / recovering → done / env-unfit / failed / interrupted / cancelled / timed-out；`state/tasks/<id>/{task.json, events.ndjson, ledger.ndjson, result.json, plan.json, draft.json}`；系列 = 父任务 + 子任务 `<父>.<n>`。
+- **生命周期**：任务进程 5 s 心跳、进度（阶段 / 轮 / 步 / 步骤预算）、**副作用台账先记账再执行**（进入会话、键入、发送、改设置）、取消请求在步骤边界停止后照常收尾（`runtime.ts`，执行器 `RunOptions.hooks`）；看门狗（心跳 30 s、进度 = 步骤预算 + 60 s、总时长）杀进程树（`crosscheck.ts`）；`autotest env recover <envId>` 独立进程按环境声明 + 台账恢复（清空键入过的会话输入框、收键盘、回首页、默认输入法、配置项、残留进程），可重复、可中断后重来，失败即隔离（`baseline.ts`、`recover.ts`、`android-ops.ts`）。
+- **交叉检测**：平台启动 / 重新检查时核对租约持有者（进程在且心跳新鲜 → 接管；心跳超时 → 62 卡死；进程不在 → 72 服务重启 / 63 进程意外退出），扫描无租约的「运行中」记录；下线先写取消请求、≤ 60 s 后强杀、恢复或置脏、任务记 72；Ctrl+C / SIGTERM 时平台对所有占用中的环境走下线流程（`supervisor.ts`）。
+- **审批策略**（`platform/approval.ts`）：被测软件内操作默认允许（`policy`）；敏感计划（操作被测软件之外、单次发送 > 50 条、系列 > 20 次）只能在 Web 同意；完全授权（Web 开关 + `platform/policy.yaml` 默认值，红色横幅）；硬约束（删除 / 撤回、允许清单外会话、锁屏 PIN）任何情况拒绝；批准绑定计划哈希、SKILL / profile / App / Issue 版本与运行次数（31 / 32 / 33）；驳回必填意见。
+- **状态码**（`platform/lifecycle/status.ts`）：两位退出码、十位 = 类别，JSON 带 `status / code / exit`；错误对象 `{ status, code, message, hint, retryable, kind }`。
+- **命令行**（`scripts/cli-v1.ts`）：`issue list|show`、`draft create|show`、`plan explain|approve|reject`、`env list|show|check|recover|offline`、`task run|status|wait|cancel|list`、`result show`、`help [--json]`；`--json` 时 stdout 只有一个 JSON；从不提问；平台未启动 → 54。参考文档由 `scripts/cli-ref.ts` 生成。
+- **视图模型**（`platform/views.ts`）：`PlanView`（一句话目的、白话步骤、判定规则、影响清单、不确定点、模型调用点、预计耗时区间、审批类别）、`EnvView`、`TaskView`、`ResultView`；命令行文本、`--json`、Web 同源。Node 表新增中文模板 `zh` 与 `serverDependent`（`skills/teamily/node-specs.ts`）。
+- **Web**（`platform/web/`）：首页（任务、Issue、环境状态条、锁屏红色提示、完全授权横幅）、环境页（基线逐项、租约、脏标记、配置项同意、重新检查 / 恢复 / 下线）、计划审核页（步骤在标定截图上标出元素、六问、同意 / 驳回）、任务页（进度、台账、时间线、取消）、结果页（结论句、依据、三个标识、证据、中断位置与环境恢复结果）；术语悬停解释。旧控制台移到 `/console`。
+- **真机门脚本** `scripts/w2m3-gate.ts`：故障注入矩阵（强杀任务 / 冻结进程 / 强杀平台后重启 / `adb kill-server` × 五个阶段）、脚本化 Agent 闭环、确定性（31 / 32 / 33）、三端一致性（Playwright 读渲染后的页面）、预计耗时命中率。
+
+### Changed
+- 控制台旧任务类型改读子进程写的结构化结果（`core/task-result.ts`，`AUTOTEST_RESULT_FILE`），平台不再正则解析日志。
+- 报告首段「触发路径」用计划视图的白话步骤渲染（`leadOf` 复用 `stepText`）。
+- 草稿带版本号（内容哈希变化 +1），计划 id `<Issue>/<子用例>:<端>@v<版本>`。
+- `bin/autotest.ts` 未捕获异常统一退出 1（工具缺陷）；旧入口（`plan <file>` / `run` / `series` …）退出码不变。
+
+## W2-2（2026-10-28 合并到 main）：可信结论 + 运行清单 / 预检 / 隔离 + 窄范围 MVP（2010、1903）
 
 需求：`dev-week2-milestone2.md`；验收证据：`docs/w2m2-acceptance.md`。
 

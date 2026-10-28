@@ -81,7 +81,12 @@ export interface FullAccess {
   at?: string;
 }
 const faFile = () => join(stateRoot(), 'full-access.json');
-export const getFullAccess = (): FullAccess => readJson<FullAccess>(faFile()) ?? { on: false };
+/** platform/policy.yaml `fullAccessDefault` (used until someone switches it on the Web). */
+export function fullAccessDefault(file = resolve(process.env.AUTOTEST_POLICY_FILE ?? 'platform/policy.yaml')): boolean {
+  if (!existsSync(file)) return false;
+  return ((yaml.load(readFileSync(file, 'utf8')) ?? {}) as { fullAccessDefault?: boolean }).fullAccessDefault === true;
+}
+export const getFullAccess = (): FullAccess => readJson<FullAccess>(faFile()) ?? (fullAccessDefault() ? { on: true, by: 'default (platform/policy.yaml)' } : { on: false });
 
 export function setFullAccess(on: boolean, by: string): FullAccess {
   const v: FullAccess = { on, by, at: new Date().toISOString() };
@@ -113,6 +118,8 @@ export interface Approval {
   series?: number;
   by: string;
   at: string;
+  /** Made by `task run` for a default-class plan (or under full access) — renewed when used up. */
+  auto?: boolean;
   rejected?: { by: string; note: string; at: string };
 }
 
@@ -142,6 +149,7 @@ export interface ApproveInput {
   /** 'cli' | 'web:<reviewer>'. Sensitive plans: web only (or full access). */
   via: 'cli' | 'web';
   reviewer?: string;
+  auto?: boolean;
 }
 
 /** Approve a plan. Default class → by `policy`; sensitive → a person on the Web, or `full-access`; refused
@@ -152,11 +160,12 @@ export function approve(i: ApproveInput): Approval {
   if (c.category === 'refused') throw new CodedError('PLAN_NOT_EXECUTABLE', `计划触及硬约束，任何情况下都不执行：${c.reasons.join('；')}`);
   const fa = getFullAccess();
   let by: string;
-  if (c.category === 'default') by = i.via === 'web' ? (i.reviewer ?? reviewerName()) : 'policy';
+  // Default class: `policy` when task run approves it by itself, `cli` when an agent approved it explicitly.
+  if (c.category === 'default') by = i.via === 'web' ? (i.reviewer ?? reviewerName()) : i.auto ? 'policy' : 'cli';
   else if (i.via === 'web') by = i.reviewer ?? reviewerName();
   else if (fa.on) by = `full-access（${fa.by} 开启）`;
   else throw new CodedError('APPROVAL_REQUIRED', `敏感计划需要人在 Web 上同意：${c.reasons.join('；')}`, `打开 ${webUrl(`/plan.html?id=${encodeURIComponent(i.planId)}`)}`);
-  const a: Approval = { id: apId(i.planId), planId: i.planId, planHash: i.planHash, facts: i.facts, category: c.category, reasons: c.reasons, runsAllowed: i.series ?? i.runs ?? 1, runsUsed: 0, series: i.series, by, at: new Date().toISOString() };
+  const a: Approval = { id: apId(i.planId), planId: i.planId, planHash: i.planHash, facts: i.facts, category: c.category, reasons: c.reasons, runsAllowed: i.series ?? i.runs ?? 1, runsUsed: 0, series: i.series, by, at: new Date().toISOString(), ...(i.auto ? { auto: true } : {}) };
   writeJsonAtomic(apFile(a.id), a);
   audit({ by, action: 'plan.approve', object: i.planId, after: { hash: i.planHash, runs: a.runsAllowed, category: c.category }, basis: c.reasons.join('；') });
   return a;

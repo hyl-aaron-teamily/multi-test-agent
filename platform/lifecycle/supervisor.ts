@@ -122,6 +122,12 @@ export class Supervisor {
       const fixes = await watchdogTick({ drivers: prodDrivers, recover: (id) => this.recover(id) });
       for (const f of fixes) this.log(`watchdog: task ${f.task} ${f.action} (${f.endedBy}) [${f.health}]`);
       await orphanSweep({ drivers: prodDrivers }, 'runtime');
+      // Tasks adopted after a platform restart are not our children: finish them when their record ends.
+      for (const e of listEnvs()) {
+        if (!e.lease || this.children.has(e.lease.taskId)) continue;
+        const t = getTask(e.lease.taskId);
+        if (t && isTerminal(t.state)) await this.ended(t.id, e.id, null);
+      }
     } catch (e) {
       this.log(`watchdog: ${(e as Error).message}`);
     }

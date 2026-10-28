@@ -110,12 +110,17 @@ export async function onlineEnv(envId: string, d: CrossDeps, context: 'startup' 
   let env = getEnv(envId)!;
   if (env.lease) {
     const t = getTask(env.lease.taskId);
-    if (t && !isTerminal(t.state)) {
+    if (t && (t.state === 'queued' || t.state === 'waiting-env')) {
+      // Leased but never started (the platform stopped between lease and spawn): back to the queue.
+      endLease(envId, t.id, { by, basis: `lease holder ${t.id} never started (${t.state}): requeued` });
+      audit({ by, action: 'task.requeue', object: t.id, basis: 'lease released before start' });
+      env = getEnv(envId)!;
+    } else if (t && !isTerminal(t.state)) {
       const c = await correct(t, d, context, true);
       corrections.push(c);
       if (c.action === 'adopted') return { env, corrections };
     }
-    endLease(envId, env.lease.taskId, { by, basis: `lease holder ${env.lease.taskId} ${t ? (isTerminal(getTask(t.id)!.state) ? 'ended' : t.state) : 'missing'}` });
+    if (env.lease) endLease(envId, env.lease.taskId, { by, basis: `lease holder ${env.lease.taskId} ${t ? (isTerminal(getTask(t.id)!.state) ? 'ended' : t.state) : 'missing'}` });
     env = getEnv(envId)!;
   }
   if (env.state === 'recovering' || env.state === 'draining') {

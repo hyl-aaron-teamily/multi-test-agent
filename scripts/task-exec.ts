@@ -136,6 +136,8 @@ export async function execTask(id: string): Promise<number> {
 
 if (process.argv[1] && /task-exec\.ts$/.test(process.argv[1])) {
   const id = process.argv[2];
+  // The platform may die while this task runs (its log pipe breaks): keep running, it is re-adopted.
+  for (const st of [process.stdout, process.stderr]) st.on('error', () => {});
   execTask(id).then(
     (c) => process.exit(c),
     (e) => {

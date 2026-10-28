@@ -212,5 +212,6 @@
   ],
   "hash": "f50a913363a21b79",
   "issueHash": "3553d9a723f6fcce",
-  "env": "prod"
+  "env": "prod",
+  "version": 1
 }
