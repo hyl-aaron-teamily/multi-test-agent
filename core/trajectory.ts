@@ -5,7 +5,7 @@
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 
-export type TrajectoryKind = 'contract' | 'plan' | 'lease' | 'prep.target' | 'warmup.step' | 'op' | 'observe' | 'locate' | 'model-call' | 'hit' | 'dismissed' | 'incident' | 'healed' | 'verdict';
+export type TrajectoryKind = 'manifest' | 'contract' | 'plan' | 'lease' | 'prep.target' | 'warmup.step' | 'op' | 'observe' | 'locate' | 'model-call' | 'hit' | 'dismissed' | 'incident' | 'healed' | 'verdict';
 
 export interface TrajectoryEvent {
   t: string;

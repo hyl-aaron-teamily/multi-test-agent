@@ -52,7 +52,8 @@ export async function redoSetup(c: RunCtx): Promise<void> {
   }
 }
 
-export async function prepare(c: RunCtx): Promise<void> {
+/** `afterSetup`: runs once the conversation is open (clean start, W2-2 §4.3). */
+export async function prepare(c: RunCtx, afterSetup?: () => Promise<void>): Promise<void> {
   const { d, profile } = c.sess;
   c.res.targets = [];
   // Conversation rows are picked on the home list: a restored conversation (phone browser) or a sheet left
@@ -72,8 +73,9 @@ export async function prepare(c: RunCtx): Promise<void> {
     c.log('not on the chat page after preparation — redoing setup');
     await redoSetup(c);
   }
+  await afterSetup?.();
+  assertConstructionAllowed(c);
   if (c.plan.prepare.length) {
-    assertConstructionAllowed(c);
     for (const a of c.plan.prepare) {
       d.label = `prepare:${actionLabel(a)}`;
       await c.exec(a);
@@ -93,7 +95,8 @@ export async function prepare(c: RunCtx): Promise<void> {
 /** Prepare steps that post into a conversation (send / quote-reply) construct data: only in a conversation
  *  of the private allow list (members are all pool accounts / the user — W2-1 D5). */
 export function assertConstructionAllowed(c: RunCtx): void {
-  const posts = c.plan.prepare.some((a) => a.node?.name === 'teamily.sendMessage' || a.node?.name === 'teamily.quoteReply');
+  // Constructions in the preparation or every round (e.g. Issue 1903 sends one message per round).
+  const posts = [...c.plan.prepare, ...c.plan.actions].some((a) => POSTING_NODES.has(a.node?.name ?? ''));
   if (!posts || c.plan.issueRef === 'smoke') return;
   const conv = c.res.targets.find((t) => ROW_KINDS_FOR_CONSTRUCT.has(t.kind));
   const allow = loadConversations().construct.allow;
@@ -102,3 +105,4 @@ export function assertConstructionAllowed(c: RunCtx): void {
 }
 
 const ROW_KINDS_FOR_CONSTRUCT = new Set(['group-conversation', 'other-conversation', 'conversation']);
+const POSTING_NODES = new Set(['teamily.sendMessage', 'teamily.quoteReply', 'teamily.tapSend']);

@@ -1105,7 +1105,7 @@
      "name": "teamily.quoteReply",
      "input": {
       "quote": "github.com/TensorOpera-Inc/chat-web/pull/654",
-      "text": "autotest-2044 quote"
+      "text": "autotest-2044 {token} quote"
      }
     },
     "delayAfterMs": 1000
@@ -1193,7 +1193,7 @@
      "name": "teamily.quoteReply",
      "input": {
       "quote": "github.com/TensorOpera-Inc/chat-web/pull/654",
-      "text": "autotest-2044 quote"
+      "text": "autotest-2044 {token} quote"
      }
     },
     "delayAfterMs": 1000
@@ -1281,7 +1281,7 @@
      "name": "teamily.quoteReply",
      "input": {
       "quote": "github.com/TensorOpera-Inc/chat-web/pull/654",
-      "text": "autotest-2044 quote"
+      "text": "autotest-2044 {token} quote"
      }
     },
     "delayAfterMs": 1000
@@ -1369,7 +1369,7 @@
      "name": "teamily.quoteReply",
      "input": {
       "quote": "github.com/TensorOpera-Inc/chat-web/pull/654",
-      "text": "autotest-2044 quote"
+      "text": "autotest-2044 {token} quote"
      }
     },
     "delayAfterMs": 1000

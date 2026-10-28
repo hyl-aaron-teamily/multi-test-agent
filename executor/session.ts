@@ -72,18 +72,23 @@ export interface EnterOptions {
   /** Self-heal by fingerprint before reporting a stale SKILL: candidate profile goes here. */
   healDir?: string;
   onHeal?: (h: Healed[]) => void;
+  /** Phase durations (run manifest / report): launch (to the first screen), login (sign-in + home list). */
+  onPhase?: (name: 'launch' | 'login', ms: number) => void;
 }
 
 /** Launch once, wait for the first screen, dismiss known dialogs, sign in if needed, get back to the
  *  home list and check the SKILL is still valid (SkillStaleError otherwise). */
 export async function enterApp(s: Session, o: EnterOptions = {}): Promise<void> {
   const { d, profile, adapter } = s;
+  const t0 = Date.now();
   await adapter.beforeLaunch?.(s);
   d.label = 'launch';
   await d.launch();
   await o.afterLaunch?.();
   await adapter.waitFirstScreen(s);
   await adapter.dismissDialogs(s);
+  const t1 = Date.now();
+  o.onPhase?.('launch', t1 - t0);
   await adapter.ensureLogin(s);
   for (let i = 0; ; i++) {
     try {
@@ -106,6 +111,7 @@ export async function enterApp(s: Session, o: EnterOptions = {}): Promise<void> 
     }
   }
   if (o.chatTab) await adapter.showChatTab(s);
+  o.onPhase?.('login', Date.now() - t1);
   d.drainAnomalies(); // page-load noise before the test starts
 }
 

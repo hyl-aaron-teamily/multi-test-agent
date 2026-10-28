@@ -1,7 +1,8 @@
 // Golden: the pattern library builds exactly what issue/planner.ts#templateFor built before the move
 // (issue/__golden__/templates.json, captured on 2026-10-26 from the pre-W2-1 code). Deliberate changes since:
 // P1 keyboard checks on phones use system state; P2 2044 selects quote-preview-text (was the generic browse).
-// W2-2 (2026-10-28): entries for 1903 (mention-render) and 2010 (composer-rewrite) added from the new patterns.
+// W2-2 (2026-10-28): entries for 1903 (mention-render) and 2010 (composer-rewrite) added from the new patterns;
+// constructed messages of 1329 s2 (quote-jump) and 2044 carry the run marker {token}.
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { classifyRules } from './classify';

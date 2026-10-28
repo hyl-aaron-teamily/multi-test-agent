@@ -57,3 +57,48 @@ export function addTier(t: Record<string, { n: number; ms: number }>, tier: stri
   e.n++;
   e.ms += ms;
 }
+
+/** Attempts of a bug run (W2-2 §3.1): a round is a valid attempt when its own precondition held and no
+ *  operation drift happened; drift rounds are counted separately and never decide anything. */
+export interface Attempts {
+  /** All rounds played (valid + drift). */
+  rounds: number;
+  valid: number;
+  drift: number;
+  hits: number;
+  /** Per-round hit rate over valid attempts (0 when none). */
+  rate: number;
+  /** Wilson 95% interval of the per-round hit rate. */
+  wilson: [number, number];
+  /** 0 hits: rule-of-three 95% upper bound of the per-round reproduction probability (3/n). */
+  upper95?: number;
+}
+
+/** Pure: Wilson score interval (95% by default) for k successes in n trials. */
+export function wilson(k: number, n: number, z = 1.959964): [number, number] {
+  if (n <= 0) return [0, 1];
+  const p = k / n;
+  const z2 = z * z;
+  const den = 1 + z2 / n;
+  const mid = (p + z2 / (2 * n)) / den;
+  const half = (z * Math.sqrt((p * (1 - p)) / n + z2 / (4 * n * n))) / den;
+  const r = (x: number) => Math.round(Math.min(1, Math.max(0, x)) * 10_000) / 10_000;
+  return [r(mid - half), r(mid + half)];
+}
+
+/** Pure: attempts record from round counts. */
+export function attemptsOf(valid: number, drift: number, hits: number): Attempts {
+  const a: Attempts = { rounds: valid + drift, valid, drift, hits, rate: valid ? Math.round((hits / valid) * 10_000) / 10_000 : 0, wilson: wilson(hits, valid) };
+  if (!hits && valid) a.upper95 = Math.round(Math.min(1, 3 / valid) * 10_000) / 10_000;
+  return a;
+}
+
+const pct = (x: number) => `${(x * 100).toFixed(1).replace(/\.0$/, '')}%`;
+
+/** Pure: one-line statement of the attempts (report / conclusion detail). Facts only: no "fixed". */
+export function attemptsText(a: Attempts): string {
+  const drift = a.drift ? `；另有 ${a.drift} 轮操作偏离（不计入）` : '';
+  if (!a.valid) return `0 次有效尝试（共 ${a.rounds} 轮，全部偏离）——无法得出复现结论`;
+  if (!a.hits) return `${a.valid} 次有效尝试未复现；单次复现概率 95% 上界 ≈ ${pct(a.upper95 ?? 1)}（3/n）${drift}`;
+  return `${a.valid} 次有效尝试中命中 ${a.hits} 次；单轮命中率 ${pct(a.rate)}（Wilson 95% 区间 ${pct(a.wilson[0])}–${pct(a.wilson[1])}）${drift}`;
+}

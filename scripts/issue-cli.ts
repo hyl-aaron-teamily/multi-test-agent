@@ -11,7 +11,10 @@ import { parseIssue } from '../issue/parse';
 import { issuePath } from '../issue/paths';
 import { DRAFTS_DIR, loadSavedDraft, PLANS_DIR, saveDraft } from '../issue/drafts';
 import { applyApproval, type Draft, draftIssue } from '../issue/planner';
-import { writeIssueReport } from '../issue/report';
+import { normalizeResult, runMarkdown, writeIssueReport } from '../issue/report';
+import { classifyRules } from '../issue/classify';
+import { seriesMarkdown, type SeriesRun, summarizeSeries } from '../executor/series';
+import { resolve } from 'node:path';
 
 export { PLANS_DIR };
 
@@ -113,8 +116,8 @@ export async function planCmd(args: string[]): Promise<number> {
   return 0;
 }
 
-export async function runIssue(d: Draft, approve: { sub: string; surface?: Surface }[], o: { headed?: boolean; maxSteps?: number; maxMinutes?: number; udid?: string; taskId?: string; log?: (s: string) => void }): Promise<{ dir: string; results: RunResult[]; report: string }> {
-  const dir = runDirFor(d.issue.id);
+export async function runIssue(d: Draft, approve: { sub: string; surface?: Surface }[], o: { headed?: boolean; maxSteps?: number; maxMinutes?: number; maxRounds?: number; udid?: string; taskId?: string; log?: (s: string) => void; dir?: string }): Promise<{ dir: string; results: RunResult[]; report: string }> {
+  const dir = o.dir ?? runDirFor(d.issue.id);
   if (d.status !== 'plannable') return { dir, results: [], report: await writeIssueReport(d, [], dir) };
   // Confirmation = execution: approved plans are frozen to files (with the draft hash) and the executor runs
   // exactly what is read back from them.
@@ -125,7 +128,7 @@ export async function runIssue(d: Draft, approve: { sub: string; surface?: Surfa
   const results: RunResult[] = [];
   for (const p of plans) {
     (o.log ?? console.log)(`[run] plan ${p.id} (${p.category}, ${p.surface}${p.substitution ? `, 替代 ${p.substitution.from}` : ''}, env ${p.env})`);
-    const r = await runPlan({ plan: p, runDir: join(dir, p.id), pool, devices, udid: o.udid, headed: o.headed, maxSteps: o.maxSteps, maxMinutes: o.maxMinutes, taskId: o.taskId, log: o.log });
+    const r = await runPlan({ plan: p, runDir: join(dir, p.id), pool, devices, udid: o.udid, headed: o.headed, maxSteps: o.maxSteps, maxMinutes: o.maxMinutes, maxRounds: o.maxRounds, taskId: o.taskId, log: o.log });
     (o.log ?? console.log)(`[run] ${p.id}: ${r.conclusion} — ${r.conclusionDetail}${r.error ? ` (error: ${r.error})` : ''}`);
     results.push(r);
   }
@@ -161,7 +164,70 @@ export async function runCmd(args: string[]): Promise<number> {
     console.log(`[run] approved: ${approve.map((a) => `${a.sub}${a.surface ? `:${a.surface}` : ''}`).join(', ')}`);
   }
   const num = (n: string) => (flag(args, n) ? Number(flag(args, n)) : undefined);
-  const { report, results } = await runIssue(d, approve, { headed: has(args, 'headed'), maxSteps: num('max-steps'), maxMinutes: num('max-minutes'), udid: flag(args, 'device'), taskId: flag(args, 'id') });
+  const { report, results } = await runIssue(d, approve, { headed: has(args, 'headed'), maxSteps: num('max-steps'), maxMinutes: num('max-minutes'), maxRounds: num('max-rounds'), udid: flag(args, 'device'), taskId: flag(args, 'id') });
   console.log(`[run] report → ${report}`);
-  return results.some((r) => r.conclusion === '执行失败' || r.conclusion === 'SKILL 失效' || r.conclusion === '计划不可执行') ? 3 : results.some((r) => r.conclusion === '已复现') ? 1 : 0;
+  return results.some((r) => r.conclusion === '执行失败' || r.conclusion === 'SKILL 失效' || r.conclusion === '计划不可执行' || r.conclusion === '环境不合格') ? 3 : results.some((r) => r.conclusion === '已复现') ? 1 : 0;
+}
+
+/** `autotest series --issue <id> --approve <sub>:<surface> --runs N [--max-rounds N]` (W2-2 §3.4): N independent
+ *  runs of ONE confirmed sub-case, strictly one after another, then series-report.md / series.json. */
+export async function seriesCmd(args: string[]): Promise<number> {
+  const ref = flag(args, 'issue');
+  const approveArg = flag(args, 'approve');
+  if (!ref || !approveArg) throw new Error('usage: autotest series --issue <id> --approve <sub>[:<surface>] --runs N [--max-rounds N] [--env prod] [--device <udid>] [--draft <hash>]');
+  const env = (flag(args, 'env') ?? 'prod') as 'test' | 'prod';
+  const n = Number(flag(args, 'runs') ?? 10);
+  if (!(Number.isInteger(n) && n >= 1 && n <= 50)) throw new Error('--runs: 1..50');
+  const d = await loadDraft(ref, env, !has(args, 'no-model'), false);
+  const want = flag(args, 'draft');
+  if (want && want !== d.hash) throw new Error(`draft ${d.hash} is not the confirmed draft ${want} — confirm again`);
+  if (d.status !== 'plannable') throw new Error(`Issue ${d.issue.id} is ${d.status}: nothing to run`);
+  const approve = parseApprove(approveArg, d);
+  if (approve.length !== 1) throw new Error('a series runs exactly one sub-case: --approve <sub>[:<surface>]');
+  const sub = d.subcases.find((s) => s.sub === approve[0].sub)!;
+  const surface = approve[0].surface ?? sub.surface;
+  const num = (k: string) => (flag(args, k) ? Number(flag(args, k)) : undefined);
+  const dir = resolve('midscene_run/series', `${d.issue.id}-${sub.sub}-${surface}-${new Date().toISOString().replace(/[:.]/g, '-')}`);
+  await mkdir(dir, { recursive: true });
+  const startedAt = new Date().toISOString();
+  const runs: SeriesRun[] = [];
+  const write = async () => {
+    const md = seriesMarkdown({ issue: d.issue.id, sub: sub.sub, surface, env, runs, dir, startedAt, finishedAt: new Date().toISOString() });
+    await writeFile(join(dir, 'series-report.md'), md);
+    await writeFile(join(dir, 'series.json'), JSON.stringify({ issue: d.issue.id, sub: sub.sub, surface, env, draftHash: d.hash, startedAt, summary: summarizeSeries(runs), runs: runs.map((r) => ({ index: r.index, dir: r.dir, error: r.error, conclusion: r.result?.conclusion, runTag: r.result?.runTag, attempts: r.result?.attempts, failure: r.result?.failure, phases: r.result?.phases })) }, null, 2));
+  };
+  for (let i = 1; i <= n; i++) {
+    const runDir = join(dir, `run-${String(i).padStart(2, '0')}`);
+    console.log(`[series] run ${i}/${n} → ${runDir}`);
+    try {
+      const { results } = await runIssue(d, approve, { maxSteps: num('max-steps'), maxMinutes: num('max-minutes'), maxRounds: num('max-rounds'), udid: flag(args, 'device'), taskId: flag(args, 'id') ? `${flag(args, 'id')}-${i}` : undefined, dir: runDir });
+      const r = results[0];
+      runs.push({ index: i, dir: runDir, result: r });
+      console.log(`[series] run ${i}: ${r?.conclusion ?? '-'} — ${r?.conclusionDetail ?? ''}${r?.failure ? ` [${r.failure.kind}:${r.failure.rule}]` : ''}`);
+    } catch (e) {
+      runs.push({ index: i, dir: runDir, error: (e as Error).message.split('\n')[0] });
+      console.log(`[series] run ${i}: exception — ${(e as Error).message.split('\n')[0]}`);
+    }
+    await write();
+  }
+  const s = summarizeSeries(runs);
+  console.log(`[series] summary: 工具可靠性 ${s.reachedLoop}/${s.counted}（环境不合格 ${s.envUnfit}）；复现 ${s.reproducedRuns}/${s.validRuns}；有效尝试 ${s.pooled.valid}、命中 ${s.pooled.hits}`);
+  console.log(`[series] report → ${join(dir, 'series-report.md')}`);
+  return s.counted && s.reachedLoop / s.counted >= 0.9 ? 0 : 3;
+}
+
+/** `autotest rerender <runDir>`: an old Issue run's result.json → report.v2.md with the W2-2 wording. */
+export async function rerenderCmd(args: string[]): Promise<number> {
+  const dir = args.find((a) => !a.startsWith('--'));
+  if (!dir) throw new Error('usage: autotest rerender <issue run dir with result.json>');
+  const res = JSON.parse(await readFile(join(dir, 'result.json'), 'utf8')) as { issue: string; status: Draft['status']; category: string; reason: string; deferredPart?: string; results: RunResult[] };
+  const text = await readFile(issuePath(res.issue), 'utf8').catch(() => '');
+  const issue = parseIssue(res.issue, text);
+  const d: Draft = { issue, classification: { ...classifyRules(issue), category: res.category as Draft['classification']['category'] }, status: res.status, reason: res.reason, subcases: [], deferredPart: res.deferredPart };
+  const md = runMarkdown(d, res.results.map(normalizeResult), dir);
+  const out = join(dir, 'report.v2.md');
+  await writeFile(out, md);
+  console.log(`[rerender] ${res.results.map((r) => `${r.planId}: ${r.conclusion} → ${normalizeResult(r).conclusion}`).join('; ')}`);
+  console.log(`[rerender] → ${out}`);
+  return 0;
 }

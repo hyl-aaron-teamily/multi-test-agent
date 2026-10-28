@@ -104,6 +104,26 @@ export class WebFlightRecorder {
     return { traces, logFrom, logTo };
   }
 
+  /** A run that ended without a verdict (执行失败 / 计划不可执行, W2-2 §6): the newest chunk (up to now) as
+   *  <dir>/trace.zip and the one before it as trace-1.zip. Returns the file names written. */
+  async saveLast(context: BrowserContext, dir: string): Promise<string[]> {
+    if (!this.started) return [];
+    const cur = join(this.workDir, `trace-chunk-${this.k++ % (this.keep + 1)}.zip`);
+    await context.tracing.stopChunk({ path: cur });
+    this.chunks.push({ file: cur, startedAt: this.chunkStart, endedAt: Date.now() });
+    while (this.chunks.length > this.keep) this.chunks.shift();
+    await context.tracing.startChunk({ title: `chunk-${this.k}` });
+    this.chunkStart = Date.now();
+    const out: string[] = [];
+    for (const [i, c] of this.chunks.slice(-2).reverse().entries()) {
+      if (!existsSync(c.file)) continue;
+      const name = i ? `trace-${i}.zip` : 'trace.zip';
+      await copyFile(c.file, join(dir, name));
+      out.push(name);
+    }
+    return out;
+  }
+
   async stop(context?: BrowserContext): Promise<void> {
     if (this.started) await context?.tracing.stop().catch(() => {});
     this.started = false;

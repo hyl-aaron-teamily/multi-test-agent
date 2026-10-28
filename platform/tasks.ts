@@ -9,7 +9,7 @@ import { join, resolve } from 'node:path';
 import { TEAMILY_PACKAGE } from '../drivers/factory';
 import type { DevicePool } from './device-pool';
 
-export type TaskType = 'mission' | 'explore' | 'monkey' | 'imui' | 'issue' | 'sync';
+export type TaskType = 'mission' | 'explore' | 'monkey' | 'imui' | 'issue' | 'sync' | 'series';
 export type TaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export interface TaskInput {
@@ -34,6 +34,8 @@ export interface TaskInput {
   env?: 'test' | 'prod'; // issue, sync
   roles?: string; // sync: surfaces, one client each ("desktop-web,android-web,android-app")
   rounds?: number; // sync
+  runs?: number; // series: independent runs of one sub-case
+  maxRounds?: number; // issue, series: valid attempts per run
 }
 
 export interface Task extends TaskInput {
@@ -57,7 +59,7 @@ const TSX = resolve('node_modules/tsx/dist/cli.mjs');
 /** Pure: validate a POST body. Returns an error string or the clean input. */
 export function validateTaskInput(b: any): TaskInput | string {
   if (!b || typeof b !== 'object') return 'body must be JSON';
-  if (!['mission', 'explore', 'monkey', 'imui', 'issue', 'sync'].includes(b.type)) return 'type must be mission | explore | monkey | imui | issue | sync';
+  if (!['mission', 'explore', 'monkey', 'imui', 'issue', 'sync', 'series'].includes(b.type)) return 'type must be mission | explore | monkey | imui | issue | sync | series';
   if (b.type === 'sync') {
     const S = '(android-app|android-web|mobile-web|desktop-web)(#[0-9])?';
     const roles = String(b.roles ?? 'desktop-web,android-web,android-app').replace(/\s/g, '');
@@ -68,14 +70,26 @@ export function validateTaskInput(b: any): TaskInput | string {
     if (!['test', 'prod'].includes(env)) return 'env must be test or prod';
     return { type: 'sync', package: TEAMILY_PACKAGE, roles, env, ...(rounds ? { rounds } : {}) };
   }
-  if (b.type === 'issue') {
+  if (b.type === 'issue' || b.type === 'series') {
     const issue = String(b.issue ?? '').trim();
     if (!/^[\w-]+$/.test(issue)) return 'issue must be an issue id (issues/<id>.md)';
     const approve = String(b.approve ?? '').trim();
     if (!/^(all|[\w]+(:(android-app|android-web|mobile-web|desktop-web))?(,[\w]+(:(android-app|android-web|mobile-web|desktop-web))?)*)?$/.test(approve)) return 'approve: s1,s2:mobile-web | all';
     const env = b.env ?? 'prod';
     if (!['test', 'prod'].includes(env)) return 'env must be test or prod';
-    const out: TaskInput = { type: 'issue', package: TEAMILY_PACKAGE, issue, approve: approve || 'all', env };
+    // A series runs exactly one sub-case (W2-2 §3.4).
+    if (b.type === 'series' && !/^[\w]+(:(android-app|android-web|mobile-web|desktop-web))?$/.test(approve)) return 'series: approve exactly one sub-case, e.g. main:android-app';
+    const out: TaskInput = { type: b.type, package: TEAMILY_PACKAGE, issue, approve: approve || 'all', env };
+    if (b.type === 'series') {
+      const runs = Number(b.runs ?? 10);
+      if (!(Number.isInteger(runs) && runs >= 1 && runs <= 50)) return 'runs must be 1..50';
+      out.runs = runs;
+    }
+    if (b.maxRounds !== undefined && b.maxRounds !== '') {
+      const m = Number(b.maxRounds);
+      if (!(Number.isInteger(m) && m >= 1 && m <= 1000)) return 'maxRounds must be 1..1000';
+      out.maxRounds = m;
+    }
     if (b.device) out.device = String(b.device);
     if (b.draftHash !== undefined && b.draftHash !== '') {
       if (!/^[0-9a-f]{16}$/.test(String(b.draftHash))) return 'draftHash: 16 hex chars';
@@ -120,8 +134,10 @@ export function validateTaskInput(b: any): TaskInput | string {
 export function taskArgs(t: Task, udid: string): string[] {
   // Sync tasks lease their endpoint slots themselves (one per role).
   if (t.type === 'sync') return ['bin/autotest.ts', 'sync', '--roles', t.roles ?? 'desktop-web,android-web,android-app', '--env', t.env ?? 'prod', ...(t.rounds ? ['--rounds', String(t.rounds)] : [])];
-  if (t.type === 'issue') {
-    const a = ['bin/autotest.ts', 'run', '--issue', t.issue!, '--approve', t.approve ?? 'all', '--env', t.env ?? 'prod', '--id', t.id];
+  if (t.type === 'issue' || t.type === 'series') {
+    const a = ['bin/autotest.ts', t.type === 'series' ? 'series' : 'run', '--issue', t.issue!, '--approve', t.approve ?? 'all', '--env', t.env ?? 'prod', '--id', t.id];
+    if (t.type === 'series') a.push('--runs', String(t.runs ?? 10));
+    if (t.maxRounds) a.push('--max-rounds', String(t.maxRounds));
     if (udid) a.push('--device', udid);
     if (t.draftHash) a.push('--draft', t.draftHash);
     if (t.maxSteps) a.push('--max-steps', String(t.maxSteps));
@@ -228,7 +244,7 @@ export class TaskManager {
     this.procs.set(t.id, child);
     child.stdout.pipe(log, { end: false });
     child.stderr.pipe(log, { end: false });
-    const hardMinutes = t.type === 'issue' ? (t.maxMinutes ?? 15) * 4 + 15 : t.type === 'mission' ? (t.maxMinutes ?? 15) + 5 : Number(process.env.TASK_HARD_MINUTES ?? 15);
+    const hardMinutes = t.type === 'series' ? ((t.maxMinutes ?? 15) + 5) * (t.runs ?? 10) + 15 : t.type === 'issue' ? (t.maxMinutes ?? 15) * 4 + 15 : t.type === 'mission' ? (t.maxMinutes ?? 15) + 5 : Number(process.env.TASK_HARD_MINUTES ?? 15);
     const hard = setTimeout(() => {
       log.write(`\n[platform] hard limit ${hardMinutes} min reached, killing task\n`);
       if (child.pid) killTree(child.pid);
@@ -254,6 +270,12 @@ export class TaskManager {
         if (!file) throw new Error('sync run wrote no report');
         t.reportFile = file;
         t.verdict = log.match(/\[sync\] ((?:全部同步|存在未同步|执行失败) — .+)/)?.[1] ?? `exit ${code}`;
+      } else if (t.type === 'series') {
+        const log = await readFile(t.logFile, 'utf8');
+        const file = log.match(/\[series\] report → (.+\.md)/)?.[1]?.trim();
+        if (!file) throw new Error('series wrote no report');
+        t.reportFile = file;
+        t.verdict = log.match(/\[series\] summary: (.+)/)?.[1] ?? `exit ${code}`;
       } else if (t.type === 'issue') {
         const log = await readFile(t.logFile, 'utf8');
         const file = log.match(/\[run\] report → (.+\.md)/)?.[1]?.trim();
