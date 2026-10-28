@@ -5,6 +5,7 @@ import { join, resolve } from 'node:path';
 import { forceStopApp } from '../core/adb';
 import { correlate, type CorrelatedCrash, parseMonkeyLogFile } from './log-parser';
 import { randomSeed, runMonkey } from './runner';
+import { emitTaskResult } from '../core/task-result';
 
 export const MONKEY_RUN_DIR = resolve('monkey_run');
 
@@ -113,5 +114,6 @@ export async function runMonkeyLoop(o: MonkeyLoopOptions): Promise<MonkeySummary
   for (const c of summary.reproduceCommands) console.log(`[monkey] repro: ${c}`);
   console.log(`[monkey] summary → ${file}`);
   console.log(`[monkey] run summary → ${runFile}`);
+  emitTaskResult({ artifact: runFile, verdict: summary.conclusion });
   return summary;
 }

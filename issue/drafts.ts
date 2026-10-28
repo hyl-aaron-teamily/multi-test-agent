@@ -33,6 +33,10 @@ export async function saveDraft(d: Draft, issueText: string, env: string): Promi
   d.hash = draftHash(d);
   d.issueHash = sha(issueText);
   d.env = env;
+  // Plan ids carry the draft version: the same content keeps its version, new content gets the next one.
+  const f = join(DRAFTS_DIR, `${d.issue.id}.json`);
+  const prev = existsSync(f) ? (JSON.parse(readFileSync(f, 'utf8')) as Draft) : undefined;
+  d.version = prev?.hash === d.hash ? (prev.version ?? 1) : (prev?.version ?? 0) + 1;
   await mkdir(DRAFTS_DIR, { recursive: true });
   await writeFile(join(DRAFTS_DIR, `${d.issue.id}.json`), JSON.stringify(d, null, 2));
   return d;

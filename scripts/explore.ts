@@ -15,6 +15,7 @@ import { startLogcatMonitor } from '../core/logcat-monitor';
 import { DEFAULT_AVOID, exploreApp } from '../explore/explore-loop';
 import { buildTrace, writeTrace } from '../explore/trace';
 import { createAndroidAgent } from '../fixtures/android';
+import { emitTaskResult } from '../core/task-result';
 
 const { values } = parseArgs({
   options: {
@@ -67,6 +68,7 @@ async function main() {
   console.log(`\n[explore] steps=${trace.steps.length} states=${trace.stateCount} crashes=${trace.crashes.length} truncated=${trace.truncated}`);
   console.log(`[explore] ${trace.conclusion}`);
   console.log(`[explore] trace → ${file}`);
+  emitTaskResult({ artifact: file, verdict: trace.conclusion });
   if (trace.midsceneReport) console.log(`[explore] midscene report → ${trace.midsceneReport}`);
   process.exitCode = trace.crashes.some((c) => c.matchesPackage) ? 1 : 0;
 }

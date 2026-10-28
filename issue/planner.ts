@@ -37,6 +37,8 @@ export interface Draft {
   hash?: string;
   /** Hash of the Issue file the draft came from. */
   issueHash?: string;
+  /** Draft version (W2-3 §6.1): +1 whenever a new draft's hash differs from the saved one's. */
+  version?: number;
   env?: string;
   /** Contracts of a deferred Issue (which precondition cannot be established). */
   contracts?: IssueContract[];

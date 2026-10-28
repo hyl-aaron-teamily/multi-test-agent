@@ -52,6 +52,12 @@ export async function runLoop(c: RunCtx, lo: LoopOptions = {}): Promise<void> {
     let roundHitReason = '';
     let drift = '';
     for (const a of plan.actions) {
+      // W2-3 §4.3 L2: a cancel request stops at a step boundary; the run then finishes normally (teardown).
+      if (c.o.hooks?.shouldStop()) {
+        stop = '已取消（取消请求）';
+        res.cancelled = true;
+        break;
+      }
       if (stats.steps >= maxSteps) {
         stop = `步数上限 ${maxSteps}`;
         break;

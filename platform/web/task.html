@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8"><title>任务</title><script src="/web.js"></script></head>
+<body>
+<div id="top"></div>
+<div id="main">加载中…</div>
+<script>
+async function load() {
+  await header('task');
+  const r = await api('GET', `/tasks/${enc(qs('id'))}`);
+  if (!r.data) return (document.getElementById('main').innerHTML = `<p class="bad">${esc(r.summary)}</p>`);
+  const t = r.data;
+  const p = t.progress;
+  document.getElementById('main').innerHTML = `
+  <h1>任务 ${esc(t.id)}</h1>
+  <div class="box">${esc(t.summary)}<br>计划 <a href="/plan.html?id=${enc(t.planId)}">${esc(t.planId)}</a> · 环境 <a href="/env.html?id=${enc(t.envId)}">${esc(t.envId)}</a></div>
+  <h2>正在做什么</h2>
+  <p>${t.finishedAt ? `已结束（${esc(t.finishedAt)}）：${esc(t.endedBy ?? '')}${t.endedAt ? `，停在 ${esc(t.endedAt)}` : ''}` : `${esc(t.stateText)}${p.phaseText ? ` · ${esc(p.phaseText)}` : ''}${p.round !== undefined ? ` · 第 ${p.round} 轮` : ''}${p.step !== undefined ? ` · 第 ${p.step} 步` : ''}${p.summary ? ` · ${esc(p.summary)}` : ''}<br><span class="muted">心跳 ${esc(t.heartbeatAt ?? '-')}；进度 ${esc(p.at ?? '-')}</span>`}</p>
+  ${!t.finishedAt ? `<p><button onclick="cancelIt()">取消（在步骤边界停止，然后收尾、恢复环境）</button></p>` : `<p><a href="/result.html?id=${enc(t.id)}">查看结果 →</a></p>`}
+  ${t.partial ? `<p class="bad">部分结果：${term('有效尝试')} ${t.partial.valid}，命中 ${t.partial.hits}（${esc(t.partial.note)}）</p>` : ''}
+  ${t.recovery ? `<p>环境恢复：<b class="${t.recovery.result === 'recovered' ? 'ok' : 'bad'}">${esc({ recovered: '已恢复', quarantined: '已隔离', unfit: '不合格（需人工）', pending: '恢复中' }[t.recovery.result])}</b>${t.recovery.reason ? ` — ${esc(t.recovery.reason)}` : ''}${t.recovery.steps?.length ? `<br><span class="muted">${t.recovery.steps.map(esc).join('；')}</span>` : ''}</p>` : ''}
+  <h2>副作用台账</h2>
+  <p>进入会话：${t.ledger.entered.map(esc).join('、') || '-'}<br>键入过的会话：${t.ledger.typedInto.map(esc).join('、') || '-'}<br>发送消息：${t.ledger.sent} 条（不删除、不撤回）<br>设置：${t.ledger.settings.map(esc).join('；') || '-'}</p>
+  <h2>时间线</h2>
+  <table>${t.timeline.map((e) => `<tr><td class="muted">${esc(e.at.slice(11, 19))}</td><td>${esc(e.state ? `状态 → ${e.state}` : `阶段 → ${e.phase}`)}</td></tr>`).join('')}</table>`;
+}
+async function cancelIt() {
+  const r = await api('POST', `/tasks/${enc(qs('id'))}/cancel`);
+  alert(r.summary);
+  load();
+}
+load();
+setInterval(load, 2000);
+</script>
+</body>
+</html>
