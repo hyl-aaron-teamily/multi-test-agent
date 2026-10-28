@@ -49,4 +49,11 @@ describe('findByText newest', () => {
     const nodes = [n(100, 'src text'), n(400, '', 'aaron, src text', true, 950), n(410, 'src text'), n(800, 'src text')];
     expect(findByText(nodes as any, 'src text', undefined, { newest: true })?.node.y1).toBe(800);
   });
+  it('never takes the composer (typed, not sent)', () => {
+    const nodes = [
+      { x1: 100, y1: 300, x2: 900, y2: 360, text: 'src text', hint: '', desc: '', cls: 'android.widget.TextView', clickable: false },
+      { x1: 50, y1: 2050, x2: 1030, y2: 2150, text: 'src text', hint: '输入消息...', desc: '', cls: 'android.widget.EditText', clickable: true },
+    ];
+    expect(findByText(nodes as any, 'src text', undefined, { newest: true })?.node.y1).toBe(300);
+  });
 });

@@ -112,7 +112,8 @@ export function findByText(nodes: UiNode[], q: string, within?: UiBox, o: { newe
   const inBox = (n: UiNode) => !within || (n.x1 >= within[0] && n.y1 >= within[1] && n.x2 <= within[0] + within[2] && n.y2 <= within[1] + within[3]);
   // newest: the bottom-most message carrying the text, not a quote block ("<sender>, <quoted text>") that repeats it.
   const cards = o.newest ? nodes.filter((n) => n.clickable && /^[^,]{1,60}, .+/.test(n.desc)) : [];
-  const pool = nodes.filter(inBox).filter((n) => !cards.some((c) => c !== n && inside(n, c)) && !cards.includes(n));
+  // newest: never the composer (text typed but not sent is not a message).
+  const pool = nodes.filter(inBox).filter((n) => !cards.some((c) => c !== n && inside(n, c)) && !cards.includes(n) && !(o.newest && /EditText/.test(n.cls)));
   const pick = (xs: UiNode[]) => (o.newest ? [...xs].sort((a, b) => b.y1 - a.y1)[0] : xs[0]);
   const ex = pick(pool.filter((n) => matches(n, { exact: q })));
   if (ex) return { node: ex, how: 'exact' };

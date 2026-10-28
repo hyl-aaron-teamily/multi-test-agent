@@ -26,6 +26,7 @@
 - Web 首屏固定 8 秒等待不足（等首页参考区域）；中止的标定会覆盖参考图（改为与 profile 一起写）；uiautomator 的表情实体（`&#128077;`）未解码；引用块筛选漏掉左侧卡片；引用跳转选到链接引用；引用原文为 Markdown 链接时基线比对失败。
 - desktop-web / android-web / android-app 重新标定（产品改版）。
 - 引用回复：HyperOS「文本识别」浮层抢走长按时关闭浮层后原位重按（`dismissSystemOverlay`）；重试不再按返回（App 消息菜单打开时返回会退出聊天）。
+- 准备期发送核实：App 发送后读输入框，文字仍在则再点一次发送，仍失败报错；「最新消息」定位不再匹配输入框（EditText）。单测覆盖，**真机未验证**（门 9 中 2044 之后 1329 s2 android-app 发送被吞）。
 
 ### 验证
 - `typecheck` 通过；`test:unit` 138/138；`test:web` 1/1；`test:android` 1/1；证据复核 2/2。

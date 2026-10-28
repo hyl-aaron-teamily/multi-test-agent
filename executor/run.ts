@@ -21,6 +21,7 @@ import { loadProfile, SkillStaleError } from '../skills/profile';
 import type { NodeContext } from '../skills/teamily/nodes';
 import { execAction } from './actions';
 import { locate, locateTally, locateText } from './locate';
+import { composerText } from './observe';
 import { visionAsker } from './checks';
 import type { RunCtx } from './context';
 import { runLoop } from './loop';
@@ -182,7 +183,9 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       wfr,
     };
     setModelPurpose('prep');
+    nodeCtx.composerText = () => composerText(s.inner);
     await prepare(c);
+    nodeCtx.composerText = undefined; // the loop reads no hierarchy
     if (plan.category === 'feature') {
       setModelPurpose('acceptance');
       await runAcceptance(c);

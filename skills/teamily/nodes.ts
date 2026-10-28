@@ -21,6 +21,8 @@ export interface NodeContext {
   /** Tiered locate (prepare-only Nodes): literal texts first, then the description by vision. */
   /** textOnly: ① literal text only — never a vision guess (where a wrong guess would tap something else). */
   locate?: (description: string, texts: string[], newest?: boolean, textOnly?: boolean) => Promise<Point | null>;
+  /** Preparation only (hierarchy reads allowed): the composer's text, null = unknown. */
+  composerText?: () => Promise<string | null>;
 }
 
 type Exec<I> = (ctx: { input: I; context: NodeContext }) => Promise<{ summary?: string } | void>;
@@ -103,6 +105,17 @@ const sendMessage: Exec<{ text: string; kind?: 'plain' | 'markdown-link' }> = as
       await sleep(400);
     }
     await tapEl(c, 'chat.send');
+    // Preparation: a send tap during the keyboard-hide animation can be lost — the text stays in the composer
+    // (and a later "newest message" locate would find nothing sent). Tap once more, then fail clearly.
+    if (c.composerText) {
+      for (let i = 0; i < 2; i++) {
+        await sleep(800);
+        const left = await c.composerText();
+        if (left === null || !left.includes(input.text.slice(0, 20))) break;
+        if (i) throw new Error('teamily.sendMessage: the text stayed in the composer (send did not go out)');
+        await tapEl(c, 'chat.send');
+      }
+    }
   } else if (mobileLayout(c.driver.surface)) await tapEl(c, 'chat.send'); // touch keyboard: Enter is a newline (phone browser: send calibrated with the keyboard up)
   else await c.driver.key('Enter');
   await sleep(800);
