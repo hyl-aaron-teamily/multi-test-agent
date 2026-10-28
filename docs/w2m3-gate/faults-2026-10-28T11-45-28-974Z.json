@@ -1,0 +1,536 @@
+[
+  {
+    "phase": "prepare",
+    "fault": "kill-task",
+    "at": "2026-10-28T11:45:28.975Z",
+    "task": {
+      "id": "t-20261028114611-epr6",
+      "state": "interrupted",
+      "code": "TASK_CRASHED",
+      "endedBy": "crash",
+      "endedAt": {
+        "phase": "prepare"
+      }
+    },
+    "injectedAt": {
+      "phase": "prepare",
+      "at": "2026-10-28T11:46:20.738Z"
+    },
+    "injection": "taskkill /T /F 7480",
+    "env": {
+      "state": "unfit",
+      "baselineOk": false,
+      "reason": "锁屏（有 PIN，需人工解锁）"
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028114649-x497",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  },
+  {
+    "phase": "prepare",
+    "fault": "stall",
+    "at": "2026-10-28T11:48:02.301Z",
+    "task": {
+      "id": "t-20261028114844-fug0",
+      "state": "failed",
+      "code": "TASK_STUCK",
+      "endedBy": "stuck",
+      "endedAt": {
+        "phase": "prepare"
+      }
+    },
+    "injectedAt": {
+      "phase": "prepare",
+      "at": "2026-10-28T11:48:53.707Z"
+    },
+    "injection": "NtSuspendProcess 34116 → 0",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028114936-qmlp",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  },
+  {
+    "phase": "prepare",
+    "fault": "kill-platform",
+    "at": "2026-10-28T11:51:56.629Z",
+    "task": {
+      "id": "t-20261028115240-k5hg",
+      "state": "interrupted",
+      "code": "INTERRUPTED",
+      "endedBy": "server-restart",
+      "endedAt": {
+        "phase": "prepare"
+      },
+      "recovery": "recovered"
+    },
+    "injectedAt": {
+      "phase": "prepare",
+      "at": "2026-10-28T11:52:48.794Z"
+    },
+    "injection": "platform 17124 killed, restarted (pid 14988)",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028115311-xi87",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  },
+  {
+    "phase": "prepare",
+    "fault": "adb-kill",
+    "at": "2026-10-28T11:54:23.816Z",
+    "task": {
+      "id": "t-20261028115504-ofmc",
+      "state": "done",
+      "code": "ENV_OFFLINE",
+      "endedBy": "normal",
+      "endedAt": {
+        "phase": "finishing"
+      }
+    },
+    "injectedAt": {
+      "phase": "prepare",
+      "at": "2026-10-28T11:55:13.875Z"
+    },
+    "injection": "adb kill-server",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028115529-1ya9",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  },
+  {
+    "phase": "warmup",
+    "fault": "kill-task",
+    "at": "2026-10-28T11:56:36.889Z",
+    "task": {
+      "id": "t-20261028115717-69zf",
+      "state": "interrupted",
+      "code": "TASK_CRASHED",
+      "endedBy": "crash",
+      "endedAt": {
+        "phase": "warmup",
+        "round": 0,
+        "step": 0
+      }
+    },
+    "injectedAt": {
+      "phase": "warmup",
+      "round": 0,
+      "step": 0,
+      "at": "2026-10-28T11:57:43.275Z",
+      "summary": "warmup:teamily.clearComposer"
+    },
+    "injection": "taskkill /T /F 29140",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028115833-w4fg",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  },
+  {
+    "phase": "warmup",
+    "fault": "stall",
+    "at": "2026-10-28T12:01:41.474Z",
+    "task": {
+      "id": "t-20261028120222-euxw",
+      "state": "failed",
+      "code": "TASK_STUCK",
+      "endedBy": "stuck",
+      "endedAt": {
+        "phase": "warmup",
+        "round": 0,
+        "step": 0
+      }
+    },
+    "injectedAt": {
+      "phase": "warmup",
+      "round": 0,
+      "step": 0,
+      "at": "2026-10-28T12:02:48.803Z",
+      "summary": "warmup:teamily.clearComposer"
+    },
+    "injection": "NtSuspendProcess 36856 → 0",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028120410-5rse",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  },
+  {
+    "phase": "warmup",
+    "fault": "kill-platform",
+    "at": "2026-10-28T12:05:57.215Z",
+    "task": {
+      "id": "t-20261028120640-es60",
+      "state": "interrupted",
+      "code": "INTERRUPTED",
+      "endedBy": "server-restart",
+      "endedAt": {
+        "phase": "warmup",
+        "round": 0,
+        "step": 0
+      },
+      "recovery": "recovered"
+    },
+    "injectedAt": {
+      "phase": "warmup",
+      "at": "2026-10-28T12:07:07.646Z"
+    },
+    "injection": "platform 14988 killed, restarted (pid 33000)",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028120815-efqu",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  },
+  {
+    "phase": "warmup",
+    "fault": "adb-kill",
+    "at": "2026-10-28T12:12:06.711Z",
+    "task": {
+      "id": "t-20261028121248-0nq5",
+      "state": "done",
+      "code": "ENV_OFFLINE",
+      "endedBy": "normal",
+      "endedAt": {
+        "phase": "finishing"
+      }
+    },
+    "injectedAt": {
+      "phase": "warmup",
+      "at": "2026-10-28T12:13:15.037Z"
+    },
+    "injection": "adb kill-server",
+    "reauthorized": false,
+    "env": {
+      "state": "unfit",
+      "baselineOk": false,
+      "reason": "设备不在线（adb 不可达）"
+    },
+    "liveButDead": [],
+    "failures": [
+      "env not ready for the next task: unfit 设备不在线（adb 不可达）"
+    ],
+    "pass": false
+  },
+  {
+    "phase": "loop",
+    "fault": "kill-task",
+    "at": "2026-10-28T12:35:30.316Z",
+    "task": {
+      "id": "t-20261028123801-09f5",
+      "state": "interrupted",
+      "code": "TASK_CRASHED",
+      "endedBy": "crash",
+      "endedAt": {
+        "phase": "loop",
+        "round": 1,
+        "step": 1
+      }
+    },
+    "injectedAt": {
+      "phase": "loop",
+      "round": 1,
+      "step": 1,
+      "at": "2026-10-28T12:38:48.553Z",
+      "summary": "teamily.clearComposer"
+    },
+    "injection": "taskkill /T /F 39868",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028123945-ungh",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  },
+  {
+    "phase": "loop",
+    "fault": "stall",
+    "at": "2026-10-28T12:40:55.438Z",
+    "task": {
+      "id": "t-20261028124138-hkvz",
+      "state": "failed",
+      "code": "TASK_STUCK",
+      "endedBy": "stuck",
+      "endedAt": {
+        "phase": "loop",
+        "round": 1,
+        "step": 1
+      }
+    },
+    "injectedAt": {
+      "phase": "loop",
+      "round": 1,
+      "step": 1,
+      "at": "2026-10-28T12:42:21.242Z",
+      "summary": "teamily.clearComposer"
+    },
+    "injection": "NtSuspendProcess 19736 → 0",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028124350-5o1j",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  },
+  {
+    "phase": "loop",
+    "fault": "kill-platform",
+    "at": "2026-10-28T12:44:59.792Z",
+    "task": {
+      "id": "t-20261028124543-0heg",
+      "state": "interrupted",
+      "code": "INTERRUPTED",
+      "endedBy": "server-restart",
+      "endedAt": {
+        "phase": "loop",
+        "round": 1,
+        "step": 3
+      },
+      "recovery": "recovered"
+    },
+    "injectedAt": {
+      "phase": "loop",
+      "round": 1,
+      "step": 1,
+      "at": "2026-10-28T12:46:29.290Z",
+      "summary": "teamily.clearComposer"
+    },
+    "injection": "platform 33000 killed, restarted (pid 35568)",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028124736-g0ae",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  },
+  {
+    "phase": "loop",
+    "fault": "adb-kill",
+    "at": "2026-10-28T12:48:50.512Z",
+    "task": {
+      "id": "t-20261028124932-610u",
+      "state": "interrupted",
+      "code": "TASK_CRASHED",
+      "endedBy": "crash",
+      "endedAt": {
+        "phase": "loop",
+        "round": 1,
+        "step": 1
+      }
+    },
+    "injectedAt": {
+      "phase": "loop",
+      "round": 1,
+      "step": 1,
+      "at": "2026-10-28T12:50:18.031Z",
+      "summary": "teamily.clearComposer"
+    },
+    "injection": "adb kill-server",
+    "reauthorized": true,
+    "env": {
+      "state": "unfit",
+      "baselineOk": false,
+      "reason": "设备不在线（adb 不可达）"
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028125127-j2k1",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  },
+  {
+    "phase": "finishing",
+    "fault": "kill-task",
+    "at": "2026-10-28T12:52:43.952Z",
+    "task": {
+      "id": "t-20261028125324-pnmv",
+      "state": "interrupted",
+      "code": "TASK_CRASHED",
+      "endedBy": "crash",
+      "endedAt": {
+        "phase": "finishing"
+      }
+    },
+    "injectedAt": {
+      "phase": "finishing",
+      "at": "2026-10-28T12:54:43.813Z"
+    },
+    "injection": "taskkill /T /F 4512",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028125541-7zwy",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  },
+  {
+    "phase": "finishing",
+    "fault": "stall",
+    "at": "2026-10-28T12:57:36.828Z",
+    "task": {
+      "id": "t-20261028125817-112g",
+      "state": "failed",
+      "code": "TASK_STUCK",
+      "endedBy": "stuck",
+      "endedAt": {
+        "phase": "finishing"
+      }
+    },
+    "injectedAt": {
+      "phase": "finishing",
+      "at": "2026-10-28T12:59:36.603Z"
+    },
+    "injection": "NtSuspendProcess 21016 → 0",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028130106-aats",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  },
+  {
+    "phase": "finishing",
+    "fault": "kill-platform",
+    "at": "2026-10-28T13:02:17.805Z",
+    "task": {
+      "id": "t-20261028130258-y8al",
+      "state": "interrupted",
+      "code": "INTERRUPTED",
+      "endedBy": "server-restart",
+      "endedAt": {
+        "phase": "finishing"
+      },
+      "recovery": "recovered"
+    },
+    "injectedAt": {
+      "phase": "finishing",
+      "at": "2026-10-28T13:06:33.994Z"
+    },
+    "injection": "platform 35568 killed, restarted (pid 19140)",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028130741-ovy5",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  },
+  {
+    "phase": "finishing",
+    "fault": "adb-kill",
+    "at": "2026-10-28T13:08:58.467Z",
+    "task": {
+      "id": "t-20261028130939-lv0v",
+      "state": "done",
+      "code": "NOT_REPRODUCED",
+      "endedBy": "normal",
+      "endedAt": {
+        "phase": "finishing"
+      }
+    },
+    "injectedAt": {
+      "phase": "finishing",
+      "at": "2026-10-28T13:12:12.242Z"
+    },
+    "injection": "adb kill-server",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028131308-qo14",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  }
+]

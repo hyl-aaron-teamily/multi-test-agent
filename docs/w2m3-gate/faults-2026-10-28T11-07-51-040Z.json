@@ -1,0 +1,38 @@
+[
+  {
+    "phase": "loop",
+    "fault": "kill-task",
+    "at": "2026-10-28T11:07:51.041Z",
+    "task": {
+      "id": "t-20261028110751-dwxl",
+      "state": "interrupted",
+      "code": "TASK_CRASHED",
+      "endedBy": "crash",
+      "endedAt": {
+        "phase": "loop",
+        "round": 1,
+        "step": 1
+      }
+    },
+    "injectedAt": {
+      "phase": "loop",
+      "round": 1,
+      "step": 1,
+      "at": "2026-10-28T11:08:36.319Z",
+      "summary": "teamily.clearComposer"
+    },
+    "injection": "taskkill /T /F 32256",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028110934-hd6n",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  }
+]

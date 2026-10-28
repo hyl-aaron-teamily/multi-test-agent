@@ -1,0 +1,35 @@
+[
+  {
+    "phase": "warmup",
+    "fault": "adb-kill",
+    "at": "2026-10-28T13:16:54.056Z",
+    "task": {
+      "id": "t-20261028131713-b9x9",
+      "state": "done",
+      "code": "ENV_OFFLINE",
+      "endedBy": "normal",
+      "endedAt": {
+        "phase": "finishing"
+      }
+    },
+    "injectedAt": {
+      "phase": "warmup",
+      "round": 0,
+      "step": 0,
+      "at": "2026-10-28T13:17:39.477Z",
+      "summary": "warmup:teamily.clearComposer"
+    },
+    "injection": "adb kill-server",
+    "reauthorized": false,
+    "env": {
+      "state": "unfit",
+      "baselineOk": false,
+      "reason": "设备不在线（adb 不可达）"
+    },
+    "liveButDead": [],
+    "failures": [
+      "env not ready for the next task: unfit 设备不在线（adb 不可达）"
+    ],
+    "pass": false
+  }
+]

@@ -1,0 +1,31 @@
+{
+  "taskId": "t-20261028110014-djc9",
+  "json": {
+    "sentence": "未复现：1 次有效尝试未复现；单次复现概率 95% 上界 ≈ 100%（3/n）（替代执行 ios → android-app）",
+    "attempts": {
+      "valid": 1,
+      "hits": 0,
+      "drift": 0,
+      "rate": 0,
+      "wilson": [
+        0,
+        0.7935
+      ],
+      "upper95": 1,
+      "text": "1 次有效尝试未复现；单次复现概率 95% 上界 ≈ 100%（3/n）"
+    }
+  },
+  "page": {
+    "sentence": "未复现：1 次有效尝试未复现；单次复现概率 95% 上界 ≈ 100%（3/n）（替代执行 ios → android-app）",
+    "valid": "1",
+    "hits": "0",
+    "interval": "1 次有效尝试未复现；单次复现概率 95% 上界 ≈ 100%（3/n）"
+  },
+  "checks": {
+    "sentence": true,
+    "valid": true,
+    "hits": true,
+    "interval": true
+  },
+  "pass": true
+}

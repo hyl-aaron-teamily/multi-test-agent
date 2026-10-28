@@ -1,0 +1,20 @@
+{
+  "r31": {
+    "exit": 31,
+    "code": "PLAN_HASH_MISMATCH"
+  },
+  "approve": 0,
+  "r32": {
+    "exit": 52,
+    "code": "ENV_OFFLINE",
+    "msg": "环境 android-app:4f2ebdf2@prod 不合格：设备不在线（adb 不可达）"
+  },
+  "approve2": 0,
+  "first": 52,
+  "r33": {
+    "exit": 52,
+    "code": "ENV_OFFLINE",
+    "msg": "环境 android-app:4f2ebdf2@prod 不合格：设备不在线（adb 不可达）"
+  },
+  "pass": false
+}

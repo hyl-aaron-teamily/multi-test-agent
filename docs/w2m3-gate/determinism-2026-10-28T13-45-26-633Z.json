@@ -1,0 +1,21 @@
+{
+  "r31": {
+    "exit": 31,
+    "code": "PLAN_HASH_MISMATCH"
+  },
+  "approve": 0,
+  "r32": {
+    "exit": 32,
+    "code": "PLAN_STALE",
+    "msg": "批准后版本变化：profileHash: bba283cfb4a871ab → 2f9e6f93bde6eb77"
+  },
+  "approve2": 0,
+  "first": 20,
+  "cancel": 0,
+  "r33": {
+    "exit": 33,
+    "code": "APPROVAL_EXHAUSTED",
+    "msg": "已用 1/1 次，本次需要 1 次"
+  },
+  "pass": true
+}

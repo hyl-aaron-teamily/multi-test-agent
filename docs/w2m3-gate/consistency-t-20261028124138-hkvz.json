@@ -1,0 +1,16 @@
+{
+  "taskId": "t-20261028124138-hkvz",
+  "json": {
+    "sentence": "任务卡死，被看门狗终止：不完整，不给结论（停在循环 第 1 轮 第 1 步）；环境已恢复"
+  },
+  "page": {
+    "sentence": "任务卡死，被看门狗终止：不完整，不给结论（停在循环 第 1 轮 第 1 步）；环境已恢复"
+  },
+  "checks": {
+    "sentence": true,
+    "valid": true,
+    "hits": true,
+    "interval": true
+  },
+  "pass": true
+}
