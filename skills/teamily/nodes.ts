@@ -240,8 +240,9 @@ const tapRewrite: Exec<{ timeoutMs?: number }> = async ({ input, context: c }) =
   const dpr = before.width / c.profile.viewport.width;
   const px = (b: number[]) => b.map((v) => v * dpr) as [number, number, number, number];
   const btnBox = px(btn);
-  // The composer grows upwards when the text gets longer: watch the band above it too.
-  const compBox = px([0, Math.max(0, comp[1] - 600), c.profile.viewport.width, comp[3] + 600]);
+  // The composer grows upwards when the text gets longer: watch it and the band above it (not the toolbar
+  // below, where the spinner turns).
+  const compBox = px([0, Math.max(0, comp[1] - 600), c.profile.viewport.width, Math.min(comp[1], 600) + comp[3]]);
   await tapEl(c, 'chat.rewrite');
   const t0 = Date.now();
   const limit = input.timeoutMs ?? 10_000;

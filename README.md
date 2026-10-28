@@ -1,20 +1,23 @@
 # multi-test-agent
 
-> 项目介绍页：[docs/intro.html](docs/intro.html)（浏览器直接打开）· 验收证据：[docs/w2m1-acceptance.md](docs/w2m1-acceptance.md)（本轮，W2-1）/ [docs/m6-acceptance.md](docs/m6-acceptance.md) / [docs/m5-acceptance.md](docs/m5-acceptance.md) · 历史变更：[CHANGELOG.md](CHANGELOG.md)
+> 项目介绍页：[docs/intro.html](docs/intro.html)（浏览器直接打开）· 验收证据：[docs/w2m2-acceptance.md](docs/w2m2-acceptance.md)（本轮，W2-2）/ [docs/w2m1-acceptance.md](docs/w2m1-acceptance.md) / [docs/m6-acceptance.md](docs/m6-acceptance.md) / [docs/m5-acceptance.md](docs/m5-acceptance.md) · 历史变更：[CHANGELOG.md](CHANGELOG.md)
 
 Teamily 客户端测试台：在 **Android App、手机自带浏览器里的 Web、手机视口 Web、桌面 Web（Windows 上为 Edge 最大化窗口）** 四个执行端上，以**黑盒**方式（只做用户能做的操作、只看用户能看到的现象）复现和验收问题，并留下可回放的证据；多个端可各登录一个账号，在同一会话里做同步测试。
 
 主线是 **Issue 驱动**：把一份 Issue 文档交给测试台，它会判断这是什么类型的问题、生成测试计划，经你确认一次后在生产环境执行，最后给出结论、证据包和报告。另有自然语言任务、AI 探索、Monkey、IM 界面层收发测试等入口，都在同一个控制台里。
 
-## 现状一览（2026-10-22）
+## 现状一览（2026-10-28）
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
-| Issue 分类与计划 | ✅ 可用 | 10 份样例 Issue 全部分类；可执行的生成计划，服务端 / 空文档出拒绝报告，多账号 / 需新能力的出暂缓报告 |
+| Issue 分类与计划 | ✅ 可用 | 12 份样例 Issue 全部分类（W2-2 新增 1426、1903、1918、2010，删除 1919、2230）；可执行的生成计划，服务端 / 空文档出拒绝报告，多账号 / 需新能力的出暂缓报告 |
 | 黑盒执行（四个执行端） | ✅ 可用 | 按 SKILL 标定的坐标操作，动作间隔 ≤ 1 秒，一份 Issue 只启动一次 App；`android-web` = 手机自带浏览器，`desktop-web` 在 Windows 上用 Edge 最大化窗口 |
 | 退出 / 杀进程 / 重新加载 | ✅ 可用 | 计划动作 `exitApp`（Home）、`idle`（后台等待，≤10 分钟）、`killApp`（杀进程并核实）、`launch`（冷/热启动）、`reload`；App 与手机浏览器都可用，计划内的退出不算闪退 |
 | 动态目标 | ✅ 可用 | 用哪个群、哪条消息由模型在准备阶段看屏幕选定，冻结为坐标后进入循环 |
 | 判定 | ✅ 可用 | 偶现：上限内命中 1 次即复现；必现：连续 3 次；需求：逐条验收出「已实现 / 部分实现 / 未实现」 |
+| 可信结论（W2-2） | ✅ 可用 | 只陈述观察到的事实：「已复现」或「未复现（n 次有效尝试）」+ 单轮命中率与 Wilson 95% 区间 / 0 命中时 3/n 上界；偏离轮单独计数；失败分「环境 / 工具」两类；报告首段写触发路径、出现位置、推测机制（各带依据） |
+| 运行清单 + 预检 + 隔离（W2-2） | ✅ 可用 | 每次运行 `manifest.json`（工具 / 目标 / 设备 / App 版本 / 输入法 / 网络 / 账号与会话名 / 预检）；手机预检 < 1 s，锁屏 / 断网 / 低电量 / 浮层 → 「环境不合格」不开跑；运行标记写进所有构造的文字；App 冷启动、清旧草稿、结束复位 |
+| 系列运行 + 代码门（W2-2） | ✅ 可用 | `pnpm autotest series`：同一子用例 N 次独立运行，汇总工具可靠性、复现率、各阶段耗时中位数；`pnpm code-gate`：typecheck + 单测 + golden + 证据复核用例，约 2.5 分钟 |
 | 证据复核 | ✅ 可用 | 检查类命中先把录屏（出事轮与前一轮的画面条 + 被判定的截图）交给视觉模型对照 Issue 的「实际结果」，不符合即排除、不计命中；预置用例 `fixtures/evidence/` 回归复核本身 |
 | 事故现场包 | ✅ 可用 | Android：录屏环形缓冲（最多 6×30 秒）+ 时间窗日志 + 崩溃缓冲 + dropbox；Web：Playwright trace + console + 网络记录；单文件离线查看器 |
 | 重放 | ✅ 可用 | 按同一判定规则给出能否复现，并指出从第几轮起偏离原路径 |
@@ -27,7 +30,7 @@ Teamily 客户端测试台：在 **Android App、手机自带浏览器里的 Web
 | 控制台 | ✅ 可用 | 上传 Issue → 生成计划 → 一次性确认（替代端复选框）→ 执行 → 报告与证据链接 |
 | 自然语言任务 / AI 探索 / Monkey / imui | ✅ 可用 | 早期能力，保留不变 |
 | iOS、WebView、小程序 | ❌ 未接入 | iOS 问题只能经确认后在 Android 或手机 Web 上替代执行 |
-| 多角色 Issue 计划 | ⏸ 暂缓 | 同步底座已可用；1919 / 2235 这类 Issue 还未生成多角色计划 |
+| 多角色 Issue 计划 | ⏸ 暂缓 | 同步底座已可用；2235 这类 Issue 还未生成多角色计划 |
 
 **生产环境样例结论**（详见 [docs/m5-acceptance.md](docs/m5-acceptance.md)）：
 
@@ -38,8 +41,11 @@ Teamily 客户端测试台：在 **Android App、手机自带浏览器里的 Web
 | 2122 免打扰群 @ 我（单账号部分） | desktop-web | 未实现：无「@我 / Mentions」聚合，免打扰群无显著角标；需第二账号的部分暂缓 |
 | 1329 点赞 / 定位链接 / 键盘（iOS） | android-app（替代） | 三项均未复现，各跑满 30 分钟。**更正**：开发期记为「已复现」的 s2（如 `1329-2026-10-21T16-43-05-544Z`）是误报——跳到的就是被引用消息，只是窄屏下被引用气泡换成两行、跳转后短暂高亮，基线像素比对没对上；现由证据复核排除，并固化为预置用例 |
 | 2044 引用块预览显示 Markdown 源码（iOS） | android-app（替代） | **已复现**（W2-1）：构造「Markdown 链接消息 + 引用回复」后，Android 引用块同样显示 `[url](url)`，连续 3 轮，证据复核 3/3 |
+| 2010 AI 改写误触覆盖草稿（iOS） | android-app（替代） | **W2-2 系列 10 次**：已复现 4/10 次运行；单轮 52 次有效尝试命中 25 次（48.1%，Wilson 35.1%–61.3%）——点「强化 prompt」后约一半概率直接覆盖草稿，无确认、无撤销；工具可靠性 10/10 |
+| 1903 气泡内 @ 不渲染（iOS） | android-app（替代） | **W2-2 系列 10 次**：未复现（60 次有效尝试，单次复现概率 95% 上界 ≈ 5%）；气泡与列表预览都显示 @；工具可靠性 10/10 |
 | 1614 / 1922 | — | 拒绝执行（服务端问题 / 按文档约定） |
-| 1919、2235 / 2230 | — | 暂缓（多账号 / 需构造浏览器存储） |
+| 2235 | — | 暂缓（多账号） |
+| 1426 部分选中复制整条 / 1918 LaTeX 未渲染 | — | W2-2 只分类 + 契约：暂缓（需要拖选 / 右键 / 剪贴板；Agent 回复内容不可构造） |
 
 ## 快速开始
 
@@ -65,6 +71,10 @@ pnpm autotest plan issues/1594.md                      # 预判类别 + 子用�
 pnpm autotest run --issue 1594 --yes                   # 无替代项时确认执行
 pnpm autotest run --issue 1329 --approve s1,s3:mobile-web   # 有替代项：勾选子用例并选执行端
 pnpm autotest replay <incident>/replay.json --variant all   # 重放：原节奏 / 加速 / 减速 / 冷启动
+pnpm autotest run --issue 2010 --approve main:android-app [--max-rounds 6]          # W2-2：有效尝试上限
+pnpm autotest series --issue 2010 --approve main:android-app --runs 10              # W2-2：10 次独立运行 + series-report.md
+pnpm autotest rerender midscene_run/issues/<run>                                    # 旧 result.json 按新口径重出 report.v2.md
+pnpm code-gate                                                                      # 代码门（每次改动后）
 ```
 
 流程：
@@ -72,10 +82,11 @@ pnpm autotest replay <incident>/replay.json --variant all   # 重放：原节奏
 1. **解析与分类**：读 `issues/*.md` 的各段落，规则优先、模型兜底，分为必现 / 偶现 / 需求 / 疑似误操作 / 服务端 / 多账号 / 未来计划 / 不可执行。人工决定可写入 `platform/issue-overrides.yaml`。
 2. **计划**：输出 `TestPlan`（zod 定义，`platform/schema/test-plan.ts`），只引用 SKILL 的元素 id 和 Node，不写坐标。已在设备上验证过的 SKILL 模板优先，其余情况由模型生成，统一经规则校验。
 3. **一次性确认**：控制台或命令行展示类别、子用例和替代理由；只执行勾选项，执行中不再打断。
-4. **执行**：租用账号（Android 同时租用设备）→ 启动一次 → 比对首页参考区域（不一致即报「SKILL 失效」并停止）→ 选定动态目标 → 前置操作 → 循环。
+4. **执行**：租用账号（Android 同时租用设备）→ **预检**（不合格 = 「环境不合格」，不启动不点击）→ 写运行清单 → 启动一次（App 冷启动） → 比对首页参考区域（不一致即报「SKILL 失效」并停止）→ 选定动态目标 → 前置操作 → 循环。
    - 每步不截图、不发额外 adb 命令。异常门只看事件流：Android 读 logcat（崩溃、ANR、进程死亡、离开 App），Web 读页面事件。
    - 每轮末尾截一次图，与参考区域比对笔画；对不上才调视觉模型核对。不在预期页面时记为操作偏离，重新进入，不计命中。
-5. **报告**：`midscene_run/issues/<id>-<时间>/` 下的 `report.md`、`result.json`，以及每次命中的现场包；同时写 Allure 结果。
+   - 一轮的判定前提（如「输入框里确实有草稿」）用 `require` 在轮内读一次；不成立、输入没落下或本轮消息不在屏幕上 = 偏离，不计有效尝试。
+5. **报告**：`midscene_run/issues/<id>-<时间>/` 下的 `report.md`、`result.json`、`manifest.json`、`trajectory.jsonl`，以及每次命中的现场包；同时写 Allure 结果。结论带分母（有效尝试数）与区间 / 上界，执行失败归为环境或工具；Web 运行没有结论时保留 `trace.zip`。
 
 现场包结构见 [skills/teamily/report-spec.md](skills/teamily/report-spec.md)。
 
@@ -164,7 +175,7 @@ pnpm autotest sync --roles desktop-web,android-app --rounds 4 --timeout 60
 - 视觉模型适合准备阶段挑目标，不适合直接下结论；判定优先用参考区域比对和无障碍层核对，视觉判断只作补充。
 - 需要前置数据的用例（如引用定位）依赖会话中已有的数据；测试台还不能自行可靠地构造前置条件。
 - 判定为「未复现」不等于没有问题，报告会写明执行了多少步、因何停止。
-- 多账号、多端联动的 Issue（1919、2235、2122 的一部分）：同步底座已具备，但 Issue 计划还不会生成多角色步骤，仍为暂缓。
+- 多账号、多端联动的 Issue（2235、2122 的一部分）：同步底座已具备，但 Issue 计划还不会生成多角色步骤，仍为暂缓。
 - CI 工作流（`.github/workflows/ai-test.yml`）只做过语法检查，未在真实 runner 上跑过。
 
 ## 目录结构
