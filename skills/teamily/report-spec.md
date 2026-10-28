@@ -12,5 +12,7 @@
 └── replay.json     coord-v1：setupOps + 最近 ≤21 轮坐标操作（含轮末帧哈希）+ 判定规则 + 检查
 ```
 
+运行目录（W2-2）：`manifest.json`（工具 / 目标 / 设备 / 账号与会话名 / 运行标记 / 预检及其设置改动，不含凭据；也是 `trajectory.jsonl` 首条事件和报告头）；Web 运行无结论（执行失败 / 计划不可执行）时 `trace.zip` + `trace-1.zip`（飞行记录器最后两个块）。系列运行：`midscene_run/series/<issue>-<sub>-<surface>-<时间>/series-report.md` + `series.json` + `run-NN/`。
+
 kind：crash / anr / app-exit / check-failed / console-error / page-error / visual-anomaly / watchdog。
 重放：`pnpm autotest replay <incident>/replay.json [--variant original|fast|slow|cold|all]` → `replay-report.md`（能否复现 + 偏离点）。

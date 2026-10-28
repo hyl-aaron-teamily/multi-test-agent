@@ -178,13 +178,12 @@ export async function preflightAndroid(udid: string, pkg: string, surface: Surfa
   return done(device);
 }
 
-/** Web surfaces (W2-2 §4.2: minimal): the browser binary is there and the account's session is usable. */
+/** Web surfaces (W2-2 §4.2: minimal): the session check starts a browser and confirms the signed-in session
+ *  (executor/login/sessions#ensureWebSession) — a browser that cannot start fails it too. */
 export async function preflightWeb(o: { browserPath?: string; sessionOk: boolean; sessionDetail: string }): Promise<PreflightResult> {
   const t0 = Date.now();
-  const items: PreflightItem[] = [
-    { id: 'browser', ok: !o.browserPath || existsSync(o.browserPath), detail: o.browserPath ? `chromium ${existsSync(o.browserPath) ? 'present' : 'missing'}: ${o.browserPath}` : 'chromium path not checked' },
-    { id: 'login', ok: o.sessionOk, detail: o.sessionDetail },
-  ];
+  const items: PreflightItem[] = [{ id: 'browser+login', ok: o.sessionOk, detail: o.sessionDetail }];
+  if (o.browserPath) items.unshift({ id: 'browser', ok: existsSync(o.browserPath), detail: `${existsSync(o.browserPath) ? 'present' : 'missing'}: ${o.browserPath}` });
   const bad = items.find((i) => !i.ok);
   return { ok: !bad, ms: Date.now() - t0, items, changes: [], reason: bad ? `${bad.id}: ${bad.detail}` : undefined };
 }

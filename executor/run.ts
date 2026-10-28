@@ -35,7 +35,8 @@ import { type Conclusion, NO_VERDICT } from './verdict';
 import { classifyFailure, type EnvSnapshot, type Failure } from './failure';
 import { cleanStart, requireNow, runEpilogue, teardown } from './isolation';
 import { buildManifest, type Manifest, writeManifest } from './manifest';
-import { envSnapshot, preflightAndroid, type PreflightResult } from './preflight';
+import { envSnapshot, preflightAndroid, preflightWeb, type PreflightResult } from './preflight';
+import { ensureWebSession, type PlaywrightSurface } from './login/sessions';
 import type { Attempts } from './stats';
 import { expandAction, newRunToken } from './template';
 import { AndroidDriver } from '../drivers/android';
@@ -191,16 +192,25 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   res.device = onAndroid(plan.surface) ? udid : undefined;
   phase('lease', tLease);
 
-  // ---- preflight (W2-2 §4.2): an unfit phone is 环境不合格 — nothing is launched or tapped.
-  if (onAndroid(plan.surface) && udid && o.preflight !== false) {
+  // ---- preflight (W2-2 §4.2): an unfit phone is 环境不合格 — nothing is launched or tapped. Web surfaces:
+  // the minimal check — a browser starts and the account's signed-in session is valid.
+  if (o.preflight !== false && ((onAndroid(plan.surface) && udid) || onPlaywright(plan.surface))) {
     const tPf = Date.now();
-    const pkg = loadProfile(profileKey(plan.surface, plan.env, udid))?.packageName ?? TEAMILY_PACKAGE;
-    preflight = await preflightAndroid(udid, pkg, plan.surface);
+    if (onPlaywright(plan.surface)) {
+      const w = await ensureWebSession(o.pool, account.id, plan.surface as PlaywrightSurface).catch((e) => ({ ok: false, error: (e as Error).message.split('\n')[0], reused: false, file: '' }));
+      preflight = await preflightWeb({ sessionOk: w.ok, sessionDetail: w.ok ? `signed-in session ${w.reused ? 'valid (reused)' : 'renewed (logged in)'}` : `login failed: ${w.error}` });
+    }
+    if (udid && onAndroid(plan.surface)) {
+      const pkg = loadProfile(profileKey(plan.surface, plan.env, udid))?.packageName ?? TEAMILY_PACKAGE;
+      preflight = await preflightAndroid(udid, pkg, plan.surface);
+    }
     phase('preflight', tPf);
-    log(`preflight: ${preflight.ok ? 'ok' : `NOT fit — ${preflight.reason}`} (${preflight.ms} ms${preflight.changes.length ? `; changed: ${preflight.changes.join('; ')}` : ''})`);
-    if (!preflight.ok) {
+    const pf = preflight!;
+    pf.ms = Date.now() - tPf;
+    log(`preflight: ${pf.ok ? 'ok' : `NOT fit — ${pf.reason}`} (${pf.ms} ms${pf.changes.length ? `; changed: ${pf.changes.join('; ')}` : ''})`);
+    if (!pf.ok) {
       res.conclusion = '环境不合格';
-      res.conclusionDetail = `预检不合格：${preflight.reason}`;
+      res.conclusionDetail = `预检不合格：${pf.reason}`;
       o.pool.release(lease, o.devices);
       return done();
     }
