@@ -21,6 +21,8 @@ export interface Pattern {
   /** Legacy text signal (lower-cased sub-case text) used when drafting without a contract. */
   signal: (t: string) => boolean;
   surfaces?: Surface[];
+  /** Suspected mechanism the rule contract carries (a guess taken from the Issue family; never executed). */
+  mechanism?: string;
   build: (surface: Surface, params?: Record<string, unknown>) => PlanFragment;
 }
 
@@ -117,6 +119,7 @@ export const PATTERNS: Pattern[] = [
     featureOnly: false,
     signal: (t) => /\brewrite|改写|强化 ?prompt/.test(t),
     surfaces: ['android-app'],
+    mechanism: '改写结果直接写回输入框（覆盖原文），没有确认步骤，也不保留原草稿供撤销；控件在打字时拇指落点附近（Issue 报告的推断）',
     build: () => {
       const draft = 'autotest-2010 {token} {round}';
       return {
@@ -143,6 +146,7 @@ export const PATTERNS: Pattern[] = [
     featureOnly: false,
     signal: (t) => /(mention|@).{0,80}(not rendered|bubble|渲染|气泡)|(bubble|气泡).{0,80}(mention|@)/.test(t),
     surfaces: ['android-app'],
+    mechanism: '消息数据里有 @（会话列表预览正常），只有会话内气泡的渲染层丢了 @ 提及（Issue 报告的推断）',
     build: (_surface, params = {}) => {
       const conv = String(params.conversation ?? '');
       const member = String(params.member ?? '') || 'aaron+test2';

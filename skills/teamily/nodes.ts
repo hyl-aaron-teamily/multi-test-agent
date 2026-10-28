@@ -213,25 +213,55 @@ const clearComposer: Exec<Record<string, never>> = async ({ context: c }) => {
   await c.driver.key('Backspace');
 };
 
-/** App: tap the AI rewrite control (keyboard down, as calibrated) and wait until the screen has changed and
- *  settled (≤ 10 s, pixels only). No change / still changing after 10 s = timeout → drift, not an attempt. */
+/** Pixels of the rewrite button that differ from its idle icon: the sparkle turns into a spinning arc while
+ *  the rewrite runs (≈ 1300 px on the test phone, 2026-10-28) and comes back when it is done. */
+export const REWRITE_BUSY_PX = 600;
+export const REWRITE_IDLE_PX = 300;
+
+/** App: tap the AI rewrite control (keyboard down, as calibrated) and wait (pixels only, ≤ 10 s) until the
+ *  rewrite has run: its button showed the busy spinner and is back to the idle icon on two polls in a row.
+ *  A rewrite too fast to see the spinner counts when the composer area changed and the button is idle.
+ *  Never started / still running after 10 s = timeout → drift, not an attempt (W2-2 §5.2). */
 const tapRewrite: Exec<{ timeoutMs?: number }> = async ({ input, context: c }) => {
   await hideKeyboard(c);
   const shot = async () => decodePng(await c.driver.screenshot());
-  const before = await shot();
+  const btn = pointBox(c, 'chat.rewrite');
+  const comp = pointBox(c, 'chat.composer');
+  // Reference frame only once the keyboard-hide animation is over (two equal frames): a frame taken
+  // mid-animation has the toolbar elsewhere and the button would look "busy" forever.
+  let before = await shot();
+  for (let i = 0; i < 6; i++) {
+    await sleep(250);
+    const next = await shot();
+    const still = pixelDiff(before, next) < 300;
+    before = next;
+    if (still) break;
+  }
+  const dpr = before.width / c.profile.viewport.width;
+  const px = (b: number[]) => b.map((v) => v * dpr) as [number, number, number, number];
+  const btnBox = px(btn);
+  // The composer grows upwards when the text gets longer: watch the band above it too.
+  const compBox = px([0, Math.max(0, comp[1] - 600), c.profile.viewport.width, comp[3] + 600]);
   await tapEl(c, 'chat.rewrite');
   const t0 = Date.now();
   const limit = input.timeoutMs ?? 10_000;
-  let prev = before;
-  let changed = false;
+  let busy = false;
+  let idleRun = 0;
   while (Date.now() - t0 < limit) {
-    await sleep(500);
+    await sleep(400);
     const now = await shot();
-    if (pixelDiff(before, now) > 2000) changed = true;
-    if (changed && pixelDiff(prev, now) < 200) return { summary: `rewrite settled after ${Date.now() - t0} ms` };
-    prev = now;
+    const b = pixelDiff(before, now, btnBox);
+    if (b > REWRITE_BUSY_PX) {
+      busy = true;
+      idleRun = 0;
+      continue;
+    }
+    const textChanged = pixelDiff(before, now, compBox) > 2000;
+    if (b < REWRITE_IDLE_PX && (busy || textChanged)) {
+      if (++idleRun >= 2) return { summary: `rewrite done after ${Date.now() - t0} ms (${busy ? 'spinner seen' : 'text changed'}${textChanged ? ', composer changed' : ', composer unchanged'})` };
+    } else idleRun = 0;
   }
-  throw new RoundDrift(changed ? `rewrite still changing after ${limit / 1000} s (timeout)` : `no visible change within ${limit / 1000} s after tapping rewrite (timeout)`);
+  throw new RoundDrift(busy ? `rewrite still running after ${limit / 1000} s (timeout)` : `rewrite did not start within ${limit / 1000} s (no spinner, no text change)`);
 };
 
 /** Send what is in the composer: App — hide the keyboard (if up), tap the calibrated send button; elsewhere Enter. */
