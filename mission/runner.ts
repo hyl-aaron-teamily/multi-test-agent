@@ -16,7 +16,7 @@ import { scoreElement } from '../explore/explore-loop';
 import { elementKey, observeInteractiveElements } from '../explore/page-observer';
 import { currentActivity } from '../explore/state-tracker';
 import { executeOp, type ReplayOp, sliceFromLastLaunch, writeBundle } from '../replay/ops';
-import type { ScreenRecorder } from '../replay/screen-recorder';
+import type { ScreenRecorder } from '../core/screen-recorder';
 import type { MissionPlan } from './planner';
 
 export type FindingKind = 'crash' | 'anr' | 'app-exit' | 'check-failed' | 'visual' | 'jank' | 'action-failed';

@@ -77,16 +77,18 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   }
   const di = p.match(/^\/api\/issues\/([\w-]+)\/draft$/);
   if (req.method === 'GET' && di) {
-    const { loadDraft } = await import('../issue/cli');
-    const d = await loadDraft(di[1], (url.searchParams.get('env') as 'test' | 'prod') ?? 'prod', url.searchParams.get('model') !== '0');
+    const { loadDraft } = await import('../scripts/issue-cli');
+    // "生成计划" drafts anew (redraft=0 reuses the saved draft); the task then runs exactly this draft (hash).
+    const d = await loadDraft(di[1], (url.searchParams.get('env') as 'test' | 'prod') ?? 'prod', url.searchParams.get('model') !== '0', url.searchParams.get('redraft') !== '0');
     return send(res, 200, {
       id: d.issue.id,
+      hash: d.hash,
       title: d.issue.title,
       status: d.status,
       category: d.classification.category,
       reason: d.reason,
       deferredPart: d.deferredPart,
-      subcases: d.subcases.map((s) => ({ sub: s.sub, title: s.title, planTitle: s.plan.title, surface: s.surface, substitution: s.substitution, planErrors: s.planErrors, generatedBy: s.plan.provenance.generatedBy })),
+      subcases: d.subcases.map((s) => ({ sub: s.sub, title: s.title, planTitle: s.plan.title, surface: s.surface, substitution: s.substitution, planErrors: s.planErrors, generatedBy: s.plan.provenance.generatedBy, pattern: s.plan.provenance.pattern, coverage: s.plan.coverage, contract: s.contract })),
     });
   }
   if (req.method === 'GET' && p === '/api/tasks') return send(res, 200, tasks.tasks.slice(0, 50));

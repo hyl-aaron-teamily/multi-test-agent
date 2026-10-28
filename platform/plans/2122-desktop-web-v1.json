@@ -20,8 +20,10 @@
     }
   ],
   "setup": [],
+  "prepare": [],
   "actions": [],
   "checks": [],
+  "afterCheck": [],
   "acceptance": [
     {
       "id": "mentions-entry",
@@ -65,9 +67,43 @@
   "verdictRule": {
     "anyHit": true
   },
+  "contract": {
+    "issueRef": "2122",
+    "sub": "main",
+    "preconditions": [
+      {
+        "id": "logged-in",
+        "text": "已登录",
+        "establish": "executor"
+      },
+      {
+        "id": "muted-group-with-mention",
+        "text": "有一个免打扰且被 @ 的群",
+        "establish": "existing-data"
+      }
+    ],
+    "trigger": {
+      "semantics": "view-mention-aggregation",
+      "text": "Improvement request raised by Aiden (P0, scheduled as a key iteration right after the China National Day holiday, i.e. from 2026-10-08). Today, when a user is @-mentioned in a muted (DND) group, the only cue is a small green '[@ mentioned]' text in the conversation-list preview. There is no new-mess",
+      "pattern": "mention-aggregation",
+      "params": {}
+    },
+    "observable": {
+      "observation": "visual-question",
+      "text": "(1) Any @-mention addressed to me (direct @me; @All/@Everyone per product rule) always shows a new-message indicator and increments the conversation's unread badge and the global (tab / top-right / app-icon) badge, even when the group is muted — matching WeChat. Muted groups' ordinary (non-@) messages keep the current silent behaviour. (2) A 'Mentions / @Me' list (Slack-style) aggregates every message that @-mentions me, newest first, with sender, group, time, message preview and read/unread state; tapping an item jumps to that message in context.",
+      "phenomenon": "In a muted group an @-mention only renders a green '[@ mentioned]' text hint in the conversation preview. No new-message indicator, no conversation unread badge, no top-right / tab / app-icon badge count. There is no aggregated view of messages that mention me, so users miss them."
+    },
+    "provenance": {
+      "by": "rules",
+      "skillVersion": "2026.10.21-1"
+    }
+  },
   "provenance": {
     "generatedBy": "rules",
     "skillVersion": "2026.10.21-1",
-    "confirmedAt": "2026-10-21T12:00:39.790Z"
-  }
+    "pattern": "mention-aggregation",
+    "confirmedAt": "2026-10-27T04:54:09.503Z",
+    "draftHash": "207c25d10c99a64d"
+  },
+  "coverage": "covered"
 }

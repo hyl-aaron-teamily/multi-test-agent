@@ -6,6 +6,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createWriteStream, existsSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { TEAMILY_PACKAGE } from '../drivers/factory';
 import type { DevicePool } from './device-pool';
 
 export type TaskType = 'mission' | 'explore' | 'monkey' | 'imui' | 'issue' | 'sync';
@@ -29,6 +30,7 @@ export interface TaskInput {
   yesProd?: boolean; // imui: explicit production confirmation
   issue?: string; // issue: issues/<id>.md
   approve?: string; // issue: confirmed sub-cases "s1,s3:mobile-web" (the one-time confirmation)
+  draftHash?: string; // issue: hash of the confirmed draft (run refuses any other)
   env?: 'test' | 'prod'; // issue, sync
   roles?: string; // sync: surfaces, one client each ("desktop-web,android-web,android-app")
   rounds?: number; // sync
@@ -64,17 +66,21 @@ export function validateTaskInput(b: any): TaskInput | string {
     if (rounds !== undefined && !(Number.isInteger(rounds) && rounds >= 1 && rounds <= 20)) return 'rounds must be 1..20';
     const env = b.env ?? 'prod';
     if (!['test', 'prod'].includes(env)) return 'env must be test or prod';
-    return { type: 'sync', package: 'ai.teamily.mobile', roles, env, ...(rounds ? { rounds } : {}) };
+    return { type: 'sync', package: TEAMILY_PACKAGE, roles, env, ...(rounds ? { rounds } : {}) };
   }
   if (b.type === 'issue') {
     const issue = String(b.issue ?? '').trim();
     if (!/^[\w-]+$/.test(issue)) return 'issue must be an issue id (issues/<id>.md)';
     const approve = String(b.approve ?? '').trim();
-    if (!/^(all|[\w]+(:(android-app|mobile-web|desktop-web))?(,[\w]+(:(android-app|mobile-web|desktop-web))?)*)?$/.test(approve)) return 'approve: s1,s2:mobile-web | all';
+    if (!/^(all|[\w]+(:(android-app|android-web|mobile-web|desktop-web))?(,[\w]+(:(android-app|android-web|mobile-web|desktop-web))?)*)?$/.test(approve)) return 'approve: s1,s2:mobile-web | all';
     const env = b.env ?? 'prod';
     if (!['test', 'prod'].includes(env)) return 'env must be test or prod';
-    const out: TaskInput = { type: 'issue', package: 'ai.teamily.mobile', issue, approve: approve || 'all', env };
+    const out: TaskInput = { type: 'issue', package: TEAMILY_PACKAGE, issue, approve: approve || 'all', env };
     if (b.device) out.device = String(b.device);
+    if (b.draftHash !== undefined && b.draftHash !== '') {
+      if (!/^[0-9a-f]{16}$/.test(String(b.draftHash))) return 'draftHash: 16 hex chars';
+      out.draftHash = String(b.draftHash);
+    }
     for (const k of ['maxSteps', 'maxMinutes'] as const) if (b[k] !== undefined && b[k] !== '') out[k] = Number(b[k]);
     return out;
   }
@@ -117,6 +123,7 @@ export function taskArgs(t: Task, udid: string): string[] {
   if (t.type === 'issue') {
     const a = ['bin/autotest.ts', 'run', '--issue', t.issue!, '--approve', t.approve ?? 'all', '--env', t.env ?? 'prod', '--id', t.id];
     if (udid) a.push('--device', udid);
+    if (t.draftHash) a.push('--draft', t.draftHash);
     if (t.maxSteps) a.push('--max-steps', String(t.maxSteps));
     if (t.maxMinutes) a.push('--max-minutes', String(t.maxMinutes));
     return a;

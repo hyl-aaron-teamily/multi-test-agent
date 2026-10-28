@@ -2,8 +2,9 @@
 // One source for calibration (what to find), the plan validator (what a plan may reference) and the
 // planner prompt (what the LLM may use). Coordinates live in profiles/, never here.
 import type { Surface } from '../../platform/accounts/types';
+import { NODE_SPECS } from './node-specs';
 
-export const SKILL_VERSION = '2026.10.21-1';
+export const SKILL_VERSION = '2026.10.26-1';
 
 export interface ElementSpec {
   id: string;
@@ -51,25 +52,17 @@ export interface NodeSpec {
   name: string;
   input: Record<string, string>;
   doc: string;
+  phase: 'any' | 'prepare-only';
 }
 
-export const NODES: NodeSpec[] = [
-  { name: 'teamily.login', input: { account: 'account id from the pool (resolved by the executor)' }, doc: '光标/键盘登录：邮箱 → 继续 → 密码 → 继续；Web 成功后缓存 storageState' },
-  { name: 'teamily.openConversation', input: { target: 'target id decided in the preparation stage' }, doc: '点击准备阶段冻结的会话坐标，等待输入框出现' },
-  { name: 'teamily.sendMessage', input: { text: 'message text' }, doc: '点输入框 → 键入 → Enter 发送' },
-  { name: 'teamily.typeMention', input: {}, doc: '点输入框 → 键入 "@"（不发送），选择器应弹出' },
-  { name: 'teamily.clearComposer', input: {}, doc: '清空输入框（Esc 关闭弹层 + 退格）' },
-  { name: 'teamily.switchConversation', input: { from: 'target id', to: 'target id' }, doc: '切到另一个会话再切回' },
-  { name: 'teamily.openPage', input: { page: 'profile | artifacts | chat' }, doc: '通过导航入口打开固定页面' },
-];
+/** Node vocabulary for planner and validator (single source: node-specs.ts). */
+export const NODES: NodeSpec[] = NODE_SPECS.map((n) => ({ name: n.name, input: n.input, doc: n.doc, phase: n.phase }));
 
 /** Dynamic targets: chosen by the model at preparation time following this guidance, then frozen. */
 export const TARGET_GUIDANCE: Record<string, string> = {
   'group-conversation': '成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它',
   'other-conversation': '与目标群不同的任意会话（用于切换会话再切回）',
-  'others-text-message': '别人发的普通文本消息（不是图片/卡片/系统消息），点赞类问题用它',
+  'others-text-message': '别人发的普通文本消息（不是图片/卡片/系统消息，也不是链接/URL——点到链接会打开浏览器），点赞类问题用它',
   'doc-artifact': 'Artifacts 列表中的任意文档卡片（DOC），用于打开 CloudDoc',
 };
 
-export const elementIds = (s?: Surface) => ELEMENTS.filter((e) => !s || e.surfaces.includes(s)).map((e) => e.id);
-export const nodeNames = () => NODES.map((n) => n.name);

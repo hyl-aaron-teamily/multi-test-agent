@@ -16,7 +16,7 @@ import { startLogcatMonitor } from '../core/logcat-monitor';
 import { currentActivity } from '../explore/state-tracker';
 import { createAndroidAgent } from '../fixtures/android';
 import { executeOp, type ReplayBundle } from '../replay/ops';
-import { ScreenRecorder } from '../replay/screen-recorder';
+import { ScreenRecorder } from '../core/screen-recorder';
 
 const { values, positionals } = parseArgs({
   allowPositionals: true,

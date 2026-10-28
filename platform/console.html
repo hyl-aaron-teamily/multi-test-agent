@@ -219,7 +219,7 @@ $('draftBtn').onclick = async () => {
   $('draft').innerHTML = `<div>预判类别：<b>${esc(draft.category)}</b> — ${esc(draft.reason)}</div>${draft.deferredPart ? `<div>暂缓部分：${esc(draft.deferredPart)}</div>` : ''}` +
     draft.subcases.map((s) => `<div style="margin-top:6px"><label style="display:inline"><input type="checkbox" data-sub="${esc(s.sub)}" style="width:auto" ${s.substitution ? '' : 'checked'}> ${esc(s.sub)}: ${esc(s.planTitle)}</label>
       ${s.substitution ? `<select data-surf="${esc(s.sub)}" style="width:auto">${s.substitution.alternatives.map((a) => `<option>${esc(a)}</option>`).join('')}</select><div class="muted">替代理由：${esc(s.substitution.reason)}</div>` : `<span class="muted">（${esc(s.surface)}）</span>`}
-      <div class="muted">${esc(s.title)}</div></div>`).join('');
+      <div class="muted">${esc(s.title)}</div>${s.contract ? `<div class="muted" style="margin-left:18px">契约：前置条件 ${esc(s.contract.preconditions.map((p) => `${p.text}[${p.establish}]`).join('；'))}<br>触发 ${esc(s.contract.trigger.semantics)}；可观察后置条件 ${esc(s.contract.observable.observation)} — 现象「${esc(s.contract.observable.phenomenon.slice(0, 120))}」${s.contract.suspectedMechanism ? `<br>推测（不执行）：${esc(s.contract.suspectedMechanism)}` : ''}<br>计划：${s.pattern ? `模式 ${esc(s.pattern)}` : esc(s.generatedBy)}${s.coverage === 'not-covered' ? ' · <b style="color:#cf222e">计划未覆盖 Issue 现象，仅说明无崩溃</b>' : ''}</div>` : ''}</div>`).join('') + `<div class="muted">草稿 ${esc(draft.hash ?? '')}（执行的就是这份草稿）</div>`;
 };
 $('run').onclick = async () => {
   $('formErr').textContent = '';
@@ -231,6 +231,7 @@ $('run').onclick = async () => {
       const subs = [...document.querySelectorAll('[data-sub]')].filter((c) => c.checked).map((c) => { const sel = document.querySelector(`[data-surf="${c.dataset.sub}"]`); return c.dataset.sub + (sel ? ':' + sel.value : ''); });
       if (!subs.length) { $('formErr').textContent = '请至少勾选一个子用例'; return; }
       body.approve = subs.join(',');
+      body.draftHash = draft.hash;
     } else if (!draft || draft.id !== body.issue) { $('formErr').textContent = '请先“生成计划”并确认子用例'; return; }
   }
   if (body.type === 'sync') { body.roles = $('roles').value.trim(); body.env = $('syncEnv').value; if ($('rounds').value) body.rounds = Number($('rounds').value); }

@@ -87,6 +87,13 @@ export class RecordingDriver implements Driver {
   focus() {
     return this.rec('focus', {}, async () => this.inner.focus?.());
   }
+  keyboardShown() {
+    return this.inner.keyboardShown ? this.inner.keyboardShown() : Promise.resolve(null);
+  }
+  dismissSystemOverlay() {
+    return this.inner.dismissSystemOverlay ? this.inner.dismissSystemOverlay() : Promise.resolve(false);
+  }
+
   yieldFocus() {
     this.inner.yieldFocus?.();
   }

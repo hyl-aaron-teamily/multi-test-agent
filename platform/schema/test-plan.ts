@@ -2,8 +2,11 @@
 // Plans reference SKILL element ids and Nodes only — never coordinates; the executor resolves ids through
 // the profile of its surface. The JSON Schema export is what the LLM gets as structured-output contract.
 import { z } from 'zod';
+import { IssueContractZ } from './contract';
 
-export const SurfaceZ = z.enum(['android-app', 'android-web', 'mobile-web', 'desktop-web']);
+/** The single definition of execution surfaces (platform/accounts/types re-exports it). */
+export const SURFACES = ['android-app', 'android-web', 'mobile-web', 'desktop-web'] as const;
+export const SurfaceZ = z.enum(SURFACES);
 export const CategoryZ = z.enum(['bug-always', 'bug-intermittent', 'feature', 'suspected-misuse']);
 export const PreCategoryZ = z.enum([...CategoryZ.options, 'server-side', 'multi-account', 'deferred', 'not-executable']);
 
@@ -21,13 +24,21 @@ export const PlannedActionZ = z.object({
 });
 
 export const CheckPointZ = z.object({
-  kind: z.enum(['visual-region', 'crash', 'process-alive', 'console-error', 'page-error', 'ai', 'baseline']),
+  /** keyboard: soft keyboard shown (Android system state); text: a text on screen (accessibility / page text). */
+  kind: z.enum(['visual-region', 'crash', 'process-alive', 'console-error', 'page-error', 'ai', 'baseline', 'keyboard', 'text']),
   page: z.string().optional(),
   region: z.string().optional(),
   expect: z.string(),
   /** visual-region: the reference state that counts as "as expected" ('present' = matches the ref, 'absent' = differs). */
   want: z.enum(['present', 'absent']).default('present'),
   onlyOnAnomaly: z.boolean().optional(),
+  /** text: what to find (exact text, substring or regex). */
+  match: z.union([z.object({ exact: z.string() }), z.object({ contains: z.string() }), z.object({ regex: z.string() })]).optional(),
+  /** text: where — whole screen (default), the quote cards, or near a frozen target (± px vertically). */
+  scope: z.union([z.literal('screen'), z.literal('quote-cards'), z.object({ target: z.string(), within: z.number().default(250) })]).optional(),
+  /** A failure counts only if this holds (read ① at the checkpoint); otherwise it is an operation drift.
+   *  composerHas: the message input contains this text (e.g. the "@" just typed). */
+  requires: z.object({ composerHas: z.string() }).optional(),
 });
 
 export const LimitsZ = z.object({
@@ -69,7 +80,11 @@ export const TestPlanZ = z.object({
   correctPath: z.array(PlannedActionZ).optional(),
   limits: LimitsZ,
   verdictRule: VerdictRuleZ,
-  provenance: z.object({ generatedBy: z.enum(['model', 'rules', 'manual']), skillVersion: z.string(), confirmedAt: z.string().optional() }),
+  /** Intent contract the plan was compiled from (W2-1 §5). */
+  contract: IssueContractZ.optional(),
+  /** Do the plan's checks observe the contract's postcondition? 'not-covered' = generic fallback (report note). */
+  coverage: z.enum(['covered', 'not-covered']).optional(),
+  provenance: z.object({ generatedBy: z.enum(['model', 'rules', 'manual']), skillVersion: z.string(), confirmedAt: z.string().optional(), draftHash: z.string().optional(), pattern: z.string().optional() }),
 });
 
 export type Surface = z.infer<typeof SurfaceZ>;

@@ -33,5 +33,8 @@
   },
   "status": "refused",
   "reason": "问题发生在服务端 / Agent 发送路径，无用户可见 UI 现象可驱动或观察",
-  "subcases": []
+  "subcases": [],
+  "hash": "04a9edf1b69553ec",
+  "issueHash": "b8ffa5670c5a8a7b",
+  "env": "prod"
 }

@@ -9,7 +9,11 @@ import { AndroidDevice } from '@midscene/android';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { adb, launchApp, resolveAdbPath, screencap, spawnAdb } from '../core/adb';
+import { keyboardShown } from '../core/ui-tree';
 import { type Anomaly, type Driver, type Point, sleep } from './types';
+
+/** OS floats seen grabbing long-presses on test phones (HyperOS Taplus 「文本识别」). */
+const SYSTEM_OVERLAY = /Taplus|ContentCatcher/i;
 
 export interface AndroidDriverOptions {
   udid: string;
@@ -29,7 +33,11 @@ const KEYCODES: Record<string, number> = { enter: 66, back: 4, home: 3, backspac
 export function classifyLogLine(line: string, pkg: string, pid?: number, appErrorRe?: RegExp): Anomaly | undefined {
   const at = Date.now();
   const p = pkg.replace(/\./g, '\\.');
-  if (/FATAL EXCEPTION/.test(line) || (/\bam_crash\b/.test(line) && new RegExp(p).test(line))) return { kind: 'crash', at, detail: line.trim() };
+  // FATAL EXCEPTION of another process (e.g. "FATAL EXCEPTION: UiAutomation" of a hierarchy dump) is not the
+  // app's crash: with the app pid known, the line's pid (threadtime: date time pid tid …) must be the app's.
+  const linePid = Number(line.trim().split(/\s+/)[2]);
+  if (/FATAL EXCEPTION/.test(line) && !/FATAL EXCEPTION: UiAutomation/.test(line) && (!pid || !Number.isFinite(linePid) || linePid === pid)) return { kind: 'crash', at, detail: line.trim() };
+  if (/\bam_crash\b/.test(line) && new RegExp(p).test(line)) return { kind: 'crash', at, detail: line.trim() };
   if (new RegExp(`ANR in ${p}`).test(line) || (/\bam_anr\b/.test(line) && new RegExp(p).test(line))) return { kind: 'anr', at, detail: line.trim() };
   if ((/\bam_proc_died\b/.test(line) && new RegExp(`,${p}(,|\\])`).test(line)) || new RegExp(`Process ${p} \\(pid \\d+\\) has died`).test(line)) return { kind: 'app-exit', at, detail: line.trim() };
   const resumed = line.match(/\b(?:wm_set_resumed_activity|am_focused_activity|am_focused_root_task|wm_focused_root_task)\b.*?\b([a-zA-Z][\w.]+)\/[\w.$]+/);
@@ -152,6 +160,20 @@ export class AndroidDriver implements Driver {
     this.away = false;
   }
 
+  keyboardShown(): Promise<boolean | null> {
+    return keyboardShown(this.o.udid);
+  }
+
+  /** System state (`dumpsys window` focus): a known OS float over the app is closed with Back, which goes to
+   *  the float only (Back on the app's own menu would leave the chat). */
+  async dismissSystemOverlay(): Promise<boolean> {
+    const out = await adb(['shell', 'dumpsys window | grep -m1 mCurrentFocus'], this.o.udid).catch(() => '');
+    if (!SYSTEM_OVERLAY.test(out)) return false;
+    await this.back();
+    await sleep(600);
+    return true;
+  }
+
   yieldFocus(): void {
     this.away = true;
   }
@@ -238,8 +260,15 @@ export class AndroidDriver implements Driver {
     await this.key('back');
   }
 
-  screenshot(): Promise<Buffer> {
-    return screencap(this.o.udid);
+  /** One screencap; a truncated PNG (adb pipe cut short) is taken again (up to 3 tries). */
+  async screenshot(): Promise<Buffer> {
+    let last: Buffer = Buffer.alloc(0);
+    for (let i = 0; i < 3; i++) {
+      last = await screencap(this.o.udid);
+      if (pngComplete(last)) return last;
+      await sleep(300);
+    }
+    return last;
   }
 
   drainAnomalies(): Anomaly[] {
@@ -255,4 +284,9 @@ export class AndroidDriver implements Driver {
     this.logcat = undefined;
     this.shell = undefined;
   }
+}
+
+/** Pure: a PNG that ends with its IEND chunk. */
+export function pngComplete(b: Buffer): boolean {
+  return b.length > 20 && b.readUInt32BE(0) === 0x89504e47 && b.subarray(b.length - 8, b.length - 4).toString('latin1') === 'IEND';
 }

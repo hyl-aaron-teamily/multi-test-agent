@@ -1,15 +1,16 @@
-// Android calibration: `uiautomator dump` is read here (calibration time) and nowhere at run time.
+// Android calibration: reads the accessibility tree (core/ui-tree). At run time the tree is read only outside the loop (preparation, round-end text checks, warm-up, self-heal) — never per step.
 // Finds fixed elements, writes coordinates + reference regions into profiles/android-<udid>@<env>.json
 // and self-checks every element (tap → screenshot → expected visible change).
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { adb } from '../core/adb';
-import { type Box, decodePng, dHash, drawBox, encodePng, meanGrey, pixelDiff } from '../core/image';
+import { type Box, decodePng, drawBox, encodePng, pixelDiff } from '../core/image';
 import { AndroidDriver } from '../drivers/android';
 import { sleep } from '../drivers/types';
 import { listDevices } from '../platform/adb-devices';
 import type { Env } from '../platform/accounts/types';
-import { parseNodes } from '../imui/clients/android';
+import { dumpTree, toBox as nodeBox, type UiNode } from '../core/ui-tree';
+import { queueReview, saveRef } from './calibrate-common';
 import { type Profile, SKILL_DIR, saveProfile } from './profile';
 import { ELEMENTS, SKILL_VERSION } from './teamily/vocab';
 
@@ -20,23 +21,11 @@ export interface CalibrateAndroidOptions {
   log?: (s: string) => void;
 }
 
-export type N = ReturnType<typeof parseNodes>[number];
-export const toBox = (n: N): Box => [n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1];
+export type N = UiNode;
+export const toBox = (n: N): Box => nodeBox(n);
 
-export async function dump(udid: string, pkg: string): Promise<N[]> {
-  for (let i = 0; i < 4; i++) {
-    try {
-      await adb(['shell', 'uiautomator', 'dump', '/sdcard/autotest_ui.xml'], udid);
-      const xml = await adb(['exec-out', 'cat', '/sdcard/autotest_ui.xml'], udid);
-      const nodes = parseNodes(xml, pkg);
-      if (nodes.length) return nodes;
-    } catch {
-      /* UI not idle yet */
-    }
-    await sleep(800);
-  }
-  return [];
-}
+/** Calibration read of the accessibility tree (core/ui-tree: locked, retried, timed). */
+export const dump = (udid: string, pkg: string): Promise<N[]> => dumpTree(udid, pkg);
 
 export async function calibrateAndroid(o: CalibrateAndroidOptions): Promise<Profile> {
   const log = o.log ?? ((s) => console.log(`[calibrate] ${s}`));
@@ -54,10 +43,10 @@ export async function calibrateAndroid(o: CalibrateAndroidOptions): Promise<Prof
     const spec = ELEMENTS.find((e) => e.id === id)!;
     if (!n) {
       log(`  ✗ ${id}: not found`);
-      prof.reviewQueue.push({ element: id, image: '', reason: 'not found during calibration' });
+      queueReview(prof, id, 'not found during calibration');
       return;
     }
-    prof.elements[id] = { page: spec.page, box: toBox(n), selfCheck: 'pending' };
+    prof.elements[id] = { page: spec.page, box: toBox(n), selfCheck: 'pending', ...(n.text || n.desc ? { fingerprint: { text: n.text || undefined, desc: n.desc || undefined, cls: n.cls } } : {}) };
     log(`  · ${id} ${JSON.stringify(toBox(n))}`);
   };
   const selfCheck = async (id: string, minPx = 2000) => {
@@ -79,20 +68,7 @@ export async function calibrateAndroid(o: CalibrateAndroidOptions): Promise<Prof
       prof.reviewQueue.push({ element: id, image: `refs/${name}/review-${id}.png`, reason: e.note });
     }
   };
-  const ref = async (page: string, regions: Record<string, Box | undefined>) => {
-    const buf = await d.screenshot();
-    const img = decodePng(buf);
-    await writeFile(join(refDir, `${page}.png`), buf);
-    const r: Profile['refs'][string] = { image: `refs/${name}/${page}.png`, regions: {}, hashes: {}, greys: {} };
-    for (const [k, b] of Object.entries(regions)) {
-      if (!b) continue;
-      r.regions[k] = b;
-      r.hashes[k] = dHash(img, b);
-      r.greys[k] = Math.round(meanGrey(img, b));
-    }
-    prof.refs[page] = r;
-    log(`  ▣ ref ${page} (${Object.keys(r.regions).join(', ') || 'full'})`);
-  };
+  const ref = async (page: string, regions: Record<string, Box | undefined>) => saveRef(prof, page, await d.screenshot(), regions, 1, log);
 
   try {
     await d.launch();

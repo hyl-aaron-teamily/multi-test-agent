@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
 import { afterEach, describe, expect, it } from 'vitest';
-import { type CrashEvent, detectCrashSignal, startLogcatMonitor } from '../../core/logcat-monitor';
+import { type CrashEvent, detectCrashSignal, startLogcatMonitor } from './logcat-monitor';
 
 // Line format of `adb logcat -v time`.
 const FATAL = [

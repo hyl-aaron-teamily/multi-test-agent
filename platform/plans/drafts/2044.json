@@ -46,7 +46,7 @@
       "plan": {
         "id": "2044-android-app-v1",
         "issueRef": "2044",
-        "title": "按步骤执行并核对预期",
+        "title": "引用块预览应显示链接文本而不是 Markdown 源码",
         "category": "bug-always",
         "surface": "android-app",
         "issueSurfaces": [
@@ -58,7 +58,7 @@
           {
             "id": "conv",
             "kind": "group-conversation",
-            "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+            "guidance": "the conversation titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" (titles may be cut short with …)"
           }
         ],
         "setup": [
@@ -70,28 +70,76 @@
                 "target": "conv"
               }
             },
-            "delayAfterMs": 800
+            "delayAfterMs": 1000
           }
         ],
-        "actions": [
+        "prepare": [
           {
             "type": "node",
             "node": {
               "name": "teamily.sendMessage",
               "input": {
-                "text": "autotest ping"
+                "text": "https://github.com/TensorOpera-Inc/chat-web/pull/654",
+                "kind": "markdown-link"
+              }
+            },
+            "delayAfterMs": 1000
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.quoteReply",
+              "input": {
+                "quote": "github.com/TensorOpera-Inc/chat-web/pull/654",
+                "text": "autotest-2044 quote"
               }
             },
             "delayAfterMs": 1000
           }
         ],
-        "checks": [
+        "prepareCheck": {
+          "kind": "text",
+          "expect": "会话里出现引用了该链接消息的引用块",
+          "want": "present",
+          "match": {
+            "contains": "github.com/TensorOpera-Inc/cha"
+          },
+          "scope": "quote-cards"
+        },
+        "actions": [
           {
-            "kind": "crash",
-            "expect": "无崩溃 / 页面错误",
-            "want": "absent"
+            "type": "tap",
+            "element": "chat.back",
+            "delayAfterMs": 900
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "conv"
+              }
+            },
+            "delayAfterMs": 1000
+          },
+          {
+            "type": "wait",
+            "value": "1000",
+            "delayAfterMs": 1000
           }
         ],
+        "checks": [
+          {
+            "kind": "text",
+            "expect": "引用块预览不出现 Markdown 链接语法 [..](..)（链接只显示一次）",
+            "want": "absent",
+            "match": {
+              "regex": "\\]\\(https?://"
+            },
+            "scope": "quote-cards"
+          }
+        ],
+        "afterCheck": [],
         "limits": {
           "maxSteps": 1000,
           "maxMinutes": 15,
@@ -100,12 +148,83 @@
         "verdictRule": {
           "consecutiveHits": 3
         },
+        "contract": {
+          "issueRef": "2044",
+          "sub": "main",
+          "preconditions": [
+            {
+              "id": "logged-in",
+              "text": "已登录",
+              "establish": "executor"
+            },
+            {
+              "id": "quoted-message-with-markdown-link",
+              "text": "一条含 Markdown 链接语法的消息被引用回复",
+              "establish": "construct"
+            }
+          ],
+          "trigger": {
+            "semantics": "view-quote-preview",
+            "text": "When a message whose content contains a Markdown link is quoted in a reply, the quote block preview on iOS renders the raw Markdown source instead of a parsed link. The link is shown as '[https://github.com/TensorOpera-Inc/chat-web/pull/654](https://github.com/TensorOpera-Inc/chat-web/pull/654)', so",
+            "pattern": "quote-preview-text",
+            "params": {
+              "conversation": "黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2"
+            }
+          },
+          "observable": {
+            "observation": "text",
+            "text": "The quote block preview shows the quoted message as plain display text: the link appears only once (either the URL or its label, optionally as a link), with no Markdown syntax such as '[', '](' or ')'. The preview should match how the original message bubble renders the link.",
+            "phenomenon": "The quote block preview prints the Markdown link source verbatim: '[https://github.com/TensorOpera-Inc/chat-web/pull/654](https://github.com/TensorOpera-Inc/chat-web/pull/654) 测...'. The URL is displayed twice (once as the label in brackets, once as the target in parentheses), taking two lines of the preview and truncating the actual quoted text."
+          },
+          "provenance": {
+            "by": "rules",
+            "skillVersion": "2026.10.21-1"
+          }
+        },
         "provenance": {
           "generatedBy": "rules",
+          "skillVersion": "2026.10.21-1",
+          "pattern": "quote-preview-text"
+        },
+        "coverage": "covered"
+      },
+      "planErrors": [],
+      "contract": {
+        "issueRef": "2044",
+        "sub": "main",
+        "preconditions": [
+          {
+            "id": "logged-in",
+            "text": "已登录",
+            "establish": "executor"
+          },
+          {
+            "id": "quoted-message-with-markdown-link",
+            "text": "一条含 Markdown 链接语法的消息被引用回复",
+            "establish": "construct"
+          }
+        ],
+        "trigger": {
+          "semantics": "view-quote-preview",
+          "text": "When a message whose content contains a Markdown link is quoted in a reply, the quote block preview on iOS renders the raw Markdown source instead of a parsed link. The link is shown as '[https://github.com/TensorOpera-Inc/chat-web/pull/654](https://github.com/TensorOpera-Inc/chat-web/pull/654)', so",
+          "pattern": "quote-preview-text",
+          "params": {
+            "conversation": "黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2"
+          }
+        },
+        "observable": {
+          "observation": "text",
+          "text": "The quote block preview shows the quoted message as plain display text: the link appears only once (either the URL or its label, optionally as a link), with no Markdown syntax such as '[', '](' or ')'. The preview should match how the original message bubble renders the link.",
+          "phenomenon": "The quote block preview prints the Markdown link source verbatim: '[https://github.com/TensorOpera-Inc/chat-web/pull/654](https://github.com/TensorOpera-Inc/chat-web/pull/654) 测...'. The URL is displayed twice (once as the label in brackets, once as the target in parentheses), taking two lines of the preview and truncating the actual quoted text."
+        },
+        "provenance": {
+          "by": "rules",
           "skillVersion": "2026.10.21-1"
         }
-      },
-      "planErrors": []
+      }
     }
-  ]
+  ],
+  "hash": "d832fc0506792d19",
+  "issueHash": "2ab96787c9722ea9",
+  "env": "prod"
 }

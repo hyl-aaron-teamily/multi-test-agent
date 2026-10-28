@@ -1,9 +1,9 @@
 {
   "surface": "mobile-web",
   "name": "mobile-web@prod",
-  "skillVersion": "2026.10.21-1",
+  "skillVersion": "2026.10.26-1",
   "env": "prod",
-  "calibratedAt": "2026-10-21T15:44:40.593Z",
+  "calibratedAt": "2026-10-26T12:55:48.815Z",
   "viewport": {
     "width": 412,
     "height": 839
@@ -14,111 +14,132 @@
       "page": "login",
       "box": [
         36,
-        599,
+        600,
         340,
-        40
+        44
       ],
       "selfCheck": "pass",
-      "note": "focus probe: 2669 px changed in element"
+      "note": "focus probe: 3966 px changed in element"
     },
     "login.emailContinue": {
       "page": "login",
       "box": [
         36,
-        663,
+        668,
         340,
-        40
+        44
       ],
       "selfCheck": "pass",
-      "note": "no self-check (covered by flow)"
+      "note": "no self-check (covered by flow)",
+      "fingerprint": {
+        "text": "通过邮箱继续"
+      }
     },
     "login.password": {
       "page": "login-password",
       "box": [
-        36,
+        49,
         492,
         340,
-        40
+        44
       ],
       "selfCheck": "pass",
-      "note": "focus probe: 8895 px changed in element"
+      "note": "focus probe: 30407 px changed in element"
     },
     "login.continue": {
       "page": "login-password",
       "box": [
-        46,
-        574,
+        58,
+        578,
         320,
-        40
+        44
       ],
       "selfCheck": "pass",
-      "note": "expected state reached"
+      "note": "expected state reached",
+      "fingerprint": {
+        "text": "继续"
+      }
     },
     "popup.appBannerDismiss": {
       "page": "home",
       "box": [
-        71,
-        428,
-        132,
-        36
+        67,
+        432,
+        135,
+        44
       ],
       "selfCheck": "pass",
-      "note": "screen Δ120"
+      "note": "screen Δ90",
+      "fingerprint": {
+        "text": "忽略"
+      }
     },
     "nav.chat": {
       "page": "home",
       "box": [
-        4,
-        776,
-        81,
-        63
+        23,
+        762,
+        72,
+        58
       ],
       "selfCheck": "pass",
-      "note": "url same, screen Δ72"
+      "note": "url changed, screen Δ61",
+      "fingerprint": {
+        "text": "聊天"
+      }
     },
     "nav.artifacts": {
       "page": "home",
       "box": [
-        327,
-        776,
-        81,
-        63
+        317,
+        762,
+        72,
+        58
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ20"
+      "note": "url changed, screen Δ22",
+      "fingerprint": {
+        "text": "Artifacts"
+      }
     },
     "nav.me": {
       "page": "home",
       "box": [
         16,
-        16,
+        20,
         36,
         36
       ],
       "selfCheck": "pass",
-      "note": "url changed, screen Δ29"
+      "note": "url changed, screen Δ25",
+      "fingerprint": {
+        "desc": "我"
+      }
     },
     "chatlist.search": {
       "page": "home",
       "box": [
-        16,
-        84,
-        379,
-        36
+        115,
+        97,
+        271,
+        42
       ],
       "selfCheck": "pass",
-      "note": "focus probe: 3695 px changed in element"
+      "note": "focus probe: 1573 px changed in element",
+      "fingerprint": {
+        "desc": "搜索"
+      }
     },
     "chat.composer": {
       "page": "chat",
       "box": [
         25,
-        732,
+        724,
         362,
         28
       ],
       "selfCheck": "pass",
-      "note": "focus probe: 919 px changed in element"
+      "note": "focus probe: 931 px changed in element"
     },
     "chat.back": {
       "page": "chat",
@@ -129,39 +150,48 @@
         32
       ],
       "selfCheck": "pass",
-      "note": "url same, screen Δ32"
+      "note": "url same, screen Δ25"
     },
     "chat.send": {
       "page": "chat",
       "box": [
-        355,
-        778,
-        36,
-        36
+        347,
+        770,
+        44,
+        44
       ],
-      "selfCheck": "pending"
+      "selfCheck": "pending",
+      "fingerprint": {
+        "desc": "发送"
+      }
     },
     "profile.bell": {
       "page": "profile",
       "box": [
-        280,
-        84,
-        32,
-        32
+        260,
+        12,
+        44,
+        44
       ],
       "selfCheck": "pass",
-      "note": "screen Δ14"
+      "note": "screen Δ18",
+      "fingerprint": {
+        "desc": "通知"
+      }
     },
     "artifacts.bell": {
       "page": "artifacts",
       "box": [
-        368,
-        8,
-        32,
-        32
+        356,
+        10,
+        44,
+        44
       ],
       "selfCheck": "pass",
-      "note": "screen Δ70"
+      "note": "screen Δ48",
+      "fingerprint": {
+        "desc": "通知"
+      }
     }
   },
   "refs": {
@@ -170,33 +200,33 @@
       "regions": {
         "form": [
           36,
-          599,
+          600,
           340,
-          40
+          44
         ]
       },
       "hashes": {
-        "form": "80000040c0400000"
+        "form": "0101018181410101"
       },
       "greys": {
-        "form": 243
+        "form": 230
       }
     },
     "banner": {
       "image": "refs/mobile-web@prod/banner.png",
       "regions": {
         "dismiss": [
-          71,
-          428,
-          132,
-          36
+          67,
+          432,
+          135,
+          44
         ]
       },
       "hashes": {
-        "dismiss": "8001313131310180"
+        "dismiss": "0101303030100101"
       },
       "greys": {
-        "dismiss": 234
+        "dismiss": 235
       }
     },
     "home": {
@@ -210,10 +240,10 @@
         ]
       },
       "hashes": {
-        "nav": "0004159455545400"
+        "nav": "9696948482000080"
       },
       "greys": {
-        "nav": 251
+        "nav": 233
       }
     },
     "chat": {
@@ -221,16 +251,16 @@
       "regions": {
         "composer": [
           0,
-          778,
+          766,
           412,
-          36
+          52
         ]
       },
       "hashes": {
-        "composer": "01031b496b5b0301"
+        "composer": "0003131e14120000"
       },
       "greys": {
-        "composer": 236
+        "composer": 243
       }
     },
     "mention-picker": {
@@ -238,50 +268,50 @@
       "regions": {
         "picker": [
           33,
-          465,
+          457,
           368,
           28
         ]
       },
       "hashes": {
-        "picker": "000058c8d8a80000"
+        "picker": "000058d8c8880000"
       },
       "greys": {
-        "picker": 246
+        "picker": 250
       }
     },
     "profile": {
       "image": "refs/mobile-web@prod/profile.png",
       "regions": {
         "bell": [
-          274,
-          78,
-          44,
-          44
-        ]
-      },
-      "hashes": {
-        "bell": "0000302868100000"
-      },
-      "greys": {
-        "bell": 241
-      }
-    },
-    "artifacts": {
-      "image": "refs/mobile-web@prod/artifacts.png",
-      "regions": {
-        "bell": [
-          362,
-          2,
-          44,
-          44
+          254,
+          6,
+          56,
+          56
         ]
       },
       "hashes": {
         "bell": "0000302828100000"
       },
       "greys": {
-        "bell": 252
+        "bell": 251
+      }
+    },
+    "artifacts": {
+      "image": "refs/mobile-web@prod/artifacts.png",
+      "regions": {
+        "bell": [
+          350,
+          4,
+          56,
+          56
+        ]
+      },
+      "hashes": {
+        "bell": "0000103030100000"
+      },
+      "greys": {
+        "bell": 242
       }
     }
   },

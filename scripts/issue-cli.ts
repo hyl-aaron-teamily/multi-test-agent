@@ -1,40 +1,56 @@
 // `autotest plan` / `autotest run`: Issue → draft → ONE confirmation (category, sub-cases, substitution
 // checkboxes with reasons) → fixed plans in platform/plans/ → executor → report.
-import { existsSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
-import { basename, join, resolve } from 'node:path';
+import { basename, join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
 import { runDirFor, runPlan, type RunResult } from '../executor/run';
-import { AccountPool } from '../platform/accounts/account-pool';
-import { DevicePool } from '../platform/device-pool';
-import type { Surface, TestPlan } from '../platform/schema/test-plan';
-import { parseIssue } from './parse';
-import { applyApproval, type Draft, draftIssue } from './planner';
-import { writeIssueReport } from './report';
+import { openPools } from '../platform/pools';
+import { type Surface, type TestPlan, TestPlanZ } from '../platform/schema/test-plan';
+import { parseIssue } from '../issue/parse';
+import { issuePath } from '../issue/paths';
+import { DRAFTS_DIR, loadSavedDraft, PLANS_DIR, saveDraft } from '../issue/drafts';
+import { applyApproval, type Draft, draftIssue } from '../issue/planner';
+import { writeIssueReport } from '../issue/report';
 
-export const PLANS_DIR = resolve('platform/plans');
+export { PLANS_DIR };
 
 const flag = (a: string[], n: string) => (a.indexOf(`--${n}`) >= 0 ? a[a.indexOf(`--${n}`) + 1] : undefined);
 const has = (a: string[], n: string) => a.includes(`--${n}`);
 
-export function issuePath(ref: string): string {
-  return existsSync(ref) ? ref : resolve('issues', `${ref.replace(/\.md$/, '')}.md`);
-}
+export { issuePath };
 
-export async function loadDraft(ref: string, env: 'test' | 'prod', useModel = true): Promise<Draft> {
+/** The confirmed draft: the saved one while the Issue file is unchanged (no model call), else a new draft
+ *  (saved with its hash). `redraft` forces a new one. */
+export async function loadDraft(ref: string, env: 'test' | 'prod', useModel = true, redraft = false): Promise<Draft> {
   const f = issuePath(ref);
   const id = basename(f).replace(/\.md$/, '');
-  return draftIssue(parseIssue(id, await readFile(f, 'utf8')), { env, useModel });
+  const text = await readFile(f, 'utf8');
+  const saved = redraft ? undefined : loadSavedDraft(id, text, env);
+  if (saved) return saved;
+  return saveDraft(await draftIssue(parseIssue(id, text), { env, useModel }), text, env);
 }
 
 /** Human-readable confirmation sheet. */
 export function confirmationSheet(d: Draft): string {
-  const out = [`Issue ${d.issue.id}: ${d.issue.title.slice(0, 120)}`, `预判类别: ${d.classification.category}（${d.classification.by}）— ${d.reason}`];
+  const out = [`Issue ${d.issue.id}: ${d.issue.title.slice(0, 120)}${d.hash ? `  [草稿 ${d.hash}]` : ''}`, `预判类别: ${d.classification.category}（${d.classification.by}）— ${d.reason}`];
   if (d.status !== 'plannable') out.push(`处理: ${d.status === 'refused' ? '拒绝执行' : '暂缓'}`);
+  for (const k of d.contracts ?? []) out.push(`  契约：前置条件 ${k.preconditions.map((p) => `${p.text}[${p.establish}]`).join('；')}`);
   if (d.deferredPart) out.push(`暂缓部分: ${d.deferredPart}`);
+  for (const w of d.warmupFailures ?? []) out.push(`⚠ 上次预热失败 ${w.planId}（${w.at}）：${w.detail}`);
   for (const s of d.subcases) {
     out.push(`  [${s.substitution ? ' ' : 'x'}] ${s.sub}: ${s.plan.title} — ${s.title}`);
     if (s.substitution) out.push(`      替代: ${s.substitution.from} → ${s.substitution.alternatives.join(' | ')}（默认 ${s.surface}）`, `      理由: ${s.substitution.reason}`);
+    if (s.contract) {
+      const k = s.contract;
+      out.push(
+        `      契约（${k.provenance.by}）：前置条件 ${k.preconditions.map((p) => `${p.text}[${p.establish}]`).join('；')}`,
+        `        触发：${k.trigger.semantics} — ${k.trigger.text.slice(0, 100)}`,
+        `        可观察后置条件：${k.observable.observation} — 现象「${k.observable.phenomenon.slice(0, 120)}」`,
+        ...(k.suspectedMechanism ? [`        推测机制（仅提示，不执行）：${k.suspectedMechanism}`] : []),
+        `        计划：${s.plan.provenance.pattern ? `模式 ${s.plan.provenance.pattern}` : s.plan.provenance.generatedBy === 'model' ? '模型组合' : '通用模板'}；${s.plan.coverage === 'not-covered' ? '⚠ 计划未覆盖 Issue 现象，结论仅说明无崩溃' : '覆盖 Issue 现象'}`,
+      );
+    }
     if (s.planErrors.length) out.push(`      计划校验问题: ${s.planErrors.join('; ')}`);
   }
   return out.join('\n');
@@ -82,9 +98,8 @@ export async function planCmd(args: string[]): Promise<number> {
   const ref = args.find((a) => !a.startsWith('--'));
   if (!ref) throw new Error('usage: autotest plan issues/<id>.md [--env prod] [--json] [--no-model]');
   const env = (flag(args, 'env') ?? 'prod') as 'test' | 'prod';
-  const d = await loadDraft(ref, env, !has(args, 'no-model'));
-  await mkdir(join(PLANS_DIR, 'drafts'), { recursive: true });
-  await writeFile(join(PLANS_DIR, 'drafts', `${d.issue.id}.json`), JSON.stringify(d, null, 2));
+  // `plan` always drafts anew (that is its job); `run` reuses the confirmed draft.
+  const d = await loadDraft(ref, env, !has(args, 'no-model'), true);
   if (d.status !== 'plannable') {
     const dir = runDirFor(d.issue.id);
     const f = await writeIssueReport(d, [], dir);
@@ -101,13 +116,12 @@ export async function planCmd(args: string[]): Promise<number> {
 export async function runIssue(d: Draft, approve: { sub: string; surface?: Surface }[], o: { headed?: boolean; maxSteps?: number; maxMinutes?: number; udid?: string; taskId?: string; log?: (s: string) => void }): Promise<{ dir: string; results: RunResult[]; report: string }> {
   const dir = runDirFor(d.issue.id);
   if (d.status !== 'plannable') return { dir, results: [], report: await writeIssueReport(d, [], dir) };
-  const plans = applyApproval(d, approve);
-  await savePlans(plans);
-  const pool = new AccountPool();
-  await pool.reload();
-  const devices = new DevicePool();
-  await devices.reloadConfig();
-  await devices.refresh();
+  // Confirmation = execution: approved plans are frozen to files (with the draft hash) and the executor runs
+  // exactly what is read back from them.
+  const files = await savePlans(applyApproval(d, approve));
+  const plans = files.map((f) => TestPlanZ.parse(JSON.parse(readFileSync(f, 'utf8'))));
+  for (const p of plans) if (p.provenance.draftHash !== d.hash) throw new Error(`plan ${p.id}: draft hash ${p.provenance.draftHash} ≠ confirmed ${d.hash}`);
+  const { pool, devices } = await openPools();
   const results: RunResult[] = [];
   for (const p of plans) {
     (o.log ?? console.log)(`[run] plan ${p.id} (${p.category}, ${p.surface}${p.substitution ? `, 替代 ${p.substitution.from}` : ''}, env ${p.env})`);
@@ -115,15 +129,24 @@ export async function runIssue(d: Draft, approve: { sub: string; surface?: Surfa
     (o.log ?? console.log)(`[run] ${p.id}: ${r.conclusion} — ${r.conclusionDetail}${r.error ? ` (error: ${r.error})` : ''}`);
     results.push(r);
   }
+  // Warm-up gate feedback: a plan that is not executable on the current UI goes back to the draft.
+  const failed = results.filter((r) => r.conclusion === '计划不可执行');
+  if (failed.length && d.hash) {
+    d.warmupFailures = [...(d.warmupFailures ?? []), ...failed.map((r) => ({ planId: r.planId, at: r.finishedAt, detail: r.conclusionDetail }))];
+    await writeFile(join(DRAFTS_DIR, `${d.issue.id}.json`), JSON.stringify(d, null, 2));
+  }
   return { dir, results, report: await writeIssueReport(d, results, dir) };
 }
 
 export async function runCmd(args: string[]): Promise<number> {
   const ref = flag(args, 'issue') ?? args.find((a) => !a.startsWith('--'));
-  if (!ref) throw new Error('usage: autotest run --issue <id> [--approve s1,s2:mobile-web|all] [--yes] [--env prod]');
+  if (!ref) throw new Error('usage: autotest run --issue <id> [--approve s1,s2:mobile-web|all] [--yes] [--env prod] [--redraft] [--draft <hash>]');
   const env = (flag(args, 'env') ?? 'prod') as 'test' | 'prod';
-  const d = await loadDraft(ref, env, !has(args, 'no-model'));
+  const d = await loadDraft(ref, env, !has(args, 'no-model'), has(args, 'redraft'));
   console.log(confirmationSheet(d));
+  // The console confirms a draft by its hash: refuse to run anything else.
+  const want = flag(args, 'draft');
+  if (want && want !== d.hash) throw new Error(`draft ${d.hash} is not the confirmed draft ${want} — confirm again`);
   let approve: { sub: string; surface?: Surface }[] = [];
   if (d.status === 'plannable') {
     const subst = d.subcases.some((s) => s.substitution);
@@ -140,5 +163,5 @@ export async function runCmd(args: string[]): Promise<number> {
   const num = (n: string) => (flag(args, n) ? Number(flag(args, n)) : undefined);
   const { report, results } = await runIssue(d, approve, { headed: has(args, 'headed'), maxSteps: num('max-steps'), maxMinutes: num('max-minutes'), udid: flag(args, 'device'), taskId: flag(args, 'id') });
   console.log(`[run] report → ${report}`);
-  return results.some((r) => r.conclusion === '执行失败' || r.conclusion === 'SKILL 失效') ? 3 : results.some((r) => r.conclusion === '已复现') ? 1 : 0;
+  return results.some((r) => r.conclusion === '执行失败' || r.conclusion === 'SKILL 失效' || r.conclusion === '计划不可执行') ? 3 : results.some((r) => r.conclusion === '已复现') ? 1 : 0;
 }

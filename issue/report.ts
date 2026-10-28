@@ -35,11 +35,17 @@ export function runMarkdown(d: Draft, results: RunResult[], runDir: string): str
   if (d.deferredPart) lines.push(`- 暂缓部分：${d.deferredPart}`);
   lines.push('');
   for (const r of results) {
-    lines.push(`## ${r.planId} — ${r.conclusion}`, '', `- ${r.title}；执行端 ${r.surface}${r.device ? `（设备 ${r.device}）` : ''}；账号 ${r.account ?? '-'}`, `- ${r.conclusionDetail}`);
+    lines.push(`## ${r.planId} — ${r.conclusion}${r.coverage === 'not-covered' ? '（⚠ 计划未覆盖 Issue 现象，仅说明无崩溃）' : ''}`, '', ...(r.phenomenon ? [`- Issue 现象（契约）：${r.phenomenon.slice(0, 200)}`] : []), `- ${r.title}；执行端 ${r.surface}${r.device ? `（设备 ${r.device}）` : ''}；账号 ${r.account ?? '-'}`, `- ${r.conclusionDetail}`);
     if (r.error) lines.push(`- 错误：${r.error}`);
     if (r.targets.length) lines.push(`- 准备阶段目标（模型决策后冻结）：${r.targets.map((t) => `${t.id}="${t.chosen}" @(${t.point.x},${t.point.y}) [${t.by}]`).join('；')}`);
     const s = r.stats;
     lines.push('', '| 统计 | 值 |', '|---|---|', `| 总步数 / 轮数 | ${s.steps} / ${s.rounds} |`, `| 总时长 | ${s.durationSec}s |`, `| 动作间隔 平均 / 最大 | ${s.avgIntervalMs}ms / ${s.maxIntervalMs}ms（>1s: ${s.intervalsOverCap} 次） |`, `| App 启动次数 | ${s.launches} |`, `| 操作偏离（重进，不计命中） | ${s.drifts ?? 0} |`, `| 异常门触发 / 可疑信号 | ${s.anomalyGateTriggers} / ${s.suspectSignals} |`, `| 检查点截图 | ${s.checkpointScreenshots} |`, `| 视觉模型调用 | ${s.visionCalls}${s.evidenceReviews ? `（含证据复核 ${s.evidenceReviews} 次）` : ''} |`, `| 文本模型调用 | ${s.textModelCalls} |`, '');
+    const tierRows = (t: Record<string, { n: number; ms: number }> | undefined) => Object.entries(t ?? {}).map(([k, v]) => `| ${k} | ${v.n} | ${Math.round(v.ms / Math.max(1, v.n))}ms |`);
+    if (r.warmup?.steps.length)
+      lines.push('### 预热轮（逐步核验）', '', '| 步 | 动作 | 预期效果 | 观察 | 结果 |', '|---|---|---|---|---|', ...r.warmup.steps.map((w) => `| ${w.step} | ${w.action} | ${w.expected} | ${w.observed}${w.healed ? `；自愈 ${w.healed}` : ''} | ${w.pass === null ? '—' : w.pass ? '✅' : '❌'} |`), '');
+    if (r.healed?.length) lines.push('### 坐标自愈（本次运行，标定 profile 未修改）', '', ...r.healed.map((h) => `- ${h.element}: ${JSON.stringify(h.from)} → ${JSON.stringify(h.to)}（${h.by}）；候选 profile：healed-profile.json`), '');
+    if (s.observeTiers || s.locateTiers || s.modelCallsByPurpose)
+      lines.push('### 判定分层统计', '', '①=确定性（日志 / 进程 / 系统状态 / 无障碍或页面文字 / 区域比对），③=视觉模型。', '', '| 层 · 判定 / 定位 | 次数 | 平均耗时 |', '|---|---|---|', ...tierRows(s.observeTiers), ...tierRows(s.locateTiers).map((r) => r.replace('| ', '| 定位 ')), '', `模型调用按用途：${Object.entries(s.modelCallsByPurpose ?? {}).map(([k, v]) => `${k} ${v}`).join('，') || '无'}`, '');
     if (r.acceptance) {
       lines.push('| 验收项 | 结果 | 依据 |', '|---|---|---|');
       for (const a of r.acceptance) lines.push(`| ${a.text} | ${a.pass === null ? '未验证' : a.pass ? '✅ 已实现' : '❌ 缺项'} | ${a.detail}${a.evidence ? ` · [截图](${r.planId}/${a.evidence})` : ''} |`);
@@ -78,7 +84,7 @@ export async function writeAllure(d: Draft, r: RunResult, runDir: string): Promi
   }
   const rep = await att(join(runDir, 'report.md'), 'report.md', 'text/markdown');
   if (rep) attachments.push(rep);
-  const status = r.conclusion === '已复现' || r.conclusion === '未实现' || r.conclusion === '部分实现' ? 'failed' : r.conclusion === '执行失败' || r.conclusion === 'SKILL 失效' ? 'broken' : 'passed';
+  const status = r.conclusion === '已复现' || r.conclusion === '未实现' || r.conclusion === '部分实现' ? 'failed' : r.conclusion === '执行失败' || r.conclusion === 'SKILL 失效' || r.conclusion === '计划不可执行' ? 'broken' : 'passed';
   const start = Date.parse(r.startedAt);
   await writeFile(
     join(ALLURE_DIR, `${randomUUID()}-result.json`),

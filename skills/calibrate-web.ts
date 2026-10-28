@@ -7,7 +7,9 @@ import { dirname, join } from 'node:path';
 import type { Locator, Page } from 'playwright';
 import { type Box, decodePng, dHash, drawBox, encodePng, hamming, meanGrey, pixelDiff, scaleBox } from '../core/image';
 import { WebDriver, contextOptions, desktopBrowser } from '../drivers/web';
+import { notifyPromptClose } from '../drivers/web-dialogs';
 import type { Credentials, Env } from '../platform/accounts/types';
+import { queueReview, saveRef } from './calibrate-common';
 import { type ElementCal, type Profile, SKILL_DIR, saveProfile } from './profile';
 import { ELEMENTS, SKILL_VERSION } from './teamily/vocab';
 
@@ -24,9 +26,17 @@ export interface CalibrateWebOptions {
   sessionFile: string;
 }
 
+/** Text fingerprint of a located element (self-heal): its accessible label or visible text. */
+const fingerprints = new WeakMap<Box, { text?: string; desc?: string }>();
+
 const box = async (l: Locator): Promise<Box | undefined> => {
   const b = await l.boundingBox().catch(() => null);
-  return b && b.width > 0 ? [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)] : undefined;
+  if (!b || b.width <= 0) return undefined;
+  const out: Box = [Math.round(b.x), Math.round(b.y), Math.round(b.width), Math.round(b.height)];
+  const label = (await l.getAttribute('aria-label', { timeout: 500 }).catch(() => null))?.trim();
+  const text = (await l.innerText({ timeout: 500 }).catch(() => ''))?.trim().split('\n')[0].slice(0, 40);
+  if (label || text) fingerprints.set(out, { ...(text ? { text } : {}), ...(label ? { desc: label } : {}) });
+  return out;
 };
 
 const first = async (page: Page, ...sels: string[]): Promise<Locator | undefined> => {
@@ -53,10 +63,10 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
     const spec = ELEMENTS.find((e) => e.id === id)!;
     if (!b) {
       log(`  ✗ ${id}: not found`);
-      prof.reviewQueue.push({ element: id, image: '', reason: 'not found during calibration' });
+      queueReview(prof, id, 'not found during calibration');
       return;
     }
-    prof.elements[id] = { page: spec.page, box: b, selfCheck: 'pending', note } satisfies ElementCal;
+    prof.elements[id] = { page: spec.page, box: b, selfCheck: 'pending', note, ...(fingerprints.get(b) ? { fingerprint: fingerprints.get(b) } : {}) } satisfies ElementCal;
     log(`  · ${id} ${JSON.stringify(b)}`);
   };
 
@@ -85,8 +95,9 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
       note = `url ${d.p.url() !== url0 ? 'changed' : 'same'}, screen Δ${fullDiff.toFixed(0)}`;
     } else if (spec.selfCheck === 'focus') {
       const px = pixelDiff(before, after, near);
-      ok = px >= 15;
-      note = `focus probe: ${px} px changed in element`;
+      // Some inputs open their own panel (the search box): the typed probe shows there, not in the box.
+      ok = px >= 15 || fullDiff >= 6;
+      note = `focus probe: ${px} px changed in element${px < 15 && fullDiff >= 6 ? `, screen Δ${fullDiff.toFixed(0)} (opened a panel)` : ''}`;
     } else if (spec.selfCheck === 'popup') {
       ok = fullDiff >= 3;
       note = `screen Δ${fullDiff.toFixed(0)}`;
@@ -106,23 +117,7 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
     }
   };
 
-  const ref = async (page: string, regions: Record<string, Box | undefined>) => {
-    const buf = await d.screenshot();
-    const img = decodePng(buf);
-    const file = join(refDir, `${page}.png`);
-    await mkdir(dirname(file), { recursive: true });
-    await writeFile(file, buf);
-    const r: Profile['refs'][string] = { image: `refs/${name}/${page}.png`, regions: {}, hashes: {}, greys: {} };
-    for (const [k, b] of Object.entries(regions)) {
-      if (!b) continue;
-      const px = scaleBox(b, dpr);
-      r.regions[k] = b;
-      r.hashes[k] = dHash(img, px);
-      r.greys[k] = Math.round(meanGrey(img, px));
-    }
-    prof.refs[page] = r;
-    log(`  ▣ ref ${page} (${Object.keys(r.regions).join(', ') || 'full'})`);
-  };
+  const ref = async (page: string, regions: Record<string, Box | undefined>) => saveRef(prof, page, await d.screenshot(), regions, dpr, log);
 
   try {
     await d.launch();
@@ -163,6 +158,16 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
     await p.waitForTimeout(12_000);
     await mkdir(dirname(o.sessionFile), { recursive: true });
     await d.context!.storageState({ path: o.sessionFile });
+    // The "开启通知" toast covers the header (back arrow / avatar): close it like a user.
+    const closeNotify = async () => {
+      const pt = await notifyPromptClose(p);
+      if (pt) {
+        log('  notification prompt over the header — closing it');
+        await d.tap(pt);
+        await p.waitForTimeout(800);
+      }
+    };
+    await closeNotify();
 
     // ---- home
     if (o.surface === 'mobile-web') {
@@ -270,6 +275,15 @@ export async function calibrateWeb(o: CalibrateWebOptions): Promise<Profile> {
       for (const l of await p.locator('button[aria-label]').filter({ visible: true }).all()) {
         const b = await box(l);
         if (b && b[0] > 320 && b[2] > 200 && b[3] > 150 && (!cardBox || b[1] < cardBox[1] || (b[1] === cardBox[1] && b[0] < cardBox[0]))) cardBox = b;
+      }
+      if (!cardBox) {
+        // Cards without an accessible name: the innermost block holding a type tag (DOC …) and an 更新于 line.
+        const cards = p.locator('div').filter({ has: p.getByText(/^(DOC|SHEET|SLIDE|PDF|HTML|WEB)$/) }).filter({ hasText: /更新于|Updated/ }).filter({ visible: true });
+        const n = await cards.count().catch(() => 0);
+        for (let i = n - 1; i >= 0 && !cardBox; i--) {
+          const b = await box(cards.nth(i));
+          if (b && b[0] > 60 && b[2] > 150 && b[3] > 120) cardBox = b;
+        }
       }
       put('artifacts.firstCard', cardBox);
       if (prof.elements['artifacts.firstCard']) {

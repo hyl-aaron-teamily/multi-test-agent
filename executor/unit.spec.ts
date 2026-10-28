@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { decodePng, dHash, encodePng, hamming, type Rgba, regionDiffFraction } from '../core/image';
 import { classifyLogLine } from '../drivers/android';
 import { opsSrt } from '../incident/bundle';
-import { firstDeviation } from '../incident/replay';
+import { firstDeviation } from './replay';
 import { applyApproval, splitSubcases, substitutionOptions, templateFor } from '../issue/planner';
 import { validatePlan } from '../issue/validate';
 import { regionMatch } from './checks';
@@ -76,6 +76,10 @@ describe('android anomaly gate (logcat only)', () => {
   const pkg = 'ai.teamily.mobile';
   it('crash / anr / death / left app / app error', () => {
     expect(classifyLogLine('10-21 E AndroidRuntime: FATAL EXCEPTION: main', pkg)?.kind).toBe('crash');
+    // another process (hierarchy dump) or another pid is not the app's crash
+    expect(classifyLogLine('10-26 18:31:00.052 28649 28660 E AndroidRuntime: FATAL EXCEPTION: UiAutomation', pkg, 4321)).toBeUndefined();
+    expect(classifyLogLine('10-26 18:31:00.052 28649 28660 E AndroidRuntime: FATAL EXCEPTION: main', pkg, 4321)).toBeUndefined();
+    expect(classifyLogLine('10-26 18:31:00.052 4321 4330 E AndroidRuntime: FATAL EXCEPTION: main', pkg, 4321)?.kind).toBe('crash');
     expect(classifyLogLine('I am_crash: [123,0,ai.teamily.mobile,1,java.lang.RuntimeException]', pkg)?.kind).toBe('crash');
     expect(classifyLogLine('E ActivityManager: ANR in ai.teamily.mobile (ai.teamily.mobile/.MainActivity)', pkg)?.kind).toBe('anr');
     expect(classifyLogLine('I am_proc_died: [0,4321,ai.teamily.mobile,0,17]', pkg)?.kind).toBe('app-exit');

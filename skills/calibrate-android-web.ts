@@ -7,15 +7,17 @@
 //     located on the screenshot by the vision model (Midscene aiLocate).
 // Runs use coordinates only. Signs in the account that owns this surface (the browser keeps the session);
 // the form is submitted with the keyboard's Enter, because the on-screen keyboard covers the form buttons.
+import { visionLocateRect } from '../core/model/midscene';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { type Box, decodePng, dHash, drawBox, encodePng, meanGrey, pixelDiff } from '../core/image';
+import { type Box, decodePng, drawBox, encodePng, pixelDiff } from '../core/image';
 import { AndroidDriver } from '../drivers/android';
 import { BROWSER_PACKAGE } from '../drivers/factory';
 import { sleep } from '../drivers/types';
-import { modelCalls } from '../issue/llm';
+import { modelCalls } from '../core/model/llm';
 import type { Credentials, Env } from '../platform/accounts/types';
 import { dump, type N, toBox } from './calibrate-android';
+import { queueReview, saveRef } from './calibrate-common';
 import { loadProfile, type Profile, SKILL_DIR, saveProfile } from './profile';
 import { ELEMENTS, SKILL_VERSION } from './teamily/vocab';
 
@@ -49,39 +51,28 @@ export async function calibrateAndroidWeb(o: CalibrateAndroidWebOptions): Promis
   const web = () => nodes.find((n) => /WebView$/.test(n.cls) && n.y2 - n.y1 > 800);
   const inWeb = (n: N) => {
     const w = web();
-    return !w || (n.y1 >= w.y1 && n.y2 <= w.y2 + 2 && n.y2 > n.y1);
+    // No WebView node (the browser did not expose the page): keep clear of its address bar and toolbar.
+    if (!w) return n.y1 >= 260 && n.y2 <= prof.viewport.height - 180 && n.y2 > n.y1;
+    // The browser's address bar (its hint is also 搜索…) is never page content.
+    return n.y1 >= Math.max(w.y1, 250) && n.y2 <= w.y2 + 2 && n.y2 > n.y1 && !/EditText/.test(n.cls) || (n.y1 >= Math.max(w.y1, 250) && /EditText/.test(n.cls) && n.y2 <= w.y2 + 2 && !/网址|URL/i.test(n.hint));
   };
   const tapNode = (n: { x1: number; y1: number; x2: number; y2: number }) => d.tap({ x: Math.round((n.x1 + n.x2) / 2), y: Math.round((n.y1 + n.y2) / 2) });
 
   // ---- vision locate (Midscene, counted)
-  let agent: any;
   const locate = async (q: string): Promise<N | undefined> => {
-    try {
-      if (!agent) {
-        const { AndroidAgent, AndroidDevice } = await import('@midscene/android');
-        const dev = new AndroidDevice(o.udid);
-        await dev.connect();
-        agent = new AndroidAgent(dev, { generateReport: false } as any);
-      }
-      modelCalls.vision++;
-      const r = await agent.aiLocate(q);
-      const rect = r?.rect;
-      if (!rect) return undefined;
-      return { x1: Math.round(rect.left), y1: Math.round(rect.top), x2: Math.round(rect.left + rect.width), y2: Math.round(rect.top + rect.height), text: q, hint: '', desc: '(vision)', cls: 'vision', clickable: true };
-    } catch (err) {
-      log(`  vision locate failed: ${(err as Error).message.split('\n')[0]}`);
-      return undefined;
-    }
+    const r = await visionLocateRect({ surface: 'android-web', o: { udid: o.udid } }, q, 'calibrate');
+    if (!r) return undefined;
+    return { x1: r.x, y1: r.y, x2: r.x + r.w, y2: r.y + r.h, text: q, hint: '', desc: '(vision)', cls: 'vision', clickable: true };
   };
 
   const put = (id: string, n: N | undefined) => {
     const spec = ELEMENTS.find((e) => e.id === id)!;
     if (!n) {
       log(`  ✗ ${id}: not found`);
-      prof.reviewQueue.push({ element: id, image: '', reason: 'not found during calibration' });
+      queueReview(prof, id, 'not found during calibration');
       return;
     }
-    prof.elements[id] = { page: spec.page, box: toBox(n), selfCheck: 'pending', note: n.cls === 'vision' ? 'located by vision' : undefined };
+    prof.elements[id] = { page: spec.page, box: toBox(n), selfCheck: 'pending', note: n.cls === 'vision' ? 'located by vision' : undefined, ...(n.cls !== 'vision' && (n.text || n.desc) ? { fingerprint: { text: n.text || undefined, desc: n.desc || undefined, cls: n.cls } } : {}) };
     log(`  · ${id} ${JSON.stringify(toBox(n))} "${label(n).slice(0, 30)}"`);
   };
   const mark = (id: string, ok: boolean, note: string, img?: ReturnType<typeof decodePng>) => {
@@ -103,8 +94,14 @@ export async function calibrateAndroidWeb(o: CalibrateAndroidWebOptions): Promis
     const before = await shot();
     await d.tap({ x: e.box[0] + e.box[2] / 2, y: e.box[1] + e.box[3] / 2 });
     await sleep(1800);
-    const after = await shot();
-    const px = pixelDiff(before, after);
+    let after = await shot();
+    let px = pixelDiff(before, after);
+    if (px < minPx) {
+      // Slow page: give the tap time to take effect before judging.
+      await sleep(3000);
+      after = await shot();
+      px = pixelDiff(before, after);
+    }
     mark(id, px >= minPx, `screen Δ${px}px`, after);
   };
   /** Tap an input until the keyboard is up (big screen change). */
@@ -123,20 +120,7 @@ export async function calibrateAndroidWeb(o: CalibrateAndroidWebOptions): Promis
     mark(id, px >= 20_000, `keyboard ${px >= 20_000 ? 'up' : 'not up'} (screen Δ${px}px)`, after);
     if (px < 20_000) throw new Error(`${id}: tapping it does not bring up the keyboard`);
   };
-  const ref = async (page: string, regions: Record<string, Box | undefined>) => {
-    const buf = await d.screenshot();
-    const img = decodePng(buf);
-    await writeFile(join(refDir, `${page}.png`), buf);
-    const r: Profile['refs'][string] = { image: `refs/${name}/${page}.png`, regions: {}, hashes: {}, greys: {} };
-    for (const [k, b] of Object.entries(regions)) {
-      if (!b) continue;
-      r.regions[k] = b;
-      r.hashes[k] = dHash(img, b);
-      r.greys[k] = Math.round(meanGrey(img, b));
-    }
-    prof.refs[page] = r;
-    log(`  ▣ ref ${page} (${Object.keys(r.regions).join(', ') || 'full'})`);
-  };
+  const ref = async (page: string, regions: Record<string, Box | undefined>) => saveRef(prof, page, await d.screenshot(), regions, 1, log);
   /** Browser prompts over the page ("set as default browser"): decline. */
   const dismissBrowserPrompts = async () => {
     await look();
@@ -253,12 +237,12 @@ export async function calibrateAndroidWeb(o: CalibrateAndroidWebOptions): Promis
     }
     const w = web();
     const bottom = (w?.y2 ?? prof.viewport.height) - 320;
-    const clickableAround = (n: N | undefined) => (n ? (nodes.filter((x) => x.clickable && x.x1 <= n.x1 && x.x2 >= n.x2 && x.y1 <= n.y1 && x.y2 >= n.y2).sort((a, b) => (a.x2 - a.x1) * (a.y2 - a.y1) - (b.x2 - b.x1) * (b.y2 - b.y1))[0] ?? n) : undefined);
+    const clickableAround = (n: N | undefined) => (n ? (nodes.filter((x) => x.clickable && inWeb(x) && x.x1 <= n.x1 && x.x2 >= n.x2 && x.y1 <= n.y1 && x.y2 >= n.y2).sort((a, b) => (a.x2 - a.x1) * (a.y2 - a.y1) - (b.x2 - b.x1) * (b.y2 - b.y1))[0] ?? n) : undefined);
     const navNode = (re: RegExp) => clickableAround(nodes.filter((n) => has(n, re) && inWeb(n) && n.y1 > bottom).sort((a, b) => b.y1 - a.y1)[0]);
     put('nav.chat', navNode(/^(聊天|Chat)$/));
     put('nav.artifacts', navNode(/^Artifacts$/i));
     // Phone layout: "我" is the avatar at the top-left, not in the bottom bar.
-    put('nav.me', clickableAround(find(/^(我|Me)$/, undefined, inWeb)));
+    put('nav.me', clickableAround(find(/^(我|Me)$/, undefined, inWeb)) ?? (await locate('the round user avatar ("我" / Me entry) at the top-left of the chat list header')));
     put('chatlist.search', clickableAround(find(/^(搜索|Search)/, undefined, inWeb)));
     const nb = prof.elements['nav.chat']?.box;
     const navBand: Box | undefined = nb && w ? [w.x1, nb[1] - 4, w.x2 - w.x1, nb[3] + 8] : undefined;
@@ -281,6 +265,11 @@ export async function calibrateAndroidWeb(o: CalibrateAndroidWebOptions): Promis
       await look();
     }
     const groupTitle = () => nodes.find((n) => inWeb(n) && /TextView/.test(n.cls) && /,/.test(n.text) && n.y1 > (w?.y1 ?? 0) + 150);
+    // The list loads progressively (skeleton rows while "连接中…"): wait up to ~40 s for a group title.
+    for (let i = 0; i < 16 && !groupTitle(); i++) {
+      await sleep(2500);
+      await look();
+    }
     for (let i = 0; i < 3; i++) {
       const g = groupTitle();
       if (!g || g.y2 < (nb?.[1] ?? prof.viewport.height) - 200) break;
@@ -289,9 +278,11 @@ export async function calibrateAndroidWeb(o: CalibrateAndroidWebOptions): Promis
       await look();
     }
     const title = groupTitle();
-    const row = clickableAround(title);
+    // The browser builds its accessibility tree at page load; rows that arrive later are only on screen:
+    // let the vision model find a group row then (calibration time only).
+    const row = clickableAround(title) ?? (await locate('a conversation row in the chat list whose title lists several member names separated by commas (a group chat)'));
     if (!row) throw new Error('no group conversation row on the chat list');
-    log(`  conversation for chat-page calibration: "${label(title!).slice(0, 40)}"`);
+    log(`  conversation for chat-page calibration: "${title ? label(title).slice(0, 40) : '(vision)'}"`);
     await tapNode(row);
     await sleep(3000);
     if (!(await until(atChat, 20_000))) throw new Error('conversation did not open');

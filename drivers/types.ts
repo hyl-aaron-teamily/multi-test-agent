@@ -9,6 +9,9 @@ export interface Point {
 
 export type AnomalyKind = 'crash' | 'anr' | 'app-exit' | 'left-app' | 'app-error' | 'console-error' | 'page-error' | 'page-crash' | 'url-change';
 
+/** Anomalies that are findings on their own (no check needed). */
+export const HARD_ANOMALIES: AnomalyKind[] = ['crash', 'anr', 'app-exit', 'page-crash'];
+
 export interface Anomaly {
   kind: AnomalyKind;
   at: number;
@@ -42,6 +45,10 @@ export interface Driver {
   focus?(): Promise<void>;
   /** Another surface took the shared screen: leaving the foreground is expected, not a finding. */
   yieldFocus?(): void;
+  /** Is the soft keyboard up? (system state; null = unknown). Phones only. */
+  keyboardShown?(): Promise<boolean | null>;
+  /** Close a system float that grabbed the screen (e.g. HyperOS 「文本识别」 on long-press); true = one was closed. Phones only. */
+  dismissSystemOverlay?(): Promise<boolean>;
 }
 
 export type LifecycleOp = 'exitApp' | 'killApp' | 'reload';

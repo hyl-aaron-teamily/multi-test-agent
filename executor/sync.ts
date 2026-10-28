@@ -9,24 +9,23 @@
 // Black-box throughout: coordinates from the SKILL profiles, targets picked by the model at preparation.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, relative, resolve } from 'node:path';
-import { adb } from '../core/adb';
 import { AndroidDriver } from '../drivers/android';
-import { createDriver, profileKey } from '../drivers/factory';
 import { type Driver, type Point, sleep } from '../drivers/types';
+import { dumpTree } from '../core/ui-tree';
 import { WebDriver } from '../drivers/web';
-import { parseNodes } from '../imui/clients/android';
+import { pageHasText } from './observe';
+import { addTier } from './stats';
 import { RecordingDriver } from '../incident/recording-driver';
-import { modelCalls } from '../issue/llm';
+import { modelCalls } from '../core/model/llm';
 import type { AccountPool, Lease } from '../platform/accounts/account-pool';
-import { ensureWebSession, type PlaywrightSurface } from '../platform/accounts/sessions';
-import { type Env, onAndroid, onPlaywright, type Surface } from '../platform/accounts/types';
-import { ensureUiLogin } from '../platform/accounts/ui-login';
+import { type Env, onAndroid, type Surface } from '../platform/accounts/types';
+import { loadConversations } from '../platform/conversations';
 import type { DevicePool } from '../platform/device-pool';
 import type { TestPlan } from '../platform/schema/test-plan';
-import { loadProfile, pointOf, type Profile, SkillStaleError } from '../skills/profile';
+import type { Profile } from '../skills/profile';
 import { runNode } from '../skills/teamily/nodes';
-import { assertSkillFresh, visionAsker, type VisionAsk, waitForRegion } from './checks';
-import { toChatListAndroidWeb } from './run';
+import { visionAsker, type VisionAsk, waitForRegion } from './checks';
+import { enterApp, openSession, type Session } from './session';
 import { pickTargets, visionLocator } from './targets';
 
 export interface SyncRoleSpec {
@@ -90,6 +89,8 @@ export interface SyncResult {
   conclusion: '全部同步' | '存在未同步' | '执行失败';
   detail: string;
   visionCalls: number;
+  /** Delivery checks by tier (① accessibility / page text, ③ vision). */
+  checkTiers?: Record<string, { n: number; ms: number }>;
 }
 
 interface Role {
@@ -100,11 +101,15 @@ interface Role {
   profile?: Profile;
   inner?: Driver;
   d?: RecordingDriver;
+  sess?: Session;
   ask?: VisionAsk;
   target?: Point;
+  /** The conversation title was read from the screen (not a vision guess). */
+  titleRead?: boolean;
 }
 
-const DEFAULT_CONVERSATION = 'a group conversation (avatar is a multi-person collage, or the title lists several members separated by commas) that the test accounts aaron+test1, aaron+test2 and aaron+test3 all belong to; prefer the one whose title starts with 黄悦龙Aaron';
+/** Without private settings: any group the test accounts share (no names in the code). */
+const DEFAULT_CONVERSATION = () => loadConversations().sync.defaultConversation ?? 'a group conversation (avatar is a multi-person collage, or the title lists several members separated by commas) that all test accounts of this run belong to';
 
 export async function runSync(o: SyncOptions): Promise<SyncResult> {
   const log = o.log ?? ((s: string) => console.log(`[sync] ${s}`));
@@ -116,7 +121,9 @@ export async function runSync(o: SyncOptions): Promise<SyncResult> {
   const result: SyncResult = { env: o.env, startedAt: new Date(t0).toISOString(), finishedAt: '', roles: [], rounds: [], conclusion: '执行失败', detail: '', visionCalls: 0 };
   // Phone roles lease first: their account is the one signed in on the phone; host roles take what is left.
   const roles: Role[] = [...o.roles]
-    .sort((a, b) => Number(onAndroid(b.surface)) - Number(onAndroid(a.surface)))
+    // Phones first (their account is fixed); the App before the browser — it reads the list reliably, so its
+    // chosen title guides the others.
+    .sort((a, b) => Number(onAndroid(b.surface)) - Number(onAndroid(a.surface)) || Number(b.surface === 'android-app') - Number(a.surface === 'android-app'))
     .map((spec) => ({ spec, res: { id: spec.id, surface: spec.surface, endpoint: '', account: '', ready: false } }));
   result.roles = roles.map((r) => r.res);
   /** Which role has the screen of each phone. */
@@ -147,7 +154,8 @@ export async function runSync(o: SyncOptions): Promise<SyncResult> {
     for (const r of roles) {
       try {
         await prepareRole(r, o, log, focus, chosenTitle);
-        chosenTitle ||= r.res.conversation ?? '';
+        // Only a title read from the screen guides the others (a vision-located row has no reliable title).
+        if (!chosenTitle && r.titleRead) chosenTitle = r.res.conversation ?? '';
         r.res.ready = true;
       } catch (e) {
         r.res.error = (e as Error).message.split('\n')[0];
@@ -199,61 +207,49 @@ export async function runSync(o: SyncOptions): Promise<SyncResult> {
   }
   result.finishedAt = new Date().toISOString();
   result.visionCalls = modelCalls.vision - v0;
+  result.checkTiers = { ...syncTiers };
   await writeFile(join(o.runDir, 'result.json'), JSON.stringify(result, null, 2));
   await writeFile(join(o.runDir, 'report.md'), syncMarkdown(result, o.runDir));
   return result;
 }
 
 async function prepareRole(r: Role, o: SyncOptions, log: (s: string) => void, focus: (r: Role) => Promise<void>, chosenTitle: string): Promise<void> {
-  const name = profileKey(r.spec.surface, o.env, r.udid);
-  const profile = loadProfile(name);
-  if (!profile) throw new Error(`no SKILL profile ${name} — calibrate it first`);
-  r.profile = profile;
-  const url = o.pool.webUrl(o.env);
-  let storageState: string | undefined;
-  if (onPlaywright(r.spec.surface)) {
-    const s = await ensureWebSession(o.pool, r.res.account, r.spec.surface as PlaywrightSurface);
-    if (!s.ok) throw new Error(`login ${r.res.account}: ${s.error}`);
-    storageState = s.file;
-  }
-  r.inner = createDriver({ surface: r.spec.surface, profile, url, udid: r.udid, storageState, headless: !o.headed });
-  r.d = new RecordingDriver(r.inner);
-  const d = r.d;
+  const sess = await openSession({ surface: r.spec.surface, env: o.env, account: r.res.account, udid: r.udid, pool: o.pool, headed: o.headed, log: (s) => log(`${r.spec.id}: ${s}`) });
+  r.sess = sess;
+  r.profile = sess.profile;
+  r.inner = sess.inner;
+  r.d = sess.d;
+  const { d, profile } = sess;
   // Another role on this phone may have the screen: launching takes it (and tells the other one).
   if (r.udid) await focus(r).catch(() => {});
-  await d.launch();
-  if (r.inner instanceof WebDriver) await sleep(8000);
-  else if (r.spec.surface === 'android-web') await waitForRegion(d, profile, ['home/nav', 'chat/composer', 'login/form'], 45_000);
-  if (r.spec.surface === 'android-web') await d.redacted(() => ensureUiLogin(d, profile, o.pool, r.res.account, log));
-  for (let i = 0; ; i++) {
-    try {
-      await assertSkillFresh(d, profile);
-      break;
-    } catch (e) {
-      if (!(e instanceof SkillStaleError) || i >= 3) throw e;
-      if (r.spec.surface === 'android-web') await toChatListAndroidWeb(d, r.inner as AndroidDriver, profile, log);
-      else if (r.spec.surface === 'android-app') {
-        await d.back();
-        await sleep(1500);
-      } else throw e;
-    }
-  }
-  // The bottom bar looks the same on every tab: make sure the chat tab is the one showing.
-  if (onAndroid(r.spec.surface) && profile.elements['nav.chat']) {
-    await d.tap(pointOf(profile, 'nav.chat'));
-    await sleep(1500);
-  }
-  d.drainAnomalies();
+  await enterApp(sess, { chatTab: true });
   const guidance = chosenTitle
     ? `the conversation titled "${chosenTitle}" (the same group the other test clients opened; titles may be cut short with …)`
-    : (o.conversation ?? DEFAULT_CONVERSATION);
+    : (o.conversation ?? DEFAULT_CONVERSATION());
   const plan = { targets: [{ id: 'conv', kind: 'group-conversation', guidance }] } as unknown as TestPlan;
   const [t] = await pickTargets(plan, r.inner, profile, (s) => log(`${r.spec.id}: ${s}`), await visionLocator(r.inner as any), 'rows');
   if (!t) throw new Error('conversation not found on the list');
   r.target = t.point;
   r.res.conversation = t.chosen;
+  r.titleRead = t.by !== 'vision';
   await runNode('teamily.openConversation', { target: 'conv' }, { driver: d, profile, targets: { conv: t.point } });
   const open = await waitForRegion(d, profile, ['chat/composer'], 20_000);
+  // The list re-sorts when messages arrive: make sure the header shows the chosen conversation (web: page
+  // text in the chat pane header); otherwise pick and open again once.
+  if (r.inner instanceof WebDriver && r.inner.page && t.by !== 'vision') {
+    const head = t.chosen.replace(/[…\.]+$/, '').slice(0, 12);
+    const inPane = r.spec.surface === 'desktop-web' ? { minX: chatPaneX(profile), maxY: 120 } : { maxY: 140 };
+    if (!(await pageHasText(r.inner.page, { contains: head }, inPane))) {
+      log(`${r.spec.id}: opened conversation is not "${head}" (list re-sorted) — opening again`);
+      const [t2] = await pickTargets(plan, r.inner, profile, (s) => log(`${r.spec.id}: ${s}`), await visionLocator(r.inner as any), 'rows');
+      if (t2) {
+        if (r.spec.surface !== 'desktop-web') await sess.adapter.leaveConversation(d, profile);
+        await runNode('teamily.openConversation', { target: 'conv' }, { driver: d, profile, targets: { conv: t2.point } });
+        await waitForRegion(d, profile, ['chat/composer'], 20_000);
+        r.target = t2.point;
+      }
+    }
+  }
   if (!open) throw new Error('conversation did not open (composer not on screen)');
   // The app reopens a conversation where it was last scrolled to: scroll to the newest messages, as a
   // reader would, so new lines land on screen instead of behind a "↓ new" badge.
@@ -296,24 +292,42 @@ async function awaitLine(rs: Role[], text: string, sentAt: number, o: SyncOption
   return rs.map((r) => out.get(r)!);
 }
 
-/** Is the line on the receiver's screen? App: accessibility text. Web: vision on the screenshot. */
+/** Is the line on the receiver's screen? ① App: accessibility text; Playwright web: page text (read-only,
+ *  W2-1 D4); phone browser: accessibility text when its tree is fresh. ③ vision on the screenshot otherwise.
+ *  Each answer's tier is recorded (report). */
 async function lineVisible(r: Role, text: string): Promise<boolean | null> {
-  if (r.spec.surface === 'android-app' && r.inner instanceof AndroidDriver) {
-    await adb(['shell', 'uiautomator', 'dump', '/sdcard/autotest_ui.xml'], r.inner.o.udid).catch(() => '');
-    const nodes = parseNodes(await adb(['exec-out', 'cat', '/sdcard/autotest_ui.xml'], r.inner.o.udid).catch(() => ''), r.inner.o.packageName);
-    return nodes.some((n) => n.text.includes(text) || n.desc.includes(text));
+  const key = text.match(/\d{6} r\d+/)?.[0] ?? text;
+  const t0 = Date.now();
+  const done = (v: boolean | null, tier: string) => {
+    addTier(syncTiers, `${tier} ${r.spec.surface}`, Date.now() - t0);
+    return v;
+  };
+  if (onAndroid(r.spec.surface) && r.inner instanceof AndroidDriver) {
+    const nodes = await dumpTree(r.inner.o.udid, r.inner.o.packageName, 2);
+    if (nodes.some((n) => n.text.includes(key) || n.desc.includes(key))) return done(true, '①');
+    if (r.spec.surface === 'android-app' && nodes.length) return done(false, '①');
+  } else if (r.inner instanceof WebDriver && r.inner.page) {
+    // Desktop: only the chat pane (right of the conversation list, whose preview shows the line too).
+    const v = await pageHasText(r.inner.page, { contains: key }, r.spec.surface === 'desktop-web' ? { minX: chatPaneX(r.profile!) } : { minY: r.profile!.viewport.height * 0.12 });
+    if (v !== null) return done(v, '①');
   }
   if (!r.ask) return null;
   // Key on the unique part: the end of a bubble can sit under a floating button (the "@" jump badge).
-  const key = text.match(/\d{6} r\d+/)?.[0] ?? text;
-  return r.ask(`The chat on screen shows a message bubble containing "${key}" (its full text is "${text}"; the end of the text may be hidden behind a floating round button). Look at the newest messages at the bottom.`);
+  return done(await r.ask(`The chat on screen shows a message bubble containing "${key}" (its full text is "${text}"; the end of the text may be hidden behind a floating round button). Look at the newest messages at the bottom.`), '③');
 }
+
+/** Left edge of the desktop chat pane: right of the conversation list (search box right edge + margin). */
+const chatPaneX = (p: Profile) => { const b = p.elements['chatlist.search']?.box; return b ? b[0] + b[2] + 60 : p.viewport.width * 0.22; };
+
+/** Tier tally of delivery checks (this process). */
+export const syncTiers: Record<string, { n: number; ms: number }> = {};
 
 export function syncMarkdown(r: SyncResult, runDir: string): string {
   const lines = [
     `# 多端同步测试 — ${r.conclusion}`,
     '',
     `- 环境：${r.env}；${r.startedAt} → ${r.finishedAt}；视觉模型调用 ${r.visionCalls}`,
+    `- 投递核对分层：${Object.entries(r.checkTiers ?? {}).map(([k, v]) => `${k} ×${v.n}（平均 ${Math.round(v.ms / v.n)}ms）`).join('，') || '-'}`,
     `- ${r.detail}`,
     '',
     '| 端 | 执行端 | 设备 / 主机 | 账号 | 会话 | 就绪 |',

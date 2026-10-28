@@ -7,7 +7,7 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { adb } from '../core/adb';
-import { ScreenRecorder } from '../replay/screen-recorder';
+import { ScreenRecorder } from '../core/screen-recorder';
 
 export const WINDOW_MS = 180_000;
 

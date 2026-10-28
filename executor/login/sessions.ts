@@ -6,8 +6,8 @@ import { dirname, join, resolve } from 'node:path';
 import { WebDriver } from '../../drivers/web';
 import { loadProfile, pointOf } from '../../skills/profile';
 import { runNode } from '../../skills/teamily/nodes';
-import type { AccountPool } from './account-pool';
-import type { Surface } from './types';
+import type { AccountPool } from '../../platform/accounts/account-pool';
+import type { Surface } from '../../platform/accounts/types';
 
 export type PlaywrightSurface = Extract<Surface, 'desktop-web' | 'mobile-web'>;
 

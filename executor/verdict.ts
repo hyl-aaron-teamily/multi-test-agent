@@ -2,7 +2,7 @@
 // always → 3 consecutive hits reproduce. No reproduction rate is reported.
 import type { TestPlan } from '../platform/schema/test-plan';
 
-export type Conclusion = '已复现' | '未复现（疑似已修复）' | '未复现（上限内未出现）' | '未实现' | '部分实现' | '已实现' | '疑似误操作' | '转为 bug' | 'SKILL 失效' | '执行失败';
+export type Conclusion = '已复现' | '未复现（疑似已修复）' | '未复现（上限内未出现）' | '未实现' | '部分实现' | '已实现' | '疑似误操作' | '转为 bug' | 'SKILL 失效' | '执行失败' | '计划不可执行';
 
 export class VerdictTracker {
   hits = 0;

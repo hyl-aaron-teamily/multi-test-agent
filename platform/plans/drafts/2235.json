@@ -35,5 +35,40 @@
   },
   "status": "deferred",
   "reason": "需要第二账号或同账号多端配合观察，等待账号池/设备池多客户端支持",
-  "subcases": []
+  "subcases": [],
+  "contracts": [
+    {
+      "issueRef": "2235",
+      "sub": "main",
+      "preconditions": [
+        {
+          "id": "logged-in",
+          "text": "已登录",
+          "establish": "executor"
+        },
+        {
+          "id": "second-account",
+          "text": "需要第二个账号 / 第二个客户端配合",
+          "establish": "unconstructible"
+        }
+      ],
+      "trigger": {
+        "semantics": "unmapped",
+        "text": "Henry forwarded a message out of the 1:1 (direct) conversation with Shok. On the sender's side (Henry, macOS) the forwarded message is present, and on the recipient's side (Shawn) it is visible on the iOS app — but the SAME message never appears on Web or on the Desktop client (build 101). The same ",
+        "params": {}
+      },
+      "observable": {
+        "observation": "unmapped",
+        "text": "The same forwarded message should be visible on every client of the same account (iOS / Web / Desktop), or — if the product deliberately restricts forwarded-message visibility per client or per role (sender vs recipient) — that rule must be explicit and documented, and the clients must still agree with each other. Either way the multi-client experience should be consistent, and a message that exists on one client should not be silently absent on another.",
+        "phenomenon": "The forwarded message is visible on iOS (with a 'Forwarded from Shok' label) and on the sender's macOS client, but it does not appear at all on Web or on the Desktop client (build 101) for the same account. The reporter's words: '我这 web 和 desktop（101）都没看到，只有 ios 看到这个消息' and 'web 和 desktop 没看到，只有 ios 有，有不一致问题'. No error, no placeholder and no notice is shown on Web/Desktop — the message is simply absent, so the user cannot tell whether it was lost or intentionally hidden."
+      },
+      "provenance": {
+        "by": "rules",
+        "skillVersion": "2026.10.26-1"
+      }
+    }
+  ],
+  "hash": "410097afa02bd722",
+  "issueHash": "96a630e4b336f9a5",
+  "env": "prod"
 }

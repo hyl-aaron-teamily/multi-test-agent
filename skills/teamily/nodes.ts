@@ -1,13 +1,13 @@
-// Teamily SKILL Nodes (defineNode from @midscene/core). execute() only performs coordinate operations
-// through a black-box Driver; coordinates come from the surface profile and from targets frozen at
-// preparation time. No hierarchy reads, no vision calls here.
-import { defineNode } from '@midscene/core/internal/test-runner';
+// Teamily SKILL Nodes (table: node-specs.ts). Nodes of phase "any" only perform coordinate operations
+// through a black-box Driver (coordinates from the surface profile and the targets frozen at preparation);
+// "prepare-only" Nodes may also locate (hierarchy / vision) and never run in the loop.
 import { z } from 'zod';
 import type { Driver, Point } from '../../drivers/types';
 import { sleep } from '../../drivers/types';
 import { type Credentials, mobileLayout } from '../../platform/accounts/types';
 import { decodePng, pixelDiff } from '../../core/image';
 import { pointOf, type Profile } from '../profile';
+import { NODE_SPECS } from './node-specs';
 
 export interface NodeContext {
   driver: Driver;
@@ -18,23 +18,20 @@ export interface NodeContext {
   credentials?: () => Credentials;
   /** Max wait used by nodes that wait for a page (ms). */
   settleMs?: number;
+  /** Tiered locate (prepare-only Nodes): literal texts first, then the description by vision. */
+  /** textOnly: ① literal text only — never a vision guess (where a wrong guess would tap something else). */
+  locate?: (description: string, texts: string[], newest?: boolean, textOnly?: boolean) => Promise<Point | null>;
+  /** Preparation only (hierarchy reads allowed): the composer's text, null = unknown. */
+  composerText?: () => Promise<string | null>;
 }
 
 type Exec<I> = (ctx: { input: I; context: NodeContext }) => Promise<{ summary?: string } | void>;
 
-// Node input schemas (our zod copy; @midscene/core validates against its own zod, so the schemas are
-// kept here for `autotest nodes` and plan validation instead of `inputSchema`).
-export const NODE_SCHEMAS = {
-  'teamily.login': z.object({ account: z.string().optional() }),
-  'teamily.openConversation': z.object({ target: z.string() }),
-  'teamily.sendMessage': z.object({ text: z.string().min(1) }),
-  'teamily.typeMention': z.object({}),
-  'teamily.clearComposer': z.object({}),
-  'teamily.switchConversation': z.object({ from: z.string(), to: z.string() }),
-  'teamily.openPage': z.object({ page: z.enum(['profile', 'artifacts', 'chat']) }),
-} as const;
+// Node input schemas: our zod copy in node-specs.ts (@midscene/core validates against its own zod, so the
+// schemas are used for `autotest nodes` and plan validation instead of `inputSchema`).
+export const NODE_SCHEMAS = Object.fromEntries(NODE_SPECS.map((n) => [n.name, n.schema])) as Record<string, z.ZodObject<any>>;
 
-export type NodeName = keyof typeof NODE_SCHEMAS;
+export type NodeName = string;
 
 const target = (c: NodeContext, id: string): Point => {
   const p = c.targets[id];
@@ -69,7 +66,9 @@ const openConversation: Exec<{ target: string }> = async ({ input, context: c })
   return { summary: `open ${input.target}` };
 };
 
-const sendMessage: Exec<{ text: string }> = async ({ input, context: c }) => {
+const sendMessage: Exec<{ text: string; kind?: 'plain' | 'markdown-link' }> = async ({ input: raw, context: c }) => {
+  // markdown-link: the text goes out in Markdown link syntax [text](text) (precondition of the 2044 family).
+  const input = raw.kind === 'markdown-link' ? { ...raw, text: `[${raw.text}](${raw.text})` } : raw;
   // Screen checks (no hierarchy reads): the keyboard really came up before Back hides it, and the composer
   // box looks empty again after sending — otherwise send once more with the send button.
   const box = pointBox(c, 'chat.composer');
@@ -77,16 +76,46 @@ const sendMessage: Exec<{ text: string }> = async ({ input, context: c }) => {
   const empty = await shot();
   await tapEl(c, 'chat.composer');
   await sleep(500);
-  const focused = await shot();
+  let focused = await shot();
+  // Phones: type only once the soft keyboard is up — text typed with nothing focused lands elsewhere
+  // (the phone browser puts it into its address bar). One retap, then give up (a drift, not a send).
+  if (mobileLayout(c.driver.surface) && c.driver.surface !== 'mobile-web') {
+    const up = async () => {
+      for (let i = 0; i < 6; i++) {
+        // System state when available (screen changes from new messages fooled the pixel test).
+        const kb = c.driver.keyboardShown ? await c.driver.keyboardShown() : null;
+        if (kb === true || (kb === null && pixelDiff(empty, focused) > 20_000)) return true;
+        await sleep(500);
+        focused = await shot();
+      }
+      return false;
+    };
+    if (!(await up())) {
+      await tapEl(c, 'chat.composer');
+      if (!(await up())) throw new Error('teamily.sendMessage: the composer did not take focus (keyboard not up) — not typing');
+    }
+  }
   await c.driver.type(input.text);
   if (c.driver.surface === 'android-app') {
     // RN composer: Enter is a newline. Hide the keyboard (only if it is up: Back would otherwise leave the
     // conversation), then tap the (calibrated, keyboard-down) send button.
-    if (pixelDiff(empty, focused) > 20_000) {
+    const kbUp = c.driver.keyboardShown ? await c.driver.keyboardShown() : null;
+    if (kbUp === true || (kbUp === null && pixelDiff(empty, focused) > 20_000)) {
       await c.driver.back();
       await sleep(400);
     }
     await tapEl(c, 'chat.send');
+    // Preparation: a send tap during the keyboard-hide animation can be lost — the text stays in the composer
+    // (and a later "newest message" locate would find nothing sent). Tap once more, then fail clearly.
+    if (c.composerText) {
+      for (let i = 0; i < 2; i++) {
+        await sleep(800);
+        const left = await c.composerText();
+        if (left === null || !left.includes(input.text.slice(0, 20))) break;
+        if (i) throw new Error('teamily.sendMessage: the text stayed in the composer (send did not go out)');
+        await tapEl(c, 'chat.send');
+      }
+    }
   } else if (mobileLayout(c.driver.surface)) await tapEl(c, 'chat.send'); // touch keyboard: Enter is a newline (phone browser: send calibrated with the keyboard up)
   else await c.driver.key('Enter');
   await sleep(800);
@@ -103,6 +132,39 @@ const sendMessage: Exec<{ text: string }> = async ({ input, context: c }) => {
     }
   }
   return { summary: `sent ${input.text.length} chars` };
+};
+
+/** prepare-only: quote-reply a message found by its text — long-press it, choose 引用/回复 in its menu,
+ *  type the reply, send. Locating (accessibility first, vision after) happens here, never in the loop. */
+const quoteReply: Exec<{ quote: string; text: string }> = async ({ input, context: c }) => {
+  if (!c.locate) throw new Error('teamily.quoteReply: no locator (prepare-only node)');
+  // The message just sent may still be rendering: look a few times.
+  let msg: Point | null = null;
+  for (let i = 0; i < 4 && !msg; i++) {
+    if (i) await sleep(1500);
+    msg = await c.locate(`the message bubble containing "${input.quote}" (the newest one)`, [input.quote], true);
+  }
+  if (!msg) throw new Error(`teamily.quoteReply: message "${input.quote}" not on screen`);
+  // The menu item must really be the message menu's: on the App it is read from the accessibility tree only
+  // (a vision guess once picked a composer-toolbar icon and opened the meeting-minutes sheet). The menu is
+  // polled a few times (slow to settle); one more long-press in place, never Back — on the App, Back with the
+  // menu up leaves the chat.
+  const textOnly = c.driver.surface === 'android-app';
+  let item: Point | null = null;
+  for (let i = 0; i < 2 && !item; i++) {
+    await c.driver.longPress(msg);
+    // A system float (HyperOS 「文本识别」) may take the long-press: close it and press again.
+    if (await c.driver.dismissSystemOverlay?.()) await c.driver.longPress(msg);
+    for (let j = 0; j < (textOnly ? 3 : 1) && !item; j++) {
+      await sleep(j ? 1000 : 1500);
+      item = await c.locate('the Quote / Reply item of the message action menu', ['引用', '回复', 'Quote', 'Reply'], false, textOnly);
+    }
+  }
+  if (!item) throw new Error('teamily.quoteReply: the message menu (引用 / 回复) did not open');
+  await c.driver.tap(item);
+  await sleep(1000);
+  await sendMessage({ input: { text: input.text }, context: c });
+  return { summary: `quote-replied to "${input.quote.slice(0, 30)}"` };
 };
 
 const typeMention: Exec<Record<string, never>> = async ({ context: c }) => {
@@ -125,8 +187,17 @@ const switchConversation: Exec<{ from: string; to: string }> = async ({ input, c
 };
 
 const openPage: Exec<{ page: 'profile' | 'artifacts' | 'chat' }> = async ({ input, context: c }) => {
+  const before = decodePng(await c.driver.screenshot());
   await tapEl(c, input.page === 'profile' ? 'nav.me' : input.page === 'artifacts' ? 'nav.artifacts' : 'nav.chat');
   await sleep(c.settleMs ?? 1500);
+  // A slow page: judging "absent" on the page we came from would be wrong — wait (≤ 10 s) until it changed.
+  if (input.page !== 'chat')
+    for (let i = 0; i < 10; i++) {
+      const now = decodePng(await c.driver.screenshot());
+      if (pixelDiff(before, now) >= now.width * now.height * 0.05) break;
+      if (i === 4) await tapEl(c, input.page === 'profile' ? 'nav.me' : 'nav.artifacts');
+      await sleep(1000);
+    }
 };
 
 const EXEC: Record<NodeName, Exec<any>> = {
@@ -137,26 +208,8 @@ const EXEC: Record<NodeName, Exec<any>> = {
   'teamily.clearComposer': clearComposer,
   'teamily.switchConversation': switchConversation,
   'teamily.openPage': openPage,
+  'teamily.quoteReply': quoteReply,
 };
-
-const DESCRIPTIONS: Record<NodeName, string> = {
-  'teamily.login': 'Cursor/keyboard login: email → continue → password → continue (credentials from the account pool)',
-  'teamily.openConversation': 'Tap a conversation frozen at preparation time',
-  'teamily.sendMessage': 'Tap composer, type, Enter',
-  'teamily.typeMention': 'Tap composer, type "@" (picker should open)',
-  'teamily.clearComposer': 'Esc + backspace in the composer',
-  'teamily.switchConversation': 'Switch to another conversation and back',
-  'teamily.openPage': 'Open a fixed page through its navigation entry',
-};
-
-/** Midscene node definitions (context = NodeContext). */
-export const nodes = (Object.keys(EXEC) as NodeName[]).map((name) =>
-  defineNode<unknown, unknown, NodeContext>({
-    name,
-    description: DESCRIPTIONS[name],
-    execute: ({ input, context }) => EXEC[name]({ input: NODE_SCHEMAS[name].parse(input ?? {}) as any, context }),
-  }),
-);
 
 /** Direct execution path used by the executor (same code as the Midscene node). */
 export async function runNode(name: string, input: Record<string, unknown>, context: NodeContext): Promise<string | undefined> {
@@ -166,6 +219,6 @@ export async function runNode(name: string, input: Record<string, unknown>, cont
   return r?.summary;
 }
 
-export function listNodes(): { name: string; description: string; input: unknown }[] {
-  return (Object.keys(EXEC) as NodeName[]).map((name) => ({ name, description: DESCRIPTIONS[name], input: z.toJSONSchema(NODE_SCHEMAS[name]) }));
+export function listNodes(): { name: string; description: string; phase: string; implemented: boolean; input: unknown }[] {
+  return NODE_SPECS.map((n) => ({ name: n.name, description: n.description, phase: n.phase, implemented: !!EXEC[n.name], input: z.toJSONSchema(n.schema) }));
 }
