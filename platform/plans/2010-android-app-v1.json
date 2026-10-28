@@ -1,0 +1,133 @@
+{
+  "id": "2010-android-app-v1",
+  "issueRef": "2010",
+  "title": "点 AI 改写后输入框草稿应保留（或先确认 / 可撤销）",
+  "category": "bug-always",
+  "surface": "android-app",
+  "issueSurfaces": [
+    "ios"
+  ],
+  "env": "prod",
+  "launch": "once",
+  "targets": [
+    {
+      "id": "conv",
+      "kind": "other-conversation",
+      "guidance": "the user's own Personal AI conversation (nothing is sent; disturbs no one)"
+    }
+  ],
+  "setup": [
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.openConversation",
+        "input": {
+          "target": "conv"
+        }
+      },
+      "delayAfterMs": 1000
+    }
+  ],
+  "prepare": [],
+  "actions": [
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.clearComposer",
+        "input": {}
+      },
+      "delayAfterMs": 300
+    },
+    {
+      "type": "type",
+      "value": "autotest-2010 {token} {round}",
+      "delayAfterMs": 500
+    },
+    {
+      "type": "require",
+      "requires": {
+        "composerHas": "autotest-2010 {token} {round}"
+      },
+      "delayAfterMs": 0
+    },
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.tapRewrite",
+        "input": {}
+      },
+      "delayAfterMs": 300
+    }
+  ],
+  "checks": [
+    {
+      "kind": "text",
+      "expect": "点击改写后输入框仍是原草稿（没有被静默替换）",
+      "want": "present",
+      "match": {
+        "exact": "autotest-2010 {token} {round}"
+      },
+      "scope": "composer"
+    }
+  ],
+  "afterCheck": [],
+  "limits": {
+    "maxSteps": 1000,
+    "maxMinutes": 15,
+    "maxIntervalMs": 1000,
+    "maxRounds": 6
+  },
+  "verdictRule": {
+    "consecutiveHits": 3
+  },
+  "contract": {
+    "issueRef": "2010",
+    "sub": "main",
+    "preconditions": [
+      {
+        "id": "logged-in",
+        "text": "已登录",
+        "establish": "executor"
+      },
+      {
+        "id": "other-conversation",
+        "text": "存在另一个会话（切换用）",
+        "establish": "existing-data"
+      },
+      {
+        "id": "composer-draft",
+        "text": "输入框里有用户键入的草稿（每轮由计划键入，判定前提 requires.composerHas）",
+        "establish": "executor"
+      }
+    ],
+    "trigger": {
+      "semantics": "tap-rewrite-with-draft",
+      "text": "On the Teamily iOS app the AI Rewrite control sits inside the chat composer, in the icon row directly under the text input field - exactly where the thumb naturally lands while typing. Tapping it by accident, which the reporter says happens very easily, rewrites/overwrites the text the user has alre",
+      "pattern": "composer-rewrite",
+      "params": {}
+    },
+    "observable": {
+      "observation": "text",
+      "text": "Typed input must not be silently destroyed by an accidental tap. Tapping the AI Rewrite control should either require an explicit confirmation before applying, or preserve the original draft so the user can undo / restore it. Per the reporter's suggestion, the mobile app should consider hiding this non-high-frequency control altogether, or moving it out of the direct typing/thumb area.",
+      "phenomenon": "A single accidental tap on the AI Rewrite control replaces the text the user had already typed - the draft is lost and must be retyped. There is no confirmation step and no undo. Because the control sits in the composer area where the finger is already operating while typing, the reporter states it is 'especially easy' to hit by mistake. The screenshot shows the composer with the Rewrite control circled in red and an empty input field showing only the 'Type a message...' placeholder, while the iOS Pinyin candidate bar is still active - consistent with an in-progress typing session whose text has just been wiped from the field."
+    },
+    "suspectedMechanism": "改写结果直接写回输入框（覆盖原文），没有确认步骤，也不保留原草稿供撤销；控件在打字时拇指落点附近（Issue 报告的推断）",
+    "provenance": {
+      "by": "rules",
+      "skillVersion": "2026.10.28-1"
+    }
+  },
+  "provenance": {
+    "generatedBy": "rules",
+    "skillVersion": "2026.10.28-1",
+    "pattern": "composer-rewrite",
+    "confirmedAt": "2026-10-28T06:45:56.306Z",
+    "draftHash": "f50a913363a21b79"
+  },
+  "coverage": "covered",
+  "substitution": {
+    "from": "ios",
+    "to": "android-app",
+    "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。"
+  }
+}

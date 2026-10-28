@@ -1,0 +1,283 @@
+{
+  "issue": {
+    "id": "1903",
+    "title": "In the Teamily iOS app (TestFlight build 386), after @-mentioning a member in a group chat and sending the message, the mention is NOT rendered in the message b",
+    "severity": "High",
+    "frequency": "Always",
+    "platforms": [
+      "ios"
+    ],
+    "summary": "In the Teamily iOS app (TestFlight build 386), after @-mentioning a member in a group chat and sending the message, the mention is NOT rendered in the message bubble — the bubble shows the text without the @ mention (no mention styling, no mentioned name). The conversation-list preview for the very same message DOES render the mention correctly, which proves the mention data is intact in the message payload and only the in-chat bubble rendering layer drops it. This breaks a core IM capability: recipients of the bubble cannot tell who was mentioned, and the sender cannot visually confirm that the mention was actually sent.",
+    "steps": [
+      "Launch the Teamily iOS app on TestFlight build 386 (mobile client).",
+      "Open a group chat.",
+      "Compose a message and @-mention a group member (e.g. a message ending with @Henry).",
+      "Send the message.",
+      "Observe the sent message bubble: the @-mention is not rendered — the bubble shows plain text with no @ mention and no mention styling.",
+      "Return to the conversation list and observe the preview of the same message: the @-mention IS rendered correctly (e.g. \"2点在压测吗? @Henry\")."
+    ],
+    "expected": "The sent message bubble should render the @-mention with mention styling and the mentioned member display name, consistent with the conversation-list preview and with the Web/Desktop client behaviour.",
+    "actual": "The message bubble renders the message text without the @-mention (mention not displayed, no mention styling). The conversation-list preview of the same message renders the mention correctly (\"2点在压测吗? @Henry\"), demonstrating that the mention exists in the message data and that only the in-conversation bubble rendering fails.",
+    "featureArea": "Messaging / UI Rendering (mention rendering)",
+    "context": "- **Feature area**: Messaging / UI Rendering (mention rendering)\r\n- Reporter: Jane (Teamily PM/QA). Reported 2026-09-21.\r\n- Evidence: the conversation-list preview renders the mention correctly while the in-chat bubble does not — the defect is isolated to the message bubble rendering layer, not to mention parsing, message payload or delivery.\r\n- Impact: @ is a core IM capability. Users cannot see who was mentioned in a sent message, and cannot verify the mention was delivered, which can cause missed assignments/notifications in work groups.\r\n- Regression window: only observed on the mobile client (iOS TestFlight 386); Web/Desktop renders mentions correctly.\r\n\r\n---",
+    "environment": "- **Platform / OS / Browser**: iOS / Teamily mobile app / TestFlight build 386",
+    "empty": false
+  },
+  "classification": {
+    "category": "bug-always",
+    "surfaces": [],
+    "reason": "Frequency: Always；步骤明确",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "status": "plannable",
+  "reason": "Frequency: Always；步骤明确",
+  "subcases": [
+    {
+      "sub": "main",
+      "title": "In the Teamily iOS app (TestFlight build 386), after @-mentioning a member in a ",
+      "surface": "android-app",
+      "substitution": {
+        "from": "ios",
+        "to": "android-app",
+        "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。",
+        "alternatives": [
+          "android-app",
+          "mobile-web"
+        ]
+      },
+      "plan": {
+        "id": "1903-android-app-v1",
+        "issueRef": "1903",
+        "title": "发送带 @ 的消息后气泡里应显示 @成员名",
+        "category": "bug-always",
+        "surface": "android-app",
+        "issueSurfaces": [
+          "ios"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "conv",
+            "kind": "group-conversation",
+            "guidance": "the conversation titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" (titles may be cut short with …)"
+          }
+        ],
+        "setup": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "conv"
+              }
+            },
+            "delayAfterMs": 1000
+          }
+        ],
+        "prepare": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.freezeMention",
+              "input": {
+                "member": "aaron+test2",
+                "as": "member"
+              }
+            },
+            "delayAfterMs": 500
+          }
+        ],
+        "actions": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.clearComposer",
+              "input": {}
+            },
+            "delayAfterMs": 300
+          },
+          {
+            "type": "type",
+            "value": "autotest-1903 {token} {round} ",
+            "delayAfterMs": 300
+          },
+          {
+            "type": "type",
+            "value": "@",
+            "delayAfterMs": 1000
+          },
+          {
+            "type": "wait",
+            "value": "1000",
+            "delayAfterMs": 0
+          },
+          {
+            "type": "tap",
+            "element": "target.member",
+            "delayAfterMs": 800
+          },
+          {
+            "type": "require",
+            "requires": {
+              "composerHas": "@aaron+test2"
+            },
+            "delayAfterMs": 0
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.tapSend",
+              "input": {}
+            },
+            "delayAfterMs": 1000
+          },
+          {
+            "type": "wait",
+            "value": "1000",
+            "delayAfterMs": 1000
+          }
+        ],
+        "checks": [
+          {
+            "kind": "text",
+            "expect": "已发送气泡里显示 @aaron+test2（独立的 @ 提及）",
+            "want": "present",
+            "match": {
+              "exact": "@aaron+test2"
+            },
+            "scope": {
+              "message": "autotest-1903 {token} {round}"
+            }
+          }
+        ],
+        "afterCheck": [],
+        "epilogue": {
+          "actions": [
+            {
+              "type": "tap",
+              "element": "chat.back",
+              "delayAfterMs": 1000
+            },
+            {
+              "type": "wait",
+              "value": "1000",
+              "delayAfterMs": 1000
+            }
+          ],
+          "check": {
+            "kind": "text",
+            "expect": "会话列表预览里有 @aaron+test2",
+            "want": "present",
+            "match": {
+              "contains": "@aaron+test2"
+            },
+            "scope": {
+              "message": "autotest-1903 {token}"
+            }
+          }
+        },
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 15,
+          "maxIntervalMs": 1000,
+          "maxRounds": 6
+        },
+        "verdictRule": {
+          "consecutiveHits": 3
+        },
+        "contract": {
+          "issueRef": "1903",
+          "sub": "main",
+          "preconditions": [
+            {
+              "id": "logged-in",
+              "text": "已登录",
+              "establish": "executor"
+            },
+            {
+              "id": "group-conversation",
+              "text": "存在成员 ≥3 的群聊",
+              "establish": "existing-data"
+            },
+            {
+              "id": "group-member-mentioned",
+              "text": "在允许清单群里发出一条 @ 另一位测试账号的消息（每轮构造）",
+              "establish": "construct"
+            }
+          ],
+          "trigger": {
+            "semantics": "send-message-with-mention",
+            "text": "In the Teamily iOS app (TestFlight build 386), after @-mentioning a member in a group chat and sending the message, the mention is NOT rendered in the message bubble — the bubble shows the text without the @ mention (no mention styling, no mentioned name). The conversation-list preview for the very ",
+            "pattern": "mention-render",
+            "params": {
+              "conversation": "黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2",
+              "member": "aaron+test2"
+            }
+          },
+          "observable": {
+            "observation": "text",
+            "text": "The sent message bubble should render the @-mention with mention styling and the mentioned member display name, consistent with the conversation-list preview and with the Web/Desktop client behaviour.",
+            "phenomenon": "The message bubble renders the message text without the @-mention (mention not displayed, no mention styling). The conversation-list preview of the same message renders the mention correctly (\"2点在压测吗? @Henry\"), demonstrating that the mention exists in the message data and that only the in-conversation bubble rendering fails."
+          },
+          "suspectedMechanism": "消息数据里有 @（会话列表预览正常），只有会话内气泡的渲染层丢了 @ 提及（Issue 报告的推断）",
+          "provenance": {
+            "by": "rules",
+            "skillVersion": "2026.10.28-1"
+          }
+        },
+        "provenance": {
+          "generatedBy": "rules",
+          "skillVersion": "2026.10.28-1",
+          "pattern": "mention-render"
+        },
+        "coverage": "covered"
+      },
+      "planErrors": [],
+      "contract": {
+        "issueRef": "1903",
+        "sub": "main",
+        "preconditions": [
+          {
+            "id": "logged-in",
+            "text": "已登录",
+            "establish": "executor"
+          },
+          {
+            "id": "group-conversation",
+            "text": "存在成员 ≥3 的群聊",
+            "establish": "existing-data"
+          },
+          {
+            "id": "group-member-mentioned",
+            "text": "在允许清单群里发出一条 @ 另一位测试账号的消息（每轮构造）",
+            "establish": "construct"
+          }
+        ],
+        "trigger": {
+          "semantics": "send-message-with-mention",
+          "text": "In the Teamily iOS app (TestFlight build 386), after @-mentioning a member in a group chat and sending the message, the mention is NOT rendered in the message bubble — the bubble shows the text without the @ mention (no mention styling, no mentioned name). The conversation-list preview for the very ",
+          "pattern": "mention-render",
+          "params": {
+            "conversation": "黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2",
+            "member": "aaron+test2"
+          }
+        },
+        "observable": {
+          "observation": "text",
+          "text": "The sent message bubble should render the @-mention with mention styling and the mentioned member display name, consistent with the conversation-list preview and with the Web/Desktop client behaviour.",
+          "phenomenon": "The message bubble renders the message text without the @-mention (mention not displayed, no mention styling). The conversation-list preview of the same message renders the mention correctly (\"2点在压测吗? @Henry\"), demonstrating that the mention exists in the message data and that only the in-conversation bubble rendering fails."
+        },
+        "suspectedMechanism": "消息数据里有 @（会话列表预览正常），只有会话内气泡的渲染层丢了 @ 提及（Issue 报告的推断）",
+        "provenance": {
+          "by": "rules",
+          "skillVersion": "2026.10.28-1"
+        }
+      }
+    }
+  ],
+  "hash": "ad8b8ddbe61785aa",
+  "issueHash": "9fa7c7301fd29e44",
+  "env": "prod"
+}

@@ -8,7 +8,7 @@
 //   pnpm autotest report
 //   pnpm autotest replay <replay.json> [--times 3] [--keep-timing]
 //   pnpm autotest imui <config|discover|login|probe|run|selftest> ...   (UI-level im-loadtest)
-//   pnpm autotest accounts|skill|nodes|plan|run ...                  (milestone 5, see scripts/m5.ts)
+//   pnpm autotest accounts|skill|nodes|plan|run|series|rerender ...  (milestone 5 / W2-2, see scripts/m5.ts)
 //   pnpm autotest replay <incident>/replay.json                        (coordinate replay; old bundles → scripts/replay.ts)
 import 'dotenv/config';
 import { spawn } from 'node:child_process';
@@ -25,7 +25,7 @@ const SCRIPTS: Record<string, string> = {
   report: 'report/problem-report.ts',
   imui: 'scripts/imui.ts',
 };
-const M5 = ['accounts', 'skill', 'nodes', 'plan', 'run', 'evidence', 'sync'];
+const M5 = ['accounts', 'skill', 'nodes', 'plan', 'run', 'series', 'rerender', 'evidence', 'sync'];
 
 function run(bin: string, args: string[]): Promise<number> {
   return new Promise((res) => {
@@ -59,7 +59,7 @@ async function main(): Promise<number> {
     else for (const d of devices) console.log(`${d.udid.padEnd(20)} ${d.state.padEnd(13)} ${d.model ?? ''}`);
     return 0;
   }
-  console.error('Usage: pnpm autotest <mission|explore|monkey|replay|imui|accounts|skill|nodes|plan|run|web:smoke|devices|report> [...args]');
+  console.error('Usage: pnpm autotest <mission|explore|monkey|replay|imui|accounts|skill|nodes|plan|run|series|rerender|web:smoke|devices|report> [...args]');
   return 2;
 }
 

@@ -1,5 +1,40 @@
 # Changelog
 
+## [Unreleased] — W2-2：可信结论 + 运行清单 / 预检 / 隔离 + 窄范围 MVP（2010、1903）
+
+需求：`dev-week2-milestone2.md`；验收证据：`docs/w2m2-acceptance.md`。
+
+### Changed（结论口径，§3）
+- 结论只陈述观察到的事实：删除「未复现（疑似已修复）」「未复现（上限内未出现）」，bug 类只有「已复现」与「未复现」，详情写明「n 次有效尝试」、单轮命中率与 Wilson 95% 区间，0 命中给 3/n 上界（`executor/stats.ts`、`executor/verdict.ts`）。
+- 有效尝试：判定前提成立且没有操作偏离的轮；偏离轮（输入没落下 / 不在聊天页 / 本轮消息不在屏幕上 / 改写超时）单独计数，不进判定规则；0 次有效尝试 = 执行失败。
+- 报告首段三行：观察到的触发路径、出现位置、推测机制（来自契约，标注为推测），各带依据；各阶段耗时（租用、预检、启动、登录、准备、预热、循环、收尾）；运行清单摘要；隔离步骤；收尾对照。
+- 新结论「环境不合格」；执行失败归类为环境 / 工具（`executor/failure.ts`，规则表 + 失败瞬间设备快照），写入 `result.json.failure`。
+- 1426、1918 按用户决定只分类 + 契约（`platform/issue-overrides.yaml` 的 `precondition`）；1919、2230 删除及其草稿。
+- 构造文字带运行标记：1329 / 2044 的构造消息、smoke 消息加 `{token}`（golden 已更新）。
+
+### Added
+- **运行清单** `manifest.json`（每次运行，包括环境不合格和执行失败）：git commit / 是否有未提交改动、SKILL 版本、profile 哈希、草稿哈希、模式、Issue / 子用例 / 端 / 预算 / 停止条件 / 种子、设备 / Android / HyperOS / App 版本 / 输入法 / 网络 / 电量、账号与会话名、预检各项与设置改动；也是 `trajectory.jsonl` 首条事件与报告头。
+- **预检** `executor/preflight.ts`：在线、亮屏未锁（唤醒 + 无密码上滑，有密码 → 环境不合格）、充电常亮、HyperOS 文本识别对被测 App 关闭（`taplus_blacklist`）、已知系统浮层、电量 ≥ 15%、网络、App 版本、键盘；< 1 s。Web：浏览器 + 登录态。
+- **隔离**：运行标记 `r` + 6 位十六进制，计划文字里的 `{token}` / `{round}`；App 冷启动；准备后清空旧草稿、收起键盘；结束时清空、收起键盘、回首页（不删除、不撤回消息）。
+- **计划**：`require` 动作（轮内读一次判定前提）、`limits.maxRounds`（有效尝试上限，`--max-rounds`）、`epilogue`（循环后一次、只记录）、文字检查范围 `composer` 与 `{ message }`（本轮最新消息）。
+- **MVP 模式**：`composer-rewrite`（2010：键入草稿 → 点 AI 改写 → 输入框是否仍等于原草稿）、`mention-render`（1903：@ 成员发送 → 本轮气泡是否有独立的 @ 节点；收尾对照列表预览）。元素 `chat.rewrite`；Node `teamily.tapRewrite`（等改写转圈结束，≤ 10 s）、`teamily.tapSend`、`teamily.freezeMention`（prepare-only）；`clearComposer` 在 App 上全选删除。
+- **系列运行** `pnpm autotest series --issue <id> --approve <sub>:<surface> --runs N [--max-rounds N]`：`series-report.md` / `series.json`（工具可靠性、失败归类、复现、合并单轮命中率与区间、阶段耗时中位数、每次运行清单摘要）；控制台任务类型「系列运行」。
+- `pnpm autotest rerender <runDir>`：旧 `result.json` 按新口径重出 `report.v2.md`。
+- **Web trace**：执行失败 / 计划不可执行时保存飞行记录器最后两个块（`trace.zip`、`trace-1.zip`），报告给出链接与 `npx playwright show-trace` 命令；现场包里的 trace 也在报告列出。
+- **代码门** `pnpm code-gate`（`scripts/code-gate.sh`）：typecheck + 单测（含 golden）+ 证据复核预置用例。
+- Op 日志记录 Node 的自述结果（如改写用时）；`drivers` 支持 `selectAll` 键。
+
+### Fixed
+- `core/ui-tree`：uiautomator 在文字含 `"` 时用单引号写属性，原解析读成空串（改写后的输入框读不出来）。
+- 准备期发送核实与「最新消息不匹配输入框」（`5aac6f1`）真机验证通过。
+
+### 验证
+- 代码门 148 s：typecheck、单测 170/170（含 golden 36 项）、证据复核 2/2；`test:web` 1/1、`test:android` 1/1。
+- 预检 0.7–0.9 s；人为锁屏 3.1 s 得到「环境不合格」，零点击。坏计划门报告链接的 `trace.zip` 可用 `npx playwright show-trace` 打开。
+- **2010 × 10（android-app 替代 iOS）**：工具可靠性 10/10；已复现 4/10 次运行；合并单轮 52 次有效尝试命中 25 次（48.1%，Wilson 35.1%–61.3%）；证据复核 25/25 符合。
+- **1903 × 10**：工具可靠性 10/10；未复现（60 次有效尝试），单次复现概率 95% 上界 ≈ 5%；会话列表预览 10/10 有 @。
+- 隔离：2010 / 1903 交替 4 次全部得出结论；smoke 四端各发送成功一次。
+
 ## [Unreleased] — W2-1：意图契约、循环外分层观察 / 定位、预热闸门、执行基座重构
 
 需求：`dev-week2-milestone1.md`；验收证据：`docs/w2m1-acceptance.md`。

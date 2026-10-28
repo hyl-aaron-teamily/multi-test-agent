@@ -91,7 +91,8 @@ function basePlan(i: NormalizedIssue, c: Classification, sub: string, surface: S
     checks: tpl.checks,
     afterCheck: tpl.afterCheck ?? [],
     acceptance: tpl.acceptance,
-    limits: { ...DEFAULT_LIMITS },
+    ...(tpl.epilogue ? { epilogue: tpl.epilogue } : {}),
+    limits: { ...DEFAULT_LIMITS, ...(tpl.maxRounds ? { maxRounds: tpl.maxRounds } : {}) },
     verdictRule: verdictRuleFor(category),
     provenance: { generatedBy: by, skillVersion: SKILL_VERSION },
   };
@@ -125,7 +126,7 @@ export async function draftIssue(i: NormalizedIssue, opts: { env?: 'test' | 'pro
   const env = opts.env ?? 'prod';
   const c = await classify(i);
   if (c.category === 'server-side' || c.category === 'not-executable') return { issue: i, classification: c, status: 'refused', reason: c.reason, subcases: [] };
-  if (c.category === 'multi-account' || c.category === 'deferred') return { issue: i, classification: c, status: 'deferred', reason: c.reason, subcases: [], contracts: [deferredContract(i, c.category)] };
+  if (c.category === 'multi-account' || c.category === 'deferred') return { issue: i, classification: c, status: 'deferred', reason: c.reason, subcases: [], contracts: [deferredContract(i, c.category, c.blockedBy)] };
   const subst = substitutionOptions(i.platforms);
   const surface: Surface = c.surfaces.find((s) => AVAILABLE.includes(s) && s === 'desktop-web') ?? c.surfaces[0] ?? 'android-app';
   const subcases: SubCase[] = [];
@@ -181,7 +182,8 @@ export function applyApproval(d: Draft, approve: { sub: string; surface?: Surfac
       const surf = approve.find((a) => a.sub === s.sub)?.surface ?? s.surface;
       // A pattern plan is rebuilt for the approved surface (fragments differ per surface); others are kept.
       const pat = surf !== s.surface && s.plan.provenance.pattern ? patternById(s.plan.provenance.pattern) : undefined;
-      const tpl = pat ? { prepare: [], afterCheck: [], ...pat.build(surf, s.contract?.trigger.params) } : { title: s.plan.title, targets: s.plan.targets, setup: s.plan.setup, prepare: s.plan.prepare, prepareCheck: s.plan.prepareCheck, actions: s.plan.actions, checks: s.plan.checks, afterCheck: s.plan.afterCheck, acceptance: s.plan.acceptance };
+      const built = pat?.build(surf, s.contract?.trigger.params);
+      const tpl = built ? (({ maxRounds, ...f }) => ({ prepare: [], afterCheck: [], ...f, limits: { ...s.plan.limits, ...(maxRounds ? { maxRounds } : {}) } }))(built) : { title: s.plan.title, targets: s.plan.targets, setup: s.plan.setup, prepare: s.plan.prepare, prepareCheck: s.plan.prepareCheck, actions: s.plan.actions, checks: s.plan.checks, afterCheck: s.plan.afterCheck, acceptance: s.plan.acceptance, epilogue: s.plan.epilogue };
       const plan: TestPlan = {
         ...s.plan,
         ...tpl,

@@ -10,6 +10,7 @@ import type { RunCtx } from './context';
 import { type Observed, observationOf, observeKeyboard, observeText } from './observe';
 import { addTier } from './stats';
 import { quotedOriginalVisible } from './targets';
+import { expandCheck } from './template';
 
 /** Baseline check: fraction of the reference bubble's marks that may be missing. Diagnostic override
  *  AUTOTEST_BASELINE_TOLERANCE (e.g. 0.05 restores the strict pre-fix threshold that raised 1329's false hits). */
@@ -29,7 +30,9 @@ export class Checkpoint {
     const { c } = this;
     const { d, profile, inner } = c.sess;
     const results: CheckResult[] = [];
-    for (const k of c.plan.checks) {
+    for (const k0 of c.plan.checks) {
+      // {token} / {round}: this run's marker and the round just played.
+      const k = expandCheck(k0, { token: c.res.runTag ?? '', round: d.round });
       const t0 = Date.now();
       let r: Observed | undefined;
       if (k.kind === 'visual-region' && png) r = await evaluateVisual(d, profile, k, c.ask, png);

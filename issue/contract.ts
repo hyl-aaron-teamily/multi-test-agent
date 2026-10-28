@@ -16,7 +16,10 @@ const CRASH_WORDS = /crash|闪退|崩溃|anr|not responding|无响应|白屏|fre
 
 /** Default params a pattern needs from the environment (allow-listed conversation for constructions). */
 export function patternParams(patternId: string): Record<string, unknown> {
-  if (patternById(patternId)?.needs.some((n) => preconditionById(n)?.establish === 'construct')) return { conversation: loadConversations().construct.allow[0] ?? '' };
+  if (patternById(patternId)?.needs.some((n) => preconditionById(n)?.establish === 'construct')) {
+    const k = loadConversations().construct;
+    return { conversation: k.allow[0] ?? '', ...(patternId === 'mention-render' ? { member: k.member ?? '' } : {}) };
+  }
   return {};
 }
 
@@ -37,14 +40,15 @@ export function rulesContract(i: NormalizedIssue, sub: string, text: string, cat
     trigger: { semantics: specific ? p.trigger : 'unmapped', text: text.slice(0, 300), pattern: specific ? p.id : undefined, params: specific ? patternParams(p.id) : {} },
     // A split sub-case's phenomenon is its own text; otherwise the Issue's actual result.
     observable: { observation, text: i.expected.slice(0, 600), phenomenon: (sub !== 'main' ? text : i.actual || i.summary).slice(0, 800) },
+    ...(specific && p.mechanism ? { suspectedMechanism: p.mechanism } : {}),
     provenance: { by: 'rules', skillVersion: SKILL_VERSION },
   };
 }
 
 /** Deferred Issues (second account / storage the robot cannot fill): a contract that says which
  *  precondition cannot be established, so the deferral is explicit. */
-export function deferredContract(i: NormalizedIssue, kind: 'multi-account' | 'deferred'): IssueContract {
-  const spec = preconditionById(kind === 'multi-account' ? 'second-account' : 'browser-storage-full')!;
+export function deferredContract(i: NormalizedIssue, kind: 'multi-account' | 'deferred', blockedBy?: string): IssueContract {
+  const spec = preconditionById(blockedBy ?? (kind === 'multi-account' ? 'second-account' : 'browser-storage-full'))!;
   return {
     issueRef: i.id,
     sub: 'main',

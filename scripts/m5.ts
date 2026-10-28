@@ -3,7 +3,9 @@
 //   pnpm autotest skill calibrate --surface desktop-web|mobile-web|android-app|android-web --env test|prod [--device <udid>] [--account <id>] [--headed]
 //   pnpm autotest nodes [--json]
 //   pnpm autotest plan issues/<id>.md [--env prod] [--json]
-//   pnpm autotest run --issue <id> [--env prod] [--approve <sub,...>] [--yes] [--max-steps N] [--max-minutes M] [--headed]
+//   pnpm autotest run --issue <id> [--env prod] [--approve <sub,...>] [--yes] [--max-steps N] [--max-minutes M] [--max-rounds N] [--headed]
+//   pnpm autotest series --issue <id> --approve <sub>[:<surface>] --runs 10 [--max-rounds N]   (W2-2: N independent runs + summary)
+//   pnpm autotest rerender <issue run dir>                                                    (old result.json → report.v2.md, W2-2 wording)
 //   pnpm autotest replay <incident>/replay.json [--variant original|fast|slow|cold] [--times N]
 //   pnpm autotest evidence review <incidentDir> | snapshot <incidentDir> --id <case> --expect .. | cases
 //   pnpm autotest sync [--roles desktop-web,android-web,android-app] [--rounds N] [--env prod] [--timeout S]
@@ -75,7 +77,7 @@ async function smoke(args: string[]): Promise<number> {
       launch: 'once',
       targets: [{ id: 'conv', kind: 'other-conversation', guidance: "the user's own Personal AI conversation (sending there disturbs no one)" }],
       setup: crashAfter ? [] : [{ type: 'node', node: { name: 'teamily.openConversation', input: { target: 'conv' } }, delayAfterMs: 1000 }],
-      actions: crashAfter ? loopActions : [{ type: 'node', node: { name: 'teamily.sendMessage', input: { text: `autotest smoke ${new Date().toISOString().slice(11, 19)}` } }, delayAfterMs: 1000 }],
+      actions: crashAfter ? loopActions : [{ type: 'node', node: { name: 'teamily.sendMessage', input: { text: `autotest smoke ${new Date().toISOString().slice(11, 19)} {token}` } }, delayAfterMs: 1000 }],
       checks: crashAfter ? [{ kind: 'crash', expect: 'no crash', want: 'absent' }] : [{ kind: 'visual-region', page: 'chat', region: 'composer', expect: '发送后输入框恢复为空', want: 'present' }],
       prepare: [],
       afterCheck: [],
@@ -202,12 +204,14 @@ const table: Record<string, (a: string[]) => Promise<number>> = {
   nodes,
   plan: async (a) => (await import('./issue-cli')).planCmd(a),
   run: async (a) => (await import('./issue-cli')).runCmd(a),
+  series: async (a) => (await import('./issue-cli')).seriesCmd(a),
+  rerender: async (a) => (await import('./issue-cli')).rerenderCmd(a),
   replay: async (a) => (await import('../executor/replay')).replayCmd(a),
   evidence: async (a) => (await import('../incident/evidence-cases')).evidenceCmd(a),
   sync,
 };
 if (!cmd || !table[cmd]) {
-  console.error('Usage: m5 <accounts|skill|nodes|plan|run|replay> ...');
+  console.error('Usage: m5 <accounts|skill|nodes|plan|run|series|rerender|replay|evidence|sync> ...');
   process.exit(2);
 }
 table[cmd](rest).then(

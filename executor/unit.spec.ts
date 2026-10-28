@@ -35,13 +35,14 @@ describe('verdict rule', () => {
     const t = new VerdictTracker({ anyHit: true });
     expect(t.record(false)).toBe(false);
     expect(t.record(true)).toBe(true);
-    expect(t.conclusion('bug-intermittent')).toBe('已复现');
+    expect(t.conclusion()).toBe('已复现');
   });
   it('always: needs 3 consecutive hits, a miss resets', () => {
     const t = new VerdictTracker({ consecutiveHits: 3 });
     for (const h of [true, true, false, true, true]) expect(t.record(h)).toBe(false);
     expect(t.record(true)).toBe(true);
-    expect(new VerdictTracker({ consecutiveHits: 3 }).conclusion('bug-always')).toBe('未复现（疑似已修复）');
+    // W2-2 §3.2: no "fixed" wording — a run that did not reproduce is 未复现 (with its attempts).
+    expect(new VerdictTracker({ consecutiveHits: 3 }).conclusion()).toBe('未复现');
   });
   it('feature conclusion', () => {
     expect(featureConclusion([{ pass: true }, { pass: true }])).toBe('已实现');

@@ -106,6 +106,8 @@ export async function calibrateAndroid(o: CalibrateAndroidOptions): Promise<Prof
     put('chat.back', byDesc(/^返回$/));
     const composer = nodes.find((n) => /EditText/.test(n.cls));
     put('chat.composer', composer);
+    // AI rewrite (W2-2, Issue 2010): the sparkle button of the composer toolbar, keyboard down.
+    put('chat.rewrite', byDesc(/^(强化 ?prompt|改写|AI 改写|Rewrite|Enhance prompt)$/i, /Button|ViewGroup/));
     // Chat-page marker: the composer's toolbar row (+ / Instant / icons) — stable, unlike the input's text.
     await ref('chat', { composer: composer && [0, composer.y2, prof.viewport.width, 150] });
     await selfCheck('chat.composer', 20_000); // keyboard comes up

@@ -17,6 +17,8 @@ export interface Classification {
   by: 'rules' | 'model';
   /** feature that also needs a second account: the single-account part runs, the rest is deferred. */
   partialMultiAccount?: boolean;
+  /** deferred: the precondition library id that cannot be established (manual override). */
+  blockedBy?: string;
 }
 
 export const AVAILABLE: Surface[] = ['android-app', 'mobile-web', 'desktop-web'];
@@ -36,17 +38,17 @@ const text = (i: NormalizedIssue) => `${i.title}\n${i.summary}\n${i.steps.join('
 const OVERRIDES_FILE = resolve(process.env.ISSUE_OVERRIDES_FILE ?? 'platform/issue-overrides.yaml');
 
 /** Manual overrides (platform/issue-overrides.yaml): an explicit, reviewed decision beats rules and the model. */
-export function overrideFor(id: string, file = OVERRIDES_FILE): { category: PreCategory; reason: string } | undefined {
+export function overrideFor(id: string, file = OVERRIDES_FILE): { category: PreCategory; reason: string; precondition?: string } | undefined {
   if (!existsSync(file)) return undefined;
-  const o = ((yaml.load(readFileSync(file, 'utf8')) ?? {}) as Record<string, { category?: PreCategory; reason?: string }>)[id];
-  return o?.category ? { category: o.category, reason: String(o.reason ?? 'manual override') } : undefined;
+  const o = ((yaml.load(readFileSync(file, 'utf8')) ?? {}) as Record<string, { category?: PreCategory; reason?: string; precondition?: string }>)[id];
+  return o?.category ? { category: o.category, reason: String(o.reason ?? 'manual override'), precondition: o.precondition } : undefined;
 }
 
 /** Pure rule classifier. */
 export function classifyRules(i: NormalizedIssue): Classification {
   const surfaces = surfacesFor(i.platforms);
   const ov = overrideFor(i.id);
-  if (ov) return { category: ov.category, surfaces, reason: ov.reason, strength: 'strong', by: 'rules' };
+  if (ov) return { category: ov.category, surfaces, reason: ov.reason, strength: 'strong', by: 'rules', ...(ov.precondition ? { blockedBy: ov.precondition } : {}) };
   const t = text(i).toLowerCase();
   const head = `${i.summary}\n${i.featureArea}\n${i.environment}`.toLowerCase();
   const mk = (category: PreCategory, reason: string, strength: 'strong' | 'weak' = 'strong', extra: Partial<Classification> = {}): Classification => ({ category, surfaces, reason, strength, by: 'rules', ...extra });

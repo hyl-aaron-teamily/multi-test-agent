@@ -5,7 +5,7 @@
 import type { Category, PlannedAction, Surface, TestPlan } from '../../platform/schema/test-plan';
 import { TARGET_GUIDANCE } from './vocab';
 
-export type PlanFragment = Pick<TestPlan, 'targets' | 'setup' | 'actions' | 'checks'> & { prepare?: TestPlan['prepare']; prepareCheck?: TestPlan['prepareCheck']; afterCheck?: TestPlan['afterCheck']; acceptance?: TestPlan['acceptance']; title: string };
+export type PlanFragment = Pick<TestPlan, 'targets' | 'setup' | 'actions' | 'checks'> & { prepare?: TestPlan['prepare']; prepareCheck?: TestPlan['prepareCheck']; afterCheck?: TestPlan['afterCheck']; acceptance?: TestPlan['acceptance']; epilogue?: TestPlan['epilogue']; maxRounds?: number; title: string };
 
 export interface Pattern {
   id: string;
@@ -21,6 +21,8 @@ export interface Pattern {
   /** Legacy text signal (lower-cased sub-case text) used when drafting without a contract. */
   signal: (t: string) => boolean;
   surfaces?: Surface[];
+  /** Suspected mechanism the rule contract carries (a guess taken from the Issue family; never executed). */
+  mechanism?: string;
   build: (surface: Surface, params?: Record<string, unknown>) => PlanFragment;
 }
 
@@ -105,6 +107,73 @@ export const PATTERNS: Pattern[] = [
     },
   },
   {
+    // 2010: the AI rewrite control replaces the typed draft without confirmation / undo. Each round types a
+    // draft carrying the run token and round, checks it really is in the input (round precondition), taps
+    // rewrite and reads the input (①): still exactly the draft = normal; anything else = the draft was
+    // replaced (a rewrite may quote the draft, so "contains" would miss it). Personal AI: nothing is sent.
+    id: 'composer-rewrite',
+    trigger: 'tap-rewrite-with-draft',
+    observation: 'text',
+    needs: ['other-conversation', 'composer-draft'],
+    categories: ['bug-always', 'bug-intermittent', 'suspected-misuse'],
+    featureOnly: false,
+    signal: (t) => /\brewrite|改写|强化 ?prompt/.test(t),
+    surfaces: ['android-app'],
+    mechanism: '改写结果直接写回输入框（覆盖原文），没有确认步骤，也不保留原草稿供撤销；控件在打字时拇指落点附近（Issue 报告的推断）',
+    build: () => {
+      const draft = 'autotest-2010 {token} {round}';
+      return {
+        title: '点 AI 改写后输入框草稿应保留（或先确认 / 可撤销）',
+        targets: [{ id: 'conv', kind: 'other-conversation', guidance: "the user's own Personal AI conversation (nothing is sent; disturbs no one)" }],
+        setup: [node('teamily.openConversation', { target: 'conv' }, 1000)],
+        actions: [node('teamily.clearComposer', {}, 300), a('type', { value: draft, delayAfterMs: 500 }), a('require', { requires: { composerHas: draft }, delayAfterMs: 0 }), node('teamily.tapRewrite', {}, 300)],
+        checks: [{ kind: 'text', scope: 'composer', match: { exact: draft }, expect: '点击改写后输入框仍是原草稿（没有被静默替换）', want: 'present' }],
+        afterCheck: [],
+        maxRounds: 6,
+      };
+    },
+  },
+  {
+    // 1903: a sent message that @-mentions a member must show the mention in its bubble (a separate mention
+    // node on Android). Each round (allow-listed group, test accounts only): text with the run token and round
+    // → "@" → the member row frozen at preparation → the input must hold "@member" (round precondition) →
+    // send → read the newest bubble carrying this round's text (①). Once at the end: the list preview.
+    id: 'mention-render',
+    trigger: 'send-message-with-mention',
+    observation: 'text',
+    needs: ['group-conversation', 'group-member-mentioned'],
+    categories: ['bug-always', 'bug-intermittent', 'suspected-misuse'],
+    featureOnly: false,
+    signal: (t) => /(mention|@).{0,80}(not rendered|bubble|渲染|气泡)|(bubble|气泡).{0,80}(mention|@)/.test(t),
+    surfaces: ['android-app'],
+    mechanism: '消息数据里有 @（会话列表预览正常），只有会话内气泡的渲染层丢了 @ 提及（Issue 报告的推断）',
+    build: (_surface, params = {}) => {
+      const conv = String(params.conversation ?? '');
+      const member = String(params.member ?? '') || 'aaron+test2';
+      const text = 'autotest-1903 {token} {round}';
+      return {
+        title: '发送带 @ 的消息后气泡里应显示 @成员名',
+        targets: [{ id: 'conv', kind: 'group-conversation', guidance: conv ? `the conversation titled "${conv}" (titles may be cut short with …)` : 'a group conversation whose members are all test accounts' }],
+        setup: [node('teamily.openConversation', { target: 'conv' }, 1000)],
+        prepare: [node('teamily.freezeMention', { member, as: 'member' }, 500)],
+        actions: [
+          node('teamily.clearComposer', {}, 300),
+          a('type', { value: `${text} `, delayAfterMs: 300 }),
+          a('type', { value: '@', delayAfterMs: 1000 }),
+          a('wait', { value: '1000', delayAfterMs: 0 }),
+          a('tap', { element: 'target.member', delayAfterMs: 800 }),
+          a('require', { requires: { composerHas: `@${member}` }, delayAfterMs: 0 }),
+          node('teamily.tapSend', {}, 1000),
+          a('wait', { value: '1000', delayAfterMs: 1000 }),
+        ],
+        checks: [{ kind: 'text', scope: { message: text }, match: { exact: `@${member}` }, expect: `已发送气泡里显示 @${member}（独立的 @ 提及）`, want: 'present' }],
+        afterCheck: [],
+        epilogue: { actions: [a('tap', { element: 'chat.back', delayAfterMs: 1000 }), a('wait', { value: '1000', delayAfterMs: 1000 })], check: { kind: 'text', scope: { message: 'autotest-1903 {token}' }, match: { contains: `@${member}` }, expect: `会话列表预览里有 @${member}`, want: 'present' } },
+        maxRounds: 6,
+      };
+    },
+  },
+  {
     id: 'mention-picker',
     trigger: 'repeat-switch-and-mention',
     observation: 'region',
@@ -142,7 +211,8 @@ export const PATTERNS: Pattern[] = [
     build: (surface, params = {}) => {
       const url = String(params.url ?? 'https://github.com/TensorOpera-Inc/chat-web/pull/654');
       const conv = String(params.conversation ?? '');
-      const tag = String(params.tag ?? 'autotest-2044');
+      // {token}: this run's marker (W2-2 §4.3) — the quote reply of this run, never an earlier one.
+      const tag = String(params.tag ?? 'autotest-2044 {token}');
       return {
         title: '引用块预览应显示链接文本而不是 Markdown 源码',
         targets: [{ id: 'conv', kind: 'group-conversation', guidance: conv ? `the conversation titled "${conv}" (titles may be cut short with …)` : 'a group conversation whose members are all test accounts' }],
@@ -170,7 +240,8 @@ export const PATTERNS: Pattern[] = [
     // With an allow-listed conversation (params.conversation) the precondition is constructed: a plain
     // message and a quote-reply to it; otherwise an existing quote reply is used.
     const conv = String(params.conversation ?? '');
-    const src = String(params.source ?? 'autotest-quote-source 1329');
+    // {token}: this run's marker (W2-2 §4.3) — the newest-message locate only matches this run's messages.
+    const src = String(params.source ?? 'autotest-quote-source 1329 {token}');
     return {
       title: '点引用定位应稳定跳到被引用消息',
       targets: [
@@ -178,7 +249,7 @@ export const PATTERNS: Pattern[] = [
         { id: 'link', kind: 'quote-card', guidance: '会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文；引用的是普通文字，不是链接 / URL）', ...(conv ? { afterPrepare: true } : {}) },
       ],
       setup: [node('teamily.openConversation', { target: 'conv' }, 1000)],
-      ...(conv ? { prepare: [node('teamily.sendMessage', { text: src }, 1000), node('teamily.quoteReply', { quote: src, text: 'autotest-quote-reply 1329' }, 1000)] } : {}),
+      ...(conv ? { prepare: [node('teamily.sendMessage', { text: src }, 1000), node('teamily.quoteReply', { quote: src, text: 'autotest-quote-reply 1329 {token}' }, 1000)] } : {}),
       actions: [{ type: 'tap', element: 'target.link', delayAfterMs: 1000 }, a('wait', { value: '1000', delayAfterMs: 1000 })],
       checks: [{ kind: 'baseline', expect: '点引用块后跳到被引用的原消息（每轮落在同一位置）', want: 'present' }],
       afterCheck: [...(surface === 'desktop-web' ? [] : [a('tap', { element: 'chat.back', delayAfterMs: 900 })]), node('teamily.openConversation', { target: 'conv' }, 1000), a('wait', { value: '1000', delayAfterMs: 1000 })],

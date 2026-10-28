@@ -14,7 +14,8 @@ export function validatePlan(raw: unknown): Validation {
   if (!parsed.success) return { ok: false, errors: parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`) };
   const plan = parsed.data;
   const errors: string[] = [];
-  const targets = new Set(plan.targets.map((t) => t.id));
+  // Targets: declared ones, and those a prepare-only Node freezes (teamily.freezeMention → input.as).
+  const targets = new Set([...plan.targets.map((t) => t.id), ...plan.prepare.filter((a) => a.node?.name === 'teamily.freezeMention').map((a) => String(a.node?.input?.as ?? ''))]);
   const checkAction = (a: PlannedAction, where: string) => {
     if (a.delayAfterMs > plan.limits.maxIntervalMs) errors.push(`${where}: delayAfterMs ${a.delayAfterMs} > ${plan.limits.maxIntervalMs}`);
     if (a.element) {
@@ -37,6 +38,8 @@ export function validatePlan(raw: unknown): Validation {
       }
     }
     if (['tap', 'longPress'].includes(a.type) && !a.element) errors.push(`${where}: ${a.type} needs an element`);
+    if (a.type === 'require' && !a.requires) errors.push(`${where}: require needs requires`);
+    if (a.type === 'require' && !where.startsWith('actions')) errors.push(`${where}: require is a round precondition (loop actions only)`);
     if (['type', 'key'].includes(a.type) && !a.value) errors.push(`${where}: ${a.type} needs a value`);
     if (['exitApp', 'killApp'].includes(a.type) && !APP_SURFACES.includes(plan.surface)) errors.push(`${where}: ${a.type} needs an app surface (${APP_SURFACES.join(' / ')}), not ${plan.surface}`);
     if (a.type === 'idle' && !(Number(a.value) > 0 && Number(a.value) <= MAX_IDLE_MS)) errors.push(`${where}: idle needs a value in ms (1..${MAX_IDLE_MS})`);

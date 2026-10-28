@@ -3,7 +3,12 @@
 //   tsx scripts/w2m1-gate.ts broken  --surface desktop-web   → warm-up must stop the plan (计划不可执行)
 //   tsx scripts/w2m1-gate.ts heal    --surface android-app   → chatlist.search moved 150 px up (blank title bar); fingerprint heals it
 import 'dotenv/config';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { profileKey } from '../drivers/factory';
+import { classifyRules } from '../issue/classify';
+import { parseIssue } from '../issue/parse';
+import { runMarkdown } from '../issue/report';
 import { runDirFor, runPlan } from '../executor/run';
 import type { Surface, TestPlan } from '../platform/schema/test-plan';
 import { openPools } from '../platform/pools';
@@ -45,5 +50,11 @@ const plan: TestPlan = {
   verdictRule: { anyHit: true },
   provenance: { generatedBy: 'manual', skillVersion: SKILL_VERSION },
 };
-const r = await runPlan({ plan, runDir: runDirFor(id), pool, devices, udid, profile });
+// Report (W2-2 §6): a 计划不可执行 web run links the last trace chunks (trace.zip).
+const dir = runDirFor(id);
+await mkdir(dir, { recursive: true });
+const r = await runPlan({ plan, runDir: join(dir, id), pool, devices, udid, profile });
+const issue = parseIssue('w2m1-gate', '');
+await writeFile(join(dir, 'report.md'), runMarkdown({ issue: { ...issue, title: plan.title }, classification: { ...classifyRules(issue), category: plan.category }, status: 'plannable', reason: 'W2-1 gate', subcases: [] }, [r], dir));
+console.log(`[gate] report → ${join(dir, 'report.md')}${r.traces?.length ? `; trace → ${join(dir, id, r.traces[0])}` : ''}`);
 console.log(`[gate] ${mode}: ${r.conclusion} — ${r.conclusionDetail}${r.error ? ` (error ${r.error})` : ''}; healed ${JSON.stringify(r.healed ?? [])}; warm-up ${JSON.stringify(r.warmup?.steps.map((s) => [s.step, s.action, s.pass, s.observed, s.healed]))}`);

@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { decodePng, pixelDiff } from '../core/image';
 import { dumpTree, keyboardShown, nodeAt, type UiNode } from '../core/ui-tree';
 import { AndroidDriver } from '../drivers/android';
-import { HARD_ANOMALIES, type Point, sleep } from '../drivers/types';
+import { HARD_ANOMALIES, type Point, RoundDrift, sleep } from '../drivers/types';
 import { incidentKind } from '../incident/bundle';
 import type { PlannedAction } from '../platform/schema/test-plan';
 import { nodeSpec } from '../skills/teamily/node-specs';
@@ -99,7 +99,13 @@ export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
       const url0 = web?.page?.url() ?? '';
       const before = eff?.kind === 'change' || eff?.kind === 'navigate' || eff?.kind === 'soft-change' || (eff?.kind === 'focus' && android) ? decodePng(await d.screenshot()) : undefined;
       d.label = `warmup:${actionLabel(a)}`;
-      await c.exec(a);
+      try {
+        await c.exec(a);
+      } catch (e) {
+        // The step's input did not land / the round precondition does not hold: the step failed.
+        if (e instanceof RoundDrift) return { pass: false as boolean | null, observed: e.message, tier: '①' as string | undefined };
+        throw e;
+      }
       if (!eff) return { pass: null as boolean | null, observed: 'not verified', tier: undefined as string | undefined };
       await sleep(600);
       switch (eff.kind) {

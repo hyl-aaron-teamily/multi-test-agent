@@ -23,6 +23,8 @@ export interface CheckResult {
   detail: string;
   distance?: number;
   vision?: boolean;
+  /** The check could not apply to this round (e.g. no message of this round on screen): operation drift. */
+  drift?: string;
 }
 
 export function dprOf(p: Profile, img: Rgba): number {

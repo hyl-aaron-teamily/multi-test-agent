@@ -19,7 +19,8 @@
     "autotest": "tsx bin/autotest.ts",
     "platform": "tsx platform/server.ts",
     "mission": "tsx scripts/mission.ts",
-    "imui": "tsx scripts/imui.ts"
+    "imui": "tsx scripts/imui.ts",
+    "code-gate": "sh scripts/code-gate.sh"
   },
   "devDependencies": {
     "@midscene/android": "1.16.0",

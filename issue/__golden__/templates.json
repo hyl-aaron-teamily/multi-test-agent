@@ -1105,7 +1105,7 @@
      "name": "teamily.quoteReply",
      "input": {
       "quote": "github.com/TensorOpera-Inc/chat-web/pull/654",
-      "text": "autotest-2044 quote"
+      "text": "autotest-2044 {token} quote"
      }
     },
     "delayAfterMs": 1000
@@ -1193,7 +1193,7 @@
      "name": "teamily.quoteReply",
      "input": {
       "quote": "github.com/TensorOpera-Inc/chat-web/pull/654",
-      "text": "autotest-2044 quote"
+      "text": "autotest-2044 {token} quote"
      }
     },
     "delayAfterMs": 1000
@@ -1281,7 +1281,7 @@
      "name": "teamily.quoteReply",
      "input": {
       "quote": "github.com/TensorOpera-Inc/chat-web/pull/654",
-      "text": "autotest-2044 quote"
+      "text": "autotest-2044 {token} quote"
      }
     },
     "delayAfterMs": 1000
@@ -1369,7 +1369,7 @@
      "name": "teamily.quoteReply",
      "input": {
       "quote": "github.com/TensorOpera-Inc/chat-web/pull/654",
-      "text": "autotest-2044 quote"
+      "text": "autotest-2044 {token} quote"
      }
     },
     "delayAfterMs": 1000
@@ -1960,5 +1960,765 @@
     }
    }
   ]
+ },
+ "1903/main/android-app": {
+  "title": "发送带 @ 的消息后气泡里应显示 @成员名",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "a group conversation whose members are all test accounts"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 1000
+   }
+  ],
+  "prepare": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.freezeMention",
+     "input": {
+      "member": "aaron+test2",
+      "as": "member"
+     }
+    },
+    "delayAfterMs": 500
+   }
+  ],
+  "actions": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.clearComposer",
+     "input": {}
+    },
+    "delayAfterMs": 300
+   },
+   {
+    "type": "type",
+    "delayAfterMs": 300,
+    "value": "autotest-1903 {token} {round} "
+   },
+   {
+    "type": "type",
+    "delayAfterMs": 1000,
+    "value": "@"
+   },
+   {
+    "type": "wait",
+    "delayAfterMs": 0,
+    "value": "1000"
+   },
+   {
+    "type": "tap",
+    "delayAfterMs": 800,
+    "element": "target.member"
+   },
+   {
+    "type": "require",
+    "delayAfterMs": 0,
+    "requires": {
+     "composerHas": "@aaron+test2"
+    }
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.tapSend",
+     "input": {}
+    },
+    "delayAfterMs": 1000
+   },
+   {
+    "type": "wait",
+    "delayAfterMs": 1000,
+    "value": "1000"
+   }
+  ],
+  "checks": [
+   {
+    "kind": "text",
+    "scope": {
+     "message": "autotest-1903 {token} {round}"
+    },
+    "match": {
+     "exact": "@aaron+test2"
+    },
+    "expect": "已发送气泡里显示 @aaron+test2（独立的 @ 提及）",
+    "want": "present"
+   }
+  ],
+  "afterCheck": [],
+  "epilogue": {
+   "actions": [
+    {
+     "type": "tap",
+     "delayAfterMs": 1000,
+     "element": "chat.back"
+    },
+    {
+     "type": "wait",
+     "delayAfterMs": 1000,
+     "value": "1000"
+    }
+   ],
+   "check": {
+    "kind": "text",
+    "scope": {
+     "message": "autotest-1903 {token}"
+    },
+    "match": {
+     "contains": "@aaron+test2"
+    },
+    "expect": "会话列表预览里有 @aaron+test2",
+    "want": "present"
+   }
+  },
+  "maxRounds": 6
+ },
+ "1903/main/android-web": {
+  "title": "发送带 @ 的消息后气泡里应显示 @成员名",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "a group conversation whose members are all test accounts"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 1000
+   }
+  ],
+  "prepare": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.freezeMention",
+     "input": {
+      "member": "aaron+test2",
+      "as": "member"
+     }
+    },
+    "delayAfterMs": 500
+   }
+  ],
+  "actions": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.clearComposer",
+     "input": {}
+    },
+    "delayAfterMs": 300
+   },
+   {
+    "type": "type",
+    "delayAfterMs": 300,
+    "value": "autotest-1903 {token} {round} "
+   },
+   {
+    "type": "type",
+    "delayAfterMs": 1000,
+    "value": "@"
+   },
+   {
+    "type": "wait",
+    "delayAfterMs": 0,
+    "value": "1000"
+   },
+   {
+    "type": "tap",
+    "delayAfterMs": 800,
+    "element": "target.member"
+   },
+   {
+    "type": "require",
+    "delayAfterMs": 0,
+    "requires": {
+     "composerHas": "@aaron+test2"
+    }
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.tapSend",
+     "input": {}
+    },
+    "delayAfterMs": 1000
+   },
+   {
+    "type": "wait",
+    "delayAfterMs": 1000,
+    "value": "1000"
+   }
+  ],
+  "checks": [
+   {
+    "kind": "text",
+    "scope": {
+     "message": "autotest-1903 {token} {round}"
+    },
+    "match": {
+     "exact": "@aaron+test2"
+    },
+    "expect": "已发送气泡里显示 @aaron+test2（独立的 @ 提及）",
+    "want": "present"
+   }
+  ],
+  "afterCheck": [],
+  "epilogue": {
+   "actions": [
+    {
+     "type": "tap",
+     "delayAfterMs": 1000,
+     "element": "chat.back"
+    },
+    {
+     "type": "wait",
+     "delayAfterMs": 1000,
+     "value": "1000"
+    }
+   ],
+   "check": {
+    "kind": "text",
+    "scope": {
+     "message": "autotest-1903 {token}"
+    },
+    "match": {
+     "contains": "@aaron+test2"
+    },
+    "expect": "会话列表预览里有 @aaron+test2",
+    "want": "present"
+   }
+  },
+  "maxRounds": 6
+ },
+ "1903/main/mobile-web": {
+  "title": "发送带 @ 的消息后气泡里应显示 @成员名",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "a group conversation whose members are all test accounts"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 1000
+   }
+  ],
+  "prepare": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.freezeMention",
+     "input": {
+      "member": "aaron+test2",
+      "as": "member"
+     }
+    },
+    "delayAfterMs": 500
+   }
+  ],
+  "actions": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.clearComposer",
+     "input": {}
+    },
+    "delayAfterMs": 300
+   },
+   {
+    "type": "type",
+    "delayAfterMs": 300,
+    "value": "autotest-1903 {token} {round} "
+   },
+   {
+    "type": "type",
+    "delayAfterMs": 1000,
+    "value": "@"
+   },
+   {
+    "type": "wait",
+    "delayAfterMs": 0,
+    "value": "1000"
+   },
+   {
+    "type": "tap",
+    "delayAfterMs": 800,
+    "element": "target.member"
+   },
+   {
+    "type": "require",
+    "delayAfterMs": 0,
+    "requires": {
+     "composerHas": "@aaron+test2"
+    }
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.tapSend",
+     "input": {}
+    },
+    "delayAfterMs": 1000
+   },
+   {
+    "type": "wait",
+    "delayAfterMs": 1000,
+    "value": "1000"
+   }
+  ],
+  "checks": [
+   {
+    "kind": "text",
+    "scope": {
+     "message": "autotest-1903 {token} {round}"
+    },
+    "match": {
+     "exact": "@aaron+test2"
+    },
+    "expect": "已发送气泡里显示 @aaron+test2（独立的 @ 提及）",
+    "want": "present"
+   }
+  ],
+  "afterCheck": [],
+  "epilogue": {
+   "actions": [
+    {
+     "type": "tap",
+     "delayAfterMs": 1000,
+     "element": "chat.back"
+    },
+    {
+     "type": "wait",
+     "delayAfterMs": 1000,
+     "value": "1000"
+    }
+   ],
+   "check": {
+    "kind": "text",
+    "scope": {
+     "message": "autotest-1903 {token}"
+    },
+    "match": {
+     "contains": "@aaron+test2"
+    },
+    "expect": "会话列表预览里有 @aaron+test2",
+    "want": "present"
+   }
+  },
+  "maxRounds": 6
+ },
+ "1903/main/desktop-web": {
+  "title": "发送带 @ 的消息后气泡里应显示 @成员名",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "group-conversation",
+    "guidance": "a group conversation whose members are all test accounts"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 1000
+   }
+  ],
+  "prepare": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.freezeMention",
+     "input": {
+      "member": "aaron+test2",
+      "as": "member"
+     }
+    },
+    "delayAfterMs": 500
+   }
+  ],
+  "actions": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.clearComposer",
+     "input": {}
+    },
+    "delayAfterMs": 300
+   },
+   {
+    "type": "type",
+    "delayAfterMs": 300,
+    "value": "autotest-1903 {token} {round} "
+   },
+   {
+    "type": "type",
+    "delayAfterMs": 1000,
+    "value": "@"
+   },
+   {
+    "type": "wait",
+    "delayAfterMs": 0,
+    "value": "1000"
+   },
+   {
+    "type": "tap",
+    "delayAfterMs": 800,
+    "element": "target.member"
+   },
+   {
+    "type": "require",
+    "delayAfterMs": 0,
+    "requires": {
+     "composerHas": "@aaron+test2"
+    }
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.tapSend",
+     "input": {}
+    },
+    "delayAfterMs": 1000
+   },
+   {
+    "type": "wait",
+    "delayAfterMs": 1000,
+    "value": "1000"
+   }
+  ],
+  "checks": [
+   {
+    "kind": "text",
+    "scope": {
+     "message": "autotest-1903 {token} {round}"
+    },
+    "match": {
+     "exact": "@aaron+test2"
+    },
+    "expect": "已发送气泡里显示 @aaron+test2（独立的 @ 提及）",
+    "want": "present"
+   }
+  ],
+  "afterCheck": [],
+  "epilogue": {
+   "actions": [
+    {
+     "type": "tap",
+     "delayAfterMs": 1000,
+     "element": "chat.back"
+    },
+    {
+     "type": "wait",
+     "delayAfterMs": 1000,
+     "value": "1000"
+    }
+   ],
+   "check": {
+    "kind": "text",
+    "scope": {
+     "message": "autotest-1903 {token}"
+    },
+    "match": {
+     "contains": "@aaron+test2"
+    },
+    "expect": "会话列表预览里有 @aaron+test2",
+    "want": "present"
+   }
+  },
+  "maxRounds": 6
+ },
+ "2010/main/android-app": {
+  "title": "点 AI 改写后输入框草稿应保留（或先确认 / 可撤销）",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "other-conversation",
+    "guidance": "the user's own Personal AI conversation (nothing is sent; disturbs no one)"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 1000
+   }
+  ],
+  "actions": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.clearComposer",
+     "input": {}
+    },
+    "delayAfterMs": 300
+   },
+   {
+    "type": "type",
+    "delayAfterMs": 500,
+    "value": "autotest-2010 {token} {round}"
+   },
+   {
+    "type": "require",
+    "delayAfterMs": 0,
+    "requires": {
+     "composerHas": "autotest-2010 {token} {round}"
+    }
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.tapRewrite",
+     "input": {}
+    },
+    "delayAfterMs": 300
+   }
+  ],
+  "checks": [
+   {
+    "kind": "text",
+    "scope": "composer",
+    "match": {
+     "exact": "autotest-2010 {token} {round}"
+    },
+    "expect": "点击改写后输入框仍是原草稿（没有被静默替换）",
+    "want": "present"
+   }
+  ],
+  "afterCheck": [],
+  "maxRounds": 6
+ },
+ "2010/main/android-web": {
+  "title": "点 AI 改写后输入框草稿应保留（或先确认 / 可撤销）",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "other-conversation",
+    "guidance": "the user's own Personal AI conversation (nothing is sent; disturbs no one)"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 1000
+   }
+  ],
+  "actions": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.clearComposer",
+     "input": {}
+    },
+    "delayAfterMs": 300
+   },
+   {
+    "type": "type",
+    "delayAfterMs": 500,
+    "value": "autotest-2010 {token} {round}"
+   },
+   {
+    "type": "require",
+    "delayAfterMs": 0,
+    "requires": {
+     "composerHas": "autotest-2010 {token} {round}"
+    }
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.tapRewrite",
+     "input": {}
+    },
+    "delayAfterMs": 300
+   }
+  ],
+  "checks": [
+   {
+    "kind": "text",
+    "scope": "composer",
+    "match": {
+     "exact": "autotest-2010 {token} {round}"
+    },
+    "expect": "点击改写后输入框仍是原草稿（没有被静默替换）",
+    "want": "present"
+   }
+  ],
+  "afterCheck": [],
+  "maxRounds": 6
+ },
+ "2010/main/mobile-web": {
+  "title": "点 AI 改写后输入框草稿应保留（或先确认 / 可撤销）",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "other-conversation",
+    "guidance": "the user's own Personal AI conversation (nothing is sent; disturbs no one)"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 1000
+   }
+  ],
+  "actions": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.clearComposer",
+     "input": {}
+    },
+    "delayAfterMs": 300
+   },
+   {
+    "type": "type",
+    "delayAfterMs": 500,
+    "value": "autotest-2010 {token} {round}"
+   },
+   {
+    "type": "require",
+    "delayAfterMs": 0,
+    "requires": {
+     "composerHas": "autotest-2010 {token} {round}"
+    }
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.tapRewrite",
+     "input": {}
+    },
+    "delayAfterMs": 300
+   }
+  ],
+  "checks": [
+   {
+    "kind": "text",
+    "scope": "composer",
+    "match": {
+     "exact": "autotest-2010 {token} {round}"
+    },
+    "expect": "点击改写后输入框仍是原草稿（没有被静默替换）",
+    "want": "present"
+   }
+  ],
+  "afterCheck": [],
+  "maxRounds": 6
+ },
+ "2010/main/desktop-web": {
+  "title": "点 AI 改写后输入框草稿应保留（或先确认 / 可撤销）",
+  "targets": [
+   {
+    "id": "conv",
+    "kind": "other-conversation",
+    "guidance": "the user's own Personal AI conversation (nothing is sent; disturbs no one)"
+   }
+  ],
+  "setup": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.openConversation",
+     "input": {
+      "target": "conv"
+     }
+    },
+    "delayAfterMs": 1000
+   }
+  ],
+  "actions": [
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.clearComposer",
+     "input": {}
+    },
+    "delayAfterMs": 300
+   },
+   {
+    "type": "type",
+    "delayAfterMs": 500,
+    "value": "autotest-2010 {token} {round}"
+   },
+   {
+    "type": "require",
+    "delayAfterMs": 0,
+    "requires": {
+     "composerHas": "autotest-2010 {token} {round}"
+    }
+   },
+   {
+    "type": "node",
+    "node": {
+     "name": "teamily.tapRewrite",
+     "input": {}
+    },
+    "delayAfterMs": 300
+   }
+  ],
+  "checks": [
+   {
+    "kind": "text",
+    "scope": "composer",
+    "match": {
+     "exact": "autotest-2010 {token} {round}"
+    },
+    "expect": "点击改写后输入框仍是原草稿（没有被静默替换）",
+    "want": "present"
+   }
+  ],
+  "afterCheck": [],
+  "maxRounds": 6
  }
 }

@@ -18,7 +18,11 @@ export interface UiNode {
 
 export type UiBox = [number, number, number, number];
 
-const attr = (n: string, k: string) => n.match(new RegExp(`\\s${k}="([^"]*)"`))?.[1] ?? '';
+// uiautomator quotes a value with ' when it contains a " (e.g. a rewritten draft that quotes the original).
+const attr = (n: string, k: string) => {
+  const m = n.match(new RegExp(`\\s${k}=(?:"([^"]*)"|'([^']*)')`));
+  return m ? (m[1] ?? m[2] ?? '') : '';
+};
 // uiautomator writes emoji as numeric character references (&#128077; = 👍).
 const unescape = (s: string) =>
   s

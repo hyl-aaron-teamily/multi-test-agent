@@ -1,7 +1,7 @@
 ---
 name: teamily
 description: Black-box test SKILL for the Teamily IM app (web + Android). Fixed UI elements are calibrated to coordinates per execution surface; dynamic targets are chosen by the model at preparation time; the loop runs by coordinates only.
-version: 2026.10.26-1
+version: 2026.10.28-1
 ---
 
 # Teamily SKILL
@@ -51,6 +51,16 @@ profile = 元素 id → 坐标框 + 自检结果；`refs/<profile>/<page>.png` +
 - 执行开始时比对首页导航区；不匹配 → `SKILL 失效 @ 页面 home`，停止并提示重新标定。
 - `pnpm autotest skill smoke --surface <s> --env <e>`：按坐标“打开会话 → 发一条消息”（发到自己的 Personal AI）。
 - `pnpm autotest skill smoke --surface android-app|android-web --lifecycle warm|cold`：退出（Home）→ 后台等待 → [杀进程 → 等待] → 重开；App 冷启动应回首页，浏览器冷启动应重新加载并回到上次会话。
+
+## 输入框与 AI 改写（W2-2）
+
+- `chat.rewrite`（android-app）：输入框工具条的星芒按钮，无障碍 `desc="强化 prompt"`，**键盘收起时**的坐标（键盘弹出时整条工具条上移，坐标不同）。点它会把输入框里的草稿改写成一段展开的 prompt，没有确认、没有撤销（Issue 2010 在 Android 2.0.15 上可见）。
+- `teamily.clearComposer`：App 上「聚焦输入框（键盘未弹出时才点）→ 全选（Ctrl+A）→ 删除」，结束时输入框聚焦、键盘弹出；聚焦不上 = 本轮偏离。
+- `teamily.tapRewrite`：收起键盘 → 点 `chat.rewrite` → 用像素等改写完成（≤ 10 s，超时 = 偏离，不计尝试）。
+- `teamily.tapSend`：把输入框里已有的内容发出去（App：收起键盘 → 点 `chat.send`）。
+- `teamily.freezeMention`（prepare-only）：键入 @ → 按字面文字（①）在选择器里找到成员行 → 冻结为目标 → 关闭选择器并清空。循环里按坐标点这个目标。
+- 读输入框：`uiautomator` 在文字含 `"` 时用单引号写属性，`core/ui-tree` 两种都认；空输入框的 `text` 等于 `hint`，读作空串。
+- 测试机输入法是讯飞，中文状态下 `adb shell input text` 会被拼音吃掉；驱动对带空格 / 符号的文字走 yadb（不经输入法），模式里的草稿都带空格。
 
 ## 生命周期动作（计划可用）
 

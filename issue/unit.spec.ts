@@ -28,13 +28,15 @@ describe('issue parsing', () => {
 describe('classification of the sample issues', () => {
   const expected: Record<string, string> = {
     '1329': 'bug-intermittent',
+    '1426': 'deferred', // platform/issue-overrides.yaml (W2-2: classify + contract only)
     '1594': 'bug-intermittent',
     '1614': 'server-side',
-    '1919': 'multi-account',
+    '1903': 'bug-always',
+    '1918': 'deferred', // platform/issue-overrides.yaml (W2-2: Agent reply content cannot be constructed)
     '1922': 'not-executable', // platform/issue-overrides.yaml (user decision, see file)
+    '2010': 'bug-always',
     '2044': 'bug-always',
     '2122': 'feature',
-    '2230': 'deferred',
     '2235': 'multi-account',
     '2336': 'feature',
   };
@@ -47,6 +49,10 @@ describe('classification of the sample issues', () => {
     expect(surfacesFor(['web'])).toEqual(['desktop-web']);
   });
   it('2122 is a feature with a deferred multi-account part', () => expect(classifyRules(load('2122')).partialMultiAccount).toBe(true));
+  it('1426 / 1918 are deferred with the precondition that blocks them (W2-2 §1)', () => {
+    expect(classifyRules(load('1426')).blockedBy).toBe('partial-selection-clipboard');
+    expect(classifyRules(load('1918')).blockedBy).toBe('agent-reply-with-formula');
+  });
 });
 
 const basePlan = () => ({

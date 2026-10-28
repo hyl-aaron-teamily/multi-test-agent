@@ -3,7 +3,7 @@
 // slot (empty) → ③ vision. Only at round-end checkpoints, preparation and warm-up — never per step.
 // Each decision records its tier and time (report: 判定分层统计).
 import type { Page } from 'playwright';
-import { dumpTree, keyboardShown, matches, type TextMatch, type UiNode } from '../core/ui-tree';
+import { clickableAncestor, dumpTree, inside, keyboardShown, matches, type TextMatch, type UiNode } from '../core/ui-tree';
 import { visionAsk } from '../core/model/midscene';
 import { AndroidDriver } from '../drivers/android';
 import type { Driver, Point } from '../drivers/types';
@@ -72,11 +72,25 @@ export async function observeKeyboard(d: Driver, k: CheckPoint): Promise<Observe
 
 const describeMatch = (m: TextMatch) => ('exact' in m ? `"${m.exact}"` : 'contains' in m ? `text containing "${m.contains}"` : `text matching /${m.regex}/`);
 
+/** Pure: the newest (bottom-most) message carrying `anchor` — never the composer — and every node of its
+ *  bubble / list row (its smallest clickable container). undefined = no such message on screen. */
+export function messageNodes(nodes: UiNode[], anchor: string): UiNode[] | undefined {
+  const hit = nodes.filter((n) => !/EditText/.test(n.cls) && (n.text.includes(anchor) || n.desc.includes(anchor))).sort((a, b) => b.y1 - a.y1)[0];
+  if (!hit) return undefined;
+  const box = clickableAncestor(nodes, hit) ?? hit;
+  return nodes.filter((n) => inside(n, box));
+}
+
+/** Pure: does a plain string match? */
+export const textMatches = (t: string, m: TextMatch) => matches({ text: t, desc: '' } as UiNode, m);
+
 /** Pure: Android nodes in a text check's scope. */
 export function scopeNodes(nodes: UiNode[], k: CheckPoint, targets: Record<string, Point>, viewportWidth: number): UiNode[] {
   const s = k.scope ?? 'screen';
   if (s === 'screen') return nodes;
+  if (s === 'composer') return nodes.filter((n) => /EditText/.test(n.cls)).sort((a, b) => b.y1 - a.y1).slice(0, 1);
   if (s === 'quote-cards') return nodes.filter((n) => n.clickable && /^[^,]{1,60}, .+/.test(n.desc) && n.x1 > viewportWidth * 0.1);
+  if ('message' in s) return messageNodes(nodes, s.message) ?? [];
   const p = targets[s.target];
   if (!p) return [];
   return nodes.filter((n) => Math.abs((n.y1 + n.y2) / 2 - p.y) <= (s.within ?? 250));
@@ -87,6 +101,23 @@ export async function observeText(d: Driver, k: CheckPoint, targets: Record<stri
   const t0 = Date.now();
   const m = k.match;
   if (!m) return { check: k, pass: null, detail: 'text check without match' };
+  if (k.scope === 'composer') {
+    // The input's own text (an empty input reports its placeholder: read as '').
+    const t = await composerText(d);
+    if (t === null) return { check: k, pass: null, detail: 'composer not readable — 未验证', drift: 'composer not readable', ms: Date.now() - t0 };
+    const hit = textMatches(t, m);
+    return { check: k, pass: wantPass(k, hit), detail: `composer ${hit ? 'has' : 'does not have'} ${describeMatch(m)} — now "${t.slice(0, 120).replace(/\s+/g, ' ')}"${t.length > 120 ? '…' : ''} (${d instanceof AndroidDriver ? 'accessibility' : 'page text'})`, tier: '①', ms: Date.now() - t0 };
+  }
+  if (typeof k.scope === 'object' && 'message' in k.scope) {
+    const anchor = k.scope.message;
+    if (!(d instanceof AndroidDriver)) return { check: k, pass: null, detail: 'message scope is read from the accessibility tree (Android) only — 未验证', ms: Date.now() - t0 };
+    const nodes = await dumpTree(d.o.udid, pkg ?? d.o.packageName, 3);
+    const scoped = nodes.length ? messageNodes(nodes, anchor) : undefined;
+    if (!scoped) return { check: k, pass: null, detail: `no message containing "${anchor}" on screen`, drift: `no message containing "${anchor}" on screen (not sent / not shown)`, tier: '①', ms: Date.now() - t0 };
+    const hit = scoped.find((n) => matches(n, m));
+    const all = [...new Set(scoped.map((n) => n.text || n.desc).filter(Boolean))].join(' | ').slice(0, 160);
+    return { check: k, pass: wantPass(k, !!hit), detail: `newest message with "${anchor}": ${describeMatch(m)} ${hit ? 'present' : 'absent'} — nodes: ${all} (accessibility)`, tier: '①', ms: Date.now() - t0 };
+  }
   if (d instanceof AndroidDriver) {
     const nodes = await dumpTree(d.o.udid, pkg ?? d.o.packageName, 3);
     if (nodes.length) {
