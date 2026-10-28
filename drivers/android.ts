@@ -243,6 +243,8 @@ export class AndroidDriver implements Driver {
   }
 
   async key(name: string): Promise<void> {
+    // Select all in the focused field (CTRL_LEFT + A).
+    if (name.toLowerCase() === 'selectall') return this.sh('input keycombination 113 29');
     const code = KEYCODES[name.toLowerCase()] ?? Number(name);
     if (!Number.isFinite(code)) throw new Error(`unknown key ${name}`);
     await this.sh(`input keyevent ${code}`);

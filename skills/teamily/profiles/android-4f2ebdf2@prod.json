@@ -94,6 +94,21 @@
         99
       ],
       "selfCheck": "pending"
+    },
+    "chat.rewrite": {
+      "page": "chat",
+      "box": [
+        522,
+        2211,
+        99,
+        110
+      ],
+      "selfCheck": "pending",
+      "fingerprint": {
+        "desc": "强化 prompt",
+        "cls": "android.widget.Button"
+      },
+      "note": "added 2026-10-28 (W2-2 T4) from the accessibility tree, keyboard down"
     }
   },
   "refs": {

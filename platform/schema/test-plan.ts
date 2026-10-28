@@ -10,16 +10,24 @@ export const SurfaceZ = z.enum(SURFACES);
 export const CategoryZ = z.enum(['bug-always', 'bug-intermittent', 'feature', 'suspected-misuse']);
 export const PreCategoryZ = z.enum([...CategoryZ.options, 'server-side', 'multi-account', 'deferred', 'not-executable']);
 
+/** A round's own precondition, read ① (accessibility / page text) at that point of the round. Unmet = the
+ *  input did not land (operation drift): the round is not an attempt and is not counted.
+ *  composerHas: the message input contains this text. Values may use {token} / {round} (run token, round). */
+export const RequiresZ = z.object({ composerHas: z.string() });
+
 export const PlannedActionZ = z.object({
   /** Lifecycle: exitApp = Home (app stays in the background); killApp = kill its process (verified gone);
    *  reload = page reload (web) / kill + launch (app); idle = no input for `value` ms (≤ 10 min, e.g. while
    *  the app sits in the background); launch after killApp = cold start. Lifecycle ops are not counted
    *  as action intervals and planned exits are never hits. */
-  type: z.enum(['tap', 'longPress', 'type', 'key', 'swipe', 'scroll', 'back', 'wait', 'launch', 'node', 'exitApp', 'killApp', 'reload', 'idle']),
+  /** require: check `requires` now (① read, not an input; not an action interval). */
+  type: z.enum(['tap', 'longPress', 'type', 'key', 'swipe', 'scroll', 'back', 'wait', 'launch', 'node', 'exitApp', 'killApp', 'reload', 'idle', 'require']),
   node: z.object({ name: z.string(), input: z.record(z.string(), z.unknown()).default({}) }).optional(),
   element: z.string().optional(),
-  /** type: text; key: key name; swipe/scroll: 'up' | 'down' | 'left' | 'right'; wait: ms (≤ 1000); idle: ms (≤ 600000). */
+  /** type: text; key: key name; swipe/scroll: 'up' | 'down' | 'left' | 'right'; wait: ms (≤ 1000); idle: ms (≤ 600000).
+   *  Text may use {token} (the run token) and {round} (the round number, 0 = warm-up). */
   value: z.string().optional(),
+  requires: RequiresZ.optional(),
   delayAfterMs: z.number().int().min(0).max(1000).default(300),
 });
 
@@ -34,17 +42,21 @@ export const CheckPointZ = z.object({
   onlyOnAnomaly: z.boolean().optional(),
   /** text: what to find (exact text, substring or regex). */
   match: z.union([z.object({ exact: z.string() }), z.object({ contains: z.string() }), z.object({ regex: z.string() })]).optional(),
-  /** text: where — whole screen (default), the quote cards, or near a frozen target (± px vertically). */
-  scope: z.union([z.literal('screen'), z.literal('quote-cards'), z.object({ target: z.string(), within: z.number().default(250) })]).optional(),
+  /** text: where — whole screen (default), the quote cards, near a frozen target (± px vertically), the
+   *  message input (its text), or the newest message containing an anchor text (its bubble / list row; no
+   *  such message = operation drift). Match values and the anchor may use {token} / {round}. */
+  scope: z.union([z.literal('screen'), z.literal('quote-cards'), z.literal('composer'), z.object({ target: z.string(), within: z.number().default(250) }), z.object({ message: z.string() })]).optional(),
   /** A failure counts only if this holds (read ① at the checkpoint); otherwise it is an operation drift.
    *  composerHas: the message input contains this text (e.g. the "@" just typed). */
-  requires: z.object({ composerHas: z.string() }).optional(),
+  requires: RequiresZ.optional(),
 });
 
 export const LimitsZ = z.object({
   maxSteps: z.number().int().min(1).max(3000),
   maxMinutes: z.number().min(1).max(120),
   maxIntervalMs: z.literal(1000),
+  /** Stop after this many valid attempts (rounds that are not operation drifts). */
+  maxRounds: z.number().int().min(1).max(1000).optional(),
 });
 
 export const VerdictRuleZ = z.union([z.object({ consecutiveHits: z.literal(3) }), z.object({ anyHit: z.literal(true) })]);
@@ -76,6 +88,8 @@ export const TestPlanZ = z.object({
   /** Run after each round's checkpoint: restore state the round changed (e.g. remove the like just added). */
   afterCheck: z.array(PlannedActionZ).default([]),
   acceptance: z.array(AcceptanceItemZ).optional(),
+  /** Once after the loop (record only, never a hit): e.g. the conversation-list preview of the last message. */
+  epilogue: z.object({ actions: z.array(PlannedActionZ), check: CheckPointZ }).optional(),
   /** suspected-misuse: the correct path, run first. */
   correctPath: z.array(PlannedActionZ).optional(),
   limits: LimitsZ,
@@ -92,6 +106,7 @@ export type Category = z.infer<typeof CategoryZ>;
 export type PreCategory = z.infer<typeof PreCategoryZ>;
 export type PlannedAction = z.infer<typeof PlannedActionZ>;
 export type CheckPoint = z.infer<typeof CheckPointZ>;
+export type Requires = z.infer<typeof RequiresZ>;
 export type TestPlan = z.infer<typeof TestPlanZ>;
 export type AcceptanceItem = z.infer<typeof AcceptanceItemZ>;
 
@@ -101,7 +116,7 @@ export const MAX_IDLE_MS = 600_000;
 /** Surfaces with an app process the user can leave / kill (exitApp, killApp). */
 export const APP_SURFACES: string[] = ['android-app', 'android-web'];
 /** Ops that are not user input pacing: excluded from the ≤ 1 s action-interval statistic. */
-export const LIFECYCLE_OPS = new Set(['launch', 'exitApp', 'killApp', 'reload', 'idle', 'focus']);
+export const LIFECYCLE_OPS = new Set(['launch', 'exitApp', 'killApp', 'reload', 'idle', 'focus', 'observe']);
 
 export function verdictRuleFor(c: Category): TestPlan['verdictRule'] {
   return c === 'bug-always' ? { consecutiveHits: 3 } : { anyHit: true };

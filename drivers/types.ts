@@ -68,4 +68,13 @@ export async function lifecycle(d: Driver, op: LifecycleOp): Promise<void> {
   throw new Error(`${d.surface}: reload not supported`);
 }
 
+/** The round cannot count: its own precondition did not hold or an input did not land (operation drift).
+ *  The loop discards the round (not an attempt, never a hit) and re-enters; the warm-up treats it as a failed step. */
+export class RoundDrift extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'RoundDrift';
+  }
+}
+
 export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));

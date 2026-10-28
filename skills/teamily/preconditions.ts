@@ -27,6 +27,10 @@ export const PRECONDITIONS: PreconditionSpec[] = [
   { id: 'quoted-message-with-markdown-link', meaning: '一条含 Markdown 链接语法的消息被引用回复', establish: 'construct', surfaces: ['android-app', 'android-web', 'mobile-web', 'desktop-web'] },
   { id: 'app-in-background', meaning: 'App 处于后台 / 被杀后重开', establish: 'executor', surfaces: ['android-app', 'android-web'] },
   { id: 'browser-storage-full', meaning: '浏览器存储（localStorage）写满', establish: 'unconstructible' },
+  { id: 'composer-draft', meaning: '输入框里有用户键入的草稿（每轮由计划键入，判定前提 requires.composerHas）', establish: 'executor' },
+  { id: 'group-member-mentioned', meaning: '在允许清单群里发出一条 @ 另一位测试账号的消息（每轮构造）', establish: 'construct' },
+  { id: 'partial-selection-clipboard', meaning: '鼠标拖选消息的部分文字 → 右键「复制」→ 读取剪贴板（执行器暂无拖选 / 右键菜单 / 剪贴板读取）', establish: 'unconstructible', surfaces: ['desktop-web'] },
+  { id: 'agent-reply-with-formula', meaning: 'Agent 回复中含 LaTeX 公式（回复内容由 Agent 生成，不可控）', establish: 'unconstructible' },
   { id: 'second-account', meaning: '需要第二个账号 / 第二个客户端配合', establish: 'unconstructible' },
 ];
 

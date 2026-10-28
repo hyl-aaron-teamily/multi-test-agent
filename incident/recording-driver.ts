@@ -8,7 +8,8 @@ export interface CoordOp {
   /** Host time the op started (ms). */
   at: number;
   durationMs: number;
-  op: 'tap' | 'longPress' | 'type' | 'key' | 'swipe' | 'scroll' | 'back' | 'launch' | 'wait' | 'idle' | 'focus' | LifecycleOp;
+  /** observe: a ① read inside a round (round precondition), not an input — replay skips it. */
+  op: 'tap' | 'longPress' | 'type' | 'key' | 'swipe' | 'scroll' | 'back' | 'launch' | 'wait' | 'idle' | 'focus' | 'observe' | LifecycleOp;
   point?: Point;
   to?: Point;
   value?: string;
@@ -100,6 +101,10 @@ export class RecordingDriver implements Driver {
   /** No input for `ms` (app in the background, waiting for a reload). Not an action interval. */
   idle(ms: number) {
     return this.rec('idle', { ms }, () => sleep(ms));
+  }
+  /** A ① read inside a round (not an input, not an action interval). */
+  observe<T>(what: string, fn: () => Promise<T>): Promise<T> {
+    return this.rec('observe', { value: what }, fn);
   }
   screenshot() {
     return this.inner.screenshot();

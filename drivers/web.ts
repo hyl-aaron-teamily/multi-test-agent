@@ -131,7 +131,7 @@ export class WebDriver implements Driver {
   }
 
   async key(name: string): Promise<void> {
-    await this.p.keyboard.press(KEYS[name.toLowerCase()] ?? name);
+    await this.p.keyboard.press(name.toLowerCase() === 'selectall' ? 'ControlOrMeta+A' : (KEYS[name.toLowerCase()] ?? name));
   }
 
   private async touch(type: 'touchStart' | 'touchMove' | 'touchEnd', p: Point): Promise<void> {

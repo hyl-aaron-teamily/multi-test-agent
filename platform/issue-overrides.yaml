@@ -4,3 +4,12 @@
 "1922":
   category: not-executable
   reason: 按里程碑 5 文档 §A.2 / T4 约定拒绝执行（用户 2026-10-21 确认）。注：文件实际描述 iOS 自己发送的文本消息第二行被截断（偶现），并非空文档；如需执行请删除此覆盖项。
+# 1426 / 1918: W2-2 §1 (user decision 2026-10-28) — classify + contract only, not executed this milestone.
+"1426":
+  category: deferred
+  precondition: partial-selection-clipboard
+  reason: W2-2 只分类 + 契约（用户 2026-10-28）：desktop-web 上需要鼠标拖选部分文字、右键菜单「复制」并读取剪贴板，执行器暂无这些能力，放到以后。
+"1918":
+  category: deferred
+  precondition: agent-reply-with-formula
+  reason: W2-2 只分类 + 契约（用户 2026-10-28）：前置条件「Agent 回复含 LaTeX 公式」取决于 Agent 生成的内容，黑盒不可控（unconstructible）。

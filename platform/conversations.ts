@@ -7,15 +7,16 @@ import { resolve } from 'node:path';
 import yaml from 'js-yaml';
 
 export interface ConversationSettings {
-  construct: { allow: string[] };
+  /** member: display name of another pool account in the first allowed group (the one @-mentioned, Issue 1903). */
+  construct: { allow: string[]; member?: string };
   sync: { defaultConversation?: string };
 }
 
 export const CONVERSATIONS_FILE = resolve(process.env.CONVERSATIONS_FILE ?? 'platform/conversations.local.yaml');
 
 export function loadConversations(file = CONVERSATIONS_FILE): ConversationSettings {
-  const raw = existsSync(file) ? ((yaml.load(readFileSync(file, 'utf8')) ?? {}) as Partial<{ construct: { allow?: string[] }; sync: { defaultConversation?: string } }>) : {};
-  return { construct: { allow: raw.construct?.allow ?? [] }, sync: { defaultConversation: raw.sync?.defaultConversation } };
+  const raw = existsSync(file) ? ((yaml.load(readFileSync(file, 'utf8')) ?? {}) as Partial<{ construct: { allow?: string[]; member?: string }; sync: { defaultConversation?: string } }>) : {};
+  return { construct: { allow: raw.construct?.allow ?? [], member: raw.construct?.member }, sync: { defaultConversation: raw.sync?.defaultConversation } };
 }
 
 /** Pure: is a (possibly truncated, "…") list title one of the allowed construction conversations? */

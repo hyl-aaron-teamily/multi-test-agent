@@ -5,7 +5,7 @@
 import type { Category, PlannedAction, Surface, TestPlan } from '../../platform/schema/test-plan';
 import { TARGET_GUIDANCE } from './vocab';
 
-export type PlanFragment = Pick<TestPlan, 'targets' | 'setup' | 'actions' | 'checks'> & { prepare?: TestPlan['prepare']; prepareCheck?: TestPlan['prepareCheck']; afterCheck?: TestPlan['afterCheck']; acceptance?: TestPlan['acceptance']; title: string };
+export type PlanFragment = Pick<TestPlan, 'targets' | 'setup' | 'actions' | 'checks'> & { prepare?: TestPlan['prepare']; prepareCheck?: TestPlan['prepareCheck']; afterCheck?: TestPlan['afterCheck']; acceptance?: TestPlan['acceptance']; epilogue?: TestPlan['epilogue']; maxRounds?: number; title: string };
 
 export interface Pattern {
   id: string;
@@ -102,6 +102,71 @@ export const PATTERNS: Pattern[] = [
         },
       ],
     };
+    },
+  },
+  {
+    // 2010: the AI rewrite control replaces the typed draft without confirmation / undo. Each round types a
+    // draft carrying the run token and round, checks it really is in the input (round precondition), taps
+    // rewrite and reads the input (①): still exactly the draft = normal; anything else = the draft was
+    // replaced (a rewrite may quote the draft, so "contains" would miss it). Personal AI: nothing is sent.
+    id: 'composer-rewrite',
+    trigger: 'tap-rewrite-with-draft',
+    observation: 'text',
+    needs: ['other-conversation', 'composer-draft'],
+    categories: ['bug-always', 'bug-intermittent', 'suspected-misuse'],
+    featureOnly: false,
+    signal: (t) => /\brewrite|改写|强化 ?prompt/.test(t),
+    surfaces: ['android-app'],
+    build: () => {
+      const draft = 'autotest-2010 {token} {round}';
+      return {
+        title: '点 AI 改写后输入框草稿应保留（或先确认 / 可撤销）',
+        targets: [{ id: 'conv', kind: 'other-conversation', guidance: "the user's own Personal AI conversation (nothing is sent; disturbs no one)" }],
+        setup: [node('teamily.openConversation', { target: 'conv' }, 1000)],
+        actions: [node('teamily.clearComposer', {}, 300), a('type', { value: draft, delayAfterMs: 500 }), a('require', { requires: { composerHas: draft }, delayAfterMs: 0 }), node('teamily.tapRewrite', {}, 300)],
+        checks: [{ kind: 'text', scope: 'composer', match: { exact: draft }, expect: '点击改写后输入框仍是原草稿（没有被静默替换）', want: 'present' }],
+        afterCheck: [],
+        maxRounds: 6,
+      };
+    },
+  },
+  {
+    // 1903: a sent message that @-mentions a member must show the mention in its bubble (a separate mention
+    // node on Android). Each round (allow-listed group, test accounts only): text with the run token and round
+    // → "@" → the member row frozen at preparation → the input must hold "@member" (round precondition) →
+    // send → read the newest bubble carrying this round's text (①). Once at the end: the list preview.
+    id: 'mention-render',
+    trigger: 'send-message-with-mention',
+    observation: 'text',
+    needs: ['group-conversation', 'group-member-mentioned'],
+    categories: ['bug-always', 'bug-intermittent', 'suspected-misuse'],
+    featureOnly: false,
+    signal: (t) => /(mention|@).{0,80}(not rendered|bubble|渲染|气泡)|(bubble|气泡).{0,80}(mention|@)/.test(t),
+    surfaces: ['android-app'],
+    build: (_surface, params = {}) => {
+      const conv = String(params.conversation ?? '');
+      const member = String(params.member ?? '') || 'aaron+test2';
+      const text = 'autotest-1903 {token} {round}';
+      return {
+        title: '发送带 @ 的消息后气泡里应显示 @成员名',
+        targets: [{ id: 'conv', kind: 'group-conversation', guidance: conv ? `the conversation titled "${conv}" (titles may be cut short with …)` : 'a group conversation whose members are all test accounts' }],
+        setup: [node('teamily.openConversation', { target: 'conv' }, 1000)],
+        prepare: [node('teamily.freezeMention', { member, as: 'member' }, 500)],
+        actions: [
+          node('teamily.clearComposer', {}, 300),
+          a('type', { value: `${text} `, delayAfterMs: 300 }),
+          a('type', { value: '@', delayAfterMs: 1000 }),
+          a('wait', { value: '1000', delayAfterMs: 0 }),
+          a('tap', { element: 'target.member', delayAfterMs: 800 }),
+          a('require', { requires: { composerHas: `@${member}` }, delayAfterMs: 0 }),
+          node('teamily.tapSend', {}, 1000),
+          a('wait', { value: '1000', delayAfterMs: 1000 }),
+        ],
+        checks: [{ kind: 'text', scope: { message: text }, match: { exact: `@${member}` }, expect: `已发送气泡里显示 @${member}（独立的 @ 提及）`, want: 'present' }],
+        afterCheck: [],
+        epilogue: { actions: [a('tap', { element: 'chat.back', delayAfterMs: 1000 }), a('wait', { value: '1000', delayAfterMs: 1000 })], check: { kind: 'text', scope: { message: 'autotest-1903 {token}' }, match: { contains: `@${member}` }, expect: `会话列表预览里有 @${member}`, want: 'present' } },
+        maxRounds: 6,
+      };
     },
   },
   {

@@ -4,7 +4,7 @@
 import type { Surface } from '../../platform/accounts/types';
 import { NODE_SPECS } from './node-specs';
 
-export const SKILL_VERSION = '2026.10.26-1';
+export const SKILL_VERSION = '2026.10.28-1';
 
 export interface ElementSpec {
   id: string;
@@ -34,6 +34,7 @@ export const ELEMENTS: ElementSpec[] = [
   { id: 'chatlist.search', page: 'home', meaning: '会话列表顶部搜索框', selfCheck: 'focus', surfaces: ALL },
   { id: 'chat.composer', page: 'chat', meaning: '消息输入框', selfCheck: 'focus', surfaces: ALL },
   { id: 'chat.send', page: 'chat', meaning: '发送按钮（输入内容后出现）', selfCheck: 'none', surfaces: ALL },
+  { id: 'chat.rewrite', page: 'chat', meaning: '输入框工具条的 AI 改写（星芒「强化 prompt」）按钮（键盘收起时）', selfCheck: 'none', surfaces: ['android-app'] },
   { id: 'chat.back', page: 'chat', meaning: '聊天页返回会话列表（移动端）', selfCheck: 'navigate', surfaces: MOBILE },
   { id: 'profile.bell', page: 'profile', meaning: '个人主页头部右上角 🔔 通知入口', selfCheck: 'popup', surfaces: WEB },
   { id: 'artifacts.firstCard', page: 'artifacts', meaning: 'Artifacts 网格第一个卡片位（打开任意文档 / CloudDoc，新标签页）', selfCheck: 'navigate', surfaces: ['desktop-web'] },

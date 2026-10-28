@@ -16,7 +16,10 @@ const CRASH_WORDS = /crash|闪退|崩溃|anr|not responding|无响应|白屏|fre
 
 /** Default params a pattern needs from the environment (allow-listed conversation for constructions). */
 export function patternParams(patternId: string): Record<string, unknown> {
-  if (patternById(patternId)?.needs.some((n) => preconditionById(n)?.establish === 'construct')) return { conversation: loadConversations().construct.allow[0] ?? '' };
+  if (patternById(patternId)?.needs.some((n) => preconditionById(n)?.establish === 'construct')) {
+    const k = loadConversations().construct;
+    return { conversation: k.allow[0] ?? '', ...(patternId === 'mention-render' ? { member: k.member ?? '' } : {}) };
+  }
   return {};
 }
 
@@ -43,8 +46,8 @@ export function rulesContract(i: NormalizedIssue, sub: string, text: string, cat
 
 /** Deferred Issues (second account / storage the robot cannot fill): a contract that says which
  *  precondition cannot be established, so the deferral is explicit. */
-export function deferredContract(i: NormalizedIssue, kind: 'multi-account' | 'deferred'): IssueContract {
-  const spec = preconditionById(kind === 'multi-account' ? 'second-account' : 'browser-storage-full')!;
+export function deferredContract(i: NormalizedIssue, kind: 'multi-account' | 'deferred', blockedBy?: string): IssueContract {
+  const spec = preconditionById(blockedBy ?? (kind === 'multi-account' ? 'second-account' : 'browser-storage-full'))!;
   return {
     issueRef: i.id,
     sub: 'main',
