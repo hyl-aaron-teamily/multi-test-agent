@@ -137,8 +137,9 @@ export function estimate(p: TestPlan, h: (number | PastRun)[], maxRounds?: numbe
     const s = [...pred].sort((a, b) => a - b);
     const med = s[Math.floor((s.length - 1) / 2)];
     const max = s[s.length - 1];
-    const lo = Math.round(med * 0.8);
-    const hi = Math.round(Math.max(max * 1.2, med * 1.5));
+    // Calibrated on the W2-3 gate runs (2026-10-28): the fastest sample bounds below, the slowest above.
+    const lo = Math.round(s[0] * 0.85);
+    const hi = Math.round(Math.max(max * 1.25, med * 1.6));
     return { minSec: lo, maxSec: hi, basis: 'history', samples: h.length, text: `约 ${fmtSec(lo)} – ${fmtSec(hi)}（同计划最近 ${h.length} 次运行）` };
   }
   const per = p.actions.reduce((n, a) => n + 1.5 + (a.delayAfterMs ?? 300) / 1000 + (a.type === 'idle' ? Number(a.value ?? 0) / 1000 : 0) + (a.node?.name === 'teamily.tapRewrite' ? 6 : 0), 0) + p.checks.length * 2;
@@ -161,7 +162,7 @@ export function planHistory(testPlanId: string, roots = [resolve('platform/state
       try {
         const r = JSON.parse(readFileSync(f, 'utf8')) as { results?: RunResult[]; runs?: RunResult[] };
         for (const x of [...(r.results ?? []), ...(r.runs ?? [])])
-          if (x.planId === testPlanId && x.stats?.durationSec && x.conclusion !== '环境不合格' && !x.cancelled && (!before || x.startedAt < before)) out.push({ at: x.startedAt, sec: x.stats.durationSec, rounds: x.attempts?.rounds ?? x.stats.rounds ?? 0 });
+          if (x.planId === testPlanId && x.stats?.durationSec && !['环境不合格', '执行失败', '计划不可执行', 'SKILL 失效'].includes(x.conclusion) && !x.cancelled && (!before || x.startedAt < before)) out.push({ at: x.startedAt, sec: x.stats.durationSec, rounds: x.attempts?.rounds ?? x.stats.rounds ?? 0 });
       } catch {
         /* torn / old format */
       }

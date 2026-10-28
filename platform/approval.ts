@@ -182,7 +182,8 @@ export function reject(planId: string, note: string, by: string): Approval | und
 }
 
 /** Check an approval before a run and use `n` runs of it (31 / 32 / 33 / 30). Atomic under a lock. */
-export function useApproval(planId: string, planHash: string, facts: VersionFacts, n: number): Approval {
+/** `check` = validate only (nothing is used up). */
+export function useApproval(planId: string, planHash: string, facts: VersionFacts, n: number, check = false): Approval {
   return withLock(`approval-${apId(planId)}`, () => {
     const a = getApproval(planId);
     if (!a || !a.planHash) throw new CodedError('APPROVAL_REQUIRED', `计划 ${planId} 尚未批准`, '先 autotest plan approve <planId> --hash <h>（敏感计划在 Web 同意）');
@@ -191,6 +192,7 @@ export function useApproval(planId: string, planHash: string, facts: VersionFact
     const stale = staleFacts(a.facts, facts);
     if (stale.length) throw new CodedError('PLAN_STALE', `批准后版本变化：${stale.join('；')}`, '重新审核计划（plan explain → plan approve）');
     if (a.runsUsed + n > a.runsAllowed) throw new CodedError('APPROVAL_EXHAUSTED', `已用 ${a.runsUsed}/${a.runsAllowed} 次，本次需要 ${n} 次`, '重新批准以获得新的运行次数');
+    if (check) return a;
     a.runsUsed += n;
     writeJsonAtomic(apFile(a.id), a);
     audit({ by: 'platform', action: 'approval.use', object: planId, after: `${a.runsUsed}/${a.runsAllowed}` });

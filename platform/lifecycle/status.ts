@@ -103,9 +103,11 @@ export function codeOfConclusion(conclusion: string, failureKind?: 'env' | 'tool
 
 /** Pure: the code a set of runs ends with (several sub-cases: the worst no-verdict code wins, else the first
  *  conclusion; a reproduction beats not-reproduced). */
-export function codeOfRuns(runs: { conclusion: string; failure?: { kind: 'env' | 'tool' } }[]): Code {
+export function codeOfRuns(runs: { conclusion: string; conclusionDetail?: string; failure?: { kind: 'env' | 'tool'; rule?: string } }[]): Code {
   if (!runs.length) return 'OK';
-  const codes = runs.map((r) => codeOfConclusion(r.conclusion, r.failure?.kind));
+  // A device that is gone / locked says so (52 / 51) rather than the generic 50.
+  const env = (r: (typeof runs)[number]): Code | undefined => (r.failure?.kind !== 'env' ? undefined : r.failure.rule === 'device-offline' || /^预检不合格：online:/.test(r.conclusionDetail ?? '') ? 'ENV_OFFLINE' : r.failure.rule === 'screen-locked' || /锁屏/.test(r.conclusionDetail ?? '') ? 'ENV_LOCKED' : undefined);
+  const codes = runs.map((r) => env(r) ?? codeOfConclusion(r.conclusion, r.failure?.kind));
   const bad = codes.find((c) => STATUS[c].exit >= 40);
   if (bad) return bad;
   return codes.includes('REPRODUCED') ? 'REPRODUCED' : codes[0];

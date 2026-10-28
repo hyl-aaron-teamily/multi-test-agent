@@ -101,9 +101,13 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
   const env = envFor(r.plan.surface, r.plan.env, b.envId);
   if (!env) return fail(b.envId ? 'NOT_FOUND' : 'ENV_OFFLINE', b.envId ? `没有环境 ${b.envId}` : `没有 ${r.plan.surface}@${r.plan.env} 的环境`, 'autotest env list');
   if (env.surface !== r.plan.surface || env.serviceEnv !== r.plan.env) return fail('BAD_INPUT', `环境 ${env.id} 不是 ${r.plan.surface}@${r.plan.env}`);
-  if (env.state === 'quarantined') return fail('ENV_QUARANTINED', `环境 ${env.id} 已隔离：${env.reason ?? ''}`, env.suggestion ?? webUrl(`/env.html?id=${encodeURIComponent(env.id)}`));
-  if (env.state === 'offline') return fail('ENV_OFFLINE', `环境 ${env.id} 已下线`, 'autotest env check <envId>（或在环境页点「重新检查」）');
-  if (env.state === 'unfit') return fail(/锁屏/.test(env.reason ?? '') ? 'ENV_LOCKED' : /不在线|离线/.test(env.reason ?? '') ? 'ENV_OFFLINE' : 'ENV_UNFIT', `环境 ${env.id} 不合格：${env.reason ?? ''}`, env.suggestion);
+  // Environment refusals come after the policy checks: those are definitive, an unfit phone is transient.
+  const envRefusal = (): Envelope | undefined => {
+    if (env.state === 'quarantined') return fail('ENV_QUARANTINED', `环境 ${env.id} 已隔离：${env.reason ?? ''}`, env.suggestion ?? webUrl(`/env.html?id=${encodeURIComponent(env.id)}`));
+    if (env.state === 'offline') return fail('ENV_OFFLINE', `环境 ${env.id} 已下线`, 'autotest env check <envId>（或在环境页点「重新检查」）');
+    if (env.state === 'unfit') return fail(/锁屏/.test(env.reason ?? '') ? 'ENV_LOCKED' : /不在线|离线/.test(env.reason ?? '') ? 'ENV_OFFLINE' : 'ENV_UNFIT', `环境 ${env.id} 不合格：${env.reason ?? ''}`, env.suggestion);
+    return undefined;
+  };
   let pending = unconsented(env);
   // Full access consents the environment configuration items too (recorded as such).
   if (pending.length && getFullAccess().on) {
@@ -119,19 +123,24 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
     const same = listTasks().find((t) => t.idempotencyKey === String(b.idempotencyKey) && !t.parent);
     if (same) return ok('ACCEPTED', `同一幂等键的任务已存在：${same.id}`, tv(same));
   }
-  if (b.dryRun) {
-    const a = getApproval(planId);
-    return ok('OK', `演练：计划 ${planId} 将在 ${env.id} 上运行 ${n} 次（${classified.category === 'default' ? '默认允许' : '敏感'}；批准 ${a ? `${a.runsUsed}/${a.runsAllowed}` : '无'}）`, { planId, hash: r.hash, envId: env.id, envState: env.state, category: classified.category, reasons: classified.reasons, messagesMax: classified.messages, approval: a ?? null });
-  }
   // Default-class plans are approved by the policy when no live approval exists (a person's approval is
   // honoured strictly: its run count runs out → 33).
   const cur = getApproval(planId);
   const curLive = cur && !cur.rejected && cur.planHash === r.hash && cur.runsUsed + n <= cur.runsAllowed;
-  if (!cur?.rejected && !curLive && (!cur || cur.auto || cur.by === 'policy' || cur.planHash !== r.hash) && (classified.category === 'default' || getFullAccess().on))
-    approve({ planId, planHash: r.hash, confirmedHash: r.hash, facts, classified, series, runs: n, via, auto: true });
+  const willAuto = !cur?.rejected && !curLive && (!cur || cur.auto || cur.by === 'policy' || cur.planHash !== r.hash) && (classified.category === 'default' || getFullAccess().on);
   // Sensitive: only a person's sensitive approval (Web) counts; a policy approval of the plain plan does not.
   if (classified.category === 'sensitive' && !getFullAccess().on && !(cur && !cur.rejected && cur.category === 'sensitive' && cur.planHash === r.hash && !cur.auto && cur.by !== 'policy' && !cur.by.startsWith('full-access')))
     return fail('APPROVAL_REQUIRED', `敏感计划需要人在 Web 上同意：${classified.reasons.join('；')}`, webUrl(`/plan.html?id=${encodeURIComponent(planId)}${series ? `&series=${series}` : ''}`));
+  if (b.dryRun) {
+    if (!willAuto) useApproval(planId, r.hash, facts, n, true);
+    const er = envRefusal();
+    if (er) return er;
+    return ok('OK', `演练：计划 ${planId} 将在 ${env.id} 上运行 ${n} 次（${classified.category === 'default' ? '默认允许' : '敏感'}；${willAuto ? '执行时自动批准' : `批准 ${cur?.runsUsed}/${cur?.runsAllowed}`}）`, { planId, hash: r.hash, envId: env.id, envState: env.state, category: classified.category, reasons: classified.reasons, messagesMax: classified.messages, approval: cur ?? null, autoApprove: willAuto });
+  }
+  if (willAuto) approve({ planId, planHash: r.hash, confirmedHash: r.hash, facts, classified, series, runs: n, via, auto: true });
+  useApproval(planId, r.hash, facts, n, true);
+  const er = envRefusal();
+  if (er) return er;
   const ap = useApproval(planId, r.hash, facts, n);
   const id = newTaskId();
   const t = createTask({ id, kind: series && series > 1 ? 'series' : 'issue', issue: r.ref.issue, planId, planHash: r.hash, approvalId: ap.id, envId: env.id, series: series && series > 1 ? { runs: series } : undefined, options: { maxRounds, maxSteps: b.maxSteps, maxMinutes: b.maxMinutes }, idempotencyKey: b.idempotencyKey ? String(b.idempotencyKey) : undefined });

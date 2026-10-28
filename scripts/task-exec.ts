@@ -81,8 +81,13 @@ export async function execTask(id: string): Promise<number> {
     try {
       r = await runPlan({ plan, runDir, pool, devices, udid: env.udid, maxRounds: t0.options.maxRounds, maxSteps: t0.options.maxSteps, maxMinutes: t0.options.maxMinutes, taskId: child ?? id, hooks });
     } catch (e) {
-      // runPlan returns on its own errors; anything here is a tool defect (it already tore down in finally).
-      r = { planId: plan.id, issue: plan.issueRef, title: plan.title, category: plan.category, surface: plan.surface, env: plan.env, conclusion: '执行失败', conclusionDetail: (e as Error).message.split('\n')[0], startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), stats: {} as RunResult['stats'], hits: [], incidents: [], targets: [], roundLog: [], error: (e as Error).message.split('\n')[0], failure: { kind: 'tool', rule: 'uncaught-in-run', reason: (e as Error).message.split('\n')[0] } };
+      // runPlan returns on its own errors; one escaping it is classified like any failure (env or tool).
+      const msg = (e as Error).message.split('\n')[0];
+      const { classifyFailure } = await import('../executor/failure');
+      const { envSnapshot } = await import('../executor/preflight');
+      const snap = env.udid ? await envSnapshot(env.udid, env.package ?? '').catch(() => undefined) : undefined;
+      const f = classifyFailure('执行失败', msg, snap);
+      r = { planId: plan.id, issue: plan.issueRef, title: plan.title, category: plan.category, surface: plan.surface, env: plan.env, conclusion: '执行失败', conclusionDetail: msg, startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), stats: {} as RunResult['stats'], hits: [], incidents: [], targets: [], roundLog: [], error: msg, failure: f.rule === 'default' ? { ...f, rule: 'uncaught-in-run' } : f };
     }
     results.push(r);
     series.push({ index: i, dir: runDir, result: r });

@@ -15,9 +15,9 @@ function term(t) {
 }
 /** Wrap glossary words in a text with hover explanations (text is escaped first). */
 function terms(s) {
-  let h = esc(s);
-  for (const k of Object.keys(GLOSSARY)) h = h.split(esc(k)).join(term(k));
-  return h;
+  // One pass (longest term first): an inserted explanation is never scanned again.
+  const keys = Object.keys(GLOSSARY).sort((a, b) => b.length - a.length).map((k) => esc(k).replace(/[.*+?^${}()|[\]\\/]/g, '\\$&'));
+  return esc(s).replace(new RegExp(keys.join('|'), 'g'), (m) => term(Object.keys(GLOSSARY).find((k) => esc(k) === m) ?? m));
 }
 function esc(s) {
   return String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);

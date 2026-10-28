@@ -104,13 +104,28 @@ async function waitTerminal(id: string, maxMs = 10 * 60_000): Promise<any> {
   }
 }
 
-async function ensureReady(): Promise<boolean> {
-  let e = await waitEnvSettled();
-  if (e.state === 'ready') return true;
-  log(`env ${e.state} (${e.reason ?? ''}) — env check`);
-  cli(['env', 'check', ENV_ID]);
-  e = await waitEnvSettled();
-  return e.state === 'ready';
+async function ensureReady(maxMs = 12 * 60_000): Promise<boolean> {
+  const t0 = Date.now();
+  for (;;) {
+    const e = await waitEnvSettled();
+    if (e.state === 'ready') return true;
+    if (Date.now() - t0 > maxMs) return false;
+    log(`env ${e.state} (${e.reason ?? ''}) — env check (waiting for the phone / a person, ${Math.round((Date.now() - t0) / 1000)} s)`);
+    cli(['env', 'check', ENV_ID]);
+    if ((await waitEnvSettled()).state === 'ready') return true;
+    await sleep(20_000);
+  }
+}
+
+/** After adb kill-server this phone asks to authorize USB debugging again: wait for a person (≤ 10 min). */
+async function waitAdbDevice(maxMs = 10 * 60_000): Promise<boolean> {
+  const t0 = Date.now();
+  for (;;) {
+    const st = (await adb(['get-state'], '4f2ebdf2', 5000).catch(() => '')).trim();
+    if (st === 'device') return true;
+    if (Date.now() - t0 > maxMs) return false;
+    await sleep(3000);
+  }
 }
 
 /** No task record says "live" while its process is gone (§10.3). */
@@ -153,6 +168,8 @@ function expected(fault: string, t: any): string | undefined {
   if (fault === 'kill-task' && !(t.state === 'interrupted' && t.outcome?.code === 'TASK_CRASHED' && t.endedBy === 'crash')) return 'kill-task → interrupted / TASK_CRASHED / crash';
   if (fault === 'stall' && !(t.state === 'failed' && t.outcome?.code === 'TASK_STUCK' && t.endedBy === 'stuck')) return 'stall → failed / TASK_STUCK / stuck';
   if (fault === 'kill-platform' && !((t.state === 'done' && t.endedBy === 'normal') || (t.state === 'interrupted' && t.outcome?.code === 'INTERRUPTED' && t.endedBy === 'server-restart'))) return 'kill-platform → adopted and done, or interrupted / INTERRUPTED / server-restart';
+  // A lost adb connection is the environment: 5x, or a normal conclusion if the run rode it out.
+  if (fault === 'adb-kill' && !(/^ENV_/.test(t.outcome?.code ?? '') || ['NOT_REPRODUCED', 'REPRODUCED', 'TASK_CRASHED', 'TASK_STUCK'].includes(t.outcome?.code))) return 'adb-kill → ENV_* (or a conclusion)';
   return undefined;
 }
 
@@ -213,6 +230,10 @@ async function faults(): Promise<void> {
       row.injection = await inject(fault, t);
       log(`${phase}/${fault}: task ${id} @ ${JSON.stringify(row.injectedAt)} — ${row.injection}`);
       const end = await waitTerminal(id);
+      if (fault === 'adb-kill' && !(await waitAdbDevice(1000))) {
+        log(`${phase}/${fault}: phone not on adb — waiting for USB-debugging authorization on the phone`);
+        row.reauthorized = await waitAdbDevice();
+      }
       const env = await waitEnvSettled();
       row.task = { id, state: end?.state, code: end?.outcome?.code, endedBy: end?.endedBy, endedAt: end?.endedAt, recovery: end?.recovery?.result, partial: end?.partial };
       row.env = { state: env.state, baselineOk: env.baseline?.ok, reason: env.reason };
@@ -360,7 +381,7 @@ async function estimate(): Promise<void> {
     if (!t || t.parent || t.state !== 'done' || t.series || !existsSync(join(STATE, 'tasks', d, 'result.json'))) continue;
     const res = JSON.parse(readFileSync(join(STATE, 'tasks', d, 'result.json'), 'utf8'));
     const plan = JSON.parse(readFileSync(join(STATE, 'tasks', d, 'plan.json'), 'utf8'));
-    for (const r of res.runs ?? []) {
+    for (const r of (res.runs ?? []).filter((x: any) => !['环境不合格', '执行失败', '计划不可执行', 'SKILL 失效'].includes(x.conclusion) && !x.cancelled)) {
       // The interval the plan view gave before this run: only runs that started earlier count as history.
       const v = planView({ id: t.planId, hash: '', plan, classified: classifyPlan(plan), history: planHistory(plan.id, undefined, r.startedAt), maxRounds: t.options.maxRounds });
       rows.push({ task: d, maxRounds: t.options.maxRounds, sec: r.stats.durationSec, min: v.estimate.minSec, max: v.estimate.maxSec, basis: v.estimate.basis, inside: r.stats.durationSec >= v.estimate.minSec && r.stats.durationSec <= v.estimate.maxSec });

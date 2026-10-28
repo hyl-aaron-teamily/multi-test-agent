@@ -124,7 +124,7 @@ describe('W2-3 T6 view models', () => {
   it('estimate: history → median ~ max; first estimate labelled', () => {
     const p = plan('2010-android-app-v1');
     const v = planView({ id: 'x', hash: 'h', plan: p, classified: classifyPlan(p), history: [200, 240, 300] });
-    expect(v.estimate).toMatchObject({ basis: 'history', samples: 3, minSec: 192, maxSec: 360 });
+    expect(v.estimate).toMatchObject({ basis: 'history', samples: 3, minSec: 170, maxSec: 384 });
     expect(planView({ id: 'x', hash: 'h', plan: p, classified: classifyPlan(p), history: [] }).estimate.text).toMatch(/首次估算/);
   });
 

@@ -211,7 +211,13 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     }
     if (udid && onAndroid(plan.surface)) {
       const pkg = loadProfile(profileKey(plan.surface, plan.env, udid))?.packageName ?? TEAMILY_PACKAGE;
-      preflight = await preflightAndroid(udid, pkg, plan.surface);
+      // An adb failure inside the preflight is the environment (device gone / unauthorized), not the tool.
+      preflight = await preflightAndroid(udid, pkg, plan.surface).catch(async (e) => {
+        const snap = await envSnapshot(udid, pkg).catch(() => ({ online: false }) as EnvSnapshot);
+        const msg = (e as Error).message.split('\n')[0];
+        const id = snap.online === false ? 'online' : 'adb';
+        return { ok: false, ms: 0, items: [{ id, ok: false, detail: msg }], changes: [], reason: `${id}: ${snap.online === false ? `设备不在线（${msg.slice(0, 120)}）` : msg}` } satisfies PreflightResult;
+      });
     }
     phase('preflight', tPf);
     const pf = preflight!;
