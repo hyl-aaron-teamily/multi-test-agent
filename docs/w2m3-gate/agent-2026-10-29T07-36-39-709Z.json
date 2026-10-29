@@ -1,0 +1,100 @@
+{
+  "planId": "2010/main:android-app@v1",
+  "task": "t-20261029073225-c7jj",
+  "conclusion": "未复现：6 次有效尝试中命中 2 次；单轮命中率 33.3%（Wilson 95% 区间 9.7%–70%）（替代执行 ios → android-app）",
+  "exit": 10,
+  "conclusionOk": true,
+  "sensitive": {
+    "got30": true,
+    "hint": "http://localhost:3210/plan.html?id=2010%2Fmain%3Aandroid-app%40v1&series=21",
+    "webClicked": false,
+    "accepted": false,
+    "seriesExit": -1
+  },
+  "steps": [
+    {
+      "name": "help",
+      "args": [
+        "help"
+      ],
+      "exit": 0,
+      "code": "OK",
+      "summary": "19 个命令"
+    },
+    {
+      "name": "draft create",
+      "args": [
+        "draft",
+        "create",
+        "2010",
+        "--no-model"
+      ],
+      "exit": 0,
+      "code": "OK",
+      "summary": "草稿 v1（plannable）：2010/main:android-app@v1, 2010/main:mobile-web@v1"
+    },
+    {
+      "name": "plan explain",
+      "args": [
+        "plan",
+        "explain",
+        "2010/main:android-app@v1"
+      ],
+      "exit": 0,
+      "code": "OK",
+      "summary": "在 android-app 上重复「点 AI 改写后输入框草稿应保留（或先确认 / 可撤销）」，看 Issue 2010 描述的现象会不会出现；最多发送 0 条消息；约 83 秒 – 13 分钟（同计划最近 10 次运行）；默认允许"
+    },
+    {
+      "name": "task run",
+      "args": [
+        "task",
+        "run",
+        "2010/main:android-app@v1",
+        "--hash",
+        "03628af101b94ad7"
+      ],
+      "exit": 20,
+      "code": "ACCEPTED",
+      "summary": "任务 t-20261029073225-c7jj 已排队：2010/main:android-app@v1 @ android-app:4f2ebdf2@prod"
+    },
+    {
+      "name": "task wait",
+      "args": [
+        "task",
+        "wait",
+        "t-20261029073225-c7jj",
+        "--timeout",
+        "1200"
+      ],
+      "exit": 10,
+      "code": "NOT_REPRODUCED",
+      "summary": "任务 t-20261029073225-c7jj（2010/main:android-app@v1 @ android-app:4f2ebdf2@prod）：完成 — 未复现"
+    },
+    {
+      "name": "result show",
+      "args": [
+        "result",
+        "show",
+        "t-20261029073225-c7jj"
+      ],
+      "exit": 10,
+      "code": "NOT_REPRODUCED",
+      "summary": "未复现：6 次有效尝试中命中 2 次；单轮命中率 33.3%（Wilson 95% 区间 9.7%–70%）（替代执行 ios → android-app）"
+    },
+    {
+      "name": "task run (series 21, sensitive)",
+      "args": [
+        "task",
+        "run",
+        "2010/main:android-app@v1",
+        "--series",
+        "21",
+        "--max-rounds",
+        "1"
+      ],
+      "exit": 30,
+      "code": "APPROVAL_REQUIRED",
+      "summary": "敏感计划需要人在 Web 上同意：系列 21 次（> 20）"
+    }
+  ]
+}

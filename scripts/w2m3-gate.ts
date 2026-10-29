@@ -287,11 +287,11 @@ async function agent(): Promise<void> {
   const s1 = step('task run (series 21, sensitive)', ['task', 'run', planId, '--series', '21', '--max-rounds', '1']);
   const got30 = s1.exit === exitOf('APPROVAL_REQUIRED');
   const hint = s1.json?.error?.hint;
-  const clicked = await approveOnWeb(planId, 21);
-  const s2 = step('task run (series 21, after Web approval)', ['task', 'run', planId, '--series', '21', '--max-rounds', '1']);
-  let sw = s2.exit === exitOf('ACCEPTED') ? step('task wait (series)', ['task', 'wait', s2.json.data.id, '--timeout', '3600']) : s2;
-  while (sw.exit === exitOf('STILL_RUNNING')) sw = step('task wait (series)', ['task', 'wait', s2.json.data.id, '--timeout', '3600']);
-  const sres = s2.json?.data?.id ? step('result show (series)', ['result', 'show', s2.json.data.id]) : undefined;
+  // Full access is off by default now: the sensitive approval is the user's own Web click (not automated).
+  const clicked = false;
+  const s2 = { exit: -1, json: {} as any };
+  const sw = s2;
+  const sres = undefined as any;
   if (fa0?.on) await web('POST', '/full-access', { on: true });
   const out = { planId, task: id, conclusion: res.json?.data?.sentence, exit: res.exit, conclusionOk, sensitive: { got30, hint, webClicked: clicked, accepted: s2.exit === exitOf('ACCEPTED'), seriesExit: sw.exit, seriesSentence: sres?.json?.data?.sentence }, steps };
   writeFileSync(join(OUT, `agent-${new Date().toISOString().replace(/[:.]/g, '-')}.json`), JSON.stringify(out, null, 2));

@@ -199,3 +199,42 @@
 [gate 14:12:09] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 144 s)
 [gate 14:12:29] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 165 s)
 [gate 14:12:50] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 185 s)
+[gate 07:32:21] agent help: exit 0 OK — 19 个命令
+[gate 07:32:22] agent draft create: exit 0 OK — 草稿 v1（plannable）：2010/main:android-app@v1, 2010/main:mobile-web@v1
+[gate 07:32:25] agent plan explain: exit 0 OK — 在 android-app 上重复「点 AI 改写后输入框草稿应保留（或先确认 / 可撤销）」，看 Issue 2010 描述的现象会不会出现；最多发送 0 条消息；约 83 秒 – 13 分钟（同计划最近 10 次运行）；默认允许
+[gate 07:32:25] agent task run: exit 20 ACCEPTED — 任务 t-20261029073225-c7jj 已排队：2010/main:android-app@v1 @ android-app:4f2ebdf2@prod
+[gate 07:36:39] agent task wait: exit 10 NOT_REPRODUCED — 任务 t-20261029073225-c7jj（2010/main:android-app@v1 @ android-app:4f2ebdf2@prod）：完成 — 未复现
+[gate 07:36:39] agent result show: exit 10 NOT_REPRODUCED — 未复现：6 次有效尝试中命中 2 次；单轮命中率 33.3%（Wilson 95% 区间 9.7%–70%）（替代执行 ios → android-app）
+[gate 07:36:39] agent task run (series 21, sensitive): exit 30 APPROVAL_REQUIRED — 敏感计划需要人在 Web 上同意：系列 21 次（> 20）
+[gate 07:36:39] agent: conclusion OK (未复现：6 次有效尝试中命中 2 次；单轮命中率 33.3%（Wilson 95% 区间 9.7%–70%）（替代执行 ios → android-app）); sensitive: 30 true, web false, accepted false, series exit -1
+[gate 07:39:41] env quarantined (残留进程：18660 sh -c rm -f /sdcard/autotest_ui_0.xml; uiautomator dump /sdcard/autotest_u, 18663 uiautomator；被测 App 不在首页（foreign）) — env check (waiting for the phone / a person, 0 s)
+[gate 07:40:48] warmup/adb-kill: task t-20261029074021-17j2 @ {"phase":"warmup","round":0,"step":0,"at":"2026-10-29T07:40:48.538Z","summary":"warmup:teamily.clearComposer"} — adb kill-server
+[gate 07:40:56] warmup/adb-kill: phone not on adb — waiting for USB-debugging authorization on the phone
+[gate 07:50:59] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 0 s)
+[gate 07:51:19] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 21 s)
+[gate 07:51:40] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 41 s)
+[gate 07:52:01] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 62 s)
+[gate 07:52:21] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 83 s)
+[gate 07:52:42] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 103 s)
+[gate 07:53:03] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 124 s)
+[gate 07:53:23] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 145 s)
+[gate 07:53:44] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 165 s)
+[gate 07:54:05] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 186 s)
+[gate 07:54:25] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 207 s)
+[gate 07:54:46] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 227 s)
+[gate 07:55:07] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 248 s)
+[gate 07:55:27] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 269 s)
+[gate 07:55:48] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 290 s)
+[gate 07:56:09] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 310 s)
+[gate 07:56:30] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 331 s)
+[gate 07:56:50] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 352 s)
+[gate 07:57:11] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 372 s)
+[gate 07:57:32] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 393 s)
+[gate 07:57:52] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 414 s)
+[gate 07:58:13] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 434 s)
+[gate 07:58:34] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 455 s)
+[gate 07:58:54] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 476 s)
+[gate 07:59:15] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 496 s)
+[gate 07:59:36] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 517 s)
+[gate 07:59:58] estimate: 21/23 runs inside the PlanView interval (91%)
+[gate 07:59:58] estimate: 21/23 runs inside the PlanView interval (91%)
