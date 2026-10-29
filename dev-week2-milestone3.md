@@ -351,3 +351,65 @@ queued ─▶ waiting-env ─▶ preflight ─▶ running ─▶ finishing ─�
   - 拆 P0 / P1 → F10、§7、§8。
   - F4 保持默认（本机、单一审核人）。
 - 2026-10-28（用户确认）：同意第二版建议值——敏感计划阈值（单任务 > 50 条消息、系列 > 20 次）、替代执行归为默认允许、完全授权不自动关闭、心跳超时 30 s / 下线等待 60 s、预计耗时区间命中率 ≥ 80% 只记录不阻塞；同意合并 W2-2 到 `main`（T0）。
+
+---
+
+## 实现对照（2026-10-29 按代码核对）
+
+> 本节是事后核对，以上正文保留当时的需求原文。项目当前全貌见 `PROJECT-SUMMARY.md`；验收证据见 `docs/w2m3-acceptance.md`，命令参考见 `docs/cli-reference.md`（由 `scripts/cli-ref.ts` 生成）。
+
+**已实现**（分支 `feat/w2m3-usability`，6 个提交，**尚未合并到 `main`**）
+
+- **环境（§3）** `platform/lifecycle/env.ts`
+  - 状态机 `ENV_FLOW` / `#canMove` / `#moveEnv`；离开隔离状态只能由人发起。
+  - 一环境一租约：`#leaseEnv` 在锁内原子写；`#bindLeaseProc` 记录 pid + 进程启动时间（`proc.ts#alive` 两者都吻合才算同一进程）。
+  - 脏标记 `#setDirty`；环境配置项同意 `#consentConfig`（重新注册时，文字不变则保留同意）。
+  - 环境由 `registry.ts#declareEnvs` / `#syncEnvs` 从 `devices.yaml` × 账号池登记，id 形如 `android-app:4f2ebdf2@prod`、`desktop-web:edge@prod`、`mobile-web:chromium@prod`。
+  - 每次状态迁移写审计（`store.ts#audit`，`platform/state/audit.ndjson`）。
+- **任务（§4）** `platform/lifecycle/task.ts`
+  - 状态机 `TASK_FLOW`。
+  - 结构化文件：`state/tasks/<id>/` 下的 `task.json`、`events.ndjson`、`ledger.ndjson`、`result.json`，外加冻结的 `plan.json`、`draft.json` 和给人看的 `task.log`。
+  - 系列 = 父任务 + 子任务 `<父 id>.<n>`（`scripts/task-exec.ts#execTask`）。
+- **任务进程侧（§4.1、§4.3 L1 / L2）** `platform/lifecycle/runtime.ts#TaskRuntime`
+  - 每 5 秒心跳；进度最多每 500 ms 写一次，带步骤预算。
+  - 先记账再执行（`#effectOf`：进入会话、键入、发送、设置、启动）。
+  - 取消请求或 SIGINT / SIGTERM 在下一步边界停下（`CancelledError`），执行器照常收尾。
+- **看门狗与交叉检测（§3.4、§4.3 L3 / L4）** `platform/lifecycle/crosscheck.ts`
+  - `#judge`：心跳超过 30 秒、进度超过「步骤预算（默认 120 秒）+ 60 秒」、总时长超过（`maxMinutes` × 4 + 15）分钟。
+  - `#closeTask` 按结束方式写终态、状态码和停止位置。
+  - `#onlineEnv` / `#startupCrossCheck` / `#orphanSweep` 处理接管、卡死、进程消失、无租约的「运行中」任务；`#offlineEnv` 先写取消请求，等待 ≤ 60 秒后强杀，再恢复或置脏，任务记 72。
+- **调度** `platform/lifecycle/supervisor.ts#Supervisor`
+  - 每 2 秒调度一次，每台手机同时只跑一个任务；每 5 秒跑看门狗。
+  - 恢复在独立进程 `autotest env recover` 中进行；不合格的环境每 30 秒自动重检。
+  - Ctrl+C / SIGTERM 时对所有占用中的环境走下线流程。
+- **基线与恢复（§3.3）**
+  - `platform/lifecycle/recover.ts#recoverEnv` / `#checkEnv`：先修复再检查，可重复执行，总时长上限 180 秒；修不好即隔离，遇锁屏 / 离线则记不合格。
+  - `baseline.ts#walkAndroid` 检查主机残留进程、在线、亮屏未锁、手机残留进程、台账里键入过的会话输入框为空、键盘、被测 App 在首页、默认输入法、配置项。
+  - `android-ops.ts#adbBaselineDriver` 提供上述检查所需的手机操作。
+- **审批（§5.1）** `platform/approval.ts`
+  - `#classifyPlan` 分为默认允许 / 敏感（非 SKILL 动作、离开被测软件的按键、单次发送 > 50 条、系列 > 20 次）/ 拒绝（删除 / 撤回 / 锁屏类动作、允许清单外会话发消息）。
+  - `#approve`：敏感计划只能在 Web 上同意，或在完全授权下自动批准。
+  - `#useApproval`：核对哈希、版本、次数，不符分别返回 31 / 32 / 33；`#reject` 必须填写意见。
+  - 完全授权的默认值读 `platform/policy.yaml`（现为 false），Web 开关写 `state/full-access.json`。
+- **状态码（§5.2）** `platform/lifecycle/status.ts#STATUS`，与正文表一致；`#codeOfRuns` 把运行结论映射为状态码，锁屏 / 离线细分为 51 / 52。
+- **命令行（§5.3）** `scripts/cli-v1.ts`
+  - `#COMMANDS` 覆盖正文表，另加 `env offline`。
+  - `--json` 时把 stdout 的其他输出改道到 stderr；从不提问；平台未启动返回 54。
+  - `env recover` 在本进程内执行（`#recoverLocal`）。
+- **视图模型与 Web（§6）**
+  - `platform/views.ts#planView` / `#envView` / `#taskView` / `#resultView`；白话步骤由 `#stepText` 根据 `node-specs.ts` 的 `zh` 模板生成；报告首段复用 `executor/run.ts#leadOf`；预计耗时用 `#estimate`（有历史用历史，否则首次估算）。
+  - 页面 `platform/web/`：首页、环境、计划审核（`#stepMarks` 在标定截图上标出元素）、任务、结果；`web.js` 提供术语悬停解释和完全授权横幅。审核人名字读 `platform/reviewer.local.yaml`。
+- **旧任务类型（T4）**：子进程把结果写进 `AUTOTEST_RESULT_FILE`（`core/task-result.ts#emitTaskResult`），平台不再解析日志。
+- **真机门脚本**：`scripts/w2m3-gate.ts`。
+
+**与正文不同 / 后来的变化**
+
+- **手机浏览器环境的恢复不检查手机**：`recover.ts#walk` 只对 android-app 走 `walkAndroid`，android-web 走 `walkWeb`；而 `registry.ts#prodDrivers` 只给 desktop-web / mobile-web 配了登录态检查。结果 android-web 的基线只剩「上一任务进程已结束」一项，不检查手机的键盘、草稿、前台。android-web 也没有声明环境配置项。
+- **主机侧基线只查上一任务进程**：`android-ops.ts#hostDriver` 只看那个 pid 是否还在，不检查正文 §3.3 列的锁文件、临时文件、残留页面。
+- **App 版本的批准绑定不生效**：`versionFacts` 接收 `env.appVersion`，但代码里没有任何地方给环境写入 `appVersion`，所以 App 升级不会触发 32；SKILL 版本绑定的是代码常量 `SKILL_VERSION`，不是 profile 里记录的版本。
+- **旧入口没加新状态码**：正文 §5.2 要求旧入口（`run` / `series`）在 `--json` 中附带新的 `status` / `code`，未实现；这两个命令没有 `--json` 输出。
+- **台账只有「意图」记录**：只写 `state: 'intent'`，`LedgerEntry` 里的 `done` 状态从未写入；恢复程序本来也只用会话名。
+- **预热失败不回写草稿**：`task-exec.ts#execTask` 不写 `warmupFailures`（只有旧入口 `issue-cli.ts#runIssue` 会写），计划审核页的「上次预热失败」看不到新路径的失败。
+- **敏感判定没有「额外修改手机设置」这一项**：TestPlan 没有改设置的动作，所以判定里不需要也没有这一项。手机设置的改动只通过环境配置项（Taplus、充电常亮）走一次性同意。硬约束按 Node 名和会话允许清单判断；「凭据落盘」没有专门的检查，靠设计保证（凭据只在本地私有文件里）。
+- **§7 的 P1 项大多未做**：`--events` 事件流、系列页、受控修改参数、真机自检套件（结果页「工具自检」标识固定显示「未接入（P1）」）、LLM 润色都没有实现。任务页已显示阶段、轮次、步骤，通过轮询读取，不是推送。
+- **验收未完成项**：同事验收、敏感计划在 Web 同意后再执行、预热阶段 adb 断连一格、旧入口跑 2010 得出结论的一次，见 `docs/w2m3-acceptance.md`。

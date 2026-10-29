@@ -118,3 +118,25 @@
 4. **参考工程使用清单**：每个 ref 工程被用在了哪里，哪些未用上及原因，哪些预期工程实际缺失。
 5. 遇到的主要问题与解决方式。
 6. 下一周（Android ADB + logcat 崩溃捕获）的接入点建议，不超过 5 条，并指出可以复用 `ref/midscene-example/android/` 的哪些结构。
+
+---
+
+## 实现对照（2026-10-29 按代码核对）
+
+> 本节是事后核对，以上正文保留当时的需求原文。项目当前全貌见 `PROJECT-SUMMARY.md`。
+
+**已实现**（提交 `1e550c4`，2026-10-19，直接在 `main`）
+
+- 集成方式为兜底路径 `PlaywrightAgent`：`fixtures/page.ts#useWebContext`（beforeAll 启动 Chromium；beforeEach 校验模型凭据、新建页面与 agent；afterEach 把 Midscene 报告挂到 Allure），`#step` 用 Allure step 包裹每一步并截整页图。
+- 用例 `tests/web/saucedemo.login.spec.ts`：一个用例 5 步，依次用 `aiAssert`、`aiInput`、`aiTap`、`aiWaitFor`、`aiQuery` + `aiAssert`，每步配一条 Playwright 原生断言作锚点。
+- `vitest.config.ts` 注册 `allure-vitest` reporter（结果在 `allure-results/`）；`scripts/report.ts` 先检查 Java，再调用 `allure generate`。
+- 模型凭据缺失时给出可读报错（`fixtures/page.ts` 内的检查；`core/credentials.ts` 是后来给 Android 用的同类实现）。
+- 代码注释里保留了 `// ref:` 来源标注（如 `vitest.config.ts`、上面的用例文件）。
+
+**与正文不同 / 后来的变化**
+
+- `midscene.config.ts`、`playwright.config.ts` 没有创建（正文为「如需」）。
+- 「核心依赖只用 6 个」已被后续里程碑扩展：`package.json` 现有 `@midscene/android`、`@midscene/core`、`zod`、`js-yaml`、`tsx` 等；`package.json` 的 description 仍写着「week 1 milestone」。
+- `pnpm test` 现在会跑 `web`、`android`、`unit` 三个 project（`vitest.config.ts`），其中 android 需要真机；只跑本里程碑的用例请用 `pnpm test:web`（第二周新增）。
+- 第 5 步的断言在第二周改成「排序下拉框旁的 Products 标题」：真实模型把「page title」理解为顶部的「Swag Labs」（`CHANGELOG.md` W2 节）。
+- `README.md` 已在 2026-10-22 重写为 Issue 主线（提交 `3099104`），验收标准 5 要求的「参考工程使用清单」和「第一周只覆盖 Web」说明不再在 README 中。

@@ -336,3 +336,61 @@ platform/accounts/
 - **1329 执行端**：项目无 iOS 执行端（§0 设备池仅 1 台 Android），按 A.2 “iOS → 替代”执行，三项子用例分别经一次性确认在 android-app 上于生产环境跑满上限，报告首行标注替代。
 - **范围**：用户确认目标为端到端流程跑通，不要求每份 Issue 都定位或复现。
 - 验收证据索引：`docs/m5-acceptance.md`。
+
+---
+
+## 实现对照（2026-10-29 按代码核对）
+
+> 本节是事后核对，以上正文保留当时的需求原文。项目当前全貌见 `PROJECT-SUMMARY.md`；验收证据见 `docs/m5-acceptance.md`。
+> 编号说明：本文合并了原计划的 M5 / M6 / M7。之后实际做的「M6」（2026-10-22，证据复核、生命周期动作、手机浏览器端、Edge、端点池与多端同步）**没有独立的需求文档**，内容也不是原计划的 M6，证据见 `docs/m6-acceptance.md`。
+
+**已实现**（2026-10-21 — 22 直接提交在 `main`，`91644a6` … `3d0f98a`）
+
+- **模块 A：Issue 分类与测试方案**
+  - 解析 `issue/parse.ts#parseIssue`，截图不交给模型。
+  - 分类 `issue/classify.ts#classifyRules`（规则）+ `#classify`（规则弱时问文本模型），人工覆盖写在 `platform/issue-overrides.yaml`。
+  - TestPlan 的 zod 定义与 JSON Schema 导出在 `platform/schema/test-plan.ts`（`#testPlanJsonSchema`），规则校验在 `issue/validate.ts#validatePlan`。
+  - 草稿与一次性确认：`issue/planner.ts#draftIssue` / `#applyApproval`；命令行 `scripts/issue-cli.ts#planCmd` / `#runCmd`（`--approve`），控制台在 `/console`。
+  - 拒绝 / 暂缓 Issue 出一页报告：`issue/report.ts#refusalMarkdown`。
+- **模块 B：Teamily SKILL**
+  - `skills/teamily/` 下有 `SKILL.md`、`pages/`（home、chat、login、mention-picker、profile、artifacts）、`profiles/`、`refs/`、`operations.md`、`plan-template.md`、`report-spec.md`、`nodes.ts`；元素 / 区域 / 目标指引的唯一来源是 `vocab.ts`。
+  - 标定入口 `pnpm autotest skill calibrate`（`scripts/m5.ts#skill`），实现为 `skills/calibrate-web.ts`、`calibrate-android.ts`，M6 起另有 `calibrate-android-web.ts`。自检失败项进 `reviewQueue`，并生成 `refs/<profile>/review-<id>.png` 标注图。
+  - 首页导航区与参考图不符时报「SKILL 失效」并停止（`executor/checks.ts#assertSkillFresh`，同时保存 `skill-stale.png`）。
+  - `pnpm autotest nodes` 列出 Node 及其 schema（`nodes.ts#listNodes`）。
+- **模块 C：执行器**
+  - 驱动：`drivers/android.ts`（常驻 `adb shell`；纯 ASCII 文本用 `input text`，其余走 yadb）、`drivers/web.ts`（desktop-web 光标插值移动；mobile-web 用 Pixel 7 设备模拟 + 触屏）。
+  - 异常门只读事件流（`drivers/android.ts#classifyLogLine`，Web 的 page 事件）。动作间隔 ≤ 1 秒（`executor/actions.ts#execAction`，按「下一次输入在上一次开始后 ≤ 950 ms」节拍）。
+  - 判定：偶现命中 1 次 / 必现连续 3 次（`executor/verdict.ts#VerdictTracker`）。
+  - 统计：总步数、动作间隔、视觉调用次数等（`executor/stats.ts`）。
+  - 账号池：`platform/accounts/`（`types.ts`、`secret-backend.ts#LocalYamlBackend`、`account-pool.ts#AccountPool`，冷却 30 秒，状态 idle / busy / disabled / login-failed）；`pnpm autotest accounts list|check`。
+  - 平台硬上限 3000 步 / 120 分钟（`test-plan.ts#HARD_LIMITS`）。
+- **模块 D：现场包与重放**
+  - Android 飞行记录器：`incident/android-recorder.ts`，录屏用 `core/screen-recorder.ts`，30 秒 × 6 段 ≈ 180 秒，停止时在设备端执行 `pkill -f com.genymobile.scrcpy.Server`。触发时另采集时间窗日志、崩溃缓冲、dropbox、前台 Activity、meminfo、App 版本。
+  - Web 飞行记录器：`incident/web-recorder.ts`（trace 分块，console / 网络环形缓冲）。
+  - 现场包：`incident/bundle.ts#writeIncident` 写出正文 D.3 的目录结构，加 `ops.srt`，`index.html` 由 `incident/viewer.ts` 生成。
+  - 重放：`executor/replay.ts#replayIncident` 沿用同一判定规则、按轮比对偏离，变体有原节奏 / 加速 / 减速 / 冷启动。
+- **模块 E：报告**
+  - `issue/report.ts#writeIssueReport` 写 `report.md`、`result.json`，每个子用例一个 Allure test。
+
+**与正文不同 / 后来的变化**
+
+- **执行端是四个，不是三个**：M6 加了 `android-web`（手机自带浏览器）。desktop-web 在 Windows 上是 Edge 最大化窗口，视口按标定时实测（不是正文的 1440×900）。
+- **TestPlan 比 A.4 多了不少字段**：`targets`、`prepare`、`prepareCheck`、`afterCheck`、`acceptance`、`epilogue`、`correctPath`、`contract`、`coverage`；动作多了 `exitApp`、`killApp`、`reload`、`idle`、`require`；检查多了 `baseline`、`keyboard`、`text`，以及 `want`、`requires`；`limits.maxRounds`。
+- **A.5 的生成顺序已变成「模式优先」**：M5 末期改为已验证的模板优先于模型；W2-1 起是「契约命中模式 → 确定性编译；否则模型组合一次；校验失败 → 通用模板」。
+- **「疑似误操作」走不到**：类别存在，执行侧也有 `executor/phases.ts#runCorrectPath`，但没有任何计划生成 `correctPath`（模式库、`planner.ts#basePlan`、模型组合都不产出），规则分类也不产出该类。
+- **Node 没有用 `@midscene/core` 的 `defineNode`**：`skills/teamily/nodes.ts` 是自己的执行表加 zod schema（Node 表在 `node-specs.ts`）。正文列的 `teamily.openMentions` 没有实现，也没有 mentions 页面文档；后来新增的 Node 是 `quoteReply`、`tapRewrite`、`tapSend`、`freezeMention`。
+- **标定方式与正文不同**：
+  - Web 用 Playwright 定位器（aria-label、placeholder、文字、几何位置）找元素，不是视觉定位；只有 android-web 的少数临时元素用视觉。
+  - 自检看像素变化 / URL 变化，**不调视觉模型**判定。
+  - profile 名带环境：`<端>@<环境>`、`android-<udid>@<环境>`、`android-web-<udid>@<环境>`（测试与生产布局不同）。
+- **动态目标的选法与正文不同**：会话类目标是先读出屏幕上的会话行（Android 读无障碍层，Web 读页面行文本），再由**文本模型**按指引挑选，没有模型时按规则挑，读不到行才用视觉定位（`executor/targets.ts#pickTargets`）。循环中发生偏离时按原冻结坐标重做 setup（`executor/prepare.ts#redoSetup`），**不会**回到准备阶段重新决策。
+- **检查点比对不是感知哈希**：用的是参考区域的「笔画（深色像素）缺失比例」（`core/image.ts#regionDiffFraction`，`executor/checks.ts#regionMatch`，缺失 ≤ 12% 算一致）；不一致且检查允许时才问一次视觉模型。
+- **哪些事件算命中**：只有 `crash`、`anr`、`app-exit`、`page-crash` 四种硬异常算命中（`drivers/types.ts#HARD_ANOMALIES`）。Web 的 `pageerror`、console error、URL 跳转，Android 的离开 App 与 App 自身 E 行，都只计入异常门触发次数或可疑信号。计划里的 `crash` / `page-error` 检查在检查点不单独求值，所以 Web 上兜底计划的「无页面错误」实际只能发现渲染进程崩溃。App 自身错误的正则在 `drivers/factory.ts#APP_ERROR_RE`，不在 SKILL 里。
+- **看门狗**：单步预算 20 秒（`idle` 加上其时长），超时写 `watchdog` 现场包并停止（`executor/loop.ts`）。
+- **默认时长改了**：M6 把 30 分钟改为 15 分钟（`test-plan.ts#DEFAULT_LIMITS`）；步数默认仍为 1000。
+- **账号池文件位置改了**：会话缓存与健康检查在 W2-1 移到 `executor/login/`（`sessions.ts#ensureWebSession`、`health.ts`、`ui-login.ts`）。账号与端点的租用状态只在进程内存里。
+- **Web 记录器**：`network.har` 由环形缓冲合成，只有方法、URL、状态、耗时和失败信息，没有头和正文。设备时钟偏移会测量并写进 `incident.json`，但不参与时间对齐。
+- **旧目录没有迁入现场包结构**：mission、monkey 等旁路入口仍写 `midscene_run/crashes/` 与 `replay-<n>/`。
+- **重放的能力比正文窄**：只判硬异常与 `visual-region` 检查，`baseline`、`text`、`keyboard` 类命中重放不出；没有「换执行端」变体，也没有最小化。
+- **样例 Issue 有增删**：W2-2 删除了 1919、2230，新增 1426、1903、1918、2010，现为 12 份。1922 按用户决定经覆盖项拒绝。
+- **替代执行的确认方式**：旧命令行有替代项时必须带 `--approve`；W2-3 的 `task run` 把替代执行归为「默认允许」（用户在 W2-3 确认），确认体现为选择带端的计划 id。
