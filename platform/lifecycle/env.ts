@@ -16,6 +16,8 @@ export interface ConfigItem {
   what: string;
   why: string;
   restore: string;
+  /** Not met → the environment still passes (degraded), e.g. the tree service (falls back to uiautomator). */
+  optional?: boolean;
   consentedBy?: string;
   consentedAt?: string;
 }
@@ -58,6 +60,8 @@ export interface EnvRecord {
   lastTask?: string;
   /** Declared default input method (baseline: the keyboard is this one). */
   ime?: string;
+  /** Phones: declared hierarchy read backend (W2-4 §4.1). */
+  treeBackend?: 'uiautomator' | 'a11y-service';
   dirty?: { reason: string; at: string };
   baseline?: { at: string; ok: boolean; items: BaselineItem[] };
   /** Last time it went offline: did it leave clean? */

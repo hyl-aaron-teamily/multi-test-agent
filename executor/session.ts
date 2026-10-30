@@ -15,6 +15,9 @@ import { loadProfile, type Profile, SkillStaleError } from '../skills/profile';
 import { assertSkillFresh } from './checks';
 import { fingerprintedOf, type Healed, healElements } from './heal';
 import { adapterFor, type SurfaceAdapter } from './surfaces';
+import { a11yBackend, activateA11y } from '../core/a11y-service';
+import { setTreeBackend, treeStats } from '../core/tree-backend';
+import { declaredTreeBackend } from '../platform/device-pool';
 
 export interface SessionOptions {
   surface: Surface;
@@ -45,6 +48,21 @@ export interface Session {
   log: (s: string) => void;
 }
 
+/** Phones: use the declared hierarchy read backend; when it cannot be used, uiautomator — and the reason
+ *  is counted as a fallback (report: 读树后端). */
+export async function selectTreeBackend(udid: string, log: (s: string) => void): Promise<void> {
+  if (declaredTreeBackend(udid) !== 'a11y-service') return setTreeBackend(udid, undefined);
+  const r = await activateA11y(udid);
+  if (r.ok) {
+    setTreeBackend(udid, a11yBackend());
+    log(`tree backend: a11y-service (${r.health.detail})`);
+    return;
+  }
+  setTreeBackend(udid, undefined);
+  treeStats.fallbacks.push({ at: new Date().toISOString(), udid, reason: `a11y-service: ${r.reason}` });
+  log(`tree backend: a11y-service unusable (${r.reason}) — falling back to uiautomator`);
+}
+
 /** Profile + (web) signed-in session + driver. Nothing is launched yet. */
 export async function openSession(o: SessionOptions): Promise<Session> {
   const name = profileKey(o.surface, o.env, o.udid);
@@ -58,6 +76,7 @@ export async function openSession(o: SessionOptions): Promise<Session> {
     storageState = s.file;
   }
   if ((o.surface === 'android-app' || o.surface === 'android-web') && !o.udid) throw new Error(`${o.surface} session without a device`);
+  if (o.udid) await selectTreeBackend(o.udid, o.log ?? ((s) => console.log(`[session] ${s}`)));
   const inner = createDriver({ surface: o.surface, profile, url, udid: o.udid, storageState, headless: !o.headed, onLog: o.onLog, onConsole: o.onConsole });
   return { surface: o.surface, profile, url, inner, d: new RecordingDriver(inner), web: inner instanceof WebDriver ? inner : undefined, adapter: adapterFor(o.surface), account: o.account, udid: o.udid, pool: o.pool, log: o.log ?? ((s) => console.log(`[session] ${s}`)) };
 }

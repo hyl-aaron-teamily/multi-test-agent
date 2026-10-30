@@ -10,7 +10,7 @@
 //   host endpoint ('host:<id>')   : desktop-web (Edge windows on Windows), mobile-web (headless Chromium)
 // maxConcurrent caps distinct tasks on Android endpoints (one task may hold several slots).
 // Sign-in on a phone lives on the phone: `accounts` says which pool account is signed in on which surface.
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import yaml from 'js-yaml';
@@ -30,6 +30,8 @@ export interface EndpointConfig {
   capacity: Partial<Record<Surface, number>>;
   /** Pool account signed in on a surface of this endpoint (android-app / android-web). */
   accounts: Partial<Record<Surface, string>>;
+  /** Phones: hierarchy read backend (W2-4 §4.1); default uiautomator. */
+  treeBackend?: 'uiautomator' | 'a11y-service';
 }
 
 export interface PoolConfig {
@@ -75,7 +77,7 @@ export function parsePoolConfig(text: string): PoolConfig {
     .filter((d: any) => d?.udid)
     .map((d: any) => {
       const surfaces = surfacesOf(d.surfaces, ANDROID_SURFACES);
-      return { udid: String(d.udid), name: d.name ? String(d.name) : undefined, kind: 'android' as const, capacity: Object.fromEntries((surfaces.length ? surfaces : ANDROID_SURFACES).map((s) => [s, 1])), accounts: accountsOf(d.accounts) };
+      return { udid: String(d.udid), name: d.name ? String(d.name) : undefined, kind: 'android' as const, capacity: Object.fromEntries((surfaces.length ? surfaces : ANDROID_SURFACES).map((s) => [s, 1])), accounts: accountsOf(d.accounts), ...(d.treeBackend === 'a11y-service' ? { treeBackend: 'a11y-service' as const } : {}) };
     });
   const hosts: EndpointConfig[] = (Array.isArray(raw.hosts) ? raw.hosts : [{ id: 'local' }]).map((h: any) => {
     const cap: Partial<Record<Surface, number>> = {};
@@ -201,5 +203,16 @@ export class DevicePool {
       await rename(`${STATE_FILE}.tmp`, STATE_FILE);
     }).catch(() => {});
     return this.writing;
+  }
+}
+
+/** A phone's declared hierarchy read backend (`treeBackend` in devices.yaml; AUTOTEST_TREE_BACKEND overrides). */
+export function declaredTreeBackend(udid: string): 'uiautomator' | 'a11y-service' {
+  const o = process.env.AUTOTEST_TREE_BACKEND;
+  if (o === 'uiautomator' || o === 'a11y-service') return o;
+  try {
+    return parsePoolConfig(readFileSync(CONFIG_FILE, 'utf8')).devices.find((d) => d.udid === udid)?.treeBackend ?? 'uiautomator';
+  } catch {
+    return 'uiautomator';
   }
 }
