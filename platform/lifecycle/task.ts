@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import type { ProcId } from './proc';
 import type { Code } from './status';
 import { appendLine, audit, readJson, readLines, stateRoot, withLock, writeJsonAtomic } from './store';
+import { notifyFinished } from './notify';
 
 export type TaskState = 'queued' | 'waiting-env' | 'preflight' | 'running' | 'finishing' | 'recovering' | 'done' | 'env-unfit' | 'failed' | 'interrupted' | 'cancelled' | 'timed-out';
 export const TERMINAL: TaskState[] = ['done', 'env-unfit', 'failed', 'interrupted', 'cancelled', 'timed-out'];
@@ -133,6 +134,7 @@ export function moveTask(id: string, to: TaskState, by: string, basis: string, p
   if (before !== to) {
     audit({ by, action: 'task.move', object: id, before, after: to, basis });
     event(id, { type: 'state', state: to, basis });
+    if (isTerminal(to)) notifyFinished(t);
   }
   return t;
 }

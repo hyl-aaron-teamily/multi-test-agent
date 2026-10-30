@@ -42,3 +42,26 @@ describe('optional configuration item (tree service)', () => {
     expect(w.items.find((i) => i.id === 'config:a11y-service')?.detail).toBe('a11y-service true');
   });
 });
+
+describe('task finished → notifications.ndjson (W2-4 §5.3)', () => {
+  it('one line per finished top-level task; series children are reported by their parent', async () => {
+    const { mkdtempSync, readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { tmpdir } = await import('node:os');
+    process.env.AUTOTEST_STATE_DIR = mkdtempSync(join(tmpdir(), 'notify-'));
+    try {
+      const { createTask, moveTask } = await import('./task');
+      const { notificationsFile } = await import('./notify');
+      createTask({ id: 'p1', kind: 'issue', issue: '2010', planId: 'p', planHash: 'h', envId: 'e', options: {} });
+      createTask({ id: 'c1', kind: 'issue', issue: '2010', planId: 'p', planHash: 'h', envId: 'e', options: {}, parent: 'p1' });
+      for (const id of ['p1', 'c1']) {
+        for (const s of ['waiting-env', 'preflight', 'running', 'finishing'] as const) moveTask(id, s, 't', 'x');
+        moveTask(id, 'done', 't', 'x', (t) => void Object.assign(t, { outcome: { code: 'NOT_REPRODUCED', summary: '未复现' }, endedBy: 'normal' }));
+      }
+      const lines = readFileSync(notificationsFile(), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+      expect(lines).toEqual([expect.objectContaining({ task: 'p1', issue: '2010', state: 'done', code: 'NOT_REPRODUCED', summary: '未复现', endedBy: 'normal' })]);
+    } finally {
+      delete process.env.AUTOTEST_STATE_DIR;
+    }
+  });
+});
