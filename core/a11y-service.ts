@@ -17,8 +17,8 @@ export const A11Y_PKG = 'ai.autotest.a11y';
 export const A11Y_SERVICE = `${A11Y_PKG}/${A11Y_PKG}.TreeService`;
 export const A11Y_PORT = 18765;
 export const A11Y_TOKEN_ACTION = `${A11Y_PKG}.SET_TOKEN`;
-/** Service version this host expects (v1: stale cache; v2: skipped nodes uiautomator lists; v3: all event types slowed the app). */
-export const A11Y_VERSION = 4;
+/** Service version this host expects (v1: stale cache; v2: skipped nodes uiautomator lists; v3: all event types slowed the app; v4: no cache, 1.3–1.5 s per dump). */
+export const A11Y_VERSION = 5;
 export const A11Y_APK = resolve(process.env.AUTOTEST_A11Y_APK ?? 'tools/a11y/autotest-a11y.apk');
 
 const ports = new Map<string, number>();
@@ -101,34 +101,32 @@ export async function a11yHealth(udid: string): Promise<A11yHealth> {
   }
 }
 
-/** Pure: drop nodes (with their subtrees) the service marks not visible that start beyond the screen edge —
- *  list rows below the screen come as [x,2407][x,2400]. `uiautomator dump` does not list those, but it does list
- *  rows scrolled under a header (start on screen, even with inverted bounds), so those stay (measured on
- *  4f2ebdf2, 2026-10-30). Screen size = the first (root) node's bounds. */
+/** Pure: of the nodes the service marks not visible, drop
+ *  - those that start beyond the screen edge, with their subtrees (list rows below the screen: [x,2407][x,2400]);
+ *  - those whose box has no positive area, the node only — its children stay (rows scrolled off the top come
+ *    inverted, e.g. [204,811][523,35]: their centre lies on another, visible row, so a text match would tap the
+ *    wrong thing). Invisible nodes with a real box (messages under the chat header) stay, as in uiautomator.
+ *  Measured against `uiautomator dump` on 4f2ebdf2, 2026-10-31. Screen size = the root node's bounds. */
 export function pruneOffscreen(xml: string): string {
   const root = xml.match(/bounds="\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]"/);
   const W = root ? Number(root[3]) : Infinity;
   const H = root ? Number(root[4]) : Infinity;
-  let skip = 0;
+  // Per open element: 'keep' | 'unwrap' (drop its close tag only) | 'skip' (inside a dropped subtree).
+  const stack: ('keep' | 'unwrap' | 'skip')[] = [];
   return xml.replace(/<node\b[^>]*?(\/?)>|<\/node>/g, (tag, selfClose: string | undefined) => {
-    if (tag === '</node>') {
-      if (skip) {
-        skip--;
-        return '';
-      }
-      return tag;
-    }
-    if (skip) {
-      if (!selfClose) skip++;
+    if (tag === '</node>') return stack.pop() === 'keep' ? tag : '';
+    if (stack.at(-1) === 'skip') {
+      if (!selfClose) stack.push('skip');
       return '';
     }
     const b = tag.match(/bounds="\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]"/);
-    const beyond = !!b && (Number(b[1]) >= W || Number(b[2]) >= H || (Number(b[3]) <= 0 && Number(b[1]) <= 0) || (Number(b[4]) <= 0 && Number(b[2]) <= 0));
-    if (beyond && /visible-to-user="false"/.test(tag)) {
-      if (!selfClose) skip = 1;
-      return '';
-    }
-    return tag;
+    const invisible = /visible-to-user="false"/.test(tag);
+    const [x1, y1, x2, y2] = b ? b.slice(1).map(Number) : [0, 0, 1, 1];
+    const beyond = !!b && (x1 >= W || y1 >= H || (x2 <= 0 && x1 <= 0) || (y2 <= 0 && y1 <= 0));
+    const noArea = !!b && (x2 <= x1 || y2 <= y1);
+    const what = invisible && beyond ? 'skip' : invisible && noArea ? 'unwrap' : 'keep';
+    if (!selfClose) stack.push(what);
+    return what === 'keep' ? tag : '';
   });
 }
 

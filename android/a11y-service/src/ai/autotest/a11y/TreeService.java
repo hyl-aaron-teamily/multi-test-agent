@@ -23,7 +23,7 @@ import java.util.List;
  */
 public class TreeService extends AccessibilityService {
     static final int PORT = 18765;
-    static final int VERSION = 4;
+    static final int VERSION = 5;
 
     private volatile ServerSocket server;
     private volatile boolean connected;
@@ -32,11 +32,10 @@ public class TreeService extends AccessibilityService {
     protected void onServiceConnected() {
         // Fresh trees without perturbing the app under test: an app only generates the accessibility event
         // types some enabled service subscribes to, so subscribing to all of them (v2/v3) slowed Teamily's own
-        // reactions about 2x on 4f2ebdf2. API 34+: no node cache (every dump queries the app) and window-state
-        // events only (tree_service.xml). Older: the cache is kept fresh by receiving every event type.
-        if (Build.VERSION.SDK_INT >= 34) {
-            setCacheEnabled(false);
-        } else {
+        // reactions about 2x on 4f2ebdf2. API 34+: window-state events only (tree_service.xml) and the cache is
+        // cleared at the start of every dump (dump()); a disabled cache (v4) made every child an IPC round trip
+        // (1.3–1.5 s per dump). Older: the cache is kept fresh by receiving every event type.
+        if (Build.VERSION.SDK_INT < 34) {
             AccessibilityServiceInfo info = getServiceInfo();
             if (info != null) {
                 info.eventTypes = AccessibilityEvent.TYPES_ALL_MASK;
@@ -119,6 +118,8 @@ public class TreeService extends AccessibilityService {
     }
 
     private String dump() {
+        // Fresh tree: drop what the cache holds; getRoot() prefetches the subtree again in bulk.
+        if (Build.VERSION.SDK_INT >= 34) clearCache();
         List<AccessibilityNodeInfo> roots = new ArrayList<>();
         try {
             List<AccessibilityWindowInfo> ws = getWindows();

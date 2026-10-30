@@ -22,9 +22,12 @@ describe('core/a11y-service', () => {
 });
 
 describe('pruneOffscreen (service output vs uiautomator)', () => {
-  it('drops invisible rows that start below the screen (with their children); keeps rows scrolled under a header, even inverted', () => {
-    const xml = `<hierarchy><node text="a" visible-to-user="true" bounds="[0,0][1080,2400]"><node text="b" visible-to-user="false" bounds="[0,2407][10,2400]"><node text="c" visible-to-user="false" bounds="[0,2410][10,2400]" /></node><node text="d" visible-to-user="false" bounds="[160,297][981,157]"><node text="e" visible-to-user="false" bounds="[160,91][980,157]" /></node></node><node text="f" visible-to-user="true" bounds="[0,0][5,5]" /></hierarchy>`;
-    const out = pruneOffscreen(xml);
-    expect(out).toBe(`<hierarchy><node text="a" visible-to-user="true" bounds="[0,0][1080,2400]"><node text="d" visible-to-user="false" bounds="[160,297][981,157]"><node text="e" visible-to-user="false" bounds="[160,91][980,157]" /></node></node><node text="f" visible-to-user="true" bounds="[0,0][5,5]" /></hierarchy>`);
+  it('drops invisible rows below the screen (subtree) and invisible inverted boxes (node only); keeps invisible real boxes', () => {
+    const xml = `<hierarchy><node text="a" visible-to-user="true" bounds="[0,0][1080,2400]"><node text="b" visible-to-user="false" bounds="[0,2407][10,2400]"><node text="c" visible-to-user="false" bounds="[0,2410][10,2400]" /></node><node text="d" visible-to-user="false" bounds="[160,297][981,157]"><node text="e" visible-to-user="false" bounds="[160,91][980,157]" /></node><node text="g" visible-to-user="false" bounds="[204,811][523,35]" /></node><node text="f" visible-to-user="true" bounds="[0,0][5,5]" /></hierarchy>`;
+    expect(pruneOffscreen(xml)).toBe(`<hierarchy><node text="a" visible-to-user="true" bounds="[0,0][1080,2400]"><node text="e" visible-to-user="false" bounds="[160,91][980,157]" /></node><node text="f" visible-to-user="true" bounds="[0,0][5,5]" /></hierarchy>`);
+  });
+  it('a visible node is never dropped', () => {
+    const xml = `<hierarchy><node text="v" visible-to-user="true" bounds="[0,2500][10,2400]" /></hierarchy>`;
+    expect(pruneOffscreen(xml)).toBe(xml);
   });
 });
