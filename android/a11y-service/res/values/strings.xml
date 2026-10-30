@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">autotest 读树服务</string>
+    <string name="description">只读：把当前界面的无障碍树导出给连接本机的测试电脑（adb）。不做任何点击或输入，不联网。</string>
+</resources>
