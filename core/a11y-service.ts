@@ -17,6 +17,8 @@ export const A11Y_PKG = 'ai.autotest.a11y';
 export const A11Y_SERVICE = `${A11Y_PKG}/${A11Y_PKG}.TreeService`;
 export const A11Y_PORT = 18765;
 export const A11Y_TOKEN_ACTION = `${A11Y_PKG}.SET_TOKEN`;
+/** Service protocol version this host expects (v1 served a stale tree: it received window-state events only). */
+export const A11Y_VERSION = 2;
 export const A11Y_APK = resolve(process.env.AUTOTEST_A11Y_APK ?? 'tools/a11y/autotest-a11y.apk');
 
 const ports = new Map<string, number>();
@@ -69,6 +71,8 @@ export interface A11yHealth {
   version?: number;
   /** The service reports it is connected to the accessibility framework. */
   connected?: boolean;
+  /** Installed but older than A11Y_VERSION (reinstall). */
+  outdated?: boolean;
   detail: string;
 }
 
@@ -89,8 +93,9 @@ export async function a11yHealth(udid: string): Promise<A11yHealth> {
   try {
     const r = await get(udid, '/ping', 2000);
     const j = JSON.parse(r.body) as { ok?: boolean; version?: number; connected?: boolean };
-    const responding = r.status === 200 && !!j.ok;
-    return { installed, enabled, responding, version: j.version, connected: j.connected, detail: responding ? `服务正常（v${j.version ?? '?'}${j.connected === false ? '，未连接无障碍框架' : ''}）` : `/ping 返回 ${r.status}` };
+    const outdated = r.status === 200 && (j.version ?? 0) < A11Y_VERSION;
+    const responding = r.status === 200 && !!j.ok && !outdated;
+    return { installed, enabled, responding, version: j.version, connected: j.connected, ...(outdated ? { outdated } : {}), detail: outdated ? `版本过旧（v${j.version ?? '?'}，需要 v${A11Y_VERSION}，重新安装）` : responding ? `服务正常（v${j.version ?? '?'}${j.connected === false ? '，未连接无障碍框架' : ''}）` : `/ping 返回 ${r.status}` };
   } catch (e) {
     return { installed, enabled, responding: false, detail: `已启用但不响应（${(e as Error).message.slice(0, 80)}；可能被系统回收，诊断建议把它加入电池白名单）` };
   }

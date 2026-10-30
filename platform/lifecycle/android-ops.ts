@@ -124,10 +124,16 @@ export function adbBaselineDriver(udid: string, pkg: string): AndroidBaselineDri
       }
       if (c.id === 'stayon') await sh('svc power stayon usb');
       if (c.id === 'a11y-service') {
-        const h = await a11yHealth(udid);
-        if (!h.installed) await installA11y(udid);
-        if (!h.enabled) await enableA11y(udid);
-        await sleep(1500);
+        const h0 = await a11yHealth(udid);
+        if (!h0.installed || h0.outdated) {
+          await installA11y(udid);
+          // Enabled right after install, the component may not be registered yet and the system drops it.
+          await sleep(3000);
+        }
+        for (let i = 0; i < 3 && !(await a11yHealth(udid)).responding; i++) {
+          await enableA11y(udid);
+          await sleep(2500);
+        }
       }
     },
     residual: async () => {

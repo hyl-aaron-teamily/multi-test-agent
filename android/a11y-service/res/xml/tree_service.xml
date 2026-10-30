@@ -1,7 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Read-only: window content retrieval only (no gestures, no screenshots). -->
+<!-- Read-only: window content retrieval only (no gestures, no screenshots). Events are only received, never
+     acted on: the service's node cache is invalidated by the events it receives, so with window-state events
+     only, a dump returned the previous screen's content (found on 4f2ebdf2, 2026-10-30). -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityEventTypes="typeAllMask"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:notificationTimeout="100"
     android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows|flagReportViewIds|flagIncludeNotImportantViews"

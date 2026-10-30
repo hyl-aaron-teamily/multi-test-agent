@@ -124,7 +124,7 @@ export function diagnose(f: Facts): Diagnosis {
       add({ id: `device:${d.udid}`, title: `手机 ${name}`, level: 'ok', detail: `在线、已授权、未锁屏${d.awake === false ? '（屏幕未亮，运行时会唤醒）' : ''}` });
       if (d.backend === 'a11y-service') {
         const h = d.a11y;
-        const nx: Next[] = !h?.installed
+        const nx: Next[] = !h?.installed || h.outdated
           ? [{ kind: 'human', text: '小米 / HyperOS：手机「设置 > 开发者选项」打开「USB 安装」；安装时手机弹确认，点「继续安装」（否则报 INSTALL_FAILED_USER_RESTRICTED）' }, { kind: 'run', text: '按环境配置项安装并启用读树服务（需已同意该配置项）', cmd: `pnpm autotest env check android-app:${d.udid}@prod` }]
           : !h.enabled
             ? [{ kind: 'run', text: '按环境配置项启用读树服务（需已同意该配置项）', cmd: `pnpm autotest env check android-app:${d.udid}@prod` }] : !h.responding ? [{ kind: 'human', text: '在手机「设置 > 无障碍」里关掉再打开「autotest 读树服务」，并把它加入电池白名单（省电策略会回收它）' }] : [];
