@@ -29,4 +29,6 @@ export interface RunCtx {
   setupOps: CoordOp[];
   afr?: AndroidFlightRecorder;
   wfr?: WebFlightRecorder;
+  /** Pre-tap check (on during preparation / re-entry only). */
+  guard?: import('./pretap').PreTapGuard;
 }

@@ -55,7 +55,8 @@ export async function cleanStart(c: RunCtx): Promise<string[]> {
  *  setup on the chat page would tap a conversation-list point inside the chat). */
 export async function recoverAfterDrift(c: RunCtx): Promise<void> {
   if (await onChat(c)) return;
-  await redoSetup(c);
+  // Re-entry taps frozen targets again: checked first (between rounds, never inside one).
+  await (c.guard ? c.guard.during('re-entry', () => redoSetup(c)) : redoSetup(c));
 }
 
 /** Once after the loop (record only; never a hit): e.g. the conversation-list preview of the last message. */

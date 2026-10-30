@@ -27,6 +27,10 @@ export interface Stats {
   observeTiers?: Record<string, { n: number; ms: number }>;
   /** Locate tiers used outside the loop: tier → { n, ms }. */
   locateTiers?: Record<string, { n: number; ms: number }>;
+  /** Pre-tap checks outside the loop (W2-4 §4.3); byPhase never has a loop entry. */
+  preTap?: { checked: number; pass: number; corrected: number; blocked: number; uncertain: number; vision: number; byPhase: Record<string, number>; lines: string[] };
+  /** Hierarchy reads by tree backend (W2-4 §4.1) and fallbacks to uiautomator. */
+  treeBackend?: { reads: Record<string, { n: number; p50: number; p95: number }>; fallbacks: number; firstFallback?: string };
 }
 
 export const newStats = (): Stats => ({ steps: 0, rounds: 0, durationSec: 0, avgIntervalMs: 0, maxIntervalMs: 0, intervalsOverCap: 0, anomalyGateTriggers: 0, suspectSignals: 0, checkpointScreenshots: 0, visionCalls: 0, textModelCalls: 0, launches: 0, drifts: 0 });

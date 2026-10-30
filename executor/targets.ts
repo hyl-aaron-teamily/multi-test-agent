@@ -27,6 +27,8 @@ export interface FrozenTarget {
   reason: string;
   /** model / rules (rows), text (① literal text on screen), vision (③). */
   by: 'model' | 'rules' | 'text' | 'vision';
+  /** Fingerprint at decision time (pre-tap check); none for vision picks. */
+  ref?: { text?: string; rid?: string; box?: [number, number, number, number] };
 }
 
 const ROW_KINDS = new Set(['group-conversation', 'other-conversation', 'muted-group', 'conversation']);
@@ -192,7 +194,7 @@ export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, lo
       }
       taken.push(idx);
       const c = cands[idx];
-      out.push({ id: t.id, kind: t.kind, point: { x: Math.round(c.box[0] + c.box[2] / 2), y: Math.round(c.box[1] + c.box[3] / 2) }, chosen: c.title, reason, by });
+      out.push({ id: t.id, kind: t.kind, point: { x: Math.round(c.box[0] + c.box[2] / 2), y: Math.round(c.box[1] + c.box[3] / 2) }, chosen: c.title, reason, by, ref: { text: c.title, box: c.box } });
     } else if (t.kind === 'quote-card' && driver.surface === 'android-app') {
       // Quote cards are clickable groups labelled "<sender>, <quoted text>"; take the bottom-most one.
       // A quote whose text is a link opens the link when tapped: prefer the newest quote without one.
@@ -205,7 +207,7 @@ export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, lo
         q = pick(await quoteCards(driver as AndroidDriver, p));
       }
       if (!q) throw new Error('prep: 前置条件不存在 — no quote card (reply with a quote) visible in this conversation');
-      out.push({ id: t.id, kind: t.kind, point: { x: Math.round(q.box[0] + q.box[2] / 2), y: Math.round(q.box[1] + q.box[3] / 2) }, chosen: `quote of "${q.quoted.slice(0, 40)}"`, reason: 'bottom-most quote card on screen', by: 'rules' });
+      out.push({ id: t.id, kind: t.kind, point: { x: Math.round(q.box[0] + q.box[2] / 2), y: Math.round(q.box[1] + q.box[3] / 2) }, chosen: `quote of "${q.quoted.slice(0, 40)}"`, reason: 'bottom-most quote card on screen', by: 'rules', ref: { text: q.quoted, box: q.box } });
     } else {
       const msg = t.kind === 'like-action' || t.kind === 'reply-action' ? [...frozen, ...out].find((x) => x.kind === 'others-text-message') : undefined;
       if (msg) {
@@ -218,7 +220,7 @@ export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, lo
         await new Promise((r) => setTimeout(r, 800));
       }
       if (!pt) throw new Error(`prep: target ${t.id} (${t.kind}) needs vision localisation, which is unavailable`);
-      out.push({ id: t.id, kind: t.kind, point: { x: pt.x, y: pt.y }, chosen: t.guidance, reason: (pt as { tier?: string }).tier === '①' ? 'located by its text (①)' : 'vision locate (③)', by: (pt as { tier?: string }).tier === '①' ? 'text' : 'vision' });
+      out.push({ id: t.id, kind: t.kind, point: { x: pt.x, y: pt.y }, chosen: t.guidance, reason: (pt as { tier?: string }).tier === '①' ? 'located by its text (①)' : (pt as { tier?: string }).tier === '②' ? 'located by similar text (②)' : 'vision locate (③)', by: (pt as { tier?: string }).tier === '③' || !(pt as { tier?: string }).tier ? 'vision' : 'text', ref: (pt as { ref?: FrozenTarget['ref'] }).ref });
     }
     log(`prep: target ${t.id} → "${out.at(-1)!.chosen}" @ ${JSON.stringify(out.at(-1)!.point)} (${out.at(-1)!.by}: ${out.at(-1)!.reason})`);
   }
@@ -229,6 +231,6 @@ export async function pickTargets(plan: TestPlan, driver: Driver, p: Profile, lo
 export async function visionLocator(driver: Driver & { page?: unknown; o?: any }): Promise<((q: string) => Promise<(Point & { tier?: string }) | null>) | undefined> {
   return async (q) => {
     const r = await locate(driver, q, { texts: literalsOf(q), purpose: 'prep' });
-    return r ? { ...r.point, tier: r.tier } : null;
+    return r ? { ...r.point, tier: r.tier, ref: r.ref } : null;
   };
 }

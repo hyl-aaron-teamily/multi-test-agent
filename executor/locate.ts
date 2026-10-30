@@ -21,6 +21,8 @@ export interface Located {
   tier: Tier;
   ms: number;
   how: string;
+  /** Fingerprint of what was found (pre-tap check); none for vision. */
+  ref?: { text?: string; rid?: string; box?: [number, number, number, number] };
 }
 
 /** Process-wide tally of locate tiers (merged into run stats). */
@@ -35,12 +37,13 @@ export async function locateText(d: Driver, texts: string[], newest = false, rea
       const f = findByText(nodes, t, undefined, { newest });
       if (!f) continue;
       const target = clickableAncestor(nodes, f.node) ?? f.node;
-      return { point: nodeCenter(target), tier: '①', ms: Date.now() - t0, how: `accessibility ${f.how} "${t}"` };
+      const ref = { text: (f.node.text || f.node.desc).trim(), ...(target.rid ? { rid: target.rid } : {}), box: [target.x1, target.y1, target.x2 - target.x1, target.y2 - target.y1] as [number, number, number, number] };
+      return { point: nodeCenter(target), tier: '①', ms: Date.now() - t0, how: `accessibility ${f.how} "${t}"`, ref };
     }
   } else if (d instanceof WebDriver && d.page) {
     for (const t of texts) {
       const b = (await boxOf(d.page, t, true)) ?? (await boxOf(d.page, t, false));
-      if (b) return { point: { x: Math.round(b.x + b.width / 2), y: Math.round(b.y + b.height / 2) }, tier: '①', ms: Date.now() - t0, how: `page text "${t}"` };
+      if (b) return { point: { x: Math.round(b.x + b.width / 2), y: Math.round(b.y + b.height / 2) }, tier: '①', ms: Date.now() - t0, how: `page text "${t}"`, ref: { text: t, box: [b.x, b.y, b.width, b.height].map(Math.round) as [number, number, number, number] } };
     }
   }
   return undefined;
@@ -74,7 +77,8 @@ export async function rankText(d: Driver, texts: string[], ranker: Ranker, read?
     const r = await ranker.rank(t, labelled.map(label));
     if (!r) continue;
     const n = labelled[r.index];
-    return { point: clickableOf(nodes, n).center, tier: '②', ms: Date.now() - t0, how: `fuzzy "${label(n).slice(0, 40)}" ≈ "${t}" (${r.score.toFixed(2)})` };
+    const box = clickableOf(nodes, n);
+    return { point: box.center, tier: '②', ms: Date.now() - t0, how: `fuzzy "${label(n).slice(0, 40)}" ≈ "${t}" (${r.score.toFixed(2)})`, ref: { text: label(n), ...(box.rid ? { rid: box.rid } : {}), box: box.box } };
   }
   return undefined;
 }

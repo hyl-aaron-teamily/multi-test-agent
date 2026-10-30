@@ -17,6 +17,9 @@ export interface UiNode {
   clickable: boolean;
   /** resource-id (often empty in React Native apps). */
   rid?: string;
+  /** Document order of the node in the dump, and its ancestors' (hierarchy for hit tests). */
+  id?: number;
+  anc?: number[];
 }
 
 export type UiBox = [number, number, number, number];
@@ -40,13 +43,22 @@ const unescape = (s: string) =>
 /** Pure: uiautomator XML → nodes of `pkg` (all packages when pkg is empty). */
 export function parseNodes(xml: string, pkg: string): UiNode[] {
   const out: UiNode[] = [];
-  for (const m of xml.matchAll(/<node\b[^>]*>/g)) {
+  const stack: number[] = [];
+  let id = -1;
+  for (const m of xml.matchAll(/<node\b[^>]*>|<\/node>/g)) {
     const n = m[0];
+    if (n === '</node>') {
+      stack.pop();
+      continue;
+    }
+    id++;
+    const anc = [...stack];
+    if (!n.endsWith('/>')) stack.push(id);
     if (pkg && attr(n, 'package') !== pkg) continue;
     const b = attr(n, 'bounds').match(/\[(\d+),(\d+)\]\[(\d+),(\d+)\]/);
     if (!b) continue;
     const [x1, y1, x2, y2] = b.slice(1).map(Number);
-    out.push({ x1, y1, x2, y2, text: unescape(attr(n, 'text')), hint: unescape(attr(n, 'hint')), desc: unescape(attr(n, 'content-desc')), cls: attr(n, 'class'), clickable: attr(n, 'clickable') === 'true', ...(attr(n, 'resource-id') ? { rid: attr(n, 'resource-id') } : {}) });
+    out.push({ x1, y1, x2, y2, text: unescape(attr(n, 'text')), hint: unescape(attr(n, 'hint')), desc: unescape(attr(n, 'content-desc')), cls: attr(n, 'class'), clickable: attr(n, 'clickable') === 'true', ...(attr(n, 'resource-id') ? { rid: attr(n, 'resource-id') } : {}), id, anc });
   }
   return out;
 }

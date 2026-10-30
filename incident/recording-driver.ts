@@ -55,11 +55,16 @@ export class RecordingDriver implements Driver {
   launch() {
     return this.rec('launch', {}, () => this.inner.launch());
   }
-  tap(p: Point) {
-    return this.rec('tap', { point: p }, () => this.inner.tap(p));
+  /** Pre-tap check (executor/pretap.ts): may move the point or throw; unset = taps go straight through. */
+  beforeTap?: (p: Point) => Promise<Point>;
+
+  async tap(p: Point) {
+    const q = this.beforeTap ? await this.beforeTap(p) : p;
+    return this.rec('tap', { point: q }, () => this.inner.tap(q));
   }
-  longPress(p: Point, ms?: number) {
-    return this.rec('longPress', { point: p, ms }, () => this.inner.longPress(p, ms));
+  async longPress(p: Point, ms?: number) {
+    const q = this.beforeTap ? await this.beforeTap(p) : p;
+    return this.rec('longPress', { point: q, ms }, () => this.inner.longPress(q, ms));
   }
   type(text: string) {
     return this.rec('type', { value: this.secret ? '<redacted>' : text }, () => this.inner.type(text));

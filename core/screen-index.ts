@@ -14,6 +14,9 @@ export interface ScreenNode {
   clickable: boolean;
   box: Box;
   center: { x: number; y: number };
+  /** Android: document id and ancestor ids (core/ui-tree.ts). */
+  id?: number;
+  anc?: number[];
 }
 
 export interface ScreenSnapshot {
@@ -41,7 +44,7 @@ export function normalizeNodes(nodes: UiNode[]): ScreenNode[] {
     if (box[2] <= 0 || box[3] <= 0) continue;
     const text = n.text === n.hint && /EditText/.test(n.cls) ? '' : n.text;
     if (!text && !n.desc && !n.rid && !n.clickable && !/EditText/.test(n.cls)) continue;
-    out.push({ text, desc: n.desc, rid: n.rid ?? '', cls: n.cls, clickable: n.clickable, box, center: { x: Math.round(n.x1 + box[2] / 2), y: Math.round(n.y1 + box[3] / 2) } });
+    out.push({ text, desc: n.desc, rid: n.rid ?? '', cls: n.cls, clickable: n.clickable, box, center: { x: Math.round(n.x1 + box[2] / 2), y: Math.round(n.y1 + box[3] / 2) }, ...(n.id !== undefined ? { id: n.id, anc: n.anc } : {}) });
   }
   return out;
 }
@@ -94,6 +97,14 @@ export function search(nodes: ScreenNode[], q: string, threshold = 0.75): Hit | 
     if (s >= threshold && (!best || s > best.score || (s === best.score && small(n, best.node) < 0))) best = { node: n, how: 'fuzzy', score: s };
   }
   return best;
+}
+
+/** Pure: is one node inside the other in the hierarchy (box containment when there is no hierarchy)? */
+export function related(a: ScreenNode, b: ScreenNode): boolean {
+  if (a === b) return true;
+  if (a.id !== undefined && b.id !== undefined) return !!a.anc?.includes(b.id) || !!b.anc?.includes(a.id);
+  const inBox = (x: Box, y: Box) => x[0] >= y[0] && x[1] >= y[1] && x[0] + x[2] <= y[0] + y[2] && x[1] + x[3] <= y[1] + y[3];
+  return inBox(a.box, b.box) || inBox(b.box, a.box);
 }
 
 const covers = (b: Box, x: number, y: number) => b[0] <= x && x <= b[0] + b[2] && b[1] <= y && y <= b[1] + b[3];

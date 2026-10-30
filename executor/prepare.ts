@@ -10,14 +10,37 @@ import { assertSkillFresh, evaluateAi, evaluateVisual, waitForRegion } from './c
 import type { RunCtx } from './context';
 import { isRowKind, pickTargets } from './targets';
 import { observeKeyboard, observeText } from './observe';
+import { PreTapBlocked } from './pretap';
 import { constructionAllowed, loadConversations } from '../platform/conversations';
 
 const freeze = async (c: RunCtx, phase: 'rows' | 'inside' | 'after-prepare') => {
   for (const t of await pickTargets(c.plan, c.sess.inner, c.sess.profile, c.log, c.locate, phase, c.res.targets)) {
     c.res.targets.push(t);
     c.targets[t.id] = t.point;
+    // Pre-tap check: the fingerprint, or the decision-time frame for vision picks.
+    if (c.guard) await c.guard.remember(t.point, { purpose: `target ${t.id}`, ...t.ref, ...(t.ref ? {} : { png: await c.sess.inner.screenshot().catch(() => undefined) }) });
   }
 };
+
+/** Setup; a tap the pre-tap check stops (row moved / covered) → pick the rows again once, then retry. */
+async function runSetup(c: RunCtx): Promise<void> {
+  const { d } = c.sess;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      for (const a of c.plan.setup) {
+        d.label = actionLabel(a);
+        await c.exec(a);
+      }
+      return;
+    } catch (e) {
+      if (!(e instanceof PreTapBlocked) || attempt > 0 || !c.plan.targets.some((t) => isRowKind(t.kind))) throw e;
+      c.log(`${e.message} — picking the conversation rows again`);
+      c.res.targets = c.res.targets.filter((t) => !isRowKind(t.kind));
+      await c.sess.adapter.recoverHome(c.sess, 0);
+      await freeze(c, 'rows');
+    }
+  }
+}
 
 /** Does the plan expect to sit in a conversation (and is the chat page calibrated)? */
 const inChat = (c: RunCtx) => c.plan.setup.some((a) => a.node?.name === 'teamily.openConversation') && !!c.sess.profile.refs.chat?.regions.composer;
@@ -63,10 +86,7 @@ export async function prepare(c: RunCtx, afterSetup?: () => Promise<void>): Prom
     for (let i = 0; i < 2 && !(await waitForRegion(d, profile, ['home/nav'], 4000)); i++) await c.sess.adapter.recoverHome(c.sess, i);
   }
   await freeze(c, 'rows');
-  for (const a of c.plan.setup) {
-    d.label = actionLabel(a);
-    await c.exec(a);
-  }
+  await runSetup(c);
   // Targets inside the opened conversation (message, reaction button) are decided after setup.
   await freeze(c, 'inside');
   if (inChat(c) && !(await onChat(c))) {
