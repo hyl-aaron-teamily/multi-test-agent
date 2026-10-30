@@ -6,7 +6,7 @@ import android.view.accessibility.AccessibilityNodeInfo;
 
 import java.util.List;
 
-/** Accessibility nodes → uiautomator-format XML (same attributes and invisible-child skipping as `uiautomator dump`). */
+/** Accessibility nodes → uiautomator-format XML (same attributes and node set as `uiautomator dump`). */
 final class Dumper {
     private Dumper() {
     }
@@ -52,8 +52,9 @@ final class Dumper {
         for (int k = 0; k < c; k++) {
             AccessibilityNodeInfo ch = n.getChild(k);
             if (ch == null) continue;
-            // uiautomator skips children not visible to the user.
-            if (ch.isVisibleToUser()) node(sb, ch, k, depth + 1);
+            // Every child, like `uiautomator dump` on this phone (it lists rows scrolled under the header too);
+            // the visible-to-user attribute says which ones the user can see (agreement measured 2026-10-30).
+            node(sb, ch, k, depth + 1);
             recycle(ch);
         }
         sb.append("</node>");

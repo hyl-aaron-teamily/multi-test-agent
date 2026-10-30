@@ -17,8 +17,8 @@ export const A11Y_PKG = 'ai.autotest.a11y';
 export const A11Y_SERVICE = `${A11Y_PKG}/${A11Y_PKG}.TreeService`;
 export const A11Y_PORT = 18765;
 export const A11Y_TOKEN_ACTION = `${A11Y_PKG}.SET_TOKEN`;
-/** Service protocol version this host expects (v1 served a stale tree: it received window-state events only). */
-export const A11Y_VERSION = 2;
+/** Service version this host expects (v1: stale tree — window-state events only; v2: skipped nodes uiautomator lists). */
+export const A11Y_VERSION = 3;
 export const A11Y_APK = resolve(process.env.AUTOTEST_A11Y_APK ?? 'tools/a11y/autotest-a11y.apk');
 
 const ports = new Map<string, number>();
@@ -101,6 +101,37 @@ export async function a11yHealth(udid: string): Promise<A11yHealth> {
   }
 }
 
+/** Pure: drop nodes (with their subtrees) the service marks not visible that start beyond the screen edge —
+ *  list rows below the screen come as [x,2407][x,2400]. `uiautomator dump` does not list those, but it does list
+ *  rows scrolled under a header (start on screen, even with inverted bounds), so those stay (measured on
+ *  4f2ebdf2, 2026-10-30). Screen size = the first (root) node's bounds. */
+export function pruneOffscreen(xml: string): string {
+  const root = xml.match(/bounds="\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]"/);
+  const W = root ? Number(root[3]) : Infinity;
+  const H = root ? Number(root[4]) : Infinity;
+  let skip = 0;
+  return xml.replace(/<node\b[^>]*?(\/?)>|<\/node>/g, (tag, selfClose: string | undefined) => {
+    if (tag === '</node>') {
+      if (skip) {
+        skip--;
+        return '';
+      }
+      return tag;
+    }
+    if (skip) {
+      if (!selfClose) skip++;
+      return '';
+    }
+    const b = tag.match(/bounds="\[(-?\d+),(-?\d+)\]\[(-?\d+),(-?\d+)\]"/);
+    const beyond = !!b && (Number(b[1]) >= W || Number(b[2]) >= H || (Number(b[3]) <= 0 && Number(b[1]) <= 0) || (Number(b[4]) <= 0 && Number(b[2]) <= 0));
+    if (beyond && /visible-to-user="false"/.test(tag)) {
+      if (!selfClose) skip = 1;
+      return '';
+    }
+    return tag;
+  });
+}
+
 /** Backend B for core/tree-backend.ts. Throws on any failure (the caller falls back to uiautomator). */
 export function a11yBackend(): TreeBackend {
   return {
@@ -115,7 +146,7 @@ export function a11yBackend(): TreeBackend {
         r = await get(udid, `/dump?token=${t}`, timeoutMs);
       }
       if (r.status !== 200) throw new Error(`/dump ${r.status} ${r.body.slice(0, 80)}`);
-      return r.body;
+      return pruneOffscreen(r.body);
     },
   };
 }

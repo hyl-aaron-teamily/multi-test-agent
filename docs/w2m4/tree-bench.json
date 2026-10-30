@@ -1,0 +1,77 @@
+{
+  "at": "2026-10-30T15:32:19.488Z",
+  "udid": "4f2ebdf2",
+  "n": 50,
+  "results": [
+    {
+      "screen": "conversation list",
+      "uiautomator": {
+        "n": 50,
+        "p50": 2620,
+        "p95": 3274,
+        "fails": 0,
+        "min": 2314,
+        "max": 3571
+      },
+      "a11yService": {
+        "n": 50,
+        "p50": 49,
+        "p95": 56,
+        "fails": 0,
+        "min": 30,
+        "max": 590
+      },
+      "agreement": {
+        "coverage": 1,
+        "jaccard": 1,
+        "ua": 45,
+        "svc": 45,
+        "onlyUa": [],
+        "onlySvc": [],
+        "usable": {
+          "coverage": 1,
+          "jaccard": 1,
+          "ua": 45,
+          "svc": 45,
+          "onlyUa": [],
+          "onlySvc": []
+        }
+      }
+    },
+    {
+      "screen": "chat page",
+      "uiautomator": {
+        "n": 50,
+        "p50": 2627,
+        "p95": 3492,
+        "fails": 0,
+        "min": 2462,
+        "max": 3778
+      },
+      "a11yService": {
+        "n": 50,
+        "p50": 49,
+        "p95": 61,
+        "fails": 0,
+        "min": 33,
+        "max": 634
+      },
+      "agreement": {
+        "coverage": 1,
+        "jaccard": 1,
+        "ua": 45,
+        "svc": 45,
+        "onlyUa": [],
+        "onlySvc": [],
+        "usable": {
+          "coverage": 1,
+          "jaccard": 1,
+          "ua": 42,
+          "svc": 42,
+          "onlyUa": [],
+          "onlySvc": []
+        }
+      }
+    }
+  ]
+}

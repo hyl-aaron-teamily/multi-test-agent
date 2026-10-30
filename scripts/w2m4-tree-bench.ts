@@ -18,9 +18,15 @@ const out = arg('out');
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Pure: labelled app nodes keyed by label + bounds. */
-export function keys(xml: string): Set<string> {
-  return new Set(parseNodes(xml, TEAMILY_PACKAGE).filter((n) => (n.text || n.desc).trim()).map((n) => `${(n.text || n.desc).trim()}|${n.x1},${n.y1},${n.x2},${n.y2}`));
+export function keys(xml: string, positiveOnly = false): Set<string> {
+  return new Set(parseNodes(xml, TEAMILY_PACKAGE).filter((n) => (n.text || n.desc).trim() && (!positiveOnly || (n.x2 > n.x1 && n.y2 > n.y1))).map((n) => `${(n.text || n.desc).trim()}|${n.x1},${n.y1},${n.x2},${n.y2}`));
 }
+
+/** Pure: how much of `a` (uiautomator) `b` (service) has, and Jaccard. */
+const compare = (a: Set<string>, b: Set<string>) => {
+  const both = [...a].filter((k) => b.has(k)).length;
+  return { coverage: both / Math.max(1, a.size), jaccard: both / Math.max(1, new Set([...a, ...b]).size), ua: a.size, svc: b.size, onlyUa: [...a].filter((k) => !b.has(k)).slice(0, 10), onlySvc: [...b].filter((k) => !a.has(k)).slice(0, 10) };
+};
 
 async function timed(b: typeof uiautomatorBackend, n: number) {
   const ms: number[] = [];
@@ -40,15 +46,16 @@ async function timed(b: typeof uiautomatorBackend, n: number) {
 
 async function agreement() {
   // Same screen, back to back (the list may tick a timestamp between reads: take the best of 3 pairs).
-  let best = { coverage: 0, jaccard: 0, ua: 0, svc: 0, onlyUa: [] as string[], onlySvc: [] as string[] };
+  // Raw: every labelled node; usable: positive-area boxes only (what normalizeNodes keeps — degenerate boxes of
+  // rows scrolled under the header can never be targets).
+  let best: { raw: ReturnType<typeof compare>; usable: ReturnType<typeof compare> } | undefined;
   for (let i = 0; i < 3; i++) {
-    const a = keys(await uiautomatorBackend.dump(udid, 20_000));
-    const b = keys(await a11yBackend().dump(udid, 5000));
-    const both = [...a].filter((k) => b.has(k)).length;
-    const r = { coverage: both / Math.max(1, a.size), jaccard: both / Math.max(1, new Set([...a, ...b]).size), ua: a.size, svc: b.size, onlyUa: [...a].filter((k) => !b.has(k)).slice(0, 10), onlySvc: [...b].filter((k) => !a.has(k)).slice(0, 10) };
-    if (r.coverage > best.coverage) best = r;
+    const ux = await uiautomatorBackend.dump(udid, 20_000);
+    const sx = await a11yBackend().dump(udid, 5000);
+    const r = { raw: compare(keys(ux), keys(sx)), usable: compare(keys(ux, true), keys(sx, true)) };
+    if (!best || r.raw.coverage > best.raw.coverage) best = r;
   }
-  return best;
+  return { ...best!.raw, usable: best!.usable };
 }
 
 async function screen(name: string) {
@@ -58,7 +65,7 @@ async function screen(name: string) {
   const ua = await timed(uiautomatorBackend, N);
   console.log(`[${name}] a11y-service ×${N}…`);
   const svc = await timed(a11yBackend(), N);
-  console.log(`[${name}] uiautomator p50 ${ua.p50} / p95 ${ua.p95} ms; a11y-service p50 ${svc.p50} / p95 ${svc.p95} ms; agreement ${(agree.coverage * 100).toFixed(1)}% of uiautomator's ${agree.ua} labelled nodes (Jaccard ${(agree.jaccard * 100).toFixed(1)}%)`);
+  console.log(`[${name}] uiautomator p50 ${ua.p50} / p95 ${ua.p95} ms; a11y-service p50 ${svc.p50} / p95 ${svc.p95} ms; agreement ${(agree.coverage * 100).toFixed(1)}% of uiautomator's ${agree.ua} labelled nodes (Jaccard ${(agree.jaccard * 100).toFixed(1)}%); positive-area boxes ${(agree.usable.coverage * 100).toFixed(1)}% of ${agree.usable.ua}`);
   return { screen: name, uiautomator: ua, a11yService: svc, agreement: agree };
 }
 
@@ -86,8 +93,8 @@ async function main() {
   results.push(await screen('chat page'));
   // Back to the list (only from the chat page: Back on the list would leave the app).
   if (await inChat()) await adb(['shell', 'input keyevent 4'], udid);
-  const ok = results.every((r) => r.a11yService.p95 <= 500 && r.agreement.coverage >= 0.95);
-  console.log(`${ok ? 'PASS' : 'CHECK'}: target p95 ≤ 500 ms and agreement ≥ 95% on both screens`);
+  const ok = results.every((r) => r.a11yService.p95 <= 500 && r.agreement.usable.coverage >= 0.95);
+  console.log(`${ok ? 'PASS' : 'CHECK'}: target p95 ≤ 500 ms and agreement ≥ 95% (positive-area labelled nodes) on both screens; raw ${results.map((r) => `${r.screen} ${(r.agreement.coverage * 100).toFixed(1)}%`).join(', ')}`);
   if (out) {
     mkdirSync(dirname(out), { recursive: true });
     writeFileSync(out, JSON.stringify({ at: new Date().toISOString(), udid, n: N, results }, null, 2));

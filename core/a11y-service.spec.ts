@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { A11Y_SERVICE, parseForwards, servicesHave, servicesWith } from './a11y-service';
+import { A11Y_SERVICE, parseForwards, pruneOffscreen, servicesHave, servicesWith } from './a11y-service';
 
 describe('core/a11y-service', () => {
   it('enabled_accessibility_services: add / remove ours, keep the others and their order', () => {
@@ -18,5 +18,13 @@ describe('core/a11y-service', () => {
       { serial: '4f2ebdf2', local: 'tcp:51234' },
       { serial: 'emulator-5554', local: 'tcp:51300' },
     ]);
+  });
+});
+
+describe('pruneOffscreen (service output vs uiautomator)', () => {
+  it('drops invisible rows that start below the screen (with their children); keeps rows scrolled under a header, even inverted', () => {
+    const xml = `<hierarchy><node text="a" visible-to-user="true" bounds="[0,0][1080,2400]"><node text="b" visible-to-user="false" bounds="[0,2407][10,2400]"><node text="c" visible-to-user="false" bounds="[0,2410][10,2400]" /></node><node text="d" visible-to-user="false" bounds="[160,297][981,157]"><node text="e" visible-to-user="false" bounds="[160,91][980,157]" /></node></node><node text="f" visible-to-user="true" bounds="[0,0][5,5]" /></hierarchy>`;
+    const out = pruneOffscreen(xml);
+    expect(out).toBe(`<hierarchy><node text="a" visible-to-user="true" bounds="[0,0][1080,2400]"><node text="d" visible-to-user="false" bounds="[160,297][981,157]"><node text="e" visible-to-user="false" bounds="[160,91][980,157]" /></node></node><node text="f" visible-to-user="true" bounds="[0,0][5,5]" /></hierarchy>`);
   });
 });

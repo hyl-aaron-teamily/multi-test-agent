@@ -21,7 +21,7 @@ import java.util.List;
  */
 public class TreeService extends AccessibilityService {
     static final int PORT = 18765;
-    static final int VERSION = 2;
+    static final int VERSION = 3;
 
     private volatile ServerSocket server;
     private volatile boolean connected;
