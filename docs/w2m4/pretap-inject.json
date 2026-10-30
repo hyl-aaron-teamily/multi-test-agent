@@ -1,0 +1,85 @@
+{
+  "at": "2026-10-30T13:17:53.919Z",
+  "udid": "4f2ebdf2",
+  "backend": "uiautomator",
+  "row": {
+    "title": "aaron+test1's Personal AI",
+    "box": [
+      44,
+      435,
+      992,
+      220
+    ],
+    "centre": {
+      "x": 540,
+      "y": 545
+    }
+  },
+  "results": [
+    {
+      "case": "same point",
+      "from": {
+        "x": 540,
+        "y": 545
+      },
+      "want": "pass",
+      "got": "pass",
+      "tapped": {
+        "x": 540,
+        "y": 545
+      },
+      "ok": true,
+      "detail": "\"aaron+test1's Personal AI\" still at the point (1.00)"
+    },
+    {
+      "case": "+60 px",
+      "from": {
+        "x": 540,
+        "y": 605
+      },
+      "want": "corrected",
+      "got": "corrected",
+      "tapped": {
+        "x": 540,
+        "y": 545
+      },
+      "ok": true,
+      "detail": "\"aaron+test1's Personal AI\" drifted 60 px: (540,605) → (540,545)"
+    },
+    {
+      "case": "+200 px",
+      "from": {
+        "x": 540,
+        "y": 745
+      },
+      "want": "shifted",
+      "got": "shifted",
+      "tapped": null,
+      "ok": true,
+      "detail": "\"aaron+test1's Personal AI\" moved 200 px (> 120) to (540,545)"
+    },
+    {
+      "case": "target not on screen",
+      "from": {
+        "x": 540,
+        "y": 545
+      },
+      "want": "gone",
+      "got": "gone",
+      "tapped": null,
+      "ok": true,
+      "detail": "\"不存在的会话-w2m4\" not on screen"
+    }
+  ],
+  "tally": {
+    "checked": 4,
+    "pass": 1,
+    "corrected": 1,
+    "blocked": 2,
+    "uncertain": 0,
+    "vision": 0,
+    "byPhase": {
+      "inject": 4
+    }
+  }
+}
