@@ -54,8 +54,15 @@ final class Dumper {
             if (ch == null) continue;
             // uiautomator skips children not visible to the user.
             if (ch.isVisibleToUser()) node(sb, ch, k, depth + 1);
+            recycle(ch);
         }
         sb.append("</node>");
+    }
+
+    /** Before API 33 nodes come from a pool and must be handed back. */
+    @SuppressWarnings("deprecation")
+    static void recycle(AccessibilityNodeInfo n) {
+        if (n != null && Build.VERSION.SDK_INT < 33) n.recycle();
     }
 
     private static void bool(StringBuilder sb, String k, boolean v) {

@@ -49,3 +49,10 @@ describe('core/screen-index', () => {
     expect(await r.rank('转发', ['引用', '取消'])).toBeUndefined();
   });
 });
+
+describe('similarity: short containment', () => {
+  it('a single character inside a long label is not a match', () => {
+    expect(similarity('是', '是否删除这条消息')).toBeLessThan(0.75);
+    expect(similarity('发送', '发送消息')).toBeGreaterThanOrEqual(0.8);
+  });
+});

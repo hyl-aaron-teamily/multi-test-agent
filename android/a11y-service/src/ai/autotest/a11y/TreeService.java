@@ -118,7 +118,11 @@ public class TreeService extends AccessibilityService {
             AccessibilityNodeInfo r = getRootInActiveWindow();
             if (r != null) roots.add(r);
         }
-        return Dumper.toXml(roots);
+        try {
+            return Dumper.toXml(roots);
+        } finally {
+            for (AccessibilityNodeInfo r : roots) Dumper.recycle(r);
+        }
     }
 
     private static String query(String path, String key) {

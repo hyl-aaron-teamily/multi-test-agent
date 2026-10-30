@@ -172,7 +172,9 @@ export function doctorText(d: Diagnosis): string {
 
 const STALE_LOCK_MS = 60_000;
 
-/** I/O: everything diagnose() needs. Read-only (on the device: state reads and, with probe, one screenshot + tree reads). */
+/** I/O: everything diagnose() needs. Changes nothing on the device: state reads; for a phone that declares the
+ *  tree service, a /ping through an adb forward (host side); with probe, one screenshot + tree reads (the
+ *  service gets a fresh session token). */
 export async function gatherFacts(o: { probe?: boolean } = {}): Promise<Facts> {
   const missing = REQUIRED_DEPS.filter((p) => !existsSync(resolve('node_modules', p)));
   const url = PLATFORM_URL();

@@ -47,8 +47,9 @@ async function get(udid: string, path: string, timeoutMs: number): Promise<{ sta
     const r = await fetch(`http://127.0.0.1:${port}${path}`, { signal: AbortSignal.timeout(timeoutMs) });
     return { status: r.status, body: await r.text() };
   } catch (e) {
-    // A stale forward (device reconnected) — drop it so the next call makes a new one.
+    // A stale forward (device reconnected) — remove it so the next call makes a new one.
     ports.delete(udid);
+    await adb(['forward', '--remove', `tcp:${port}`], udid, 5000).catch(() => '');
     throw e;
   }
 }

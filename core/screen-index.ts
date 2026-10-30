@@ -73,7 +73,8 @@ export function similarity(a: string, b: string): number {
   if (p === q) return 1;
   const [s, l] = p.length <= q.length ? [p, q] : [q, p];
   const lev = 1 - editDistance(p, q) / Math.max(p.length, q.length);
-  return l.includes(s) ? Math.max(lev, 0.8 + 0.2 * (s.length / l.length)) : lev;
+  // Containment counts only for a real word (≥ 2 chars) that is a fair part of the longer label.
+  return l.includes(s) && s.length >= 2 && s.length / l.length >= 0.3 ? Math.max(lev, 0.8 + 0.2 * (s.length / l.length)) : lev;
 }
 
 export interface Hit {

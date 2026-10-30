@@ -54,7 +54,8 @@ export function treeVerdict(ref: TapRef, point: Point, nodes: ScreenNode[], drif
   for (const n of nodes) {
     const ts = ref.text ? Math.max(similarity(n.text, ref.text), similarity(n.desc, ref.text)) : 0;
     const rs = ref.rid && n.rid === ref.rid ? 1 : 0;
-    if (ts < 0.75 && !rs) continue;
+    // A fingerprint with text needs the text: rows of one list share a resource-id.
+    if (ref.text ? ts < 0.75 : !rs) continue;
     const box = clickableOf(nodes, n);
     let num = 0;
     let den = 0;
@@ -148,7 +149,7 @@ export class PreTapGuard {
     const ref = this.refs.get(key);
     if (!ref) return p;
     if (ref.once) this.refs.delete(key);
-    const r = await this.check(p, ref);
+    const r = await this.check(p, ref).catch((e): PreTapResult => ({ kind: 'uncertain', how: 'none', point: p, detail: `check failed: ${(e as Error).message.split('\n')[0].slice(0, 120)}` }));
     this.tally.checked++;
     this.tally.byPhase[this.phase] = (this.tally.byPhase[this.phase] ?? 0) + 1;
     const ev: PreTapEvent = { ...r, at: new Date().toISOString(), phase: this.phase, purpose: ref.purpose, from: p };

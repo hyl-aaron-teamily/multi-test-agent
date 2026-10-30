@@ -70,7 +70,7 @@ export function runMarkdown(d: Draft, input: RunResult[], runDir: string): strin
     if (r.healed?.length) lines.push('### 坐标自愈（本次运行，标定 profile 未修改）', '', ...r.healed.map((h) => `- ${h.element}: ${JSON.stringify(h.from)} → ${JSON.stringify(h.to)}（${h.by}）；候选 profile：healed-profile.json`), '');
     if (s.observeTiers || s.locateTiers || s.modelCallsByPurpose)
       lines.push('### 判定分层统计', '', '①=确定性（日志 / 进程 / 系统状态 / 无障碍或页面文字 / 区域比对），③=视觉模型。', '', '| 层 · 判定 / 定位 | 次数 | 平均耗时 |', '|---|---|---|', ...tierRows(s.observeTiers), ...tierRows(s.locateTiers).map((r) => r.replace('| ', '| 定位 ')), '', `模型调用按用途：${Object.entries(s.modelCallsByPurpose ?? {}).map(([k, v]) => `${k} ${v}`).join('，') || '无'}`, '');
-    if (s.preTap) lines.push('### 执行前校验（循环外的点击）', '', ...s.preTap.lines, '- 循环内校验：0 次（循环每步只按坐标）', '');
+    if (s.preTap) lines.push('### 执行前校验（循环外的点击）', '', ...s.preTap.lines, '- 循环内每步校验：0 次（每步只按坐标；偏离后的重进在两轮之间，记为 re-entry）', '');
     if (s.treeBackend)
       lines.push('### 读树后端', '', ...Object.entries(s.treeBackend.reads).map(([k, v]) => `- ${k}：${v.n} 次，p50 ${v.p50} ms，p95 ${v.p95} ms`), ...(s.treeBackend.fallbacks ? [`- 退回 uiautomator ${s.treeBackend.fallbacks} 次；首次原因：${s.treeBackend.firstFallback ?? '-'}`] : []), '');
     if (r.acceptance) {

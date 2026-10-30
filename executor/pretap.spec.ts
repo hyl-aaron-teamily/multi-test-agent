@@ -86,3 +86,22 @@ describe('executor/pretap guard', () => {
     expect(g.tally.checked - before).toBe(1);
   });
 });
+
+describe('review fixes', () => {
+  it('a row with the same resource-id but other text is not the target', () => {
+    const row = (y: number, t: string) => `<node text="" content-desc="" resource-id="app:id/row" class="android.view.ViewGroup" package="p" clickable="true" bounds="[0,${y}][1080,${y + 200}]"><node text="${t}" class="android.widget.TextView" package="p" clickable="false" bounds="[200,${y + 20}][900,${y + 80}]" /></node>`;
+    const r = treeVerdict({ purpose: 'g', text: '自动化测试群', rid: 'app:id/row', box: [0, 400, 1080, 200] }, P, nodesOf(row(400, '别的会话')));
+    expect(r?.kind).toBe('gone');
+  });
+  it('a failing check is uncertain (tapped, recorded), not a crash', async () => {
+    const inner = { surface: 'android-app', tap: async () => {}, longPress: async () => {}, screenshot: async () => Buffer.alloc(0) } as any;
+    const d = new RecordingDriver(inner);
+    const g = new PreTapGuard(inner).attach(d);
+    g.check = async () => {
+      throw new Error('adb: device offline');
+    };
+    await g.remember(P, ref);
+    await g.during('prepare', () => d.tap(P));
+    expect(g.events.at(-1)).toMatchObject({ kind: 'uncertain', detail: expect.stringMatching(/device offline/) });
+  });
+});
