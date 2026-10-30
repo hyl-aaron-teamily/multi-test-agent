@@ -15,6 +15,8 @@ export interface UiNode {
   desc: string;
   cls: string;
   clickable: boolean;
+  /** resource-id (often empty in React Native apps). */
+  rid?: string;
 }
 
 export type UiBox = [number, number, number, number];
@@ -44,7 +46,7 @@ export function parseNodes(xml: string, pkg: string): UiNode[] {
     const b = attr(n, 'bounds').match(/\[(\d+),(\d+)\]\[(\d+),(\d+)\]/);
     if (!b) continue;
     const [x1, y1, x2, y2] = b.slice(1).map(Number);
-    out.push({ x1, y1, x2, y2, text: unescape(attr(n, 'text')), hint: unescape(attr(n, 'hint')), desc: unescape(attr(n, 'content-desc')), cls: attr(n, 'class'), clickable: attr(n, 'clickable') === 'true' });
+    out.push({ x1, y1, x2, y2, text: unescape(attr(n, 'text')), hint: unescape(attr(n, 'hint')), desc: unescape(attr(n, 'content-desc')), cls: attr(n, 'class'), clickable: attr(n, 'clickable') === 'true', ...(attr(n, 'resource-id') ? { rid: attr(n, 'resource-id') } : {}) });
   }
   return out;
 }
