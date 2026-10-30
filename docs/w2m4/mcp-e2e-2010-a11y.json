@@ -1,0 +1,365 @@
+{
+  "issue": "2010",
+  "surface": "android-app",
+  "series": 3,
+  "log": [
+    {
+      "tool": "doctor",
+      "args": {},
+      "code": "OK",
+      "exit": 0,
+      "summary": "ready：可以运行",
+      "at": "2026-10-30T16:43:13.271Z"
+    },
+    {
+      "tool": "draft_create",
+      "args": {
+        "id": "2010",
+        "env": "prod"
+      },
+      "code": "OK",
+      "exit": 0,
+      "summary": "草稿 v2（plannable）：2010/main:android-app@v2, 2010/main:mobile-web@v2",
+      "at": "2026-10-30T16:43:13.347Z"
+    },
+    {
+      "tool": "plan_explain",
+      "args": {
+        "planId": "2010/main:android-app@v2",
+        "series": 3
+      },
+      "code": "OK",
+      "exit": 0,
+      "summary": "在 android-app 上重复「点 AI 改写后输入框草稿应保留（或先确认 / 可撤销）」，看 Issue 2010 描述的现象会不会出现；最多发送 0 条消息；约 77 秒 – 3 分钟（同计划最近 10 次运行）；默认允许",
+      "at": "2026-10-30T16:43:13.411Z"
+    },
+    {
+      "tool": "task_run",
+      "args": {
+        "planId": "2010/main:android-app@v2",
+        "series": 3,
+        "hash": "fdbaa3951c20e83e"
+      },
+      "code": "ACCEPTED",
+      "exit": 20,
+      "summary": "任务 t-20261030164313-eymy 已排队：2010/main:android-app@v2 @ android-app:4f2ebdf2@prod，系列 3 次",
+      "at": "2026-10-30T16:43:13.446Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：运行中，准备 第 0 轮 第 0 步",
+      "at": "2026-10-30T16:43:38.897Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：运行中，循环 第 1 轮 第 1 步",
+      "at": "2026-10-30T16:44:04.048Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：运行中，循环 第 3 轮 第 10 步",
+      "at": "2026-10-30T16:44:29.219Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：运行中，循环 第 5 轮 第 18 步",
+      "at": "2026-10-30T16:44:54.603Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：收尾，收尾 第 6 轮 第 24 步",
+      "at": "2026-10-30T16:45:19.828Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：收尾，收尾 第 6 轮 第 24 步",
+      "at": "2026-10-30T16:45:45.148Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：收尾，准备",
+      "at": "2026-10-30T16:46:10.273Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：收尾，预热 第 0 轮 第 0 步",
+      "at": "2026-10-30T16:46:35.401Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：收尾，循环 第 2 轮 第 7 步",
+      "at": "2026-10-30T16:47:00.720Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：收尾，循环 第 4 轮 第 15 步",
+      "at": "2026-10-30T16:47:25.857Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：收尾，循环 第 6 轮 第 23 步",
+      "at": "2026-10-30T16:47:51.252Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：收尾，收尾 第 6 轮 第 24 步",
+      "at": "2026-10-30T16:48:16.451Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：收尾，启动",
+      "at": "2026-10-30T16:48:41.888Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：收尾，预热 第 0 轮 第 0 步",
+      "at": "2026-10-30T16:49:07.337Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：收尾，循环 第 2 轮 第 8 步",
+      "at": "2026-10-30T16:49:32.942Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：收尾，循环 第 4 轮 第 15 步",
+      "at": "2026-10-30T16:49:58.080Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：收尾，循环 第 6 轮 第 24 步",
+      "at": "2026-10-30T16:50:23.452Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "SERIES_DONE",
+      "exit": 17,
+      "summary": "任务 t-20261030164313-eymy（2010/main:android-app@v2 @ android-app:4f2ebdf2@prod）：完成 — 系列 3/3 次",
+      "at": "2026-10-30T16:50:41.022Z"
+    },
+    {
+      "tool": "result_show",
+      "args": {
+        "taskId": "t-20261030164313-eymy"
+      },
+      "code": "SERIES_DONE",
+      "exit": 17,
+      "summary": "系列 3 次：复现 0/3 次；有效尝试 18、命中 0",
+      "at": "2026-10-30T16:50:41.039Z"
+    }
+  ],
+  "planId": "2010/main:android-app@v2",
+  "taskId": "t-20261030164313-eymy",
+  "waits": 18,
+  "result": {
+    "status": 207,
+    "code": "SERIES_DONE",
+    "exit": 17,
+    "summary": "系列 3 次：复现 0/3 次；有效尝试 18、命中 0",
+    "data": {
+      "schemaVersion": 1,
+      "kind": "ResultView",
+      "taskId": "t-20261030164313-eymy",
+      "code": "SERIES_DONE",
+      "status": 207,
+      "sentence": "系列 3 次：复现 0/3 次；有效尝试 18、命中 0",
+      "complete": true,
+      "runs": [
+        {
+          "planId": "2010-android-app-v1",
+          "conclusion": "未复现",
+          "sentence": "未复现：6 次有效尝试未复现；单次复现概率 95% 上界 ≈ 50%（3/n）（替代执行 ios → android-app）",
+          "basis": [
+            "触发路径：清空输入框（全选 + 删除） → 在输入框键入「autotest-2010 r7c7c4b <轮号>」 → 确认输入框里有「autotest-2010 r7c7c4b <轮号>」（没有 = 本轮操作偏离，不计入） → 收起键盘，点 AI 改写按钮，等改写结束（≤ 10 秒）；先弹确认框则记「有确认」并点取消（计划动作，每轮执行；6 次有效尝试，无命中）",
+            "出现位置：聊天页输入框（chat.composer 的文字）（检查「点击改写后输入框仍是原草稿（没有被静默替换）」）",
+            "推测机制（未验证）：改写结果直接写回输入框（覆盖原文），没有确认步骤，也不保留原草稿供撤销；控件在打字时拇指落点附近（Issue 报告的推断）"
+          ],
+          "attempts": {
+            "valid": 6,
+            "hits": 0,
+            "drift": 0,
+            "rate": 0,
+            "wilson": [
+              0,
+              0.3903
+            ],
+            "upper95": 0.5,
+            "text": "6 次有效尝试未复现；单次复现概率 95% 上界 ≈ 50%（3/n）"
+          },
+          "flags": {
+            "evidenceReview": "无命中，无需复核",
+            "substituted": "替代执行（ios → android-app）",
+            "selfCheck": "工具自检：未接入（P1）"
+          },
+          "durationSec": 128,
+          "runTag": "r7c7c4b"
+        },
+        {
+          "planId": "2010-android-app-v1",
+          "conclusion": "未复现",
+          "sentence": "未复现：6 次有效尝试未复现；单次复现概率 95% 上界 ≈ 50%（3/n）（替代执行 ios → android-app）",
+          "basis": [
+            "触发路径：清空输入框（全选 + 删除） → 在输入框键入「autotest-2010 re45d88 <轮号>」 → 确认输入框里有「autotest-2010 re45d88 <轮号>」（没有 = 本轮操作偏离，不计入） → 收起键盘，点 AI 改写按钮，等改写结束（≤ 10 秒）；先弹确认框则记「有确认」并点取消（计划动作，每轮执行；6 次有效尝试，无命中）",
+            "出现位置：聊天页输入框（chat.composer 的文字）（检查「点击改写后输入框仍是原草稿（没有被静默替换）」）",
+            "推测机制（未验证）：改写结果直接写回输入框（覆盖原文），没有确认步骤，也不保留原草稿供撤销；控件在打字时拇指落点附近（Issue 报告的推断）"
+          ],
+          "attempts": {
+            "valid": 6,
+            "hits": 0,
+            "drift": 0,
+            "rate": 0,
+            "wilson": [
+              0,
+              0.3903
+            ],
+            "upper95": 0.5,
+            "text": "6 次有效尝试未复现；单次复现概率 95% 上界 ≈ 50%（3/n）"
+          },
+          "flags": {
+            "evidenceReview": "无命中，无需复核",
+            "substituted": "替代执行（ios → android-app）",
+            "selfCheck": "工具自检：未接入（P1）"
+          },
+          "durationSec": 155,
+          "runTag": "re45d88"
+        },
+        {
+          "planId": "2010-android-app-v1",
+          "conclusion": "未复现",
+          "sentence": "未复现：6 次有效尝试未复现；单次复现概率 95% 上界 ≈ 50%（3/n）（替代执行 ios → android-app）",
+          "basis": [
+            "触发路径：清空输入框（全选 + 删除） → 在输入框键入「autotest-2010 r2ef86f <轮号>」 → 确认输入框里有「autotest-2010 r2ef86f <轮号>」（没有 = 本轮操作偏离，不计入） → 收起键盘，点 AI 改写按钮，等改写结束（≤ 10 秒）；先弹确认框则记「有确认」并点取消（计划动作，每轮执行；6 次有效尝试，无命中）",
+            "出现位置：聊天页输入框（chat.composer 的文字）（检查「点击改写后输入框仍是原草稿（没有被静默替换）」）",
+            "推测机制（未验证）：改写结果直接写回输入框（覆盖原文），没有确认步骤，也不保留原草稿供撤销；控件在打字时拇指落点附近（Issue 报告的推断）"
+          ],
+          "attempts": {
+            "valid": 6,
+            "hits": 0,
+            "drift": 0,
+            "rate": 0,
+            "wilson": [
+              0,
+              0.3903
+            ],
+            "upper95": 0.5,
+            "text": "6 次有效尝试未复现；单次复现概率 95% 上界 ≈ 50%（3/n）"
+          },
+          "flags": {
+            "evidenceReview": "无命中，无需复核",
+            "substituted": "替代执行（ios → android-app）",
+            "selfCheck": "工具自检：未接入（P1）"
+          },
+          "durationSec": 160,
+          "runTag": "r2ef86f"
+        }
+      ],
+      "series": {
+        "runs": 3,
+        "reachedLoop": 3,
+        "reproducedRuns": 0,
+        "validRuns": 3,
+        "valid": 18,
+        "hits": 0
+      },
+      "ended": {
+        "by": "normal",
+        "at": "停在收尾",
+        "envRecovery": "环境恢复结果未知"
+      },
+      "evidence": {
+        "report": "D:\\projects\\Tools\\multi-test-agent\\midscene_run\\series\\2010-t-20261030164313-eymy-2026-10-30T16-43-17-135Z\\report.md",
+        "runDir": "D:\\projects\\Tools\\multi-test-agent\\midscene_run\\series\\2010-t-20261030164313-eymy-2026-10-30T16-43-17-135Z",
+        "incidents": []
+      }
+    }
+  },
+  "cliDiffs": []
+}

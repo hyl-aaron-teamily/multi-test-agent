@@ -19,9 +19,9 @@
 
 | # | 验收项 | 结果 |
 |---|---|---|
-| 1 | 读树提速 | **PASS**（`scripts/w2m4-tree-bench.ts`，`docs/w2m4/tree-bench.json`，服务 v3）：会话列表 50 次 a11y-service **p50 49 / p95 56 ms**（uiautomator p50 2620 / p95 3274 ms）；聊天页 50 次 **p50 49 / p95 61 ms**（uiautomator p50 2627 / p95 3492 ms）；节点一致率（App 内有文字 / 描述的节点，按文字 + 边界）两屏均 **100%**（Jaccard 100%）。过程中发现并修复两处不一致（v1 过期树、v2 少列被遮挡节点），见「读树服务的三个真机发现」 |
-| 2 | 不回退 | **PASS**：代码门全绿（typecheck + 单测 270+）；2010 × 3：未复现 0/3（有效尝试 18、命中 0），与 W2-3 在 2.0.20 上的结论一致（改写有确认框）；1903 × 3：未复现 0/3（有效尝试 18、命中 0），与 W2-2 一致。读树后端仍是 uiautomator，每轮耗时无变化（记录） |
-| 3 | 退化可见 | 见下「退化演练」（声明 a11y-service 而服务未安装 → 运行照常完成，报告写明退回原因）；APK 安装后再做「人为停用」一次 |
+| 1 | 读树提速 | **PASS**（`scripts/w2m4-tree-bench.ts`，`docs/w2m4/tree-bench.json`，服务 v6）：会话列表 50 次 a11y-service **p50 49 / p95 61 ms**（uiautomator p50 2645 / p95 3058 ms）；聊天页 50 次 **p50 51 / p95 61 ms**（uiautomator p50 2661 / p95 3312 ms）。节点一致率（App 内有文字 / 描述、**正面积**的节点，按文字 + 边界）两屏均 **100%**；不限面积的原始比对：列表 100%、聊天页 93.3%（差的 3 个是 uiautomator 列出的边界倒置节点，主机侧有意去掉，见下）。真实运行中（App 在动画 / 键盘弹出）每次读树 p50 约 0.5 s、p95 约 0.8 s（v3，2010 × 3），仍比 uiautomator 快约 5 倍；p95 > 300 ms，按 G4「每轮多读一次」本期不评估。过程中的发现见「读树服务的真机发现」 |
+| 2 | 不回退 | **PASS**：代码门全绿；两种后端各跑 2010 × 3、1903 × 3（全部只用 MCP 工具）：uiautomator（`mcp-e2e-2010.json`、`mcp-e2e-1903.json`）与 a11y-service v6（`mcp-e2e-2010-a11y.json`、`mcp-e2e-1903-a11y.json`）结论都是未复现 0/3（各 18 次有效尝试、0 命中），与 W2-3（2010，2.0.20 有确认框）、W2-2（1903）一致；服务后端 0 次退回。每轮耗时：服务后端的轮内前提读取（`require`）从 2.4 s 降到约 0.45 s；同一天的动作间隔反而变长，是手机截图变慢（见发现 4），不是后端造成的 |
+| 3 | 退化可见 | **PASS**：未安装（声明了服务）与人为停用（已安装 v6，关掉无障碍开关）两种情况，运行都照常完成、结论未复现，报告「读树后端」写明退回 uiautomator 及原因；停用后任务结束时的环境恢复按配置项重新启用了服务（见「退化演练」） |
 | 4 | 执行前校验 | **PASS**：真机注入 4/4（同点通过；+60 px 修正回中心；+200 px 判「偏移」不点；不存在的目标判「消失」不点，`docs/w2m4/pretap-inject.json`）；单测覆盖偏移修正 / 遮挡 / 消失 / 资源 id / 像素；6 次真机运行每次准备期 1 次校验（冻结的会话行，通过），**循环内校验 0 次**（报告「执行前校验」一节） |
 | 5 | 诊断 | **PASS**：四种情况单测（锁屏 → blocked 51 + 需人工解锁；未授权 → blocked 52 + 需人工点允许；无模型配置 → degraded + 配 .env；平台未启动 → blocked 54 + `pnpm platform`）；真机：平台未启动时 exit 54 与下一步正确；`--fix` 只删本机残留（单测），全文无 `adb kill-server` |
 | 6 | MCP 闭环 | **PASS（脚本客户端）**：经 stdio 只用 MCP 工具完成 2010 × 3 与 1903 × 3：`doctor` → `draft_create` → `plan_explain` → `task_run`（20）→ `task_wait` ×18 / ×20（21 再等）→ `result_show`（`docs/w2m4/mcp-e2e-*.json`）；平台未启动 → 全部 54；敏感计划 → 30 + 审核页链接（完全授权开启时不会出现，按 G6 用关闭完全授权的隔离状态目录跑真实 API + MCP 映射验证，单测）。**在 Claude Code 界面里接入（`claude mcp add …`）需要人执行 `--print-config claude` 打印的命令**，未代为写入用户配置（G7） |
@@ -53,7 +53,7 @@
 ## 退化演练
 
 - 2026-10-30，平台以 `AUTOTEST_TREE_BACKEND=a11y-service` 启动（声明常驻服务，手机上未安装），提交 2010 一次（任务 `t-20261030133957-8nxs`）：运行照常完成，结论「未复现」；报告「读树后端」一节：`uiautomator：19 次，p50 2593 ms，p95 3138 ms`、`退回 uiautomator 1 次；首次原因：a11y-service: ai.autotest.a11y 未安装`（`midscene_run/issues/2010-android-app-v1-2026-10-30T13-40-00-406Z/report.md`）。
-- 「已安装后人为停用」的一次等 APK 装上后补跑。
+- 2026-10-31，v6 已安装，用 `core/a11y-service.ts#disableA11y` 从启用列表移除（等同在设置里关掉），提交 2010 一次（`t-20261030170026-9eyt`）：结论「未复现」；报告：`uiautomator：19 次，p50 2682 ms，p95 3503 ms`、`退回 uiautomator 1 次；首次原因：a11y-service: 已安装，无障碍服务未启用`。任务结束后的环境恢复按已同意的配置项重新启用，随后健康检查「服务正常（v6）」。
 
 ## 发现与修复
 
@@ -63,5 +63,5 @@
 
 ## 未完成 / 需人工
 
-1. 运行 `sh android/a11y-service/fetch-sdk.sh`（约 110 MB，来源 dl.google.com）→ 之后由 Claude 构建 APK、作为配置项安装启用、跑 §7.1 计时与一致率、§7.3 人为停用。HyperOS 安装侧载应用时手机上可能弹「USB 安装」确认，需要人点一次。
-2. 在 Claude Code 中接入：运行 `npx tsx scripts/mcp.ts --print-config claude` 打印的 `claude mcp add …`。
+1. 在 Claude Code 界面中接入：运行 `npx tsx scripts/mcp.ts --print-config claude` 打印的 `claude mcp add …`（G7：工具不代写用户配置）。
+2. 合并到 `main` 需用户同意。
