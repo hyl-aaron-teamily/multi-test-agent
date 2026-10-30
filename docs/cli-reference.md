@@ -222,6 +222,18 @@ Recent tasks
 
 可能的状态码：`OK`（另有 1 / 40 / 54）
 
+### `autotest doctor`
+
+Can runs start, what is missing, what to do next (ready / degraded / blocked; next steps split into commands and things only a person can do). Works with the platform down
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| --fix | boolean |  | safe local cleanup: stale locks, stale tree-service forwards, leases of dead tasks (never touches the device, never restarts adb) |
+| --probe | boolean |  | one screenshot + tree read per phone, both backends timed |
+| --json | boolean |  | stdout = one JSON envelope { status, code, exit, summary, data, error } |
+
+可能的状态码：`OK`、`PLATFORM_DOWN`、`ENV_LOCKED`、`ENV_OFFLINE`、`ENV_UNFIT`（另有 1 / 40 / 54）
+
 ### `autotest result show`
 
 ResultView of a finished task: conclusion sentence, basis, attempts, flags, failure kind, evidence
