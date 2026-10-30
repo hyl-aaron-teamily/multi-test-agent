@@ -60,3 +60,35 @@ describe('docs/agent-rules.md matches the tool table (W2-4 T7)', () => {
     expect(printConfig('x')).toMatch(/unknown client/);
   });
 });
+
+describe('MCP: sensitive plans stay Web-only (§7.6, full access off)', () => {
+  it('task_run / plan_approve for a sensitive series → 30, isError, review link in hint', async () => {
+    const { mkdtempSync, rmSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const { tmpdir } = await import('node:os');
+    const dir = mkdtempSync(join(tmpdir(), 'mcp30-'));
+    process.env.AUTOTEST_STATE_DIR = dir;
+    process.env.AUTOTEST_POLICY_FILE = join(dir, 'no-policy.yaml');
+    try {
+      const { apiV1 } = await import('./api-v1');
+      const { consentConfig, moveEnv, registerEnv } = await import('./lifecycle/env');
+      const { resolvePlan } = await import('./plans-v1');
+      const ENV = 'android-app:4f2ebdf2@prod';
+      registerEnv({ id: ENV, surface: 'android-app', serviceEnv: 'prod', device: '4f2ebdf2', udid: '4f2ebdf2', package: 'ai.teamily.mobile', configItems: [{ id: 'taplus', what: 'taplus', why: 'w', restore: 'r' }] });
+      moveEnv(ENV, 'checking', { by: 't', basis: 'x' });
+      moveEnv(ENV, 'ready', { by: 't', basis: 'x' });
+      consentConfig(ENV, 'taplus', 'aaron');
+      const id = `2010/main:android-app@v${(await import('./plans-v1')).savedDraft('2010')?.version ?? 1}`;
+      const call = (method: string, path: string, body: any = {}) => apiV1({ method, path: `/api/v1${path}`, query: new URLSearchParams(), body, web: false }, {});
+      const run = toolResult((await call('POST', '/tasks', { planId: id, series: 21 })) as any);
+      expect(run.isError).toBe(true);
+      expect(run.structuredContent).toMatchObject({ code: 'APPROVAL_REQUIRED', exit: 30, error: { kind: 'policy', retryable: false, hint: expect.stringMatching(/plan\.html/) } });
+      const ap = toolResult((await call('POST', `/plans/${encodeURIComponent(id)}/approve`, { hash: resolvePlan(id).hash, series: 21 })) as any);
+      expect(ap.structuredContent).toMatchObject({ code: 'APPROVAL_REQUIRED', exit: 30 });
+    } finally {
+      delete process.env.AUTOTEST_STATE_DIR;
+      delete process.env.AUTOTEST_POLICY_FILE;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

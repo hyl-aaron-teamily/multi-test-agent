@@ -12,7 +12,7 @@ import { approve, classifyPlan, getApproval, messageBound, reject, setFullAccess
 import { consentConfig, getEnv, moveEnv, registerEnv, updateEnv } from './lifecycle/env';
 import { CodedError, STATUS } from './lifecycle/status';
 import { createTask, moveTask } from './lifecycle/task';
-import { planHash, resolvePlan, staleFacts, versionFacts } from './plans-v1';
+import { planHash, resolvePlan, savedDraft, staleFacts, versionFacts } from './plans-v1';
 import { type TestPlan, TestPlanZ } from './schema/test-plan';
 import { planText, planView, resultText, resultView, stepText } from './views';
 import { COMMANDS, helpDoc } from '../scripts/cli-v1';
@@ -161,7 +161,7 @@ describe('W2-3 T7 API envelope and CLI help', () => {
     moveEnv(ENV, 'checking', { by: 't', basis: 'x' });
     moveEnv(ENV, 'ready', { by: 't', basis: 'x' });
   };
-  const pid2010 = () => `2010/main:android-app@v${resolvePlan('2010/main:android-app@v1').draft.version ?? 1}`;
+  const pid2010 = () => `2010/main:android-app@v${savedDraft('2010')?.version ?? 1}`;
 
   it('every answer is a valid envelope whose exit matches its code', async () => {
     ready();

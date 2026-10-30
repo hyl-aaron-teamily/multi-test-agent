@@ -160,12 +160,12 @@
           "suspectedMechanism": "改写结果直接写回输入框（覆盖原文），没有确认步骤，也不保留原草稿供撤销；控件在打字时拇指落点附近（Issue 报告的推断）",
           "provenance": {
             "by": "rules",
-            "skillVersion": "2026.10.28-1"
+            "skillVersion": "2026.10.30-1"
           }
         },
         "provenance": {
           "generatedBy": "rules",
-          "skillVersion": "2026.10.28-1",
+          "skillVersion": "2026.10.30-1",
           "pattern": "composer-rewrite"
         },
         "coverage": "covered"
@@ -205,25 +205,13 @@
         "suspectedMechanism": "改写结果直接写回输入框（覆盖原文），没有确认步骤，也不保留原草稿供撤销；控件在打字时拇指落点附近（Issue 报告的推断）",
         "provenance": {
           "by": "rules",
-          "skillVersion": "2026.10.28-1"
+          "skillVersion": "2026.10.30-1"
         }
       }
     }
   ],
-  "hash": "f50a913363a21b79",
+  "hash": "dd3b3ab8ed43bf03",
   "issueHash": "3553d9a723f6fcce",
   "env": "prod",
-  "version": 1,
-  "warmupFailures": [
-    {
-      "planId": "2010-android-app-v1",
-      "at": "2026-10-30T06:37:09.145Z",
-      "detail": "计划不可执行（预热第 1 步：teamily.clearComposer 预期 （不核验） 未出现 — the composer did not take focus (keyboard not up)）"
-    },
-    {
-      "planId": "2010-android-app-v1",
-      "at": "2026-10-30T07:44:14.932Z",
-      "detail": "计划不可执行（预热第 4 步：teamily.tapRewrite 预期 （不核验） 未出现 — rewrite did not start within 10 s (no spinner, no text change)）"
-    }
-  ]
+  "version": 2
 }
