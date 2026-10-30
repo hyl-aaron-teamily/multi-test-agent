@@ -1,0 +1,36 @@
+[
+  {
+    "phase": "warmup",
+    "fault": "adb-reconnect",
+    "at": "2026-10-30T08:12:54.827Z",
+    "task": {
+      "id": "t-20261030081255-r2yc",
+      "state": "done",
+      "code": "ENV_OFFLINE",
+      "endedBy": "normal",
+      "endedAt": {
+        "phase": "finishing"
+      }
+    },
+    "injectedAt": {
+      "phase": "warmup",
+      "round": 0,
+      "step": 0,
+      "at": "2026-10-30T08:13:25.609Z",
+      "summary": "warmup:teamily.clearComposer"
+    },
+    "injection": "adb -s 4f2ebdf2 reconnect",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261030081403-ybjp",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  }
+]

@@ -238,3 +238,6 @@
 [gate 07:59:36] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 517 s)
 [gate 07:59:58] estimate: 21/23 runs inside the PlanView interval (91%)
 [gate 07:59:58] estimate: 21/23 runs inside the PlanView interval (91%)
+[gate 08:13:25] warmup/adb-reconnect: task t-20261030081255-r2yc @ {"phase":"warmup","round":0,"step":0,"at":"2026-10-30T08:13:25.609Z","summary":"warmup:teamily.clearComposer"} — adb -s 4f2ebdf2 reconnect
+[gate 08:15:07] warmup/adb-reconnect: PASS — task done/ENV_OFFLINE/normal @{"phase":"finishing"}; env ready; next NOT_REPRODUCED
+[gate 08:15:07] faults: 1/1 passed (0 not run) → D:\projects\Tools\multi-test-agent\docs\w2m3-gate\faults-2026-10-30T08-12-54-826Z.json

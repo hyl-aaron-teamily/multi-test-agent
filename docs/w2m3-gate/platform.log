@@ -69,3 +69,6 @@
 [platform] console → http://localhost:3210  (maxConcurrent=2, devices=4f2ebdf2, emulator-5554)
 [supervisor] recover android-app:4f2ebdf2@prod: exit 53 {"status":423,"code":"ENV_QUARANTINED","exit":53,"summary":"android-app:4f2ebdf2@prod：已隔离 — 残留进程：18660 sh -c rm -f /sdcard/autotest_ui_0.xml; uiautomator dump /sdcard/autotest_u, 18663 uiautomator；被测 
 [supervisor] recover android-app:4f2ebdf2@prod: exit 52 {"status":503,"code":"ENV_OFFLINE","exit":52,"summary":"android-app:4f2ebdf2@prod：不合格 — 设备不在线（adb 不可达）；建议：检查 USB 连接 / adb，然后点「重新检查」","data":{"env":{"schemaVersion":1,"kind":"EnvView","id":"android-app
+[platform] console → http://localhost:3210  (maxConcurrent=2, devices=4f2ebdf2, emulator-5554)
+[supervisor] recover android-app:4f2ebdf2@prod: exit 0 {"status":200,"code":"OK","exit":0,"summary":"android-app:4f2ebdf2@prod：就绪；恢复动作：收起键盘；返回（chat）","data":{"env":{"schemaVersion":1,"kind":"EnvView","id":"android-app:4f2ebdf2@prod","state":"ready","state
+[supervisor] recover android-app:4f2ebdf2@prod: exit 0 {"status":200,"code":"OK","exit":0,"summary":"android-app:4f2ebdf2@prod：就绪；恢复动作：按声明重写 taplus：HyperOS「文本识别」(Taplus) 对 ai.teamily.mobile 关闭：把它加入 global taplus_blacklist","data":{"env":{"schemaVersion":1

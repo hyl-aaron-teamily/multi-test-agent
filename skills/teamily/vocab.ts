@@ -4,7 +4,7 @@
 import type { Surface } from '../../platform/accounts/types';
 import { NODE_SPECS } from './node-specs';
 
-export const SKILL_VERSION = '2026.10.28-1';
+export const SKILL_VERSION = '2026.10.30-1';
 
 export interface ElementSpec {
   id: string;
@@ -35,6 +35,7 @@ export const ELEMENTS: ElementSpec[] = [
   { id: 'chat.composer', page: 'chat', meaning: '消息输入框', selfCheck: 'focus', surfaces: ALL },
   { id: 'chat.send', page: 'chat', meaning: '发送按钮（输入内容后出现）', selfCheck: 'none', surfaces: ALL },
   { id: 'chat.rewrite', page: 'chat', meaning: '输入框工具条的 AI 改写（星芒「强化 prompt」）按钮（键盘收起时）', selfCheck: 'none', surfaces: ['android-app'] },
+  { id: 'chat.rewriteCancel', page: 'rewrite-confirm', meaning: '点 AI 改写后弹出的「用记忆强化 prompt?」确认框的「取消」按钮（Teamily 2.0.20 起；旧版本无此框，标定时不出现则不记录）', selfCheck: 'none', surfaces: ['android-app'] },
   { id: 'chat.back', page: 'chat', meaning: '聊天页返回会话列表（移动端）', selfCheck: 'navigate', surfaces: MOBILE },
   { id: 'profile.bell', page: 'profile', meaning: '个人主页头部右上角 🔔 通知入口', selfCheck: 'popup', surfaces: WEB },
   { id: 'artifacts.firstCard', page: 'artifacts', meaning: 'Artifacts 网格第一个卡片位（打开任意文档 / CloudDoc，新标签页）', selfCheck: 'navigate', surfaces: ['desktop-web'] },
@@ -46,6 +47,7 @@ export const ELEMENTS: ElementSpec[] = [
 export const REGIONS: { page: string; region: string; meaning: string }[] = [
   { page: 'home', region: 'nav', meaning: '左侧导航栏（版本失效检测）' },
   { page: 'chat', region: 'composer', meaning: '输入框区域' },
+  { page: 'rewrite-confirm', region: 'dialog', meaning: '点 AI 改写后弹出的确认框（存在 = 「有确认」，W2-2 §5.2：不算命中）' },
   { page: 'mention-picker', region: 'picker', meaning: '输入 @ 后出现的成员/智能体选择器（存在 = 弹出）' },
 ];
 

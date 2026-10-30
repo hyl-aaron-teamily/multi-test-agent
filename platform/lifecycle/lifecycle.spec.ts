@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import type { AndroidBaselineDriver } from './baseline';
+import { type AndroidBaselineDriver, touchedConversations } from './baseline';
 import { closeTask, judge, offlineEnv, onlineEnv, orphanSweep, startupCrossCheck, watchdogTick } from './crosscheck';
 import { canMove, consentConfig, endLease, type EnvRecord, getEnv, leaseEnv, moveEnv, registerEnv, unconsented } from './env';
 import type { ProcProbe } from './proc';
@@ -218,6 +218,10 @@ describe('W2-3 T2 lifecycle: ledger, recovery, idempotence', () => {
     (rt as any).lastPoll = 0;
     expect(() => rt.beforeAction({ type: 'tap', element: 'chat.send', delayAfterMs: 0 }, { round: 1, step: 4, target })).toThrow(CancelledError);
     expect(effectOf({ type: 'wait', value: '100', delayAfterMs: 0 }, 'x', target)).toBeUndefined();
+    // a target located by vision has no title: entered without a name (recovery cannot open it by name)
+    expect(effectOf({ type: 'node', node: { name: 'teamily.openConversation', input: { target: 'other' } }, delayAfterMs: 0 }, undefined, target)).toMatchObject({ kind: 'enter-conversation', target: undefined, value: expect.stringContaining('标题未知') });
+    // clearing the input leaves no draft: not a touched conversation
+    expect(touchedConversations([{ kind: 'type', target: 'A', value: 'clearComposer' }, { kind: 'type', target: 'B', value: 'hi' }, { kind: 'send', target: 'C' }])).toEqual(['B', 'C']);
   });
 
   it('recovery brings a dirty phone back to the baseline (L3) and is idempotent', async () => {
@@ -281,6 +285,17 @@ describe('W2-3 T2 lifecycle: ledger, recovery, idempotence', () => {
     expect(r.env.state).toBe('quarantined');
     expect(r.env.reason).toMatch(/输入框不为空/);
     expect(getEnv(ENV)!.state).not.toBe('ready'); // never "ready but baseline failed"
+  });
+
+  it('the chat left open is checked first, whatever its title', async () => {
+    const ph = new FakePhone();
+    ph.open = 'some chat';
+    ph.composers['some chat'] = 'left behind';
+    env('recovering');
+    const r = await recoverEnv(ENV, drivers(ph));
+    expect(r.env.state).toBe('ready');
+    expect(ph.composers['some chat']).toBe('');
+    expect(r.did.join(' ')).toMatch(/当前打开会话/);
   });
 
   it('records the installed app version at every check (approvals bind it)', async () => {

@@ -35,7 +35,9 @@ export function effectOf(a: PlannedAction, conv: string | undefined, target: (id
   const inp = (a.node?.input ?? {}) as Record<string, unknown>;
   if (n && ENTER_NODES.has(n)) {
     const id = String(inp.target ?? inp.from ?? '');
-    return { kind: 'enter-conversation', target: target(id) ?? id };
+    // Unknown title (target located by vision): recorded without a name — recovery cannot open it by name.
+    const name = target(id);
+    return { kind: 'enter-conversation', target: name, value: name ? undefined : `目标 ${id}（标题未知）` };
   }
   if (n && SEND_NODES.has(n)) return { kind: 'send', target: conv, value: String(inp.text ?? '') || undefined };
   if (n && TYPE_NODES.has(n)) return { kind: 'type', target: conv, value: n === 'teamily.typeMention' ? '@' : n.replace('teamily.', '') };

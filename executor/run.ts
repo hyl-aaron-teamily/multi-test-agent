@@ -22,7 +22,7 @@ import type { NodeContext } from '../skills/teamily/nodes';
 import { execAction } from './actions';
 import { locate, locateTally, locateText } from './locate';
 import { composerText } from './observe';
-import { visionAsker } from './checks';
+import { regionShows, visionAsker } from './checks';
 import type { RunCtx } from './context';
 import { runLoop } from './loop';
 import { runAcceptance, runCorrectPath } from './phases';
@@ -268,6 +268,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       credentials: () => o.pool.backend.get(account.id),
       // prepare-only Nodes (validator keeps them out of the loop)
       locate: async (desc, texts, newest, textOnly) => (textOnly ? await locateText(s.inner, texts, newest) : await locate(s.inner, desc, { texts, newest, purpose: 'prep' }))?.point ?? null,
+      regionShows: (img, key) => regionShows(img, s.profile, key),
       onFreeze: (id, point, chosen) => res.targets.push({ id, kind: 'picker-row', point, chosen, reason: 'located by its literal text (①) at preparation', by: 'text' }),
     };
     const c: RunCtx = {
@@ -286,7 +287,11 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       // {token} / {round} → this run's marker and the current round; `require` steps read ① (no input).
       exec: (a: PlannedAction) => {
         const x = expandAction(a, { token: runTag, round: s.d.round });
-        o.hooks?.beforeAction(x, { round: s.d.round, step: s.d.step, label: s.d.label, target: (id) => res.targets.find((t) => t.id === id)?.chosen, budgetMs: x.type === 'idle' ? 120_000 + Number(x.value ?? 0) : undefined });
+        o.hooks?.beforeAction(x, { round: s.d.round, step: s.d.step, label: s.d.label, target: (id) => {
+          // Only a title read from the screen names a conversation; a vision pick knows its description only.
+          const t = res.targets.find((x) => x.id === id);
+          return t && (t.by === 'model' || t.by === 'rules') ? t.chosen : undefined;
+        }, budgetMs: x.type === 'idle' ? 120_000 + Number(x.value ?? 0) : undefined });
         return x.type === 'require' ? requireNow(c, x) : execAction(x, nodeCtx, s.profile, targets);
       },
       frames: [],

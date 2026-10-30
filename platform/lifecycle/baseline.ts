@@ -56,8 +56,8 @@ export interface Walk {
 
 const item = (id: string, ok: boolean, detail: string, auto = true): BaselineItem => ({ id, ok, detail, auto });
 
-/** Conversations the last task typed into (ledger), each once. */
-export const touchedConversations = (ledger: { kind: string; target?: string }[]) => [...new Set(ledger.filter((l) => (l.kind === 'type' || l.kind === 'send') && l.target).map((l) => l.target!))];
+/** Conversations the last task typed into (ledger), each once. Clearing the input leaves no draft: not a touch. */
+export const touchedConversations = (ledger: { kind: string; target?: string; value?: string }[]) => [...new Set(ledger.filter((l) => (l.kind === 'type' || l.kind === 'send') && l.target && l.value !== 'clearComposer').map((l) => l.target!))];
 
 /** The android-app walk. `touched` = conversations typed into by the last task. */
 export async function walkAndroid(d: AndroidBaselineDriver, env: Pick<EnvRecord, 'configItems' | 'ime'>, touched: string[], fix: boolean, host?: HostBaselineDriver): Promise<Walk> {
@@ -99,6 +99,17 @@ export async function walkAndroid(d: AndroidBaselineDriver, env: Pick<EnvRecord,
     res = await d.residual();
   }
   items.push(item('residual', !res.length, res.length ? `残留进程：${res.join(', ')}` : '无残留进程（yadb / uiautomator / input）'));
+
+  // The chat left open (an abnormal exit usually stops inside it): its input box first, whatever its title.
+  if ((await d.where()) === 'chat') {
+    let t = await d.composer();
+    if (t && fix) {
+      await d.clearComposer();
+      did.push(`清空当前打开会话的输入框（原有「${t.slice(0, 30)}${t.length > 30 ? '…' : ''}」）`);
+      t = await d.composer();
+    }
+    if (t !== null) items.push(item('composer:当前会话', t === '', t ? `当前打开会话的输入框不为空：「${t.slice(0, 40)}」` : '当前打开会话的输入框为空'));
+  }
 
   // Touched conversations: input box empty (opened from the home list by name).
   for (const name of touched) {

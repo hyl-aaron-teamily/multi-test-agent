@@ -50,7 +50,7 @@ Teamily 客户端测试台。交给它一份 Issue，它判断问题类型、生
 | 2235 | 暂缓 | 多账号 |
 | 1426 / 1918 | 暂缓（只分类 + 契约） | 需拖选 + 剪贴板 / Agent 回复内容不可构造 |
 
-W2-3 验收（`docs/w2m3-acceptance.md`）：故障注入 20 格 19 格通过；确定性、一致性、代码门、脚本化 Agent 闭环通过；同事验收、敏感计划 Web 同意后再执行、预热阶段 adb 断连一格（注入方式已从 `adb kill-server` 改为 `adb reconnect`，待重跑）、旧入口跑 2010 得出结论的一次未完成。
+W2-3 验收（`docs/w2m3-acceptance.md`）：故障注入 20 格全部通过（预热断连一格 2026-10-30 改用 `adb reconnect` 补跑）；确定性、一致性、代码门、脚本化 Agent 闭环通过；同事验收、敏感计划 Web 同意后再执行、旧入口跑 2010 得出结论的一次未完成。
 
 另检出的产品现象：App 进后台期间收到的消息，回前台 60 秒内不显示（M6 多端同步）；会话列表预览显示「[自定义消息]」占位（W4 自然语言任务，人工确认）。
 
@@ -123,7 +123,7 @@ W2-3 验收（`docs/w2m3-acceptance.md`）：故障注入 20 格 19 格通过；
 ## 6. 规模与测试
 
 - 147 个提交（10-19 — 10-29）；TypeScript 约 2.06 万行（其中 26 个单测文件 2148 行），另有 W2-3 页面与旧控制台 HTML / JS 558 行。不含单测的行数：platform 3979、executor 3656、scripts 2231、skills 1751、core 1215、incident 962、imui 928、issue 805，其余（drivers 653、mission / explore / monkey / report / replay、fixtures 等）约 2900。
-- 2026-10-30：`pnpm typecheck` 通过；`pnpm test:unit` 24 个文件 209/209 通过。`test:web`、`test:android` 各只有 1 个用例（每个用例 5 步）。代码门 `pnpm code-gate`（typecheck + 单测 + 证据复核预置用例）W2-3 实测 192 秒。
+- 2026-10-30：`pnpm typecheck` 通过；`pnpm test:unit` 26 个文件 215/215 通过。`test:web`、`test:android` 各只有 1 个用例（每个用例 5 步）。代码门 `pnpm code-gate`（typecheck + 单测 + 证据复核预置用例）W2-3 实测 192 秒。
 - CI（`.github/workflows/ai-test.yml`）只做过语法检查，未在真实 runner 上运行。
 
 ## 7. 已知差异与限制（代码核对，2026-10-29）
@@ -135,7 +135,7 @@ W2-3 验收（`docs/w2m3-acceptance.md`）：故障注入 20 格 19 格通过；
 3. ~~手机浏览器环境的恢复不检查手机~~ **已修复（2026-10-30）**：android-web 环境走 `baseline.ts#walkAndroidWeb`（在线、锁屏、残留进程、键盘、结束浏览器、输入法、配置项），并声明与 App 相同的环境配置项；键入过的会话不逐个打开核对，作为说明项列出。另：App 版本的批准绑定此前不生效（环境从未写入版本），已改为每次检查 / 恢复与每次运行后记录（`recover.ts#walk`、`scripts/task-exec.ts`）；策略或完全授权做出的批准遇版本变化自动续批，人或 Agent 显式批准的仍返回 32。
 4. **自愈门槛比需求宽**：`executor/session.ts#enterApp` 只要有一个首页元素按指纹找回就继续（W2-1 要求全部找回）。
 5. **`runPlan` 回涨到 241 行**：W2-1 合并时 135 行（要求 ≤ 150），W2-2 后 222 行。
-6. **SKILL 版本不比对**：`skills/teamily/vocab.ts#SKILL_VERSION` 为 2026.10.28-1，正式 profile 记录 2026.10.26-1，加载时不检查（只有 `executor/replay.ts` 告警）；审批绑定的是代码常量与 profile 文件哈希。
+6. **SKILL 版本不比对**：`skills/teamily/vocab.ts#SKILL_VERSION` 为 2026.10.30-1（android-app 正式 profile 已同步，其余 profile 仍记录旧版本），加载时不检查（只有 `executor/replay.ts` 告警）；审批绑定的是代码常量与 profile 文件哈希。
 7. **证据复核**：排除计数只在计入命中时清零（实际是「自上次计入命中以来 3 次」，不是严格连续）；一次运行的现场包（含崩溃、看门狗）减去被排除的达到 5 个后，后续检查类命中不再写现场包、不再复核，直接计数（`executor/loop.ts`）。
 8. **坐标重放**：只判 `visual-region` 检查与硬异常，引用定位（baseline）、文字、键盘类命中重放不出；偏离比对的原轮末帧取在 afterCheck 之前，重放取在之后。
 9. **多端同步的 Web 接收端读页面文字**（`executor/sync.ts#lineVisible` → `observe.ts#pageHasText`），`README.md` 与 `sync.ts` 文件头仍写「Web 用视觉、不读 DOM」。

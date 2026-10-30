@@ -409,7 +409,7 @@ exports[`W2-3 T6 view models > PlanView snapshot: 2010-android-app-v1 1`] = `
     {
       "sends": false,
       "stage": "loop",
-      "text": "收起键盘，点 AI 改写按钮，等改写结束（≤ 10 秒）",
+      "text": "收起键盘，点 AI 改写按钮，等改写结束（≤ 10 秒）；先弹确认框则记「有确认」并点取消",
     },
     {
       "stage": "check",

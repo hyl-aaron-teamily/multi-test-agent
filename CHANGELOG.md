@@ -22,6 +22,13 @@
 - W2-3 任务路径的「计划不可执行」此前不写回草稿：与旧入口共用 `issue/drafts.ts#recordWarmupFailures`。
 - 故障注入的断连改为 `adb -s <手机> reconnect`（见 `docs/w2m3-acceptance.md`）。
 
+### Fixed（2026-10-30，真机验证发现）
+- android-app 冷启动：先等首页或聊天页（≤ 20 s），不在闪屏上按返回（那会退出 App）；App 不在前台时重新启动（`executor/surfaces.ts`）。
+- 墨迹区域比对：参考图浅色背景处变暗超过一半判为不匹配（`core/image.ts` `SPILL_MAX`），暗色桌面不再通过 SKILL 检查。
+- 副作用台账：只有屏幕上读到的标题才算会话名，视觉选出的目标记为「标题未知」；`clearComposer` 不当会话名；恢复先查当前打开会话的输入框。
+- Teamily 2.0.20：改写按钮新无障碍名「用记忆强化 prompt」（标定正则）；**改写确认框** = 「有确认」——标定记 `chat.rewriteCancel` 与参考区域 `rewrite-confirm/dialog`，`tapRewrite` 每次轮询先按像素比对，看到即点取消并返回（草稿不变，不算命中，W2-2 §5.2）；节点上下文新增 `regionShows`（`executor/checks.ts`）。SKILL 版本 2026.10.30-1。
+- 标定：草稿改用 yadb 输入（测试机输入法吞 `input text`）；仅键盘弹出时按返回。
+
 ### Changed
 - 2026-10-30：功能开发期完全授权默认开启（`platform/policy.yaml` `fullAccessDefault: true`，用户决定），开发结束时关闭。
 - 控制台旧任务类型改读子进程写的结构化结果（`core/task-result.ts`，`AUTOTEST_RESULT_FILE`），平台不再正则解析日志。
