@@ -10,7 +10,7 @@ SDK=tools/android-sdk
 DL=$SDK/_dl
 mkdir -p "$DL"
 case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) OS=windows ;; Darwin) OS=macosx ;; *) OS=linux ;; esac
-curl -fsSL -o "$DL/repo.xml" "$REPO/repository2-3.xml"
+[ -s "$DL/repo.xml" ] || curl -fsSL -o "$DL/repo.xml" "$REPO/repository2-3.xml"
 PLAT=$(grep -o 'platform-34[^<"]*\.zip' "$DL/repo.xml" | sort -u | tail -1)
 BT=$(grep -o "build-tools_r34[^<\"]*${OS}[^<\"]*\.zip" "$DL/repo.xml" | sort -u | tail -1)
 [ -n "$PLAT" ] && [ -n "$BT" ] || { echo "could not find platform-34 / build-tools 34 ($OS) in the repository manifest"; exit 2; }
@@ -23,7 +23,9 @@ for f in "$PLAT" "$BT"; do
   [ -n "$want" ] && [ "$got" = "$want" ] || { echo "[sdk] checksum mismatch for $f (want ${want:-?}, got $got) — deleted"; rm -f "$DL/$f"; exit 3; }
 done
 unpack() { # zip, destination: the zip holds one top directory
-  rm -rf "$DL/x" && mkdir -p "$DL/x" && (cd "$DL/x" && jar xf "../$(basename "$1")")
+  rm -rf "$DL/x" && mkdir -p "$DL/x"
+  # unzip keeps the executable bits; else the JDK's jar (JAVA_HOME: only java/javac may be on PATH on Windows).
+  if command -v unzip >/dev/null 2>&1; then unzip -q "$1" -d "$DL/x"; else (cd "$DL/x" && "${JAVA_HOME:+$JAVA_HOME/bin/}jar" xf "../$(basename "$1")"); fi
   top=$(ls "$DL/x" | head -1)
   rm -rf "$2" && mkdir -p "$(dirname "$2")" && mv "$DL/x/$top" "$2"
 }
