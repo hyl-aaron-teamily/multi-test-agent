@@ -1,6 +1,8 @@
 package ai.autotest.a11y;
 
 import android.accessibilityservice.AccessibilityService;
+import android.accessibilityservice.AccessibilityServiceInfo;
+import android.os.Build;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
@@ -21,13 +23,26 @@ import java.util.List;
  */
 public class TreeService extends AccessibilityService {
     static final int PORT = 18765;
-    static final int VERSION = 3;
+    static final int VERSION = 4;
 
     private volatile ServerSocket server;
     private volatile boolean connected;
 
     @Override
     protected void onServiceConnected() {
+        // Fresh trees without perturbing the app under test: an app only generates the accessibility event
+        // types some enabled service subscribes to, so subscribing to all of them (v2/v3) slowed Teamily's own
+        // reactions about 2x on 4f2ebdf2. API 34+: no node cache (every dump queries the app) and window-state
+        // events only (tree_service.xml). Older: the cache is kept fresh by receiving every event type.
+        if (Build.VERSION.SDK_INT >= 34) {
+            setCacheEnabled(false);
+        } else {
+            AccessibilityServiceInfo info = getServiceInfo();
+            if (info != null) {
+                info.eventTypes = AccessibilityEvent.TYPES_ALL_MASK;
+                setServiceInfo(info);
+            }
+        }
         connected = true;
         Thread t = new Thread(this::serve, "autotest-a11y-server");
         t.setDaemon(true);

@@ -17,8 +17,8 @@ export const A11Y_PKG = 'ai.autotest.a11y';
 export const A11Y_SERVICE = `${A11Y_PKG}/${A11Y_PKG}.TreeService`;
 export const A11Y_PORT = 18765;
 export const A11Y_TOKEN_ACTION = `${A11Y_PKG}.SET_TOKEN`;
-/** Service version this host expects (v1: stale tree — window-state events only; v2: skipped nodes uiautomator lists). */
-export const A11Y_VERSION = 3;
+/** Service version this host expects (v1: stale cache; v2: skipped nodes uiautomator lists; v3: all event types slowed the app). */
+export const A11Y_VERSION = 4;
 export const A11Y_APK = resolve(process.env.AUTOTEST_A11Y_APK ?? 'tools/a11y/autotest-a11y.apk');
 
 const ports = new Map<string, number>();
