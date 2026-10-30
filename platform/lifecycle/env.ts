@@ -28,6 +28,8 @@ export interface BaselineItem {
   detail: string;
   /** Can the recovery fix it without a person (锁屏: no). */
   auto: boolean;
+  /** Passes (optional, degraded) but a fix pass could still make it work (consented, not yet applied). */
+  pending?: boolean;
 }
 
 export interface EnvLease {

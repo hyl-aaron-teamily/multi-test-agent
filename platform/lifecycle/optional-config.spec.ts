@@ -25,7 +25,14 @@ const phone = (svc: { ok: boolean; applyThrows?: boolean }): AndroidBaselineDriv
 });
 
 describe('optional configuration item (tree service)', () => {
-  const items = androidConfigItems('ai.teamily.mobile', 'a11y-service');
+  const items = androidConfigItems('ai.teamily.mobile', 'a11y-service').map((c) => ({ ...c, consentedAt: '2026-10-30T00:00:00Z' }));
+  it('not consented yet → not applied (no install before the one-time consent)', async () => {
+    let applied = false;
+    const ph = { ...phone({ ok: false }), applyConfig: async () => void (applied = true) };
+    const w = await walkAndroid(ph, { configItems: androidConfigItems('p', 'a11y-service').filter((c) => c.id === 'a11y-service') }, [], true);
+    expect(applied).toBe(false);
+    expect(w.items[w.items.length - 1].detail).toMatch(/待同意，未应用/);
+  });
   it('is declared only when the device asks for the service, and is optional', () => {
     expect(androidConfigItems('p').map((c) => c.id)).toEqual(['taplus', 'stayon']);
     expect(items.find((c) => c.id === 'a11y-service')?.optional).toBe(true);
@@ -36,6 +43,10 @@ describe('optional configuration item (tree service)', () => {
     const it = w.items.find((i) => i.id === 'config:a11y-service')!;
     expect(it.ok).toBe(true);
     expect(it.detail).toMatch(/应用失败：INSTALL_FAILED_USER_RESTRICTED.*退回 uiautomator/);
+  });
+  it('consented but unmet in a check-only walk → pending (env check then runs one fix pass)', async () => {
+    const w = await walkAndroid(phone({ ok: false }), { configItems: items }, [], false);
+    expect(w.items.find((i) => i.id === 'config:a11y-service')).toMatchObject({ ok: true, pending: true });
   });
   it('met → plain pass', async () => {
     const w = await walkAndroid(phone({ ok: true }), { configItems: items }, [], false);

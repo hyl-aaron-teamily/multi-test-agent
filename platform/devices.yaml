@@ -13,6 +13,9 @@ devices:
     accounts:
       android-app: prod-aaron1   # Teamily app (aaron+test1)
       android-web: prod-aaron3   # phone browser, Teamily web (aaron+test3)
+    # W2-4: read the accessibility tree through the on-device read-only service (android/a11y-service);
+    # installed / enabled by the env configuration item `a11y-service`; unusable → falls back to uiautomator.
+    treeBackend: a11y-service
   - udid: emulator-5554
     name: placeholder emulator (offline unless started)
 hosts:

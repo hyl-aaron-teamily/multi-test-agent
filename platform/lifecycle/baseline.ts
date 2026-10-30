@@ -61,18 +61,23 @@ const item = (id: string, ok: boolean, detail: string, auto = true): BaselineIte
 async function configWalk(d: AndroidBaselineDriver, c: ConfigItem, fix: boolean, did: string[]): Promise<BaselineItem> {
   let r = await d.configOk(c);
   let err = '';
-  if (!r.ok && fix) {
+  // An optional item (installing the tree service) is applied only after its one-time consent.
+  if (!r.ok && fix && c.optional && !c.consentedAt) err = '；待同意，未应用';
+  else if (!r.ok && fix) {
     try {
       await d.applyConfig(c);
       did.push(`按声明重写 ${c.id}：${c.what}`);
     } catch (e) {
       if (!c.optional) throw e;
-      err = `；应用失败：${(e as Error).message.split('\n')[0].slice(0, 120)}`;
+      const lines = (e as Error).message.split('\n');
+      err = `；应用失败：${(lines.find((l) => /Failure|失败|没有/.test(l)) ?? lines[0]).trim().slice(0, 160)}`;
+      // A recovery reports its follow-up check walk: keep the reason with its actions too.
+      did.push(`${c.id} 未能应用${err.slice(1)}`);
     }
     r = await d.configOk(c);
   }
   if (r.ok || !c.optional) return item(`config:${c.id}`, r.ok, r.detail);
-  return item(`config:${c.id}`, true, `${r.detail}${err}（可选项未生效：读树退回 uiautomator）`);
+  return { ...item(`config:${c.id}`, true, `${r.detail}${err}（可选项未生效：读树退回 uiautomator）`), ...(!fix && c.consentedAt ? { pending: true } : {}) };
 }
 
 /** Conversations the last task typed into (ledger), each once. Clearing the input leaves no draft: not a touch. */
