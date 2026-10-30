@@ -7,6 +7,8 @@
 
 开发期间 `platform/policy.yaml` 的 `fullAccessDefault: true`（全部自动同意，包括环境配置项）；**里程碑结束时已改为 `false`**。之后：环境配置项（Taplus 黑名单、充电常亮）可由 Claude 代为同意；敏感计划必须用户本人在 Web 同意。本期真机运行中的配置项同意记录为 `full-access（default (platform/policy.yaml)）`。
 
+**2026-10-30 更新（用户决定）**：整个功能开发期 `fullAccessDefault` 改回 `true`（`platform/state/full-access.json` 同步为开启，审计记录操作者 `dev default (user 2026-10-30)`）；敏感计划自动批准、环境配置项自动同意，硬约束仍拒绝。开发结束时改回 `false`。
+
 ## 结果汇总
 
 | # | 验收项 | 结果 |
@@ -22,7 +24,7 @@
 
 ## §10.3 故障矩阵（每格之后紧跟一次正常任务，均得出结论「未复现」）
 
-| 阶段 \ 故障 | 强杀任务进程 | 冻结进程（NtSuspendProcess） | 强杀平台后重启 | adb kill-server |
+| 阶段 \ 故障 | 强杀任务进程 | 冻结进程（NtSuspendProcess） | 强杀平台后重启 | adb 断连（当时用 `adb kill-server`） |
 |---|---|---|---|---|
 | 预检 | PASS interrupted / 63 | PASS failed / 62 | PASS interrupted / 72 | 首次 FAIL（预检里 adb 报错被记成工具 60 → 已修）；重跑 PASS env-unfit / 50 |
 | 准备 | PASS 63 | PASS 62 | PASS 72 | PASS 52（ENV_OFFLINE） |
@@ -53,8 +55,22 @@
 - §10.8 预计耗时：21/23（91%），新增运行落在区间内；样本仍主要是校准用的同一批。
 - 预热阶段 adb-kill：再跑 1 次，注入后手机再次掉出 adb，约 10 分钟无授权 → 按用户规则停止，**未完成**。
 
+## 2026-10-29 断连注入方式变更（用户决定）
+
+- `adb kill-server` 会重启整个 adb 服务，这台手机每次都因此掉 USB 调试授权，必须有人点「允许」，故障矩阵因此反复卡住。
+- 门脚本 `scripts/w2m3-gate.ts` 改为 `adb -s <手机> reconnect`（故障名 `adb-reconnect`，旧名 `adb-kill` 作别名）：只从主机侧踢开这台手机的连接，任务的常驻 adb shell 与 logcat 流照样断开，adb 服务和授权密钥不动，手机自行重连。
+- 注入后手机 90 秒内没有回到 adb 就停止本次矩阵并写明原因，不再等人授权（原来最多等 10 分钟）。
+- 以上表格与记录是旧方式下的结果，保留不改；新方式尚未在真机上跑过。
+
+## 2026-10-30 修复（代码核对发现的三项）
+
+- android-web 环境的恢复与基线检查改为检查手机（`walkAndroidWeb`），并声明环境配置项。
+- App 版本写入环境（每次检查 / 恢复与每次运行后），批准绑定生效；策略 / 完全授权批准遇版本变化自动续批，显式批准返回 32。
+- 新任务路径的「计划不可执行」写回草稿（`recordWarmupFailures`）。
+- 单测 209/209、typecheck 通过；以上三项尚未在真机上验证。
+
 ## 未完成
-- 预热阶段 adb-kill 一格（每次注入都让手机掉 USB 调试授权，疑似数据线 / HyperOS）。
+- 预热阶段 adb 断连一格（原 `adb kill-server` 每次都让手机掉 USB 调试授权，疑似数据线 / HyperOS；已改为 `adb reconnect`，待重跑）。
 - 敏感计划 Web 同意 → 再执行（需用户本人点）。
 - 2010 走旧入口得出结论的那 1 次（本次预热失败）。
 - §10.2 同事验收；参考项 Claude 子代理演练。

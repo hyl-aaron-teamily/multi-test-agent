@@ -273,4 +273,4 @@
 - **android-web 的「浏览器已连上」不在预检里**：这项检查在启动后的弹窗处理阶段做（`executor/surfaces.ts` 内的 `awaitConnected`，视觉判断），不在预检里；android-web 的预检与 App 相同，只是包名换成浏览器。
 - **隔离只对 android-app**：`cleanStart` 与 `teardown` 开头就判断执行端，其他端不清草稿、不复位。
 - **Web trace 只有 Playwright 端才有**：android-web 运行失败时没有 trace（它不是 Playwright 驱动）。
-- **预检的 Taplus 改动在 W2-3 改为「环境配置项」**：注册环境时同意一次（`platform/lifecycle/android-ops.ts#androidConfigItems`）。但 `preflightAndroid` 本身仍会每次重写，不检查是否已同意；同意与否只在 W2-3 的 `task run` 路径上把关。
+- **预检的 Taplus 改动在 W2-3 改为「环境配置项」**：注册环境时同意一次（`platform/lifecycle/android-ops.ts#androidConfigItems`；2026-10-30 起 android-app 与 android-web 两种手机环境都声明）。但 `preflightAndroid` 本身仍会每次重写，不检查是否已同意；同意与否只在 W2-3 的 `task run` 路径上把关。

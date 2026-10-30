@@ -14,6 +14,7 @@ Teamily 客户端测试台。交给它一份 Issue，它判断问题类型、生
 - 判定确定性优先：日志 / 进程 / 系统状态 / 无障碍或页面文字 / 区域比对在前，视觉模型兜底；检查类命中先经录屏证据复核才计数。
 - 结论只陈述观察到的事实：带有效尝试数、单轮命中率与 Wilson 95% 区间，0 命中给 3/n 上界；失败分「环境 / 工具」。
 - 确认即冻结：用户确认的计划（哈希）就是执行的计划。
+- 审批（功能开发期，2026-10-30 用户决定）：完全授权默认开启——被测软件内操作与敏感计划都自动批准、环境配置项自动同意；只有硬约束（删除 / 撤回消息、允许清单外会话发消息、锁屏 PIN）仍拒绝。开发结束时关闭。
 
 ## 2. 里程碑与编号
 
@@ -49,7 +50,7 @@ Teamily 客户端测试台。交给它一份 Issue，它判断问题类型、生
 | 2235 | 暂缓 | 多账号 |
 | 1426 / 1918 | 暂缓（只分类 + 契约） | 需拖选 + 剪贴板 / Agent 回复内容不可构造 |
 
-W2-3 验收（`docs/w2m3-acceptance.md`）：故障注入 20 格 19 格通过；确定性、一致性、代码门、脚本化 Agent 闭环通过；同事验收、敏感计划 Web 同意后再执行、预热阶段 adb 断连一格、旧入口跑 2010 得出结论的一次未完成。
+W2-3 验收（`docs/w2m3-acceptance.md`）：故障注入 20 格 19 格通过；确定性、一致性、代码门、脚本化 Agent 闭环通过；同事验收、敏感计划 Web 同意后再执行、预热阶段 adb 断连一格（注入方式已从 `adb kill-server` 改为 `adb reconnect`，待重跑）、旧入口跑 2010 得出结论的一次未完成。
 
 另检出的产品现象：App 进后台期间收到的消息，回前台 60 秒内不显示（M6 多端同步）；会话列表预览显示「[自定义消息]」占位（W4 自然语言任务，人工确认）。
 
@@ -122,7 +123,7 @@ W2-3 验收（`docs/w2m3-acceptance.md`）：故障注入 20 格 19 格通过；
 ## 6. 规模与测试
 
 - 147 个提交（10-19 — 10-29）；TypeScript 约 2.06 万行（其中 26 个单测文件 2148 行），另有 W2-3 页面与旧控制台 HTML / JS 558 行。不含单测的行数：platform 3979、executor 3656、scripts 2231、skills 1751、core 1215、incident 962、imui 928、issue 805，其余（drivers 653、mission / explore / monkey / report / replay、fixtures 等）约 2900。
-- 2026-10-29：`pnpm typecheck` 通过；`pnpm test:unit` 24 个文件 205/205 通过。`test:web`、`test:android` 各只有 1 个用例（每个用例 5 步）。代码门 `pnpm code-gate`（typecheck + 单测 + 证据复核预置用例）W2-3 实测 192 秒。
+- 2026-10-30：`pnpm typecheck` 通过；`pnpm test:unit` 24 个文件 209/209 通过。`test:web`、`test:android` 各只有 1 个用例（每个用例 5 步）。代码门 `pnpm code-gate`（typecheck + 单测 + 证据复核预置用例）W2-3 实测 192 秒。
 - CI（`.github/workflows/ai-test.yml`）只做过语法检查，未在真实 runner 上运行。
 
 ## 7. 已知差异与限制（代码核对，2026-10-29）
@@ -130,8 +131,8 @@ W2-3 验收（`docs/w2m3-acceptance.md`）：故障注入 20 格 19 格通过；
 文档写了、代码没有或不同的地方（细节见各需求文档末尾「实现对照」）：
 
 1. **「疑似误操作」类别走不到**：执行侧有 `executor/phases.ts#runCorrectPath` 和 `executor/loop.ts` 末尾的结论映射，但模式库、`planner.ts#basePlan`、模型组合都不生成 `correctPath`，规则分类也不产出该类；所以「疑似误操作 / 转为 bug」两个结论实际走不到。
-2. **预热失败回写草稿只在旧入口**：`scripts/issue-cli.ts#runIssue` 会写 `warmupFailures`，W2-3 的 `scripts/task-exec.ts#execTask` 不写，计划审核页看不到新路径的预热失败。
-3. **手机浏览器环境的恢复不检查手机**：`platform/lifecycle/recover.ts#walk` 只对 android-app 走手机基线；android-web 走 `baseline.ts#walkWeb`，且 `registry.ts#prodDrivers` 只给桌面 / 手机视口 Web 配登录态检查。
+2. ~~预热失败回写草稿只在旧入口~~ **已修复（2026-10-30）**：新旧两条路径都经 `issue/drafts.ts#recordWarmupFailures` 写回同版本的已保存草稿。
+3. ~~手机浏览器环境的恢复不检查手机~~ **已修复（2026-10-30）**：android-web 环境走 `baseline.ts#walkAndroidWeb`（在线、锁屏、残留进程、键盘、结束浏览器、输入法、配置项），并声明与 App 相同的环境配置项；键入过的会话不逐个打开核对，作为说明项列出。另：App 版本的批准绑定此前不生效（环境从未写入版本），已改为每次检查 / 恢复与每次运行后记录（`recover.ts#walk`、`scripts/task-exec.ts`）；策略或完全授权做出的批准遇版本变化自动续批，人或 Agent 显式批准的仍返回 32。
 4. **自愈门槛比需求宽**：`executor/session.ts#enterApp` 只要有一个首页元素按指纹找回就继续（W2-1 要求全部找回）。
 5. **`runPlan` 回涨到 241 行**：W2-1 合并时 135 行（要求 ≤ 150），W2-2 后 222 行。
 6. **SKILL 版本不比对**：`skills/teamily/vocab.ts#SKILL_VERSION` 为 2026.10.28-1，正式 profile 记录 2026.10.26-1，加载时不检查（只有 `executor/replay.ts` 告警）；审批绑定的是代码常量与 profile 文件哈希。

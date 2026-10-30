@@ -9,7 +9,7 @@ import { openPools } from '../platform/pools';
 import { type Surface, type TestPlan, TestPlanZ } from '../platform/schema/test-plan';
 import { parseIssue } from '../issue/parse';
 import { issuePath } from '../issue/paths';
-import { DRAFTS_DIR, loadSavedDraft, PLANS_DIR, saveDraft } from '../issue/drafts';
+import { loadSavedDraft, PLANS_DIR, recordWarmupFailures, saveDraft } from '../issue/drafts';
 import { applyApproval, type Draft, draftIssue } from '../issue/planner';
 import { normalizeResult, runMarkdown, writeIssueReport } from '../issue/report';
 import { classifyRules } from '../issue/classify';
@@ -134,11 +134,8 @@ export async function runIssue(d: Draft, approve: { sub: string; surface?: Surfa
     results.push(r);
   }
   // Warm-up gate feedback: a plan that is not executable on the current UI goes back to the draft.
-  const failed = results.filter((r) => r.conclusion === '计划不可执行');
-  if (failed.length && d.hash) {
-    d.warmupFailures = [...(d.warmupFailures ?? []), ...failed.map((r) => ({ planId: r.planId, at: r.finishedAt, detail: r.conclusionDetail }))];
-    await writeFile(join(DRAFTS_DIR, `${d.issue.id}.json`), JSON.stringify(d, null, 2));
-  }
+  const failed = results.filter((r) => r.conclusion === '计划不可执行').map((r) => ({ planId: r.planId, at: r.finishedAt, detail: r.conclusionDetail }));
+  if (await recordWarmupFailures(d.issue.id, d.hash, failed)) d.warmupFailures = [...(d.warmupFailures ?? []), ...failed];
   return { dir, results, report: await writeIssueReport(d, results, dir) };
 }
 

@@ -128,6 +128,12 @@ export function adbBaselineDriver(udid: string, pkg: string): AndroidBaselineDri
       await sh("for p in $(ps -A -o PID,ARGS | grep -E 'yadb|uiautomator|com.android.commands.input' | grep -v grep | awk '{print $1}'); do kill $p; done", 8000).catch(() => '');
       await sleep(300);
     },
+    appRunning: async () => /\d/.test(await sh(`pidof ${pkg}`, 8000).catch(() => '')),
+    stopApp: async () => {
+      await forceStopApp(pkg, udid);
+      await sleep(800);
+    },
+    appVersion: async () => (await sh(`dumpsys package ${pkg} | grep -m1 versionName=`, 10_000).catch(() => '')).match(/versionName=(\S+)/)?.[1],
   };
 }
 

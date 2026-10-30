@@ -8,7 +8,8 @@ import { join, resolve } from 'node:path';
 import type { RunResult } from '../executor/run';
 import { summarizeSeries, type SeriesRun } from '../executor/series';
 import type { Draft } from '../issue/planner';
-import { getEnv } from '../platform/lifecycle/env';
+import { getEnv, updateEnv } from '../platform/lifecycle/env';
+import { recordWarmupFailures } from '../issue/drafts';
 import { TaskRuntime } from '../platform/lifecycle/runtime';
 import { type Code, codeOfRuns } from '../platform/lifecycle/status';
 import { readJson } from '../platform/lifecycle/store';
@@ -91,6 +92,9 @@ export async function execTask(id: string): Promise<number> {
     }
     results.push(r);
     series.push({ index: i, dir: runDir, result: r });
+    // The installed version the preflight read: the environment keeps it current, approvals bind it (→ 32).
+    const ver = r.manifest?.device?.app?.versionName;
+    if (ver && ver !== getEnv(t0.envId)?.appVersion) updateEnv(t0.envId, (e) => void (e.appVersion = ver));
     if (child) {
       const code = r.cancelled ? 'CANCELLED' : codeOfRuns([r]);
       if (r.cancelled) advance(child, ['recovering', 'cancelled'], 'cancel requested');
@@ -103,6 +107,9 @@ export async function execTask(id: string): Promise<number> {
     if (r.conclusion === '环境不合格' && ['ENV_LOCKED', 'ENV_OFFLINE'].includes(unfitCode(r.conclusionDetail.replace(/^预检不合格：/, '')))) break;
   }
   rt.phase('finishing');
+  // Warm-up gate feedback to the saved draft (W2-1 §6.1), as the old `run` entry does.
+  const unexecutable = results.filter((r) => r.conclusion === '计划不可执行').map((r) => ({ planId: r.planId, at: r.finishedAt, detail: r.conclusionDetail }));
+  await recordWarmupFailures(draft.issue.id, draft.hash, unexecutable).catch(() => 0);
   report = await writeIssueReport(draft, results, n > 1 ? join(dir) : dir).catch(() => undefined);
   const cancelled = results.some((r) => r.cancelled) || (rt.shouldStop() && results.length < n);
   const last = results.at(-1);

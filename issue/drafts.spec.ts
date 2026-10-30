@@ -2,7 +2,8 @@ import { mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { canonical, draftHash, loadSavedDraft, sha } from './drafts';
+import { readFileSync } from 'node:fs';
+import { canonical, draftHash, loadSavedDraft, recordWarmupFailures, sha } from './drafts';
 import type { Draft } from './planner';
 
 const draft = (title: string): Draft => ({ issue: { id: 'x' } as any, classification: { category: 'bug-intermittent' } as any, status: 'plannable', reason: '', subcases: [{ sub: 'main', title, surface: 'desktop-web', plan: { id: 'p', title } as any, planErrors: [] }] });
@@ -20,5 +21,17 @@ describe('draft store (confirmation = execution)', () => {
     expect(loadSavedDraft('x', 'issue text', 'test', dir)).toBeUndefined();
     writeFileSync(join(dir, 'x.json'), JSON.stringify({ ...d, subcases: [{ ...d.subcases[0], plan: { id: 'p', title: 'edited' } }] }));
     expect(loadSavedDraft('x', 'issue text', 'prod', dir)).toBeUndefined();
+  });
+  it('warm-up failures go back to the saved draft of the same version only (hash unchanged)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'drafts-'));
+    const d = { ...draft('a'), env: 'prod' };
+    d.hash = draftHash(d);
+    writeFileSync(join(dir, 'x.json'), JSON.stringify(d));
+    const fail = [{ planId: 'p', at: 't', detail: '计划不可执行（预热第 1 步）' }];
+    expect(await recordWarmupFailures('x', 'another-version', fail, dir)).toBe(0);
+    expect(await recordWarmupFailures('x', d.hash, fail, dir)).toBe(1);
+    const saved = JSON.parse(readFileSync(join(dir, 'x.json'), 'utf8'));
+    expect(saved.warmupFailures).toEqual(fail);
+    expect(draftHash(saved)).toBe(d.hash);
   });
 });

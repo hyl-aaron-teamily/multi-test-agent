@@ -28,6 +28,12 @@ export interface AndroidBaselineDriver {
   /** Leftover helper processes on the phone (yadb, uiautomator dump, input). */
   residual(): Promise<string[]>;
   killResidual(): Promise<void>;
+  /** Is the app under test (the browser for android-web) running? */
+  appRunning?(): Promise<boolean>;
+  /** End the app under test (force-stop). */
+  stopApp?(): Promise<void>;
+  /** versionName of the app under test, if readable. */
+  appVersion?(): Promise<string | undefined>;
 }
 
 /** Host side of an environment (both kinds): the last task's process tree and its leftovers. */
@@ -126,6 +132,90 @@ export async function walkAndroid(d: AndroidBaselineDriver, env: Pick<EnvRecord,
     w = await d.where();
   }
   items.push(item('app-home', w === 'home', w === 'home' ? '被测 App 在前台、在首页、无弹层' : `被测 App 不在首页（${w}）`));
+
+  if (env.ime) {
+    let ime = await d.ime();
+    if (ime !== env.ime && fix) {
+      await d.setIme(env.ime);
+      did.push(`切回默认输入法 ${env.ime}（原 ${ime ?? '?'}）`);
+      ime = await d.ime();
+    }
+    items.push(item('ime', ime === env.ime, `输入法 ${ime ?? '?'}${ime === env.ime ? '（声明的默认）' : `，应为 ${env.ime}`}`));
+  }
+  for (const c of env.configItems) {
+    let r = await d.configOk(c);
+    if (!r.ok && fix) {
+      await d.applyConfig(c);
+      did.push(`按声明重写 ${c.id}：${c.what}`);
+      r = await d.configOk(c);
+    }
+    items.push(item(`config:${c.id}`, r.ok, r.detail));
+  }
+  return end();
+}
+
+/** The android-web walk (phone browser). The browser's accessibility tree does not follow in-page navigation,
+ *  so a touched conversation's input box cannot be read reliably: the browser is ended instead (every task
+ *  starts it cold), and the touched conversations are listed as not individually checked. Phone-side items
+ *  (online, screen, leftover processes, keyboard, input method, configuration items) are the same as the App's. */
+export async function walkAndroidWeb(d: AndroidBaselineDriver, env: Pick<EnvRecord, 'configItems' | 'ime'>, touched: string[], fix: boolean, host?: HostBaselineDriver): Promise<Walk> {
+  const items: BaselineItem[] = [];
+  const did: string[] = [];
+  const end = (blocker?: Walk['blocker']): Walk => ({ items, did, ok: items.every((i) => i.ok), blocker });
+
+  if (host) {
+    let procs = await host.taskProcesses();
+    if (procs.length && fix) {
+      await host.killTaskProcesses();
+      did.push(`结束上一任务残留进程：${procs.join(', ')}`);
+      procs = await host.taskProcesses();
+    }
+    items.push(item('host-processes', !procs.length, procs.length ? `上一任务进程仍在：${procs.join(', ')}` : '无上一任务的残留进程'));
+  }
+  if (!(await d.online())) {
+    items.push(item('online', false, '设备不在线（adb 不可达）', false));
+    return end('offline');
+  }
+  items.push(item('online', true, 'adb 在线'));
+
+  let s = await d.screen();
+  if (!s.awake && fix) {
+    await d.wake();
+    did.push('唤醒屏幕');
+    s = await d.screen();
+  }
+  if (s.locked) {
+    items.push(item('screen', false, '锁屏（有 PIN，需人工解锁）', false));
+    return end('locked');
+  }
+  items.push(item('screen', s.awake, s.awake ? '屏幕亮、未锁屏' : '屏幕未亮'));
+
+  let res = await d.residual();
+  if (res.length && fix) {
+    await d.killResidual();
+    did.push(`结束残留进程：${res.join(', ')}`);
+    res = await d.residual();
+  }
+  items.push(item('residual', !res.length, res.length ? `残留进程：${res.join(', ')}` : '无残留进程（yadb / uiautomator / input）'));
+
+  let kb = await d.keyboard();
+  if (kb === true && fix) {
+    await d.hideKeyboard();
+    did.push('收起键盘');
+    kb = await d.keyboard();
+  }
+  items.push(item('keyboard', kb !== true, kb === true ? '键盘弹出' : '键盘收起'));
+
+  if (d.appRunning && d.stopApp) {
+    let running = await d.appRunning();
+    if (running && fix) {
+      await d.stopApp();
+      did.push('结束手机浏览器（下一任务冷启动）');
+      running = await d.appRunning();
+    }
+    items.push(item('browser-closed', !running, running ? '手机浏览器仍在运行（页面停在上一任务留下的位置）' : '手机浏览器已结束，下一任务冷启动'));
+  }
+  if (touched.length) items.push(item('drafts', true, `上一任务键入过的会话：${touched.join('、')}——浏览器已结束，未逐个打开核对输入框（浏览器无障碍树不随页面内跳转更新）`));
 
   if (env.ime) {
     let ime = await d.ime();

@@ -9,10 +9,10 @@ import type { RunResult } from '../executor/run';
 import { attemptsOf } from '../executor/stats';
 import { apiV1 } from './api-v1';
 import { approve, classifyPlan, getApproval, messageBound, reject, setFullAccess, useApproval } from './approval';
-import { consentConfig, getEnv, moveEnv, registerEnv } from './lifecycle/env';
+import { consentConfig, getEnv, moveEnv, registerEnv, updateEnv } from './lifecycle/env';
 import { CodedError, STATUS } from './lifecycle/status';
 import { createTask, moveTask } from './lifecycle/task';
-import { planHash, resolvePlan, staleFacts } from './plans-v1';
+import { planHash, resolvePlan, staleFacts, versionFacts } from './plans-v1';
 import { type TestPlan, TestPlanZ } from './schema/test-plan';
 import { planText, planView, resultText, resultView, stepText } from './views';
 import { COMMANDS, helpDoc } from '../scripts/cli-v1';
@@ -207,6 +207,25 @@ describe('W2-3 T7 API envelope and CLI help', () => {
     expect(getEnv(ENV)!.configItems[0].consentedBy).toMatch(/^full-access/);
     expect((await call('POST', '/full-access', { on: false }, true)).code).toBe('OK'); // the Web switch overrides the default
     expect((await call('POST', '/tasks', { planId: id, series: 22 })).code).toBe('APPROVAL_REQUIRED');
+  });
+
+  it('app version binding: an explicit approval goes stale (32) on an App update; a full-access approval is renewed', async () => {
+    ready();
+    consentConfig(ENV, 'taplus', 'aaron');
+    updateEnv(ENV, (e) => void (e.appVersion = '2.0.15'));
+    const id = pid2010();
+    const h = resolvePlan(id).hash;
+    expect((await call('POST', `/plans/${encodeURIComponent(id)}/approve`, { hash: h, runs: 3 }, true)).code).toBe('OK'); // a person, 3 runs
+    expect(getApproval(id)!.facts.appVersion).toBe('2.0.15');
+    updateEnv(ENV, (e) => void (e.appVersion = '2.0.16'));
+    expect((await call('POST', '/tasks', { planId: id })).code).toBe('PLAN_STALE');
+    // Full access approved it for 3 runs; the App updates; the next run is approved again, not refused.
+    setFullAccess(true, 'test');
+    approve({ planId: id, planHash: h, confirmedHash: h, facts: versionFacts(resolvePlan(id).plan, '4f2ebdf2', '2.0.16'), classified: { category: 'sensitive', reasons: ['x'], messages: 0 }, runs: 3, via: 'cli' });
+    expect(getApproval(id)!.by).toMatch(/^full-access/);
+    updateEnv(ENV, (e) => void (e.appVersion = '2.0.17'));
+    expect((await call('POST', '/tasks', { planId: id })).code).toBe('ACCEPTED');
+    expect(getApproval(id)!.facts.appVersion).toBe('2.0.17');
   });
 
   it('environment states map to 50–53', async () => {

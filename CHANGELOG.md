@@ -14,9 +14,16 @@
 - **命令行**（`scripts/cli-v1.ts`）：`issue list|show`、`draft create|show`、`plan explain|approve|reject`、`env list|show|check|recover|offline`、`task run|status|wait|cancel|list`、`result show`、`help [--json]`；`--json` 时 stdout 只有一个 JSON；从不提问；平台未启动 → 54。参考文档由 `scripts/cli-ref.ts` 生成。
 - **视图模型**（`platform/views.ts`）：`PlanView`（一句话目的、白话步骤、判定规则、影响清单、不确定点、模型调用点、预计耗时区间、审批类别）、`EnvView`、`TaskView`、`ResultView`；命令行文本、`--json`、Web 同源。Node 表新增中文模板 `zh` 与 `serverDependent`（`skills/teamily/node-specs.ts`）。
 - **Web**（`platform/web/`）：首页（任务、Issue、环境状态条、锁屏红色提示、完全授权横幅）、环境页（基线逐项、租约、脏标记、配置项同意、重新检查 / 恢复 / 下线）、计划审核页（步骤在标定截图上标出元素、六问、同意 / 驳回）、任务页（进度、台账、时间线、取消）、结果页（结论句、依据、三个标识、证据、中断位置与环境恢复结果）；术语悬停解释。旧控制台移到 `/console`。
-- **真机门脚本** `scripts/w2m3-gate.ts`：故障注入矩阵（强杀任务 / 冻结进程 / 强杀平台后重启 / `adb kill-server` × 五个阶段）、脚本化 Agent 闭环、确定性（31 / 32 / 33）、三端一致性（Playwright 读渲染后的页面）、预计耗时命中率。
+- **真机门脚本** `scripts/w2m3-gate.ts`：故障注入矩阵（强杀任务 / 冻结进程 / 强杀平台后重启 / adb 断连 × 五个阶段；断连原用 `adb kill-server`，2026-10-29 改为 `adb -s <手机> reconnect`：只踢开这台手机的连接，adb 服务与授权密钥不动，因为 `kill-server` 每次都让测试机掉 USB 调试授权；手机 90 秒内没回到 adb 即停止本轮，不再等人授权）、脚本化 Agent 闭环、确定性（31 / 32 / 33）、三端一致性（Playwright 读渲染后的页面）、预计耗时命中率。
+
+### Fixed（2026-10-30，代码核对发现）
+- android-web 环境的恢复 / 基线检查此前只看主机进程：改为检查手机（`baseline.ts#walkAndroidWeb`：在线、锁屏、残留进程、键盘、结束浏览器、输入法、配置项），并为它声明浏览器包名与环境配置项。
+- App 版本的批准绑定此前不生效（环境从未写入版本）：每次检查 / 恢复与每次运行后记录 versionName；策略 / 完全授权的批准遇版本变化自动续批，显式批准返回 32。
+- W2-3 任务路径的「计划不可执行」此前不写回草稿：与旧入口共用 `issue/drafts.ts#recordWarmupFailures`。
+- 故障注入的断连改为 `adb -s <手机> reconnect`（见 `docs/w2m3-acceptance.md`）。
 
 ### Changed
+- 2026-10-30：功能开发期完全授权默认开启（`platform/policy.yaml` `fullAccessDefault: true`，用户决定），开发结束时关闭。
 - 控制台旧任务类型改读子进程写的结构化结果（`core/task-result.ts`，`AUTOTEST_RESULT_FILE`），平台不再正则解析日志。
 - 报告首段「触发路径」用计划视图的白话步骤渲染（`leadOf` 复用 `stepText`）。
 - 草稿带版本号（内容哈希变化 +1），计划 id `<Issue>/<子用例>:<端>@v<版本>`。

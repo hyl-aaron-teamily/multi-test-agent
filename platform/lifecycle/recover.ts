@@ -2,7 +2,7 @@
 // last task's ledger only — never needs the task process (G6). Idempotent (G7): fix-walk then check-walk;
 // repeating it, or cutting it short and repeating it, ends the same. A recovery that cannot reach the
 // baseline quarantines the environment with its reason; it never retries in a loop (§11).
-import { type AndroidBaselineDriver, type HostBaselineDriver, touchedConversations, type Walk, walkAndroid, walkWeb } from './baseline';
+import { type AndroidBaselineDriver, type HostBaselineDriver, touchedConversations, type Walk, walkAndroid, walkAndroidWeb, walkWeb } from './baseline';
 import { type EnvRecord, type EnvState, getEnv, moveEnv, updateEnv } from './env';
 import { getTask, readLedger, updateTask } from './task';
 import { audit } from './store';
@@ -17,13 +17,20 @@ export type DriverFactory = (env: EnvRecord) => Drivers;
 export const RECOVERY_LIMIT_MS = Number(process.env.AUTOTEST_RECOVERY_MS ?? 180_000);
 
 async function walk(env: EnvRecord, dr: Drivers, fix: boolean): Promise<Walk> {
-  // The default input method is declared by the first check (what the phone uses when it is registered).
-  if (env.surface === 'android-app' && dr.android && !env.ime && (await dr.android.online().catch(() => false))) {
-    const ime = await dr.android.ime().catch(() => undefined);
-    if (ime) env = updateEnv(env.id, (e) => void (e.ime = ime));
+  const phone = (env.surface === 'android-app' || env.surface === 'android-web') && dr.android ? dr.android : undefined;
+  if (phone && (await phone.online().catch(() => false))) {
+    // The default input method is declared by the first check (what the phone uses when it is registered).
+    if (!env.ime) {
+      const ime = await phone.ime().catch(() => undefined);
+      if (ime) env = updateEnv(env.id, (e) => void (e.ime = ime));
+    }
+    // The installed version of the app under test: approvals bind it (a change → 32 PLAN_STALE).
+    const v = await phone.appVersion?.().catch(() => undefined);
+    if (v && v !== env.appVersion) env = updateEnv(env.id, (e) => void (e.appVersion = v));
   }
   const ledger = env.lastTask ? readLedger(env.lastTask) : [];
-  if (env.surface === 'android-app' && dr.android) return walkAndroid(dr.android, env, touchedConversations(ledger), fix, dr.host);
+  if (env.surface === 'android-app' && phone) return walkAndroid(phone, env, touchedConversations(ledger), fix, dr.host);
+  if (env.surface === 'android-web' && phone) return walkAndroidWeb(phone, env, touchedConversations(ledger), fix, dr.host);
   return walkWeb(dr.host, fix);
 }
 

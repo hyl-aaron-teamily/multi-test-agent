@@ -1,7 +1,7 @@
 // Environment registry: platform/devices.yaml (phones × surfaces, this computer's browsers) × the account
 // pool's service envs → environment declarations (§3.1). Also the production driver factory.
 import { existsSync, readFileSync } from 'node:fs';
-import { profileKey, TEAMILY_PACKAGE } from '../../drivers/factory';
+import { BROWSER_PACKAGE, profileKey, TEAMILY_PACKAGE } from '../../drivers/factory';
 import { sessionFile } from '../../executor/login/sessions';
 import { sha } from '../../issue/drafts';
 import { profilePath } from '../../skills/profile';
@@ -33,7 +33,8 @@ export function declareEnvs(cfg: PoolConfig, accounts: { id: string; env: 'test'
       const acc = d.accounts[surface];
       const env = accounts.find((a) => a.id === acc)?.env;
       if (!acc || !env) continue;
-      out.push({ id: envIdOf(surface, d.udid, env), surface, serviceEnv: env, device: d.udid, udid: d.udid, package: surface === 'android-app' ? TEAMILY_PACKAGE : undefined, account: acc });
+      // android-web: the app under test on the phone is its browser (preflight, recovery and versions use it).
+      out.push({ id: envIdOf(surface, d.udid, env), surface, serviceEnv: env, device: d.udid, udid: d.udid, package: surface === 'android-app' ? TEAMILY_PACKAGE : surface === 'android-web' ? BROWSER_PACKAGE : undefined, account: acc });
     }
   }
   const envs = [...new Set(accounts.map((a) => a.env))];
@@ -50,7 +51,8 @@ export function syncEnvs(cfg: PoolConfig, pool: AccountPool): EnvRecord[] {
   const accounts = pool.list().map((a) => ({ id: a.id, env: a.env }));
   return declareEnvs(cfg, accounts).map((d) => {
     const pf = profilePath(profileKey(d.surface, d.serviceEnv, d.udid));
-    return registerEnv({ ...d, profile: { name: profileKey(d.surface, d.serviceEnv, d.udid), hash: existsSync(pf) ? sha(readFileSync(pf, 'utf8')) : undefined }, configItems: d.surface === 'android-app' && d.package ? androidConfigItems(d.package) : [] });
+    // Both phone surfaces: the preflight writes the same items (Taplus for the app under test, stay-on).
+    return registerEnv({ ...d, profile: { name: profileKey(d.surface, d.serviceEnv, d.udid), hash: existsSync(pf) ? sha(readFileSync(pf, 'utf8')) : undefined }, configItems: (d.surface === 'android-app' || d.surface === 'android-web') && d.package ? androidConfigItems(d.package) : [] });
   });
 }
 
@@ -78,5 +80,6 @@ export const prodDrivers: DriverFactory = (env) => {
         return { ok: false, detail: `没有可用的 ${env.serviceEnv} 登录态文件（运行 autotest accounts check --env ${env.serviceEnv}）` };
       }
     : undefined;
-  return { android: env.surface === 'android-app' && env.udid ? adbBaselineDriver(env.udid, env.package ?? TEAMILY_PACKAGE) : undefined, host: hostDriver(proc, sessionOk) };
+  const phone = (env.surface === 'android-app' || env.surface === 'android-web') && env.udid;
+  return { android: phone ? adbBaselineDriver(env.udid!, env.package ?? (env.surface === 'android-web' ? BROWSER_PACKAGE : TEAMILY_PACKAGE)) : undefined, host: hostDriver(proc, sessionOk) };
 };

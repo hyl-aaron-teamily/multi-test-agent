@@ -404,7 +404,7 @@ TestPlan 增加 `contract?: IssueContract` 与 `coverage: 'covered' | 'not-cover
   - `mission/planner.ts#planMission` 仍自带一份模型请求，绕过了 `countCall` 计数；
   - `imui/clients/android.ts` 仍有私有的键盘判断与读树重试（底层已改用 `core/ui-tree`）。
 - **§3.8 要删的 `executor/checks.ts#MATCH_DISTANCE` 还在**，没有被使用。
-- **预热失败回写草稿只在旧入口**：只有 `scripts/issue-cli.ts#runIssue` 会写 `warmupFailures`；W2-3 的主路径 `scripts/task-exec.ts#execTask` 不写。
+- ~~预热失败回写草稿只在旧入口~~ **已修复（2026-10-30）**：W2-3 主路径 `scripts/task-exec.ts#execTask` 也经 `issue/drafts.ts#recordWarmupFailures` 写回同版本的已保存草稿。
 - **Web 端预热不记指纹**：`warmup.ts` 只在 Android 上读界面树取点击点的元素指纹，Web 端不记录（正文要求记 role / name）。
 - **自愈门槛比正文宽**：`executor/session.ts#enterApp` 只要有一个首页元素按指纹找回就继续运行（正文要求全部找到），首页参考区域本身也不更新。android-web 中由视觉定位的元素没有指纹。
 - **预置用例的对照文本不同**：证据复核预置用例（`incident/evidence-cases.ts`）对照的仍是 Issue 原文的「实际结果」，与实际运行对照契约现象不一致。

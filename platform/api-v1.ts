@@ -16,7 +16,7 @@ import { STATUS, type Code, CodedError, apiError, outcome } from './lifecycle/st
 import { readAudit, writeJsonAtomic } from './lifecycle/store';
 import type { Supervisor } from './lifecycle/supervisor';
 import { createTask, getTask, isTerminal, listTasks, newTaskId, readEvents, readLedger, readResult, taskDir, type TaskRecord } from './lifecycle/task';
-import { parsePlanId, planIdOf, planIdsOf, resolvePlan, savedDraft, versionFacts } from './plans-v1';
+import { parsePlanId, planIdOf, planIdsOf, resolvePlan, savedDraft, staleFacts, versionFacts } from './plans-v1';
 import { envView, planText, planView, resultText, resultView, stepMarks, taskView, type ResultView } from './views';
 
 export interface Envelope {
@@ -126,8 +126,11 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
   // Default-class plans are approved by the policy when no live approval exists (a person's approval is
   // honoured strictly: its run count runs out → 33).
   const cur = getApproval(planId);
-  const curLive = cur && !cur.rejected && cur.planHash === r.hash && cur.runsUsed + n <= cur.runsAllowed;
-  const willAuto = !cur?.rejected && !curLive && (!cur || cur.auto || cur.by === 'policy' || cur.planHash !== r.hash) && (classified.category === 'default' || getFullAccess().on);
+  // An approval the policy or full access made is renewed when a bound version changed (App update, new
+  // profile …); an explicit approval (a person on the Web, an agent's `plan approve`) is honoured strictly (→ 32 / 33).
+  const machineMade = !!cur && (!!cur.auto || cur.by === 'policy' || cur.by.startsWith('full-access'));
+  const curLive = cur && !cur.rejected && cur.planHash === r.hash && cur.runsUsed + n <= cur.runsAllowed && !(machineMade && staleFacts(cur.facts, facts).length);
+  const willAuto = !cur?.rejected && !curLive && (!cur || machineMade || cur.planHash !== r.hash) && (classified.category === 'default' || getFullAccess().on);
   // Sensitive: only a person's sensitive approval (Web) counts; a policy approval of the plain plan does not.
   if (classified.category === 'sensitive' && !getFullAccess().on && !(cur && !cur.rejected && cur.category === 'sensitive' && cur.planHash === r.hash && !cur.auto && cur.by !== 'policy' && !cur.by.startsWith('full-access')))
     return fail('APPROVAL_REQUIRED', `敏感计划需要人在 Web 上同意：${classified.reasons.join('；')}`, webUrl(`/plan.html?id=${encodeURIComponent(planId)}${series ? `&series=${series}` : ''}`));

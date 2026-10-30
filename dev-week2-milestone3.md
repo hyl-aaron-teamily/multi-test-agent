@@ -307,7 +307,7 @@ queued ─▶ waiting-env ─▶ preflight ─▶ running ─▶ finishing ─�
 
 1. **Agent 闭环**：一个**脚本化 Agent** 只读 `autotest help --json`、stdout JSON 与退出码（stderr 丢弃），完成 2010：生成草稿 → 计划默认允许自动批准 → `task run` → `task wait` → `result show` 拿到结论；另用 1 个敏感计划验证：返回 30 → 人在 Web 同意 → 再执行成功。另做一次 Claude 子代理演练（只给 `help --json`），只作参考，不计入通过判定。
 2. **人能看懂（同事验收）**：一位未参与开发的同事只看计划审核页，**5 分钟内、不提问**，答对 6 问：发几条消息（上界）、发到哪个会话、会改哪些手机设置、怎样算复现、哪些地方不确定、大约多久。2010 与 1903 各一次。验收可在里程碑完成后安排，结果补记到 `docs/w2m3-acceptance.md`；未验收前该项标「待同事验收」。
-3. **故障恢复**：注入矩阵——在 预检 / 准备 / 预热 / 循环中途 / 收尾 五个阶段，分别做 ①强杀任务进程 ②模拟卡死（注入步骤内长时间等待）③强杀平台服务后重启 ④`adb kill-server` 模拟断连；每格至少 1 次（共 ≥ 20 次）。通过条件（全部满足，100%）：
+3. **故障恢复**：注入矩阵——在 预检 / 准备 / 预热 / 循环中途 / 收尾 五个阶段，分别做 ①强杀任务进程 ②模拟卡死（注入步骤内长时间等待）③强杀平台服务后重启 ④`adb -s <手机> reconnect` 模拟断连（2026-10-29 由 `adb kill-server` 改来：后者会重启 adb 服务，测试机每次都因此掉 USB 调试授权、需人工点「允许」；`reconnect` 只踢开这台手机的连接）；每格至少 1 次（共 ≥ 20 次）。通过条件（全部满足，100%）：
    - 任务终态与注入一致，带正确的状态码、结束方式和停止位置；
    - 环境回到基线（§3.3 全部项通过），或进入 `quarantined` 且原因正确——**不允许出现「显示 ready 但基线不通过」**；
    - 不存在「进程已死仍显示运行中」的任务记录；
@@ -390,7 +390,7 @@ queued ─▶ waiting-env ─▶ preflight ─▶ running ─▶ finishing ─�
   - `#classifyPlan` 分为默认允许 / 敏感（非 SKILL 动作、离开被测软件的按键、单次发送 > 50 条、系列 > 20 次）/ 拒绝（删除 / 撤回 / 锁屏类动作、允许清单外会话发消息）。
   - `#approve`：敏感计划只能在 Web 上同意，或在完全授权下自动批准。
   - `#useApproval`：核对哈希、版本、次数，不符分别返回 31 / 32 / 33；`#reject` 必须填写意见。
-  - 完全授权的默认值读 `platform/policy.yaml`（现为 false），Web 开关写 `state/full-access.json`。
+  - 完全授权的默认值读 `platform/policy.yaml`（W2-3 结束时改为 false；2026-10-30 按用户决定在整个功能开发期改回 true，敏感计划不再需要 Web 点击），Web 开关写 `state/full-access.json`。
 - **状态码（§5.2）** `platform/lifecycle/status.ts#STATUS`，与正文表一致；`#codeOfRuns` 把运行结论映射为状态码，锁屏 / 离线细分为 51 / 52。
 - **命令行（§5.3）** `scripts/cli-v1.ts`
   - `#COMMANDS` 覆盖正文表，另加 `env offline`。
@@ -404,12 +404,12 @@ queued ─▶ waiting-env ─▶ preflight ─▶ running ─▶ finishing ─�
 
 **与正文不同 / 后来的变化**
 
-- **手机浏览器环境的恢复不检查手机**：`recover.ts#walk` 只对 android-app 走 `walkAndroid`，android-web 走 `walkWeb`；而 `registry.ts#prodDrivers` 只给 desktop-web / mobile-web 配了登录态检查。结果 android-web 的基线只剩「上一任务进程已结束」一项，不检查手机的键盘、草稿、前台。android-web 也没有声明环境配置项。
+- ~~手机浏览器环境的恢复不检查手机~~ **已修复（2026-10-30）**：android-web 环境走 `baseline.ts#walkAndroidWeb`——主机残留进程、在线、亮屏未锁、手机残留进程、键盘、结束浏览器（下一任务冷启动）、输入法、配置项；台账里键入过的会话因浏览器无障碍树不随页面更新而不逐个打开，作为说明项列出。`registry.ts` 给 android-web 声明浏览器包名与和 App 相同的环境配置项，`prodDrivers` 为它提供手机驱动。
 - **主机侧基线只查上一任务进程**：`android-ops.ts#hostDriver` 只看那个 pid 是否还在，不检查正文 §3.3 列的锁文件、临时文件、残留页面。
-- **App 版本的批准绑定不生效**：`versionFacts` 接收 `env.appVersion`，但代码里没有任何地方给环境写入 `appVersion`，所以 App 升级不会触发 32；SKILL 版本绑定的是代码常量 `SKILL_VERSION`，不是 profile 里记录的版本。
+- ~~App 版本的批准绑定不生效~~ **已修复（2026-10-30）**：每次基线检查 / 恢复读被测包的 versionName 写入环境（`recover.ts#walk`，驱动 `android-ops.ts#adbBaselineDriver` 的 `appVersion`），每次运行后再按运行清单更新（`scripts/task-exec.ts`）。显式批准（Web 上的人、Agent 的 `plan approve`）遇版本变化返回 32；策略或完全授权做出的批准自动续批（`api-v1.ts#submit`）。SKILL 版本仍绑定代码常量 `SKILL_VERSION`。
 - **旧入口没加新状态码**：正文 §5.2 要求旧入口（`run` / `series`）在 `--json` 中附带新的 `status` / `code`，未实现；这两个命令没有 `--json` 输出。
 - **台账只有「意图」记录**：只写 `state: 'intent'`，`LedgerEntry` 里的 `done` 状态从未写入；恢复程序本来也只用会话名。
-- **预热失败不回写草稿**：`task-exec.ts#execTask` 不写 `warmupFailures`（只有旧入口 `issue-cli.ts#runIssue` 会写），计划审核页的「上次预热失败」看不到新路径的失败。
+- ~~预热失败不回写草稿~~ **已修复（2026-10-30）**：`task-exec.ts#execTask` 经 `issue/drafts.ts#recordWarmupFailures` 写回同版本的已保存草稿（与旧入口共用）。
 - **敏感判定没有「额外修改手机设置」这一项**：TestPlan 没有改设置的动作，所以判定里不需要也没有这一项。手机设置的改动只通过环境配置项（Taplus、充电常亮）走一次性同意。硬约束按 Node 名和会话允许清单判断；「凭据落盘」没有专门的检查，靠设计保证（凭据只在本地私有文件里）。
 - **§7 的 P1 项大多未做**：`--events` 事件流、系列页、受控修改参数、真机自检套件（结果页「工具自检」标识固定显示「未接入（P1）」）、LLM 润色都没有实现。任务页已显示阶段、轮次、步骤，通过轮询读取，不是推送。
-- **验收未完成项**：同事验收、敏感计划在 Web 同意后再执行、预热阶段 adb 断连一格、旧入口跑 2010 得出结论的一次，见 `docs/w2m3-acceptance.md`。
+- **验收未完成项**：同事验收、敏感计划在 Web 同意后再执行、预热阶段 adb 断连一格（注入方式已改为 `adb reconnect`，待重跑）、旧入口跑 2010 得出结论的一次，见 `docs/w2m3-acceptance.md`。

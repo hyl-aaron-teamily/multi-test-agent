@@ -282,6 +282,41 @@ describe('W2-3 T2 lifecycle: ledger, recovery, idempotence', () => {
     expect(r.env.reason).toMatch(/输入框不为空/);
     expect(getEnv(ENV)!.state).not.toBe('ready'); // never "ready but baseline failed"
   });
+
+  it('records the installed app version at every check (approvals bind it)', async () => {
+    const ph = Object.assign(new FakePhone(), { appVersion: async () => '2.0.15' });
+    env('recovering');
+    await recoverEnv(ENV, drivers(ph));
+    expect(getEnv(ENV)!.appVersion).toBe('2.0.15');
+    ph.appVersion = async () => '2.0.16';
+    moveEnv(ENV, 'checking', { by: 'test', basis: 'x' });
+    await checkEnv(ENV, drivers(ph));
+    expect(getEnv(ENV)!.appVersion).toBe('2.0.16');
+  });
+
+  it('android-web: the phone is checked too — keyboard down, browser ended, touched conversations listed', async () => {
+    const WEB = 'android-web:4f2ebdf2@prod';
+    registerEnv({ id: WEB, surface: 'android-web', serviceEnv: 'prod', device: '4f2ebdf2', udid: '4f2ebdf2', package: 'com.android.browser', configItems: [{ id: 'taplus', what: 'taplus blacklist', why: 'long press', restore: 'remove' }] });
+    moveEnv(WEB, 'checking', { by: 'test', basis: 'setup' });
+    moveEnv(WEB, 'ready', { by: 'test', basis: 'setup' });
+    leaseEnv(WEB, 'tw');
+    createTask({ id: 'tw', kind: 'issue', issue: '1329', planId: '1329/s2:android-web@v1', planHash: 'h', envId: WEB, options: {} });
+    appendLine(ledgerFile('tw'), { at: '', seq: 1, kind: 'type', target: '测试群', value: 'x', state: 'intent' });
+    endLease(WEB, 'tw', { by: 'test', basis: 'task killed' });
+    let running = true;
+    const ph = Object.assign(new FakePhone(), { appRunning: async () => running, stopApp: async () => void (running = false) });
+    const r = await recoverEnv(WEB, () => ({ android: ph, host: hostFree }));
+    expect(r.env.state).toBe('ready');
+    expect(running).toBe(false);
+    expect(ph.kb).toBe(false);
+    expect(ph.taplus).toBe(true);
+    expect(r.walk!.items.map((i) => i.id)).toEqual(expect.arrayContaining(['online', 'screen', 'residual', 'keyboard', 'browser-closed', 'drafts', 'config:taplus']));
+    expect(r.walk!.items.find((i) => i.id === 'drafts')!.detail).toMatch(/测试群.*未逐个打开/);
+    // a locked phone blocks the browser environment as well
+    const locked = Object.assign(new FakePhone(), { locked: true });
+    moveEnv(WEB, 'checking', { by: 'test', basis: 'x' });
+    expect((await checkEnv(WEB, () => ({ android: locked, host: hostFree }))).env).toMatchObject({ state: 'unfit', reason: expect.stringContaining('锁屏') });
+  });
 });
 
 describe('W2-3 T3 cross-check: four corrections', () => {

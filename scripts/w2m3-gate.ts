@@ -1,6 +1,9 @@
 // W2-3 real-device gate (T10, §10). Subcommands:
-//   faults [--phases preflight,prepare,warmup,loop,finishing] [--faults kill-task,stall,kill-platform,adb-kill] [--plan <planId>]
-//          fault matrix (§10.3): one injection per cell, each followed by a normal task that must conclude
+//   faults [--phases preflight,prepare,warmup,loop,finishing] [--faults kill-task,stall,kill-platform,adb-reconnect] [--plan <planId>]
+//          fault matrix (§10.3): one injection per cell, each followed by a normal task that must conclude.
+//          adb-reconnect (was adb-kill, which is still accepted as its alias): `adb -s <phone> reconnect`
+//          kicks this phone's connection from the host side; the adb server keeps running and keeps its
+//          keys. `adb kill-server` made the test phone drop its USB-debugging authorization every time.
 //   agent  scripted agent (§10.1): only `help --json`, stdout JSON and exit codes (stderr dropped)
 //   determinism   live 31 / 32 / 33 (§10.4)
 //   consistency <taskId>   CLI text / --json / rendered Web page agree (§10.5, Playwright)
@@ -18,6 +21,9 @@ const API = `http://localhost:${PORT}/api/v1`;
 const STATE = resolve('platform/state');
 const OUT = resolve('docs/w2m3-gate');
 const ENV_ID = 'android-app:4f2ebdf2@prod';
+const UDID = ENV_ID.match(/:([^@]+)@/)![1];
+/** How long the phone may stay off adb after a reconnect before the run stops (no long wait for a person). */
+const RECONNECT_WAIT_MS = 90_000;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const flag = (n: string) => (process.argv.indexOf(`--${n}`) >= 0 ? process.argv[process.argv.indexOf(`--${n}`) + 1] : undefined);
 const log = (s: string) => {
@@ -117,11 +123,11 @@ async function ensureReady(maxMs = 12 * 60_000): Promise<boolean> {
   }
 }
 
-/** After adb kill-server this phone asks to authorize USB debugging again: wait for a person (≤ 10 min). */
-async function waitAdbDevice(maxMs = 10 * 60_000): Promise<boolean> {
+/** The phone is back on adb (state "device") within `maxMs`. */
+async function waitAdbDevice(maxMs = RECONNECT_WAIT_MS): Promise<boolean> {
   const t0 = Date.now();
   for (;;) {
-    const st = (await adb(['get-state'], '4f2ebdf2', 5000).catch(() => '')).trim();
+    const st = (await adb(['get-state'], UDID, 5000).catch(() => '')).trim();
     if (st === 'device') return true;
     if (Date.now() - t0 > maxMs) return false;
     await sleep(3000);
@@ -140,7 +146,9 @@ function liveButDead(): string[] {
 }
 
 const PHASES = ['preflight', 'prepare', 'warmup', 'loop', 'finishing'];
-const FAULTS = ['kill-task', 'stall', 'kill-platform', 'adb-kill'];
+const FAULTS = ['kill-task', 'stall', 'kill-platform', 'adb-reconnect'];
+/** Old fault names (records under docs/w2m3-gate/ still carry them). */
+const FAULT_ALIAS: Record<string, string> = { 'adb-kill': 'adb-reconnect' };
 
 async function inject(fault: string, t: any): Promise<string> {
   const pid = t.proc?.pid;
@@ -159,8 +167,10 @@ async function inject(fault: string, t: any): Promise<string> {
     await startPlatform();
     return `platform ${p} killed, restarted (pid ${platformPid()})`;
   }
-  await adb(['kill-server']).catch(() => '');
-  return 'adb kill-server';
+  // adb-reconnect: only this phone's transport is dropped (its shell / logcat streams end); the server and
+  // the other devices are untouched, and the phone comes back by itself.
+  await adb(['reconnect'], UDID, 15_000).catch(() => '');
+  return `adb -s ${UDID} reconnect`;
 }
 
 /** What the record must say after a fault (besides the generic invariants). */
@@ -169,7 +179,7 @@ function expected(fault: string, t: any): string | undefined {
   if (fault === 'stall' && !(t.state === 'failed' && t.outcome?.code === 'TASK_STUCK' && t.endedBy === 'stuck')) return 'stall → failed / TASK_STUCK / stuck';
   if (fault === 'kill-platform' && !((t.state === 'done' && t.endedBy === 'normal') || (t.state === 'interrupted' && t.outcome?.code === 'INTERRUPTED' && t.endedBy === 'server-restart'))) return 'kill-platform → adopted and done, or interrupted / INTERRUPTED / server-restart';
   // A lost adb connection is the environment: 5x, or a normal conclusion if the run rode it out.
-  if (fault === 'adb-kill' && !(/^ENV_/.test(t.outcome?.code ?? '') || ['NOT_REPRODUCED', 'REPRODUCED', 'TASK_CRASHED', 'TASK_STUCK'].includes(t.outcome?.code))) return 'adb-kill → ENV_* (or a conclusion)';
+  if (fault === 'adb-reconnect' && !(/^ENV_/.test(t.outcome?.code ?? '') || ['NOT_REPRODUCED', 'REPRODUCED', 'TASK_CRASHED', 'TASK_STUCK'].includes(t.outcome?.code))) return 'adb-reconnect → ENV_* (or a conclusion)';
   return undefined;
 }
 
@@ -187,11 +197,11 @@ function invariants(t: any, e: any): string[] {
 async function faults(): Promise<void> {
   const plan = flag('plan') ?? '2010/main:android-app@v1';
   const phases = (flag('phases') ?? PHASES.join(',')).split(',');
-  const fl = (flag('faults') ?? FAULTS.join(',')).split(',');
+  const fl = (flag('faults') ?? FAULTS.join(',')).split(',').map((f) => FAULT_ALIAS[f] ?? f);
   await startPlatform();
   const rows: any[] = [];
   const file = join(OUT, `faults-${new Date().toISOString().replace(/[:.]/g, '-')}.json`);
-  for (const phase of phases)
+  outer: for (const phase of phases)
     for (const fault of fl) {
       const row: any = { phase, fault, at: new Date().toISOString() };
       rows.push(row);
@@ -230,9 +240,12 @@ async function faults(): Promise<void> {
       row.injection = await inject(fault, t);
       log(`${phase}/${fault}: task ${id} @ ${JSON.stringify(row.injectedAt)} — ${row.injection}`);
       const end = await waitTerminal(id);
-      if (fault === 'adb-kill' && !(await waitAdbDevice(1000))) {
-        log(`${phase}/${fault}: phone not on adb — waiting for USB-debugging authorization on the phone`);
-        row.reauthorized = await waitAdbDevice();
+      if (fault === 'adb-reconnect' && !(await waitAdbDevice())) {
+        // Every later cell needs the phone: stop instead of waiting for a person.
+        row.error = `phone not back on adb ${RECONNECT_WAIT_MS / 1000} s after the reconnect (check the cable / the USB-debugging prompt on the phone)`;
+        log(`${phase}/${fault}: STOP — ${row.error}`);
+        writeFileSync(file, JSON.stringify(rows, null, 2));
+        break outer;
       }
       const env = await waitEnvSettled();
       row.task = { id, state: end?.state, code: end?.outcome?.code, endedBy: end?.endedBy, endedAt: end?.endedAt, recovery: end?.recovery?.result, partial: end?.partial };
