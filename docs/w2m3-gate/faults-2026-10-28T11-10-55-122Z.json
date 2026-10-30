@@ -1,0 +1,221 @@
+[
+  {
+    "phase": "preflight",
+    "fault": "kill-task",
+    "at": "2026-10-28T11:10:55.122Z",
+    "task": {
+      "id": "t-20261028111126-3twk",
+      "state": "interrupted",
+      "code": "TASK_CRASHED",
+      "endedBy": "crash",
+      "endedAt": {
+        "phase": "preflight"
+      }
+    },
+    "injectedAt": {
+      "phase": "preflight",
+      "at": "2026-10-28T11:11:29.705Z"
+    },
+    "injection": "taskkill /T /F 1800",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028111143-2yo7",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  },
+  {
+    "phase": "preflight",
+    "fault": "stall",
+    "at": "2026-10-28T11:12:51.858Z",
+    "task": {
+      "id": "t-20261028111335-cylp",
+      "state": "failed",
+      "code": "TASK_STUCK",
+      "endedBy": "stuck",
+      "endedAt": {
+        "phase": "preflight"
+      }
+    },
+    "injectedAt": {
+      "phase": "preflight",
+      "at": "2026-10-28T11:13:38.229Z"
+    },
+    "injection": "NtSuspendProcess 12268 → 0",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028111424-9wel",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  },
+  {
+    "phase": "preflight",
+    "fault": "kill-platform",
+    "at": "2026-10-28T11:16:26.232Z",
+    "task": {
+      "id": "t-20261028111708-67wi",
+      "state": "interrupted",
+      "code": "INTERRUPTED",
+      "endedBy": "server-restart",
+      "endedAt": {
+        "phase": "launch"
+      },
+      "recovery": "recovered"
+    },
+    "injectedAt": {
+      "phase": "preflight",
+      "at": "2026-10-28T11:17:11.256Z"
+    },
+    "injection": "platform 36848 killed, restarted (pid 17124)",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028111731-a3ao",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  },
+  {
+    "phase": "preflight",
+    "fault": "adb-kill",
+    "at": "2026-10-28T11:19:07.266Z",
+    "task": {
+      "id": "t-20261028111948-omsz",
+      "state": "done",
+      "code": "TOOL_FAILED",
+      "endedBy": "normal",
+      "endedAt": {
+        "phase": "finishing"
+      }
+    },
+    "injectedAt": {
+      "phase": "preflight",
+      "at": "2026-10-28T11:19:51.778Z"
+    },
+    "injection": "adb kill-server",
+    "env": {
+      "state": "unfit",
+      "baselineOk": false,
+      "reason": "设备不在线（adb 不可达）"
+    },
+    "liveButDead": [],
+    "failures": [
+      "env not ready for the next task: unfit 设备不在线（adb 不可达）"
+    ],
+    "pass": false
+  },
+  {
+    "phase": "prepare",
+    "fault": "kill-task",
+    "at": "2026-10-28T11:20:00.677Z",
+    "error": "env not ready: unfit 设备不在线（adb 不可达）"
+  },
+  {
+    "phase": "prepare",
+    "fault": "stall",
+    "at": "2026-10-28T11:20:01.266Z",
+    "error": "env not ready: unfit 设备不在线（adb 不可达）"
+  },
+  {
+    "phase": "prepare",
+    "fault": "kill-platform",
+    "at": "2026-10-28T11:20:02.877Z",
+    "error": "env not ready: unfit 设备不在线（adb 不可达）"
+  },
+  {
+    "phase": "prepare",
+    "fault": "adb-kill",
+    "at": "2026-10-28T11:20:03.453Z",
+    "error": "env not ready: unfit 设备不在线（adb 不可达）"
+  },
+  {
+    "phase": "warmup",
+    "fault": "kill-task",
+    "at": "2026-10-28T11:20:04.061Z",
+    "error": "env not ready: unfit 设备不在线（adb 不可达）"
+  },
+  {
+    "phase": "warmup",
+    "fault": "stall",
+    "at": "2026-10-28T11:20:04.637Z",
+    "error": "env not ready: unfit 设备不在线（adb 不可达）"
+  },
+  {
+    "phase": "warmup",
+    "fault": "kill-platform",
+    "at": "2026-10-28T11:20:05.219Z",
+    "error": "env not ready: unfit 设备不在线（adb 不可达）"
+  },
+  {
+    "phase": "warmup",
+    "fault": "adb-kill",
+    "at": "2026-10-28T11:20:05.804Z",
+    "error": "env not ready: unfit 设备不在线（adb 不可达）"
+  },
+  {
+    "phase": "loop",
+    "fault": "kill-task",
+    "at": "2026-10-28T11:20:06.398Z",
+    "error": "env not ready: unfit 设备不在线（adb 不可达）"
+  },
+  {
+    "phase": "loop",
+    "fault": "stall",
+    "at": "2026-10-28T11:20:06.976Z",
+    "error": "env not ready: unfit 设备不在线（adb 不可达）"
+  },
+  {
+    "phase": "loop",
+    "fault": "kill-platform",
+    "at": "2026-10-28T11:20:07.556Z",
+    "error": "env not ready: unfit 设备不在线（adb 不可达）"
+  },
+  {
+    "phase": "loop",
+    "fault": "adb-kill",
+    "at": "2026-10-28T11:20:08.125Z",
+    "error": "env not ready: unfit 设备不在线（adb 不可达）"
+  },
+  {
+    "phase": "finishing",
+    "fault": "kill-task",
+    "at": "2026-10-28T11:20:08.723Z",
+    "error": "env not ready: unfit 设备不在线（adb 不可达）"
+  },
+  {
+    "phase": "finishing",
+    "fault": "stall",
+    "at": "2026-10-28T11:20:09.302Z",
+    "error": "env not ready: unfit 设备不在线（adb 不可达）"
+  },
+  {
+    "phase": "finishing",
+    "fault": "kill-platform",
+    "at": "2026-10-28T11:20:09.883Z",
+    "error": "env not ready: unfit 设备不在线（adb 不可达）"
+  },
+  {
+    "phase": "finishing",
+    "fault": "adb-kill",
+    "at": "2026-10-28T11:20:10.459Z",
+    "error": "env not ready: unfit 设备不在线（adb 不可达）"
+  }
+]

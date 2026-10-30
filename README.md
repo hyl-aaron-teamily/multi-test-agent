@@ -1,6 +1,6 @@
 # multi-test-agent
 
-> 项目介绍页：[docs/intro.html](docs/intro.html)（浏览器直接打开）· 验收证据：[docs/w2m2-acceptance.md](docs/w2m2-acceptance.md)（本轮，W2-2）/ [docs/w2m1-acceptance.md](docs/w2m1-acceptance.md) / [docs/m6-acceptance.md](docs/m6-acceptance.md) / [docs/m5-acceptance.md](docs/m5-acceptance.md) · 历史变更：[CHANGELOG.md](CHANGELOG.md)
+> 项目介绍页：[docs/intro.html](docs/intro.html)（浏览器直接打开）· 验收证据：[docs/w2m3-acceptance.md](docs/w2m3-acceptance.md)（本轮，W2-3）/ [docs/w2m2-acceptance.md](docs/w2m2-acceptance.md) / [docs/w2m1-acceptance.md](docs/w2m1-acceptance.md) / [docs/m6-acceptance.md](docs/m6-acceptance.md) / [docs/m5-acceptance.md](docs/m5-acceptance.md) · 命令行参考：[docs/cli-reference.md](docs/cli-reference.md) · 历史变更：[CHANGELOG.md](CHANGELOG.md)
 
 Teamily 客户端测试台：在 **Android App、手机自带浏览器里的 Web、手机视口 Web、桌面 Web（Windows 上为 Edge 最大化窗口）** 四个执行端上，以**黑盒**方式（只做用户能做的操作、只看用户能看到的现象）复现和验收问题，并留下可回放的证据；多个端可各登录一个账号，在同一会话里做同步测试。
 
@@ -27,7 +27,10 @@ Teamily 客户端测试台：在 **Android App、手机自带浏览器里的 Web
 | 分层判定 / 定位（W2-1） | ✅ 可用 | ① 日志 / 进程 / 系统状态 / 无障碍或页面文字 / 区域 → ③ 视觉兜底，只在检查点、准备、预热、标定；循环每步仍只按坐标；报告「判定分层统计」 |
 | 预热闸门 + 自愈（W2-1） | ✅ 可用 | 循环前逐步核验，失败 →「计划不可执行」；坐标按标定指纹自愈（不改标定文件） |
 | 轨迹（W2-1） | ✅ 可用 | 每次运行 `trajectory.jsonl`；可选转发 TencentDB Agent Memory（standalone，`TRAJECTORY_TDAI_URL`） |
-| 控制台 | ✅ 可用 | 上传 Issue → 生成计划 → 一次性确认（替代端复选框）→ 执行 → 报告与证据链接 |
+| 任务与环境（W2-3） | ✅ 可用 | 环境、任务各有状态机与落盘记录；心跳、副作用台账（先记账再执行）、步骤边界取消、看门狗；意外退出后 `env recover` 按台账恢复，恢复不了就隔离并写明原因；平台启动 / 下线时交叉检测，任务记录反映真实结束方式与停止位置 |
+| 审批与状态码（W2-3） | ✅ 可用 | 被测软件内操作默认允许；敏感计划只在 Web 同意；完全授权开关（红色横幅）；硬约束永远拒绝；批准绑定哈希 / 版本 / 次数（31 / 32 / 33）；两位退出码 = 状态码 |
+| 命令行给 Agent、Web 给人（W2-3） | ✅ 可用 | `autotest <对象> <动作> [--json]`（`help --json` 即工具定义）；Web 首页 / 环境 / 计划审核 / 任务 / 结果页；两者读同一份视图模型 |
+| 控制台 | ✅ 可用 | 上传 Issue → 生成计划 → 一次性确认（替代端复选框）→ 执行 → 报告与证据链接（旧控制台，`/console`） |
 | 自然语言任务 / AI 探索 / Monkey / imui | ✅ 可用 | 早期能力，保留不变 |
 | iOS、WebView、小程序 | ❌ 未接入 | iOS 问题只能经确认后在 Android 或手机 Web 上替代执行 |
 | 多角色 Issue 计划 | ⏸ 暂缓 | 同步底座已可用；2235 这类 Issue 还未生成多角色计划 |
@@ -141,9 +144,28 @@ pnpm autotest sync --roles desktop-web,android-app --rounds 4 --timeout 60
 | `pnpm test:unit` / `pnpm typecheck` / `pnpm test:web` / `pnpm test:android` | 单测 / 类型检查 / Web 与 Android 基线用例 |
 | `pnpm report` | 生成 Allure 报告（需要 Java） |
 
-## 控制台（`pnpm platform`）
+## Agent 命令行与 Web（W2-3）
 
-单个 `node:http` 服务加单页 HTML，没有前端构建链。
+先启动平台服务 `pnpm platform`（http://localhost:3210）。命令行是它的客户端，面向 Agent；Web 面向人。两者读同一份视图模型，结论句和数字一致。
+
+```bash
+npx tsx bin/autotest.ts help --json                       # 全部命令、参数 schema、状态码表（可直接当工具定义）
+npx tsx bin/autotest.ts draft create 2010 --no-model --json   # → 计划 id，如 2010/main:android-app@v1
+npx tsx bin/autotest.ts plan explain "2010/main:android-app@v1" --json   # 步骤、影响、不确定点、预计耗时、审批类别、哈希
+npx tsx bin/autotest.ts task run "2010/main:android-app@v1" --hash <h> --json   # 退出码 20，立即返回任务 id
+npx tsx bin/autotest.ts task wait <taskId> --timeout 1200 --json   # 退出码 = 结论（10 未复现 / 11 已复现 …），21 = 仍在运行
+npx tsx bin/autotest.ts result show <taskId> --json
+npx tsx bin/autotest.ts env list | env show <envId> | env check <envId> | env recover <envId>
+```
+
+- `--json` 时 stdout 只有一个 JSON 对象（日志走 stderr）；从不提问；退出码两位、十位 = 类别（0 成功 / 1x 结论 / 2x 已受理 / 3x 审批 / 4x 输入 / 5x 环境 / 6x 工具 / 7x 取消与中断），全表见 `docs/cli-reference.md`。用 `pnpm autotest …` 也可以（pnpm 的回显在 stderr）。
+- **审批**：只操作被测软件的计划默认允许，`task run` 时由 `policy` 自动批准；敏感计划（操作被测软件之外、单次发送 > 50 条、系列 > 20 次）返回 30 和计划页链接，只能在 Web 同意；Web 首页可开「完全授权」（红色横幅常显，可随时关）。默认值在 `platform/policy.yaml`。删除 / 撤回消息、允许清单外会话、锁屏 PIN 任何情况都拒绝。本机无登录：这是流程约束，不是安全边界。
+- **环境与恢复**：`platform/devices.yaml` × 账号池自动登记环境（如 `android-app:4f2ebdf2@prod`）。任务意外结束（崩溃、被杀、卡死、断连、平台停止）后，平台起独立进程 `env recover`，按环境声明与任务的副作用台账恢复到基线；不能恢复就「隔离」并在环境页写明原因与建议，人处理后点「我已处理，重新检查」。手机锁屏 → 「不合格」+ 红色「需人工解锁」，解锁后自动重检。
+- **Web 页面**：`/` 首页（任务、Issue、环境状态条）、`/plan.html?id=…` 计划审核（白话步骤并在标定截图上标出元素、怎样算复现、会影响什么、哪些不确定、大约多久、同意 / 驳回）、`/env.html`、`/task.html`、`/result.html`；术语悬停有解释。审核人名字写在 `platform/reviewer.local.yaml`（`name: …`）。
+
+## 控制台（`pnpm platform` → `/console`）
+
+单个 `node:http` 服务加单页 HTML，没有前端构建链。W2-3 起首页换成新页面，旧控制台在 `/console`，任务类型照旧。
 
 - **设备**：`platform/devices.yaml`（手机 + 本机端点、各执行端的槽、手机上登录的账号）与 `adb devices` 合并，显示 idle / busy / offline。
 - **新建任务**：Issue 黑盒复现 / 验收、多端同步、自然语言任务、AI 探索、Monkey、IM 界面层收发。
@@ -169,7 +191,7 @@ pnpm autotest sync --roles desktop-web,android-app --rounds 4 --timeout 60
 - Edge 下新登录的账号会被要求完成 5 步新手引导（`/onboarding?required=1`，Chromium 无头模式下不出现）；测试账号已各走过一次。
 - 多端同步的耗时含切换手机前台与核对（视觉约 5 秒）的时间，只作上界参考，不是消息时延。
 - 同步测试检出的产品现象：App 进后台期间收到的消息，回到前台 60 秒内不显示，App 自己发一条后才补到，且排在自己那条之后（顺序错乱）；手机单机两端 7 次中 5 次复现、1 次 18 秒才显示（等 40 秒再发也一样）；App 在前台时 3 秒内正常收到。见 `docs/m6-acceptance.md`。
-- 槽位租用记在各自进程里：控制台与命令行同时对同一台手机下任务会冲突。
+- 槽位租用记在各自进程里：旧入口（`pnpm autotest run / series`）与平台同时对同一台手机下任务会冲突；W2-3 的 `task run` 经平台排队，不冲突。
 - 任务默认时限 15 分钟（计划 `limits.maxMinutes`、控制台硬上限）。
 
 - 视觉模型适合准备阶段挑目标，不适合直接下结论；判定优先用参考区域比对和无障碍层核对，视觉判断只作补充。
@@ -190,6 +212,8 @@ fixtures/evidence/ 证据复核预置用例（截取的录屏 + 元数据 + 期�
 skills/teamily/    Teamily SKILL：页面地图、profile、参考截图、Node、计划模板
 skills/            标定工具（calibrate-web.ts、calibrate-android.ts、calibrate-android-web.ts）、profile 读写
 platform/          控制台、任务调度、设备池、账号池（accounts/）、TestPlan schema（schema/）、计划（plans/）
+platform/lifecycle/ W2-3 环境 / 任务对象、状态码、心跳与台账、基线与恢复、交叉检测、调度（supervisor）
+platform/web/      W2-3 页面（首页、环境、计划审核、任务、结果）；api-v1.ts、views.ts、approval.ts 为其服务与视图模型
 mission/ explore/ monkey/ imui/ report/   其他测试入口
 core/              adb 封装、logcat 监控、PNG 解码与区域比对
 bin/autotest.ts    统一命令入口；scripts/ 各命令实现

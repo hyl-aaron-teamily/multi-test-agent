@@ -24,6 +24,7 @@ import type { Slo } from '../imui/metrics';
 import { renderReport } from '../imui/report';
 import { runUiLoad } from '../imui/runner';
 import { newRunId } from '../imui/tokens';
+import { emitTaskResult } from '../core/task-result';
 
 /** chat-web per environment (from im-loadtest probe/src/config/endpoints.mjs). Overridable. */
 const WEB_APPS: Record<string, string> = {
@@ -179,6 +180,7 @@ async function main(): Promise<number> {
     if (values.json) await writeFile(resolve(values.json), `${JSON.stringify(json, null, 2)}\n`);
     console.log(renderReport(json));
     console.log(`[imui] report → ${join(outDir, 'report.md')}`);
+    emitTaskResult({ report: join(outDir, 'report.md'), verdict: `${json.verdict} · 发送 ${report.messagesSent} 条${report.ui_echo_ms?.p50 !== undefined ? ` · echo p50 ${report.ui_echo_ms.p50}ms` : ''}` });
     return failures.length ? 2 : 0;
   } finally {
     for (const c of all) await c.close().catch(() => {});

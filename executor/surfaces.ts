@@ -57,12 +57,24 @@ const webAdapter: SurfaceAdapter = {
 };
 
 const androidAppAdapter: SurfaceAdapter = {
-  async waitFirstScreen() {},
+  // A cold start shows a splash first: wait (≤ 20 s) until the home list or a restored chat is drawn, so the
+  // SKILL check never judges the splash (and never presses Back on it — that leaves the app).
+  async waitFirstScreen(s) {
+    await waitForRegion(s.d, s.profile, ['home/nav', 'chat/composer'], 20_000, 1000);
+  },
   async dismissDialogs() {},
   async ensureLogin() {},
-  // The app restores its last screen: Back (at most 3 times, never past the home screen).
+  // The app restores its last screen: Back (at most 3 times, never past the home screen). Not in front any
+  // more (Back left it, or something else took the screen): launch it again instead of pressing Back.
   async recoverHome(s, i) {
     if (i >= 3) return false;
+    const a = s.inner as AndroidDriver;
+    if (!a.foreground || !(await a.processAlive())) {
+      s.log('app not in front — launching it again');
+      await s.d.launch();
+      await waitForRegion(s.d, s.profile, ['home/nav', 'chat/composer'], 20_000, 1000);
+      return true;
+    }
     await s.d.back();
     await sleep(1500);
     return true;

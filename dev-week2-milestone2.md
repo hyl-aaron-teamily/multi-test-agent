@@ -232,3 +232,45 @@
 
 - 2026-10-27 复盘：主要矛盾在验收口径、环境与反馈速度，不在架构选型；外部建议（工作流骨架 + Agent 探索 + 确定性执行器）与现有架构一致，采纳其中的分母、运行清单、隔离和窄范围 MVP。
 - 2026-10-28：W2-1 合并到 `main`；E1 MVP 只做 2010 + 1903；E2 按比例验收；E3 预检可以改手机设置并记录；E4 继续用允许清单群加运行标记。
+
+---
+
+## 实现对照（2026-10-29 按代码核对）
+
+> 本节是事后核对，以上正文保留当时的需求原文。项目当前全貌见 `PROJECT-SUMMARY.md`；验收证据见 `docs/w2m2-acceptance.md`。
+
+**已实现**（分支 `feat/w2m2-trustworthy-mvp`，2026-10-28 经 `7e91873` 合并到 `main`）
+
+- **P0 结论口径**
+  - 结论表 `executor/verdict.ts` 已不含「疑似已修复」。
+  - 有效尝试 / 偏离轮 / 命中 / 单轮命中率 / Wilson 95% 区间 / 3/n 上界：`executor/stats.ts#attemptsOf` / `#wilson` / `#attemptsText`。
+  - 偏离轮由 `executor/loop.ts#runLoop` 单独计数；0 次有效尝试记「执行失败」。
+  - 各阶段耗时（租用、预检、启动、登录、准备、预热、循环、收尾）写在 `RunResult.phases`（`executor/run.ts`）。
+  - 报告首段三行：`run.ts#leadOf` 生成，`issue/report.ts#runMarkdown` 渲染。
+  - 失败归类 `executor/failure.ts#classifyFailure`：先按文字规则表，再看失败瞬间的设备快照。
+  - 系列运行：`scripts/issue-cli.ts#seriesCmd` + `executor/series.ts#summarizeSeries` / `#seriesMarkdown`；工具可靠性 ≥ 90% 时退出 0，否则 3；控制台有「系列运行」任务类型（`platform/tasks.ts`）。
+  - 额外做了 `pnpm autotest rerender`（`issue-cli.ts#rerenderCmd`，把旧 `result.json` 按新口径重出报告）。
+- **P1 清单、预检、隔离**
+  - 运行清单 `executor/manifest.ts#buildManifest` / `#writeManifest` / `#manifestMarkdown`，每次运行都写，包括环境不合格和执行失败的运行，同时是轨迹的首条事件。
+  - 预检 `executor/preflight.ts#preflightAndroid`：在线、亮屏未锁（唤醒 + 无密码上滑）、USB 充电常亮、HyperOS 文本识别黑名单（每次重写）、已知系统浮层、电量 ≥ 15%、网络、App 版本，有软键盘就收起；改动写进 `changes`。
+  - Web 预检 `#preflightWeb`：用 `executor/login/sessions.ts#ensureWebSession` 确认浏览器能启动、登录态有效。
+  - 隔离：
+    - 运行标记 `executor/template.ts#newRunToken`（`r` + 6 位十六进制），`#expandAction` / `#expandCheck` 替换 `{token}` / `{round}`；
+    - App 冷启动（`run.ts` 在进入前 `killApp`）；
+    - 干净起点 `executor/isolation.ts#cleanStart`、收尾复位 `#teardown`；
+    - 轮内前提 `#requireNow`。
+- **P2 MVP**
+  - 模式 `composer-rewrite`（2010：在 Personal AI 会话，每次运行最多 6 次有效尝试，检查输入框文字**等于**原草稿）、`mention-render`（1903：在允许清单群，检查本轮最新气泡里是否有独立的 `@成员` 节点，收尾对照会话列表预览，只记录）。两者都在 `skills/teamily/patterns.ts`。
+  - 元素 `chat.rewrite`（只在 android-app 上，键盘收起时的坐标）。
+  - Node `teamily.tapRewrite`（看按钮像素等改写转圈出现、再回到空闲，≤ 10 秒，超时算偏离）、`teamily.tapSend`、`teamily.freezeMention`（prepare-only，按字面文字定位成员行）；`clearComposer` 在 App 上用全选 + 删除（`skills/teamily/nodes.ts`）。
+- **P3 Web trace**：`incident/web-recorder.ts#saveLast` 在执行失败 / 计划不可执行时保存 `trace.zip`、`trace-1.zip`，由 `run.ts` 的 finally 调用。
+- **代码门**：`scripts/code-gate.sh`（typecheck + 单测含 golden + 证据复核预置用例，`--no-model` 跳过最后一步）。
+
+**与正文不同 / 后来的变化**
+
+- ~~**2010 的「有确认」分支没做**~~ **已补（2026-10-30）**：Teamily 2.0.20 起点改写会先弹「用记忆强化 prompt?」确认框。标定在有草稿时点一次改写，记下框的「取消」按钮（`chat.rewriteCancel`）和参考区域 `rewrite-confirm/dialog`；`tapRewrite` 每次轮询先用这块区域比对截图（只看像素，不读界面树、不调模型），看到确认框就点取消并记「有确认」，草稿不变，本轮检查通过，不算命中。旧版本没有这个框，标定时不记录，行为不变。真机 2010（3 轮）：预热 + 3 轮都在点击后约 1.1 秒识别到确认框，结论未复现。
+- **1903 的判定比正文严**：要求本轮气泡里有一个文字恰好为「@成员名」的独立节点，而不是文字中包含它。
+- **android-web 的「浏览器已连上」不在预检里**：这项检查在启动后的弹窗处理阶段做（`executor/surfaces.ts` 内的 `awaitConnected`，视觉判断），不在预检里；android-web 的预检与 App 相同，只是包名换成浏览器。
+- **隔离只对 android-app**：`cleanStart` 与 `teardown` 开头就判断执行端，其他端不清草稿、不复位。
+- **Web trace 只有 Playwright 端才有**：android-web 运行失败时没有 trace（它不是 Playwright 驱动）。
+- **预检的 Taplus 改动在 W2-3 改为「环境配置项」**：注册环境时同意一次（`platform/lifecycle/android-ops.ts#androidConfigItems`；2026-10-30 起 android-app 与 android-web 两种手机环境都声明）。但 `preflightAndroid` 本身仍会每次重写，不检查是否已同意；同意与否只在 W2-3 的 `task run` 路径上把关。

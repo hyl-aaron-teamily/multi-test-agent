@@ -1,0 +1,33 @@
+[
+  {
+    "phase": "preflight",
+    "fault": "adb-kill",
+    "at": "2026-10-28T11:43:24.443Z",
+    "task": {
+      "id": "t-20261028114324-iujh",
+      "state": "env-unfit",
+      "code": "ENV_UNFIT",
+      "endedBy": "normal",
+      "endedAt": {
+        "phase": "finishing"
+      }
+    },
+    "injectedAt": {
+      "phase": "preflight",
+      "at": "2026-10-28T11:43:27.893Z"
+    },
+    "injection": "adb kill-server",
+    "env": {
+      "state": "ready",
+      "baselineOk": true
+    },
+    "liveButDead": [],
+    "failures": [],
+    "next": {
+      "task": "t-20261028114346-zfit",
+      "exit": 10,
+      "code": "NOT_REPRODUCED"
+    },
+    "pass": true
+  }
+]

@@ -359,3 +359,52 @@ TestPlan 增加 `contract?: IssueContract` 与 `coverage: 'covered' | 'not-cover
 - 2026-10-26 第二轮：D5 生产构造只在池账号会话；D6 系统状态读取允许；D7 P0–P3 全做；D8 删无入口死代码。
 - 2026-10-26 追加需求：接入 `ref/TencentDB-Agent-Memory`（standalone）记录原始轨迹 → 评估后定为 D9（本期定格式与接口，TDAI 适配为 P4 可选）。
 - 2026-10-26 用户确认目标汇总，生成本文档。无剩余开放项。
+
+---
+
+## 实现对照（2026-10-29 按代码核对）
+
+> 本节是事后核对，以上正文保留当时的需求原文。项目当前全貌见 `PROJECT-SUMMARY.md`；验收证据见 `docs/w2m1-acceptance.md`。
+
+**已实现**（分支 `feat/w2m1-contract-tiered-observe`，2026-10-28 经 `3704bbd` 合并到 `main`）
+
+- **P0 基座**
+  - 界面树读取统一到 `core/ui-tree.ts#readUiXml` / `#dumpTree`（按设备串行、4 个轮换文件、UI 不空闲时重试、计时），`parseNodes` 从 imui 移入。
+  - 模型调用统一到 `core/model/llm.ts`（`#chatJson`、`#visionJson`、按用途计数的 `#countCall`、`#majority`、`#extractJson`）和 `core/model/midscene.ts`（按设备 / 页面缓存 agent 的 `#visionAsk`、`#visionLocateRect`）。
+  - 执行会话 `executor/session.ts#openSession` / `#enterApp`，端适配器放在**单个文件** `executor/surfaces.ts`（正文为 `surfaces/` 目录）。`run.ts`、`sync.ts` 里不再有 android-web 分支。
+  - `runPlan` 拆出 `prepare.ts`、`phases.ts`、`loop.ts`、`checkpoint.ts`、`incident-hook.ts`、`stats.ts`、`actions.ts`。
+  - 单一来源：Node 表 `skills/teamily/node-specs.ts`；Surface 类型 `platform/schema/test-plan.ts#SURFACES`；包名 `drivers/factory.ts#TEAMILY_PACKAGE`；`issue/paths.ts#issuePath`。
+  - 登录流程移到 `executor/login/`，坐标重放移到 `executor/replay.ts`，Issue CLI 移到 `scripts/issue-cli.ts`，标定公共部分抽到 `skills/calibrate-common.ts`。
+  - 模式库是**单个文件** `skills/teamily/patterns.ts`（正文为 `patterns/` 目录），golden 在 `issue/__golden__/templates.json`，`issue/golden.spec.ts` 守护。
+  - 确认即冻结：`issue/drafts.ts#draftHash` / `#loadSavedDraft`；`scripts/issue-cli.ts#runIssue` 把计划写入 `platform/plans/` 再读回，并核对 `draftHash`。
+  - 私有会话配置 `platform/conversations.ts#loadConversations`（`platform/conversations.local.yaml`）。
+- **P1 观察与定位**
+  - 观察库 `executor/observe.ts#OBSERVATIONS`（8 种观察）、`#observeKeyboard`（`dumpsys input_method`）、`#observeText`（Android 无障碍 / Web 页面文字 → 视觉兜底）；② 层插槽 `#noRanker` 是空实现。
+  - CheckPoint 新增 `keyboard`、`text`（`match`、`scope`）。报告「判定分层统计」由 `issue/report.ts#runMarkdown` 渲染，数据来自 `stats.observeTiers` / `locateTiers` / `modelCallsByPurpose`。
+  - 分层定位 `executor/locate.ts#locate` / `#locateText`，用于准备期目标、下载 App 弹窗（`executor/surfaces.ts` 内的 `waitPastDialog`）、prepare-only 的 Node、android-web 标定。
+  - 1329 s3 的键盘检查、1329 s1 在 App 上的点赞检查改为 ① 判定（`patterns.ts` 的 `keyboard-single-tap`、`like-visible`）；多端同步的 Web 接收端改读页面文字（`executor/sync.ts#lineVisible`）。
+- **P2 契约**
+  - 契约 schema 在 `platform/schema/contract.ts`；前置条件库在 `skills/teamily/preconditions.ts`。
+  - 契约生成 `issue/contract.ts#contractFor`：命中模式时用规则契约，否则交给模型（`#modelContract`，只能用库里的 id），模型失败退回规则契约。
+  - 编译与校验：`issue/planner.ts#draftIssue`（每个子用例最多调一次模型组合）+ `issue/validate.ts#validatePlan`（观察在该端是否可用、需构造的前置条件必须有 prepare 步骤、prepare-only 的 Node 不进循环）；`contract.ts#coverageOf` 标注覆盖情况；前置条件都不可构造时转为暂缓。
+  - 新模式 `quote-preview-text`；新 Node `teamily.quoteReply`（prepare-only）；`sendMessage` 增加 `kind: markdown-link`。
+  - 允许清单在 `executor/prepare.ts#assertConstructionAllowed` 中核对。
+  - 证据复核对照契约的 `phenomenon`：`executor/run.ts#runPlan` 用它替换 Issue 的「实际结果」。
+- **P3 预热与指纹**
+  - 预热 `executor/warmup.ts#runWarmup`：`#expectedEffect` 决定每步预期效果，每步允许重做 1 次；失败抛 `WarmupError`，结论为「计划不可执行」，写 `warmup.json`；旧入口退出码为 3。
+  - 指纹自愈 `executor/heal.ts`：结果只写运行目录的 `healed-profile.json`，不改标定文件。
+- **轨迹**
+  - `core/trajectory.ts#Trajectory`：每次运行写 `trajectory.jsonl`；队列有上限，超出时先丢 `op` 事件并计数；`#scrub` 过滤凭据样式的字段。
+  - `#TdaiSessionSink`：设置 `TRAJECTORY_TDAI_URL` 时，结束时发一次 `/v3/session/add`，超时 3 秒，不重试。
+
+**与正文不同 / 后来的变化**
+
+- **`runPlan` 又变长了**：W2-1 合并时 135 行，达到「≤ 150 行」；W2-2 合并后 222 行，现在 241 行（`executor/run.ts`）。CHANGELOG 写的「458 → 96 行」是拆分当时的数字。
+- **两处「唯一来源」没有守住**：
+  - `mission/planner.ts#planMission` 仍自带一份模型请求，绕过了 `countCall` 计数；
+  - `imui/clients/android.ts` 仍有私有的键盘判断与读树重试（底层已改用 `core/ui-tree`）。
+- **§3.8 要删的 `executor/checks.ts#MATCH_DISTANCE` 还在**，没有被使用。
+- ~~预热失败回写草稿只在旧入口~~ **已修复（2026-10-30）**：W2-3 主路径 `scripts/task-exec.ts#execTask` 也经 `issue/drafts.ts#recordWarmupFailures` 写回同版本的已保存草稿。
+- **Web 端预热不记指纹**：`warmup.ts` 只在 Android 上读界面树取点击点的元素指纹，Web 端不记录（正文要求记 role / name）。
+- **自愈门槛比正文宽**：`executor/session.ts#enterApp` 只要有一个首页元素按指纹找回就继续运行（正文要求全部找到），首页参考区域本身也不更新。android-web 中由视觉定位的元素没有指纹。
+- **预置用例的对照文本不同**：证据复核预置用例（`incident/evidence-cases.ts`）对照的仍是 Issue 原文的「实际结果」，与实际运行对照契约现象不一致。

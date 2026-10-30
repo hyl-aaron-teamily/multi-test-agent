@@ -8,6 +8,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { TEAMILY_PACKAGE } from '../drivers/factory';
 import type { DevicePool } from './device-pool';
+import type { LegacyTaskResult } from '../core/task-result';
 
 export type TaskType = 'mission' | 'explore' | 'monkey' | 'imui' | 'issue' | 'sync' | 'series';
 export type TaskStatus = 'queued' | 'running' | 'completed' | 'failed' | 'cancelled';
@@ -55,6 +56,7 @@ export interface Task extends TaskInput {
 export const STATE_DIR = resolve('platform/state');
 const TASKS_FILE = join(STATE_DIR, 'tasks.json');
 const TSX = resolve('node_modules/tsx/dist/cli.mjs');
+const resultFile = (id: string) => join(STATE_DIR, 'results', `${id}.json`);
 
 /** Pure: validate a POST body. Returns an error string or the clean input. */
 export function validateTaskInput(b: any): TaskInput | string {
@@ -240,7 +242,7 @@ export class TaskManager {
     void this.save();
     const log = createWriteStream(t.logFile);
     log.write(`$ autotest ${taskArgs(t, udid).slice(1).join(' ')}\n`);
-    const child = spawn(process.execPath, [TSX, ...taskArgs(t, udid)], { env: { ...process.env, MIDSCENE_REPORT_QUIET: 'true' } });
+    const child = spawn(process.execPath, [TSX, ...taskArgs(t, udid)], { env: { ...process.env, MIDSCENE_REPORT_QUIET: 'true', AUTOTEST_RESULT_FILE: resultFile(t.id) } });
     this.procs.set(t.id, child);
     child.stdout.pipe(log, { end: false });
     child.stderr.pipe(log, { end: false });
@@ -263,57 +265,34 @@ export class TaskManager {
     t.exitCode = code;
     t.finishedAt = new Date().toISOString();
     const out = join(STATE_DIR, 'reports', `${t.id}.md`);
+    // W2-3 T4: the child's structured result (core/task-result.ts) — never the log text.
     try {
-      if (t.type === 'sync') {
-        const log = await readFile(t.logFile, 'utf8');
-        const file = log.match(/\[sync\] report → (.+\.md)/)?.[1]?.trim();
-        if (!file) throw new Error('sync run wrote no report');
-        t.reportFile = file;
-        t.verdict = log.match(/\[sync\] ((?:全部同步|存在未同步|执行失败) — .+)/)?.[1] ?? `exit ${code}`;
-      } else if (t.type === 'series') {
-        const log = await readFile(t.logFile, 'utf8');
-        const file = log.match(/\[series\] report → (.+\.md)/)?.[1]?.trim();
-        if (!file) throw new Error('series wrote no report');
-        t.reportFile = file;
-        t.verdict = log.match(/\[series\] summary: (.+)/)?.[1] ?? `exit ${code}`;
-      } else if (t.type === 'issue') {
-        const log = await readFile(t.logFile, 'utf8');
-        const file = log.match(/\[run\] report → (.+\.md)/)?.[1]?.trim();
-        if (!file) throw new Error('issue run wrote no report');
-        t.reportFile = file;
-        const concl = [...log.matchAll(/\[run\] ([\w-]+-v\d+): ([^—\n]+?) —/g)].map((m) => `${m[1]}: ${m[2].trim()}`);
-        t.verdict = concl.join(' · ') || log.match(/处理: (.+)/)?.[1] || `exit ${code}`;
-      } else if (t.type === 'imui') {
-        const log = await readFile(t.logFile, 'utf8');
-        const file = log.match(/\[imui\] report → (.+\.md)/)?.[1]?.trim();
-        if (!file) throw new Error('imui wrote no report');
-        t.reportFile = file;
-        const head = log.match(/# imui run `\w+` — (PASS|FAIL)/)?.[1];
-        const sent = log.match(/\| 发送 \| (\d+) 条/)?.[1];
-        const echo = log.match(/ui_echo_ms[^|]*\| (\d+) \| [\d.]+ \| ([\d.]+)/);
-        t.verdict = `${head ?? '?'} · 发送 ${sent ?? '?'} 条${echo ? ` · echo p50 ${echo[2]}ms` : ''}${code === 1 ? ' · 配置/客户端错误' : ''}`;
-      } else if (t.type === 'mission') {
+      if (t.type === 'mission') {
         const dir = resolve('midscene_run/missions', t.id);
         const rec = JSON.parse(await readFile(join(dir, 'mission.json'), 'utf8'));
         t.reportFile = join(dir, 'report.md');
         t.verdict = rec.verdict;
         t.findings = rec.result.findings.length;
       } else {
-        // explore / monkey: W3 problem report from this task's own artifact only (the path printed in its log),
-        // never "newest trace / monkey_run/summary.json", which may belong to another task.
-        const log = await readFile(t.logFile, 'utf8');
-        const artifact = (t.type === 'explore' ? log.match(/\[explore\] trace → (.+\.json)/) : log.match(/\[monkey\] run summary → (.+\.json)/))?.[1]?.trim();
-        if (!artifact) throw new Error(`${t.type} wrote no ${t.type === 'explore' ? 'trace' : 'summary'}`);
-        const args = ['report/problem-report.ts', '--only', t.type, t.type === 'explore' ? '--trace' : '--monkey', artifact, '--out', out];
-        const err = await new Promise<string>((r) => {
-          let stderr = '';
-          const p = spawn(process.execPath, [TSX, ...args], { stdio: ['ignore', 'ignore', 'pipe'] });
-          p.stderr.on('data', (d) => (stderr += d));
-          p.on('close', (c) => r(c === 0 ? '' : stderr.trim() || `report exit ${c}`));
-        });
-        if (err) throw new Error(err);
-        t.reportFile = out;
-        t.verdict = log.match(/\[(?:explore|monkey)\] ((?:未捕获崩溃|\d+ crash).*)/)?.[1] ?? `exit ${code}`;
+        const r = existsSync(resultFile(t.id)) ? (JSON.parse(await readFile(resultFile(t.id), 'utf8')) as LegacyTaskResult) : undefined;
+        if (!r) throw new Error(`${t.type} wrote no result`);
+        if (t.type === 'explore' || t.type === 'monkey') {
+          // W3 problem report from this task's own artifact only (never "newest trace / summary.json").
+          if (!r.artifact) throw new Error(`${t.type} wrote no ${t.type === 'explore' ? 'trace' : 'summary'}`);
+          const args = ['report/problem-report.ts', '--only', t.type, t.type === 'explore' ? '--trace' : '--monkey', r.artifact, '--out', out];
+          const err = await new Promise<string>((res) => {
+            let stderr = '';
+            const p = spawn(process.execPath, [TSX, ...args], { stdio: ['ignore', 'ignore', 'pipe'] });
+            p.stderr.on('data', (d) => (stderr += d));
+            p.on('close', (c) => res(c === 0 ? '' : stderr.trim() || `report exit ${c}`));
+          });
+          if (err) throw new Error(err);
+          t.reportFile = out;
+        } else {
+          if (!r.report) throw new Error(`${t.type} wrote no report`);
+          t.reportFile = r.report;
+        }
+        t.verdict = `${r.verdict ?? `exit ${code}`}${t.type === 'imui' && code === 1 ? ' · 配置/客户端错误' : ''}`;
       }
     } catch (err) {
       t.verdict ??= `no report (${(err as Error).message.split('\n')[0]})`;

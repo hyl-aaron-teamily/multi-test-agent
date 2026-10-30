@@ -22,7 +22,7 @@ import type { NodeContext } from '../skills/teamily/nodes';
 import { execAction } from './actions';
 import { locate, locateTally, locateText } from './locate';
 import { composerText } from './observe';
-import { visionAsker } from './checks';
+import { regionShows, visionAsker } from './checks';
 import type { RunCtx } from './context';
 import { runLoop } from './loop';
 import { runAcceptance, runCorrectPath } from './phases';
@@ -40,6 +40,8 @@ import { ensureWebSession, type PlaywrightSurface } from './login/sessions';
 import type { Attempts } from './stats';
 import { expandAction, newRunToken } from './template';
 import { AndroidDriver } from '../drivers/android';
+import { CancelledError, type RunHooks } from '../platform/lifecycle/runtime';
+import { stepText } from '../platform/views';
 
 export { execAction } from './actions';
 export type { Stats } from './stats';
@@ -68,6 +70,8 @@ export interface RunOptions {
   runTag?: string;
   /** Device preflight before anything is launched (default on; W2-2 §4.2). */
   preflight?: boolean;
+  /** Task lifecycle (W2-3 §4): progress, side-effect ledger (before each effect), cancel at step boundaries. */
+  hooks?: RunHooks;
 }
 
 export interface RunResult {
@@ -116,6 +120,8 @@ export interface RunResult {
   epilogue?: { expect: string; pass: boolean | null; detail: string };
   /** Web runs without a verdict: the flight recorder's last trace chunks in the run dir (W2-2 §6). */
   traces?: string[];
+  /** Stopped by a cancel request (W2-3 §4.3 L2): incomplete, no verdict. */
+  cancelled?: boolean;
   /** Report lead (W2-2 §3.2): trigger path / location / suspected mechanism, each with its basis. */
   lead?: { trigger: string; triggerBasis: string; location: string; locationBasis: string; mechanism: string };
 }
@@ -194,15 +200,24 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
 
   // ---- preflight (W2-2 §4.2): an unfit phone is 环境不合格 — nothing is launched or tapped. Web surfaces:
   // the minimal check — a browser starts and the account's signed-in session is valid.
+  o.hooks?.phase('preflight');
   if (o.preflight !== false && ((onAndroid(plan.surface) && udid) || onPlaywright(plan.surface))) {
     const tPf = Date.now();
+    // Ledger first (G6): the preflight may wake the screen and apply the environment's configuration items.
+    if (udid && onAndroid(plan.surface)) o.hooks?.effect({ kind: 'setting', target: 'preflight', value: 'wake / stayon / taplus / keyboard (environment configuration items)' });
     if (onPlaywright(plan.surface)) {
       const w = await ensureWebSession(o.pool, account.id, plan.surface as PlaywrightSurface).catch((e) => ({ ok: false, error: (e as Error).message.split('\n')[0], reused: false, file: '' }));
       preflight = await preflightWeb({ sessionOk: w.ok, sessionDetail: w.ok ? `signed-in session ${w.reused ? 'valid (reused)' : 'renewed (logged in)'}` : `login failed: ${w.error}` });
     }
     if (udid && onAndroid(plan.surface)) {
       const pkg = loadProfile(profileKey(plan.surface, plan.env, udid))?.packageName ?? TEAMILY_PACKAGE;
-      preflight = await preflightAndroid(udid, pkg, plan.surface);
+      // An adb failure inside the preflight is the environment (device gone / unauthorized), not the tool.
+      preflight = await preflightAndroid(udid, pkg, plan.surface).catch(async (e) => {
+        const snap = await envSnapshot(udid, pkg).catch(() => ({ online: false }) as EnvSnapshot);
+        const msg = (e as Error).message.split('\n')[0];
+        const id = snap.online === false ? 'online' : 'adb';
+        return { ok: false, ms: 0, items: [{ id, ok: false, detail: msg }], changes: [], reason: `${id}: ${snap.online === false ? `设备不在线（${msg.slice(0, 120)}）` : msg}` } satisfies PreflightResult;
+      });
     }
     phase('preflight', tPf);
     const pf = preflight!;
@@ -225,6 +240,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     // ---- session: profile + driver + flight recorder, launch once, sign in, home list, SKILL check
     if (onPlaywright(plan.surface)) wfr = new WebFlightRecorder(flightDir);
     if (onAndroid(plan.surface) && udid) afr = new AndroidFlightRecorder(udid, loadProfile(profileKey(plan.surface, plan.env, udid))?.packageName ?? TEAMILY_PACKAGE, flightDir);
+    o.hooks?.phase('launch');
     sess = await openSession({ surface: plan.surface, env: plan.env, account: account.id, udid, pool: o.pool, headed: o.headed, profile: o.profile, onLog: afr?.onLog, onConsole: wfr?.onConsole, log });
     const s = sess;
     opsOf = () => s.d.ops;
@@ -252,6 +268,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       credentials: () => o.pool.backend.get(account.id),
       // prepare-only Nodes (validator keeps them out of the loop)
       locate: async (desc, texts, newest, textOnly) => (textOnly ? await locateText(s.inner, texts, newest) : await locate(s.inner, desc, { texts, newest, purpose: 'prep' }))?.point ?? null,
+      regionShows: (img, key) => regionShows(img, s.profile, key),
       onFreeze: (id, point, chosen) => res.targets.push({ id, kind: 'picker-row', point, chosen, reason: 'located by its literal text (①) at preparation', by: 'text' }),
     };
     const c: RunCtx = {
@@ -270,6 +287,11 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       // {token} / {round} → this run's marker and the current round; `require` steps read ① (no input).
       exec: (a: PlannedAction) => {
         const x = expandAction(a, { token: runTag, round: s.d.round });
+        o.hooks?.beforeAction(x, { round: s.d.round, step: s.d.step, label: s.d.label, target: (id) => {
+          // Only a title read from the screen names a conversation; a vision pick knows its description only.
+          const t = res.targets.find((x) => x.id === id);
+          return t && (t.by === 'model' || t.by === 'rules') ? t.chosen : undefined;
+        }, budgetMs: x.type === 'idle' ? 120_000 + Number(x.value ?? 0) : undefined });
         return x.type === 'require' ? requireNow(c, x) : execAction(x, nodeCtx, s.profile, targets);
       },
       frames: [],
@@ -281,6 +303,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     setModelPurpose('prep');
     nodeCtx.composerText = () => composerText(s.inner);
     const tPrep = Date.now();
+    o.hooks?.phase('prepare');
     res.isolation = { cleanStart: [], teardown: [] };
     await prepare(c, async () => {
       res.isolation!.cleanStart = await cleanStart(c);
@@ -289,7 +312,9 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     nodeCtx.composerText = undefined; // the loop reads no hierarchy
     if (plan.category === 'feature') {
       setModelPurpose('acceptance');
+      o.hooks?.phase('loop');
       await runAcceptance(c);
+      o.hooks?.phase('finishing');
       await reset(c);
       return done();
     }
@@ -297,6 +322,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     setModelPurpose('warmup');
     // Smoke plans send for real: no extra round.
     const tWarm = Date.now();
+    o.hooks?.phase('warmup');
     if (o.warmup !== false && plan.issueRef !== 'smoke') await runWarmup(c);
     phase('warmup', tWarm);
     setModelPurpose('checkpoint');
@@ -304,7 +330,9 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     // Evidence review compares against the contract's phenomenon (W2-1 §5.6), else the Issue's actual result.
     const reviewIssue = issue && plan.contract ? { ...issue, actual: plan.contract.observable.phenomenon } : issue;
     const tLoop = Date.now();
+    o.hooks?.phase('loop');
     await runLoop(c, { reviewIssue, correctPathOk });
+    o.hooks?.phase('finishing');
     await runEpilogue(c).catch((e) => log(`epilogue failed: ${(e as Error).message.split('\n')[0]}`));
     phase('loop', tLoop);
     await reset(c);
@@ -319,6 +347,8 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       res.conclusionDetail = err.message;
       res.warmup = { steps: err.steps, checks: [] };
     }
+    if (err instanceof CancelledError) res.cancelled = true;
+    o.hooks?.phase('finishing');
     res.error = (err as Error).message.split('\n')[0];
     log(`error: ${res.error}`);
     // The screen and the device state at the moment of the error (diagnosis: environment or tool).
@@ -364,7 +394,8 @@ export function checkLocation(k: TestPlan['checks'][number]): string {
 /** Pure: report lead lines of a bug run (W2-2 §3.2). */
 export function leadOf(plan: TestPlan, r: Pick<RunResult, 'hits' | 'attempts' | 'runTag'>): NonNullable<RunResult['lead']> {
   const tag = (s: string) => s.replace(/\{token\}/g, r.runTag ?? '<运行标记>').replace(/\{round\}/g, '<轮号>');
-  const step = (a: PlannedAction) => (a.type === 'node' ? a.node!.name.replace('teamily.', '') : a.type === 'type' ? `键入「${a.value}」` : a.type === 'require' ? `确认输入框含「${a.requires?.composerHas}」` : a.element ? `${a.type} ${a.element}` : a.type);
+  // The same plain-Chinese step rendering as the plan view (W2-3 §6.1).
+  const step = (a: PlannedAction) => stepText(a, plan, true).text;
   const hitRounds = r.hits.map((h) => h.round).slice(0, 10);
   const k = plan.checks[0];
   return {

@@ -1,0 +1,243 @@
+[gate 11:07:08] loop/kill-task: task run → 33 {"status":429,"code":"APPROVAL_EXHAUSTED","exit":33,"summary":"已用 1/1 次，本次需要 1 次","error":{"status":429,"code":"APPROVAL_EXHAUSTED","exit":33,"message":"已用 1/1 次，本次需要 1 次","hint":"重新批准以获得新的运行次数","retr
+[gate 11:07:08] faults: 0/0 passed (1 not run) → D:\projects\Tools\multi-test-agent\docs\w2m3-gate\faults-2026-10-28T11-07-08-631Z.json
+[gate 11:08:36] loop/kill-task: task t-20261028110751-dwxl @ {"phase":"loop","round":1,"step":1,"at":"2026-10-28T11:08:36.319Z","summary":"teamily.clearComposer"} — taskkill /T /F 32256
+[gate 11:10:46] loop/kill-task: PASS — task interrupted/TASK_CRASHED/crash @{"phase":"loop","round":1,"step":1}; env ready; next NOT_REPRODUCED
+[gate 11:10:46] faults: 1/1 passed (0 not run) → D:\projects\Tools\multi-test-agent\docs\w2m3-gate\faults-2026-10-28T11-07-51-040Z.json
+[gate 11:11:30] preflight/kill-task: task t-20261028111126-3twk @ {"phase":"preflight","at":"2026-10-28T11:11:29.705Z"} — taskkill /T /F 1800
+[gate 11:12:51] preflight/kill-task: PASS — task interrupted/TASK_CRASHED/crash @{"phase":"preflight"}; env ready; next NOT_REPRODUCED
+[gate 11:13:38] preflight/stall: task t-20261028111335-cylp @ {"phase":"preflight","at":"2026-10-28T11:13:38.229Z"} — NtSuspendProcess 12268 → 0
+[gate 11:16:26] preflight/stall: PASS — task failed/TASK_STUCK/stuck @{"phase":"preflight"}; env ready; next NOT_REPRODUCED
+[gate 11:17:31] preflight/kill-platform: task t-20261028111708-67wi @ {"phase":"preflight","at":"2026-10-28T11:17:11.256Z"} — platform 36848 killed, restarted (pid 17124)
+[gate 11:19:07] preflight/kill-platform: PASS — task interrupted/INTERRUPTED/server-restart @{"phase":"launch"}; env ready; next NOT_REPRODUCED
+[gate 11:19:52] preflight/adb-kill: task t-20261028111948-omsz @ {"phase":"preflight","at":"2026-10-28T11:19:51.778Z"} — adb kill-server
+[gate 11:20:00] env unfit (设备不在线（adb 不可达）) — env check
+[gate 11:20:00] preflight/adb-kill: FAIL — task done/TOOL_FAILED/normal @{"phase":"finishing"}; env unfit; next -; env not ready for the next task: unfit 设备不在线（adb 不可达）
+[gate 11:20:00] env unfit (设备不在线（adb 不可达）) — env check
+[gate 11:20:01] prepare/kill-task: SKIP — env not ready: unfit 设备不在线（adb 不可达）
+[gate 11:20:01] env unfit (设备不在线（adb 不可达）) — env check
+[gate 11:20:02] prepare/stall: SKIP — env not ready: unfit 设备不在线（adb 不可达）
+[gate 11:20:02] env unfit (设备不在线（adb 不可达）) — env check
+[gate 11:20:03] prepare/kill-platform: SKIP — env not ready: unfit 设备不在线（adb 不可达）
+[gate 11:20:03] env unfit (设备不在线（adb 不可达）) — env check
+[gate 11:20:04] prepare/adb-kill: SKIP — env not ready: unfit 设备不在线（adb 不可达）
+[gate 11:20:04] env unfit (设备不在线（adb 不可达）) — env check
+[gate 11:20:04] warmup/kill-task: SKIP — env not ready: unfit 设备不在线（adb 不可达）
+[gate 11:20:04] env unfit (设备不在线（adb 不可达）) — env check
+[gate 11:20:05] warmup/stall: SKIP — env not ready: unfit 设备不在线（adb 不可达）
+[gate 11:20:05] env unfit (设备不在线（adb 不可达）) — env check
+[gate 11:20:05] warmup/kill-platform: SKIP — env not ready: unfit 设备不在线（adb 不可达）
+[gate 11:20:05] env unfit (设备不在线（adb 不可达）) — env check
+[gate 11:20:06] warmup/adb-kill: SKIP — env not ready: unfit 设备不在线（adb 不可达）
+[gate 11:20:06] env unfit (设备不在线（adb 不可达）) — env check
+[gate 11:20:06] loop/kill-task: SKIP — env not ready: unfit 设备不在线（adb 不可达）
+[gate 11:20:06] env unfit (设备不在线（adb 不可达）) — env check
+[gate 11:20:07] loop/stall: SKIP — env not ready: unfit 设备不在线（adb 不可达）
+[gate 11:20:07] env unfit (设备不在线（adb 不可达）) — env check
+[gate 11:20:08] loop/kill-platform: SKIP — env not ready: unfit 设备不在线（adb 不可达）
+[gate 11:20:08] env unfit (设备不在线（adb 不可达）) — env check
+[gate 11:20:08] loop/adb-kill: SKIP — env not ready: unfit 设备不在线（adb 不可达）
+[gate 11:20:08] env unfit (设备不在线（adb 不可达）) — env check
+[gate 11:20:09] finishing/kill-task: SKIP — env not ready: unfit 设备不在线（adb 不可达）
+[gate 11:20:09] env unfit (设备不在线（adb 不可达）) — env check
+[gate 11:20:09] finishing/stall: SKIP — env not ready: unfit 设备不在线（adb 不可达）
+[gate 11:20:09] env unfit (设备不在线（adb 不可达）) — env check
+[gate 11:20:10] finishing/kill-platform: SKIP — env not ready: unfit 设备不在线（adb 不可达）
+[gate 11:20:10] env unfit (设备不在线（adb 不可达）) — env check
+[gate 11:20:11] finishing/adb-kill: SKIP — env not ready: unfit 设备不在线（adb 不可达）
+[gate 11:20:11] faults: 3/4 passed (16 not run) → D:\projects\Tools\multi-test-agent\docs\w2m3-gate\faults-2026-10-28T11-10-55-122Z.json
+[gate 11:43:28] preflight/adb-kill: task t-20261028114324-iujh @ {"phase":"preflight","at":"2026-10-28T11:43:27.893Z"} — adb kill-server
+[gate 11:45:28] preflight/adb-kill: PASS — task env-unfit/ENV_UNFIT/normal @{"phase":"finishing"}; env ready; next NOT_REPRODUCED
+[gate 11:45:28] faults: 1/1 passed (0 not run) → D:\projects\Tools\multi-test-agent\docs\w2m3-gate\faults-2026-10-28T11-43-24-442Z.json
+[gate 11:46:21] prepare/kill-task: task t-20261028114611-epr6 @ {"phase":"prepare","at":"2026-10-28T11:46:20.738Z"} — taskkill /T /F 7480
+[gate 11:46:24] env unfit (锁屏（有 PIN，需人工解锁）) — env check (waiting for the phone / a person, 0 s)
+[gate 11:48:02] prepare/kill-task: PASS — task interrupted/TASK_CRASHED/crash @{"phase":"prepare"}; env unfit; next NOT_REPRODUCED
+[gate 11:48:54] prepare/stall: task t-20261028114844-fug0 @ {"phase":"prepare","at":"2026-10-28T11:48:53.707Z"} — NtSuspendProcess 34116 → 0
+[gate 11:51:56] prepare/stall: PASS — task failed/TASK_STUCK/stuck @{"phase":"prepare"}; env ready; next NOT_REPRODUCED
+[gate 11:53:10] prepare/kill-platform: task t-20261028115240-k5hg @ {"phase":"prepare","at":"2026-10-28T11:52:48.794Z"} — platform 17124 killed, restarted (pid 14988)
+[gate 11:54:23] prepare/kill-platform: PASS — task interrupted/INTERRUPTED/server-restart @{"phase":"prepare"}; env ready; next NOT_REPRODUCED
+[gate 11:55:14] prepare/adb-kill: task t-20261028115504-ofmc @ {"phase":"prepare","at":"2026-10-28T11:55:13.875Z"} — adb kill-server
+[gate 11:56:36] prepare/adb-kill: PASS — task done/ENV_OFFLINE/normal @{"phase":"finishing"}; env ready; next NOT_REPRODUCED
+[gate 11:57:43] warmup/kill-task: task t-20261028115717-69zf @ {"phase":"warmup","round":0,"step":0,"at":"2026-10-28T11:57:43.275Z","summary":"warmup:teamily.clearComposer"} — taskkill /T /F 29140
+[gate 12:01:41] warmup/kill-task: PASS — task interrupted/TASK_CRASHED/crash @{"phase":"warmup","round":0,"step":0}; env ready; next NOT_REPRODUCED
+[gate 12:02:49] warmup/stall: task t-20261028120222-euxw @ {"phase":"warmup","round":0,"step":0,"at":"2026-10-28T12:02:48.803Z","summary":"warmup:teamily.clearComposer"} — NtSuspendProcess 36856 → 0
+[gate 12:05:57] warmup/stall: PASS — task failed/TASK_STUCK/stuck @{"phase":"warmup","round":0,"step":0}; env ready; next NOT_REPRODUCED
+[gate 12:08:14] warmup/kill-platform: task t-20261028120640-es60 @ {"phase":"warmup","at":"2026-10-28T12:07:07.646Z"} — platform 14988 killed, restarted (pid 33000)
+[gate 12:12:06] warmup/kill-platform: PASS — task interrupted/INTERRUPTED/server-restart @{"phase":"warmup","round":0,"step":0}; env ready; next NOT_REPRODUCED
+[gate 12:13:15] warmup/adb-kill: task t-20261028121248-0nq5 @ {"phase":"warmup","at":"2026-10-28T12:13:15.037Z"} — adb kill-server
+[gate 12:13:23] warmup/adb-kill: phone not on adb — waiting for USB-debugging authorization on the phone
+[gate 12:23:26] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 0 s)
+[gate 12:23:46] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 21 s)
+[gate 12:24:07] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 41 s)
+[gate 12:24:27] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 62 s)
+[gate 12:24:48] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 82 s)
+[gate 12:25:08] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 103 s)
+[gate 12:25:29] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 123 s)
+[gate 12:25:50] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 144 s)
+[gate 12:26:10] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 165 s)
+[gate 12:26:31] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 185 s)
+[gate 12:26:51] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 206 s)
+[gate 12:27:14] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 228 s)
+[gate 12:27:34] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 249 s)
+[gate 12:27:55] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 269 s)
+[gate 12:28:16] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 290 s)
+[gate 12:28:36] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 311 s)
+[gate 12:28:57] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 331 s)
+[gate 12:29:17] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 352 s)
+[gate 12:29:38] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 372 s)
+[gate 12:29:59] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 393 s)
+[gate 12:30:19] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 414 s)
+[gate 12:30:40] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 434 s)
+[gate 12:31:00] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 455 s)
+[gate 12:31:21] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 475 s)
+[gate 12:31:41] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 496 s)
+[gate 12:32:02] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 517 s)
+[gate 12:32:23] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 537 s)
+[gate 12:32:45] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 560 s)
+[gate 12:33:06] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 580 s)
+[gate 12:33:26] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 601 s)
+[gate 12:33:47] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 621 s)
+[gate 12:34:07] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 642 s)
+[gate 12:34:28] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 663 s)
+[gate 12:34:49] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 683 s)
+[gate 12:35:09] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 704 s)
+[gate 12:35:30] warmup/adb-kill: FAIL — task done/ENV_OFFLINE/normal @{"phase":"finishing"}; env unfit; next -; env not ready for the next task: unfit 设备不在线（adb 不可达）
+[gate 12:35:30] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 0 s)
+[gate 12:35:50] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 21 s)
+[gate 12:36:11] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 41 s)
+[gate 12:36:32] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 62 s)
+[gate 12:36:52] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 82 s)
+[gate 12:37:13] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 103 s)
+[gate 12:38:48] loop/kill-task: task t-20261028123801-09f5 @ {"phase":"loop","round":1,"step":1,"at":"2026-10-28T12:38:48.553Z","summary":"teamily.clearComposer"} — taskkill /T /F 39868
+[gate 12:40:55] loop/kill-task: PASS — task interrupted/TASK_CRASHED/crash @{"phase":"loop","round":1,"step":1}; env ready; next NOT_REPRODUCED
+[gate 12:42:21] loop/stall: task t-20261028124138-hkvz @ {"phase":"loop","round":1,"step":1,"at":"2026-10-28T12:42:21.242Z","summary":"teamily.clearComposer"} — NtSuspendProcess 19736 → 0
+[gate 12:44:59] loop/stall: PASS — task failed/TASK_STUCK/stuck @{"phase":"loop","round":1,"step":1}; env ready; next NOT_REPRODUCED
+[gate 12:47:36] loop/kill-platform: task t-20261028124543-0heg @ {"phase":"loop","round":1,"step":1,"at":"2026-10-28T12:46:29.290Z","summary":"teamily.clearComposer"} — platform 33000 killed, restarted (pid 35568)
+[gate 12:48:50] loop/kill-platform: PASS — task interrupted/INTERRUPTED/server-restart @{"phase":"loop","round":1,"step":3}; env ready; next NOT_REPRODUCED
+[gate 12:50:18] loop/adb-kill: task t-20261028124932-610u @ {"phase":"loop","round":1,"step":1,"at":"2026-10-28T12:50:18.031Z","summary":"teamily.clearComposer"} — adb kill-server
+[gate 12:50:24] loop/adb-kill: phone not on adb — waiting for USB-debugging authorization on the phone
+[gate 12:50:29] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 0 s)
+[gate 12:52:43] loop/adb-kill: PASS — task interrupted/TASK_CRASHED/crash @{"phase":"loop","round":1,"step":1}; env unfit; next NOT_REPRODUCED
+[gate 12:54:44] finishing/kill-task: task t-20261028125324-pnmv @ {"phase":"finishing","at":"2026-10-28T12:54:43.813Z"} — taskkill /T /F 4512
+[gate 12:57:36] finishing/kill-task: PASS — task interrupted/TASK_CRASHED/crash @{"phase":"finishing"}; env ready; next NOT_REPRODUCED
+[gate 12:59:37] finishing/stall: task t-20261028125817-112g @ {"phase":"finishing","at":"2026-10-28T12:59:36.603Z"} — NtSuspendProcess 21016 → 0
+[gate 13:02:17] finishing/stall: PASS — task failed/TASK_STUCK/stuck @{"phase":"finishing"}; env ready; next NOT_REPRODUCED
+[gate 13:07:41] finishing/kill-platform: task t-20261028130258-y8al @ {"phase":"finishing","at":"2026-10-28T13:06:33.994Z"} — platform 35568 killed, restarted (pid 19140)
+[gate 13:08:58] finishing/kill-platform: PASS — task interrupted/INTERRUPTED/server-restart @{"phase":"finishing"}; env ready; next NOT_REPRODUCED
+[gate 13:12:12] finishing/adb-kill: task t-20261028130939-lv0v @ {"phase":"finishing","at":"2026-10-28T13:12:12.242Z"} — adb kill-server
+[gate 13:16:30] finishing/adb-kill: PASS — task done/NOT_REPRODUCED/normal @{"phase":"finishing"}; env ready; next NOT_REPRODUCED
+[gate 13:16:30] faults: 15/16 passed (0 not run) → D:\projects\Tools\multi-test-agent\docs\w2m3-gate\faults-2026-10-28T11-45-28-974Z.json
+[gate 13:17:39] warmup/adb-kill: task t-20261028131713-b9x9 @ {"phase":"warmup","round":0,"step":0,"at":"2026-10-28T13:17:39.477Z","summary":"warmup:teamily.clearComposer"} — adb kill-server
+[gate 13:17:45] warmup/adb-kill: phone not on adb — waiting for USB-debugging authorization on the phone
+[gate 13:27:45] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 0 s)
+[gate 13:28:06] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 21 s)
+[gate 13:28:27] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 41 s)
+[gate 13:28:47] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 62 s)
+[gate 13:29:08] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 82 s)
+[gate 13:29:28] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 103 s)
+[gate 13:29:49] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 124 s)
+[gate 13:30:10] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 144 s)
+[gate 13:30:30] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 165 s)
+[gate 13:30:51] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 185 s)
+[gate 13:31:11] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 206 s)
+[gate 13:31:32] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 226 s)
+[gate 13:31:52] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 247 s)
+[gate 13:32:13] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 268 s)
+[gate 13:32:22] consistency t-20261028110014-djc9: {"sentence":false,"valid":true,"hits":true,"interval":false} FAIL
+[gate 13:32:34] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 288 s)
+[gate 13:32:36] consistency t-20261028110014-djc9: {"sentence":true,"valid":true,"hits":true,"interval":true} PASS
+[gate 13:32:54] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 309 s)
+[gate 13:33:15] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 329 s)
+[gate 13:33:35] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 350 s)
+[gate 13:33:56] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 371 s)
+[gate 13:34:16] consistency t-20261028124138-hkvz: {"sentence":true,"valid":true,"hits":true,"interval":true} PASS
+[gate 13:34:17] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 391 s)
+[gate 13:34:37] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 412 s)
+[gate 13:34:58] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 432 s)
+[gate 13:35:18] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 453 s)
+[gate 13:35:39] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 474 s)
+[gate 13:36:00] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 494 s)
+[gate 13:36:20] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 515 s)
+[gate 13:36:41] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 535 s)
+[gate 13:37:01] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 556 s)
+[gate 13:37:22] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 577 s)
+[gate 13:37:43] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 597 s)
+[gate 13:38:03] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 618 s)
+[gate 13:38:24] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 638 s)
+[gate 13:38:44] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 659 s)
+[gate 13:39:05] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 679 s)
+[gate 13:39:25] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 700 s)
+[gate 13:39:46] warmup/adb-kill: FAIL — task done/ENV_OFFLINE/normal @{"phase":"finishing"}; env unfit; next -; env not ready for the next task: unfit 设备不在线（adb 不可达）
+[gate 13:39:46] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 0 s)
+[gate 13:40:07] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 21 s)
+[gate 13:40:27] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 41 s)
+[gate 13:40:48] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 62 s)
+[gate 13:41:08] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 82 s)
+[gate 13:41:29] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 103 s)
+[gate 13:41:50] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 124 s)
+[gate 13:42:10] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 144 s)
+[gate 13:42:31] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 165 s)
+[gate 13:42:51] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 185 s)
+[gate 13:43:14] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 208 s)
+[gate 13:43:34] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 228 s)
+[gate 13:43:55] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 249 s)
+[gate 13:44:18] determinism: 31→31 32→52 33→52 FAIL
+[gate 13:45:26] determinism: 31→31 32→32 33→33 PASS
+[gate 13:45:36] estimate: 15/26 runs inside the PlanView interval (58%)
+[gate 13:46:03] estimate: 20/22 runs inside the PlanView interval (91%)
+[gate 13:58:52] warmup/adb-kill: task run → 33 {"status":429,"code":"APPROVAL_EXHAUSTED","exit":33,"summary":"已用 1/1 次，本次需要 1 次","error":{"status":429,"code":"APPROVAL_EXHAUSTED","exit":33,"message":"已用 1/1 次，本次需要 1 次","hint":"重新批准以获得新的运行次数","retr
+[gate 13:58:52] loop/adb-kill: task run → 33 {"status":429,"code":"APPROVAL_EXHAUSTED","exit":33,"summary":"已用 1/1 次，本次需要 1 次","error":{"status":429,"code":"APPROVAL_EXHAUSTED","exit":33,"message":"已用 1/1 次，本次需要 1 次","hint":"重新批准以获得新的运行次数","retr
+[gate 13:58:52] faults: 0/0 passed (2 not run) → D:\projects\Tools\multi-test-agent\docs\w2m3-gate\faults-2026-10-28T13-58-52-478Z.json
+[gate 13:59:38] warmup/adb-kill: task t-20261028135911-i7ta @ {"phase":"warmup","round":0,"step":0,"at":"2026-10-28T13:59:38.536Z","summary":"warmup:teamily.clearComposer"} — adb kill-server
+[gate 13:59:44] warmup/adb-kill: phone not on adb — waiting for USB-debugging authorization on the phone
+[gate 14:09:44] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 0 s)
+[gate 14:10:05] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 21 s)
+[gate 14:10:26] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 41 s)
+[gate 14:10:46] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 62 s)
+[gate 14:11:07] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 82 s)
+[gate 14:11:27] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 103 s)
+[gate 14:11:48] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 124 s)
+[gate 14:12:09] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 144 s)
+[gate 14:12:29] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 165 s)
+[gate 14:12:50] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 185 s)
+[gate 07:32:21] agent help: exit 0 OK — 19 个命令
+[gate 07:32:22] agent draft create: exit 0 OK — 草稿 v1（plannable）：2010/main:android-app@v1, 2010/main:mobile-web@v1
+[gate 07:32:25] agent plan explain: exit 0 OK — 在 android-app 上重复「点 AI 改写后输入框草稿应保留（或先确认 / 可撤销）」，看 Issue 2010 描述的现象会不会出现；最多发送 0 条消息；约 83 秒 – 13 分钟（同计划最近 10 次运行）；默认允许
+[gate 07:32:25] agent task run: exit 20 ACCEPTED — 任务 t-20261029073225-c7jj 已排队：2010/main:android-app@v1 @ android-app:4f2ebdf2@prod
+[gate 07:36:39] agent task wait: exit 10 NOT_REPRODUCED — 任务 t-20261029073225-c7jj（2010/main:android-app@v1 @ android-app:4f2ebdf2@prod）：完成 — 未复现
+[gate 07:36:39] agent result show: exit 10 NOT_REPRODUCED — 未复现：6 次有效尝试中命中 2 次；单轮命中率 33.3%（Wilson 95% 区间 9.7%–70%）（替代执行 ios → android-app）
+[gate 07:36:39] agent task run (series 21, sensitive): exit 30 APPROVAL_REQUIRED — 敏感计划需要人在 Web 上同意：系列 21 次（> 20）
+[gate 07:36:39] agent: conclusion OK (未复现：6 次有效尝试中命中 2 次；单轮命中率 33.3%（Wilson 95% 区间 9.7%–70%）（替代执行 ios → android-app）); sensitive: 30 true, web false, accepted false, series exit -1
+[gate 07:39:41] env quarantined (残留进程：18660 sh -c rm -f /sdcard/autotest_ui_0.xml; uiautomator dump /sdcard/autotest_u, 18663 uiautomator；被测 App 不在首页（foreign）) — env check (waiting for the phone / a person, 0 s)
+[gate 07:40:48] warmup/adb-kill: task t-20261029074021-17j2 @ {"phase":"warmup","round":0,"step":0,"at":"2026-10-29T07:40:48.538Z","summary":"warmup:teamily.clearComposer"} — adb kill-server
+[gate 07:40:56] warmup/adb-kill: phone not on adb — waiting for USB-debugging authorization on the phone
+[gate 07:50:59] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 0 s)
+[gate 07:51:19] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 21 s)
+[gate 07:51:40] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 41 s)
+[gate 07:52:01] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 62 s)
+[gate 07:52:21] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 83 s)
+[gate 07:52:42] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 103 s)
+[gate 07:53:03] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 124 s)
+[gate 07:53:23] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 145 s)
+[gate 07:53:44] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 165 s)
+[gate 07:54:05] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 186 s)
+[gate 07:54:25] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 207 s)
+[gate 07:54:46] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 227 s)
+[gate 07:55:07] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 248 s)
+[gate 07:55:27] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 269 s)
+[gate 07:55:48] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 290 s)
+[gate 07:56:09] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 310 s)
+[gate 07:56:30] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 331 s)
+[gate 07:56:50] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 352 s)
+[gate 07:57:11] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 372 s)
+[gate 07:57:32] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 393 s)
+[gate 07:57:52] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 414 s)
+[gate 07:58:13] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 434 s)
+[gate 07:58:34] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 455 s)
+[gate 07:58:54] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 476 s)
+[gate 07:59:15] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 496 s)
+[gate 07:59:36] env unfit (设备不在线（adb 不可达）) — env check (waiting for the phone / a person, 517 s)
+[gate 07:59:58] estimate: 21/23 runs inside the PlanView interval (91%)
+[gate 07:59:58] estimate: 21/23 runs inside the PlanView interval (91%)
+[gate 08:13:25] warmup/adb-reconnect: task t-20261030081255-r2yc @ {"phase":"warmup","round":0,"step":0,"at":"2026-10-30T08:13:25.609Z","summary":"warmup:teamily.clearComposer"} — adb -s 4f2ebdf2 reconnect
+[gate 08:15:07] warmup/adb-reconnect: PASS — task done/ENV_OFFLINE/normal @{"phase":"finishing"}; env ready; next NOT_REPRODUCED
+[gate 08:15:07] faults: 1/1 passed (0 not run) → D:\projects\Tools\multi-test-agent\docs\w2m3-gate\faults-2026-10-30T08-12-54-826Z.json

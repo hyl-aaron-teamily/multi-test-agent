@@ -11,6 +11,8 @@
 //   GET  /api/issues             issues/*.md with their pre-classification (rules)
 //   POST /api/issues             {name, content} upload an Issue markdown → issues/<name>.md
 //   GET  /api/issues/:id/draft   draft for the one-time confirmation (category, sub-cases, substitution boxes)
+//   /api/v1/*                    W2-3 service for the CLI (agents) and the Web pages (people): see platform/api-v1.ts
+//   GET  /web/<page>.html        W2-3 pages (home, environment, plan review, result)
 // Tasks run asynchronously in child processes; the browser polls.
 import 'dotenv/config';
 import { createReadStream, existsSync, statSync } from 'node:fs';
@@ -22,6 +24,9 @@ import { classifyRules } from '../issue/classify';
 import { parseIssue } from '../issue/parse';
 import { DevicePool } from './device-pool';
 import { TaskManager, validateTaskInput } from './tasks';
+import { AccountPool } from './accounts/account-pool';
+import { apiV1, refFile } from './api-v1';
+import { Supervisor } from './lifecycle/supervisor';
 
 const PORT = Number(process.env.PLATFORM_PORT ?? 3210);
 const FILES_ROOT = resolve('midscene_run');
@@ -29,6 +34,8 @@ const MIME: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg'
 
 const pool = new DevicePool();
 const tasks = new TaskManager(pool);
+const accounts = new AccountPool();
+let sup: Supervisor | undefined;
 
 function send(res: ServerResponse, status: number, body: unknown, type = 'application/json'): void {
   res.writeHead(status, { 'content-type': type, 'cache-control': 'no-store' });
@@ -56,7 +63,22 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   const p = url.pathname;
   const m = p.match(/^\/api\/tasks\/([\w-]+)(?:\/(report|log|cancel))?$/);
 
-  if (req.method === 'GET' && p === '/') return send(res, 200, await readFile(resolve('platform/console.html')), 'text/html; charset=utf-8');
+  if (p.startsWith('/api/v1/')) {
+    const body = req.method === 'POST' ? await readBody(req).catch(() => ({})) : {};
+    const env = await apiV1({ method: req.method ?? 'GET', path: p, query: url.searchParams, body, web: req.headers['x-autotest-client'] === 'web' }, { sup });
+    return send(res, env.status, env);
+  }
+  if (req.method === 'GET' && p.startsWith('/refs/')) {
+    const f = refFile(p.slice('/refs/'.length));
+    if (!f) return send(res, 404, { error: 'not found' });
+    res.writeHead(200, { 'content-type': MIME[extname(f)] ?? 'application/octet-stream' });
+    createReadStream(f).pipe(res);
+    return;
+  }
+  const page = p === '/' ? 'index.html' : p.match(/^\/(index|env|plan|result|task)\.html$/)?.[0].slice(1);
+  if (req.method === 'GET' && page) return send(res, 200, await readFile(resolve('platform/web', page)), 'text/html; charset=utf-8');
+  if (req.method === 'GET' && p === '/web.js') return send(res, 200, await readFile(resolve('platform/web/web.js')), 'text/javascript; charset=utf-8');
+  if (req.method === 'GET' && (p === '/console' || p === '/console.html')) return send(res, 200, await readFile(resolve('platform/console.html')), 'text/html; charset=utf-8');
   if (req.method === 'GET' && p === '/api/devices') return send(res, 200, { config: pool.config, devices: await pool.refresh() });
   if (req.method === 'GET' && p === '/api/issues') {
     const files = (await readdir(resolve('issues'))).filter((f) => f.endsWith('.md'));
@@ -121,8 +143,22 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 
 async function main() {
   await pool.reloadConfig();
+  await accounts.reload();
   await tasks.load();
   tasks.start();
+  await pool.refresh();
+  sup = new Supervisor(pool, accounts);
+  await sup.start();
+  let stopping = false;
+  const stop = async (sig: string) => {
+    if (stopping) return;
+    stopping = true;
+    console.log(`[platform] ${sig}: draining environments (tasks stop at a step boundary, ≤ 60 s) …`);
+    await sup?.shutdown().catch((e) => console.error(e));
+    process.exit(0);
+  };
+  process.on('SIGINT', () => void stop('SIGINT'));
+  process.on('SIGTERM', () => void stop('SIGTERM'));
   createServer((req, res) => {
     handle(req, res).catch((err) => send(res, 500, { error: (err as Error).message }));
   }).listen(PORT, () => {

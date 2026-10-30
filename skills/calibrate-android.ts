@@ -107,7 +107,7 @@ export async function calibrateAndroid(o: CalibrateAndroidOptions): Promise<Prof
     const composer = nodes.find((n) => /EditText/.test(n.cls));
     put('chat.composer', composer);
     // AI rewrite (W2-2, Issue 2010): the sparkle button of the composer toolbar, keyboard down.
-    put('chat.rewrite', byDesc(/^(强化 ?prompt|改写|AI 改写|Rewrite|Enhance prompt)$/i, /Button|ViewGroup/));
+    put('chat.rewrite', byDesc(/^((用记忆)?强化 ?prompt|改写|AI 改写|Rewrite|Enhance prompt( with memory)?)$/i, /Button|ViewGroup/));
     // Chat-page marker: the composer's toolbar row (+ / Instant / icons) — stable, unlike the input's text.
     await ref('chat', { composer: composer && [0, composer.y2, prof.viewport.width, 150] });
     await selfCheck('chat.composer', 20_000); // keyboard comes up
@@ -128,7 +128,8 @@ export async function calibrateAndroid(o: CalibrateAndroidOptions): Promise<Prof
     await d.back();
     await sleep(800);
     await d.key('backspace');
-    await d.type('x');
+    // A space sends it through yadb: the phone's IME can eat plain `input text`.
+    await d.type('autotest calibrate');
     await sleep(800);
     nodes = await dump(udid, o.packageName);
     // The send button has no label: the right-most button on the composer's toolbar row (keyboard up).
@@ -138,9 +139,60 @@ export async function calibrateAndroid(o: CalibrateAndroidOptions): Promise<Prof
       byDesc(/^(发送|Send)$/) ??
         (comp2 ? nodes.filter((n) => n.clickable && /Button/.test(n.cls) && !n.desc && n.x1 > prof.viewport.width * 0.75 && n.y1 >= comp2.y2 - 20 && n.y1 < comp2.y2 + 250).sort((a, b) => b.x2 - a.x2)[0] : undefined),
     );
+    // Rewrite confirmation (Teamily 2.0.20 asks "用记忆强化 prompt?" before rewriting): tap rewrite with the
+    // draft still in, keyboard down; a dialog with 取消 → its button and reference region. Older versions
+    // rewrite at once (no dialog, nothing recorded).
+    // Keyboard down (Back only while it is up: with it down Back leaves the chat).
+    const hideKb = async () => {
+      if ((await d.keyboardShown()) === true) {
+        await d.back();
+        await sleep(800);
+      }
+    };
+    await hideKb();
+    // The dialog needs a draft: retype once if it did not land.
+    const draft = async () => (await dump(udid, o.packageName)).find((n) => /EditText/.test(n.cls))?.text ?? '';
+    if (comp2 && !(await draft())) {
+      await d.tap({ x: (comp2.x1 + comp2.x2) / 2, y: (comp2.y1 + comp2.y2) / 2 });
+      await sleep(800);
+      await d.type('autotest calibrate');
+      await sleep(800);
+      await hideKb();
+    }
+    const rw = prof.elements['chat.rewrite'];
+    if (rw && !(await draft())) {
+      log('  composer still empty — rewrite confirmation not checked');
+      queueReview(prof, 'chat.rewriteCancel', 'composer empty (typed text lost), rewrite confirmation not checked');
+    }
+    else if (rw) {
+      await d.tap({ x: rw.box[0] + rw.box[2] / 2, y: rw.box[1] + rw.box[3] / 2 });
+      await sleep(2000);
+      nodes = await dump(udid, o.packageName);
+      const label = (n: N) => n.text || n.desc;
+      const cancel = nodes.find((n) => /^(取消|Cancel)$/i.test(label(n)));
+      const confirm = nodes.find((n) => n !== cancel && /^(强化|确定|确认|OK|Confirm|Enhance)$/i.test(label(n)) && cancel && Math.abs(n.y1 - cancel.y1) < 60);
+      if (cancel && confirm) {
+        // The dialog: the smallest node holding both buttons and a title above them.
+        const box = nodes
+          .filter((n) => n.x1 <= cancel.x1 && n.x2 >= confirm.x2 && n.y2 >= cancel.y2 && n.y1 < cancel.y1 - 100 && n.x2 - n.x1 < prof.viewport.width)
+          .sort((a, b) => (a.x2 - a.x1) * (a.y2 - a.y1) - (b.x2 - b.x1) * (b.y2 - b.y1))[0];
+        put('chat.rewriteCancel', cancel);
+        log(`  rewrite confirmation dialog seen (${nodes.filter((n) => /\?$|？$/.test(label(n))).map(label)[0] ?? 'no title'})`);
+        await ref('rewrite-confirm', { dialog: box ? toBox(box) : [Math.min(cancel.x1, confirm.x1) - 40, cancel.y1 - 360, Math.max(cancel.x2, confirm.x2) - Math.min(cancel.x1, confirm.x1) + 80, cancel.y2 - cancel.y1 + 400] });
+        await d.tap({ x: (cancel.x1 + cancel.x2) / 2, y: (cancel.y1 + cancel.y2) / 2 });
+        await sleep(1200);
+      } else {
+        log('  no rewrite confirmation dialog (rewrite runs at once on this version)');
+        await sleep(6000); // let the rewrite finish before clearing
+      }
+    }
+    if (comp2) {
+      await d.tap({ x: (comp2.x1 + comp2.x2) / 2, y: (comp2.y1 + comp2.y2) / 2 });
+      await sleep(800);
+    }
+    await d.key('selectAll');
     await d.key('backspace');
-    await d.back(); // keyboard
-    await sleep(600);
+    await hideKb();
     await selfCheck('chat.back');
     await sleep(1500);
     await selfCheck('nav.me');

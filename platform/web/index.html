@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8"><title>autotest — 首页</title><script src="/web.js"></script></head>
+<body>
+<div id="top"></div>
+<h1>测试任务与 Issue</h1>
+<p class="muted">每个页面回答：要做什么 / 正在做什么 / 结果是什么 / 可信吗 / 下一步做什么。旧任务类型（mission / explore / monkey / imui / sync）在「旧控制台」。</p>
+<p><button onclick="toggleFA(true)" id="faOn">开启完全授权…</button></p>
+<h2>任务</h2>
+<table id="tasks"><tr><th>任务</th><th>计划</th><th>环境</th><th>状态</th><th>结果</th></tr></table>
+<h2>Issue</h2>
+<table id="issues"><tr><th>Issue</th><th>类别</th><th>草稿</th><th>计划（点开审核）</th></tr></table>
+<script>
+async function load() {
+  await header('home');
+  const fa = (await api('GET', '/full-access')).data;
+  document.getElementById('faOn').style.display = fa?.on ? 'none' : '';
+  const tasks = (await api('GET', '/tasks?limit=30')).data ?? [];
+  document.getElementById('tasks').innerHTML = '<tr><th>任务</th><th>计划</th><th>环境</th><th>状态</th><th>结果</th></tr>' + tasks.map((t) => `<tr><td><a href="/task.html?id=${enc(t.id)}">${esc(t.id)}</a><br><span class="muted">${esc(t.createdAt.slice(0, 19).replace('T', ' '))}</span></td><td><a href="/plan.html?id=${enc(t.planId)}">${esc(t.planId)}</a></td><td>${esc(t.envId)}</td><td>${esc(t.stateText)}${t.progress.phaseText && !t.finishedAt ? `（${esc(t.progress.phaseText)}${t.progress.round !== undefined ? ` 第 ${t.progress.round} 轮` : ''}）` : ''}</td><td>${t.finishedAt ? `<a href="/result.html?id=${enc(t.id)}">${esc(t.outcome?.summary ?? '查看')}</a>` : ''}</td></tr>`).join('');
+  const issues = (await api('GET', '/issues')).data ?? [];
+  document.getElementById('issues').innerHTML = '<tr><th>Issue</th><th>类别</th><th>草稿</th><th>计划（点开审核）</th></tr>' + issues.map((i) => `<tr><td><b>${esc(i.id)}</b> ${esc(i.title.slice(0, 80))}</td><td>${esc(i.category)}</td><td>${i.draft ? `v${i.draft.version} ${esc(i.draft.status)}` : '无'} <button onclick="draft('${esc(i.id)}')">生成草稿</button></td><td>${i.plans.map((p) => `<a href="/plan.html?id=${enc(p.id)}">${esc(p.id)}</a> <span class="muted">${esc(p.approval)}</span>`).join('<br>')}</td></tr>`).join('');
+}
+async function draft(id) {
+  const b = event.target;
+  b.disabled = true;
+  b.textContent = '生成中…';
+  const r = await api('POST', `/drafts/${enc(id)}`, { env: 'prod' });
+  alert(r.summary);
+  load();
+}
+load();
+setInterval(load, 5000);
+</script>
+</body>
+</html>

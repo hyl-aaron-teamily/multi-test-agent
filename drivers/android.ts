@@ -49,7 +49,7 @@ export function classifyLogLine(line: string, pkg: string, pid?: number, appErro
 export class AndroidDriver implements Driver {
   readonly surface: 'android-app' | 'android-web';
   private shell?: ChildProcessWithoutNullStreams;
-  private shellQueue: { marker: string; resolve: () => void }[] = [];
+  private shellQueue: { marker: string; resolve: () => void; reject: (e: Error) => void }[] = [];
   private seq = 0;
   private logcat?: ChildProcessWithoutNullStreams;
   private anomalies: Anomaly[] = [];
@@ -85,8 +85,15 @@ export class AndroidDriver implements Driver {
       }
       if (buf.length > 1_000_000) buf = buf.slice(-10_000);
     });
-    sh.on('exit', () => {
-      for (const q of this.shellQueue.splice(0)) q.resolve();
+    // adb gone (server killed, cable out, unauthorized): commands that were waiting never ran — say so as
+    // the device being offline (an environment failure), never as success; a broken stdin must not crash us.
+    const lost = (why: string) => {
+      for (const q of this.shellQueue.splice(0)) q.reject(new Error(`device offline: adb shell ${why}`));
+    };
+    sh.on('exit', (code) => lost(`exited (${code})`));
+    sh.stdin.on('error', (e) => {
+      lost(`closed (${e.message})`);
+      sh.kill();
     });
     this.shell = sh;
     return sh;
@@ -96,7 +103,7 @@ export class AndroidDriver implements Driver {
   async sh(cmd: string, timeoutMs = 10_000): Promise<void> {
     const sh = this.ensureShell();
     const marker = `__at_${++this.seq}__`;
-    const done = new Promise<void>((resolve) => this.shellQueue.push({ marker, resolve }));
+    const done = new Promise<void>((resolve, reject) => this.shellQueue.push({ marker, resolve, reject }));
     sh.stdin.write(`${cmd}; echo ${marker}\n`);
     await Promise.race([done, sleep(timeoutMs).then(() => Promise.reject(new Error(`adb shell timeout: ${cmd.slice(0, 60)}`)))]);
   }

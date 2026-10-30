@@ -358,3 +358,25 @@ chore(env): install adb via [package manager] and verify device connection
 5. 崩溃监控的实际验证结果：是否成功捕获一次崩溃、产物文件列表、`context.json` 内容示例。
 6. 遇到的主要问题与解决方式。
 7. 第三周（Monkey 随机压测 / WebView CDP 补充通道 / 轻量控制台）的建议，不超过 5 条，并指出哪些基础设施可以直接复用本周的 `logcat-monitor` 和循环脚本。
+
+---
+
+## 实现对照（2026-10-29 按代码核对）
+
+> 本节是事后核对，以上正文保留当时的需求原文。项目当前全貌见 `PROJECT-SUMMARY.md`。
+> 编号说明：本文即 **W2** 里程碑。文件名是 week1，是因为 W1–W4 都在开发第一周（2026-10-19 — 10-20）完成；正文里的「第二周」指里程碑序号。
+
+**已实现**（分支 `feat/w2-android-adb`，2026-10-19 经 `1c33a57` 合并到 `main`）
+
+- 设备与 Agent：`fixtures/android.ts#getAndroidDevice`（取 `DEVICE_ID` 或第一台已授权设备，无设备时报可读错误）、`#createAndroidAgent`（同时检查凭据与设备，带弹窗处理的 `aiActionContext`，可选缓存）；`core/adb.ts#resolveAdbPath` 支持 `MIDSCENE_ADB_PATH`，`#forceStopApp` / `#launchApp`（`monkey -p <pkg> -c LAUNCHER 1`）。
+- 原生流程：`tests/android/settings.about.spec.ts` 调 `android/flows/settings-about.ts#runSettingsAboutFlow`（系统设置 →「关于手机」，5 步，每步 Allure step + 截图）。这是**一个用例**；`CHANGELOG.md` 与旧版总结里写的「5/5」指的是 5 步。
+- 崩溃监控：`core/logcat-monitor.ts#startLogcatMonitor`，关键字 `FATAL EXCEPTION` / `ANR in` / `beginning of crash`；命中后写 `midscene_run/crashes/<ts>/`（`screenshot.png`、`logcat.txt` = 前 200 行 + 后 200 行或 3 秒 + `logcat -b crash -d`、`context.json`），并回调 `onCrash`。
+- 高频循环：`scripts/loop-android.ts`（`LOOP_COUNT` 默认 10、`APP_PACKAGE`、`DEVICE_ID`、`FAIL_FAST`、`CRASH_AT_ITERATION`、`FLOW=launch` 无 AI 模式），每轮 force-stop 后启动，汇总写 `midscene_run/loop-summary.json`（`totalRuns`、`crashesDetected`、`failedRuns`、`firstCrashIteration`）。
+- 自检脚本 `scripts/crash-check-android.ts`（`am crash` 注入，10 秒内须捕获）；`env-report.md`、`env-plan.md` 在仓库根目录。
+
+**与正文不同 / 后来的变化**
+
+- `scripts/loop-android.ts` 与 `crash-check-android.ts` 不按包名过滤：任何进程的崩溃都会被记为本轮失败。
+- 离线单测 `tests/android/logcat-monitor.unit.spec.ts` 在 W2-1 移到 `core/logcat-monitor.spec.ts`（归入 unit project，CI 能跑到）。
+- M5 起的 Issue 执行器不再使用本模块：`drivers/android.ts#AndroidDriver` 自己维护一条 logcat 流（`-b main -b system -b crash -b events`），按 `#classifyLogLine` 判定崩溃 / ANR / 进程死亡 / 离开 App。`core/logcat-monitor.ts` 现在只服务 mission、explore、monkey、loop、旧重放这些旁路入口。
+- `core/logcat-monitor.ts` 判断崩溃是否属于被测包，依据的是窗口内的 `Process: <包名>` 行。典型的 `ANR in <包名>` 日志可能没有这一行，被测包自己的 ANR 可能被当成其他进程的（代码推断，未在真机上复现）。

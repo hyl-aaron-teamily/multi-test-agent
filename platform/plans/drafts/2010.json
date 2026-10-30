@@ -212,5 +212,18 @@
   ],
   "hash": "f50a913363a21b79",
   "issueHash": "3553d9a723f6fcce",
-  "env": "prod"
+  "env": "prod",
+  "version": 1,
+  "warmupFailures": [
+    {
+      "planId": "2010-android-app-v1",
+      "at": "2026-10-30T06:37:09.145Z",
+      "detail": "计划不可执行（预热第 1 步：teamily.clearComposer 预期 （不核验） 未出现 — the composer did not take focus (keyboard not up)）"
+    },
+    {
+      "planId": "2010-android-app-v1",
+      "at": "2026-10-30T07:44:14.932Z",
+      "detail": "计划不可执行（预热第 4 步：teamily.tapRewrite 预期 （不核验） 未出现 — rewrite did not start within 10 s (no spinner, no text change)）"
+    }
+  ]
 }

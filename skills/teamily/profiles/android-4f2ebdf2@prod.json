@@ -1,9 +1,9 @@
 {
   "surface": "android-app",
   "name": "android-4f2ebdf2@prod",
-  "skillVersion": "2026.10.26-1",
+  "skillVersion": "2026.10.30-1",
   "env": "prod",
-  "calibratedAt": "2026-10-26T11:20:26.123Z",
+  "calibratedAt": "2026-10-30T08:07:00.355Z",
   "viewport": {
     "width": 1080,
     "height": 2400
@@ -23,7 +23,7 @@
         "desc": "聊天",
         "cls": "android.widget.Button"
       },
-      "note": "screen Δ360801px"
+      "note": "screen Δ468px"
     },
     "nav.me": {
       "page": "home",
@@ -38,7 +38,7 @@
         "desc": "我的",
         "cls": "android.widget.Button"
       },
-      "note": "screen Δ302340px"
+      "note": "screen Δ305020px"
     },
     "chatlist.search": {
       "page": "home",
@@ -53,7 +53,7 @@
         "desc": "搜索",
         "cls": "android.view.ViewGroup"
       },
-      "note": "screen Δ285884px"
+      "note": "screen Δ286914px"
     },
     "chat.back": {
       "page": "chat",
@@ -68,7 +68,7 @@
         "desc": "返回",
         "cls": "android.widget.Button"
       },
-      "note": "screen Δ348254px"
+      "note": "screen Δ1449341px"
     },
     "chat.composer": {
       "page": "chat",
@@ -83,17 +83,7 @@
         "text": "输入消息...",
         "cls": "android.widget.EditText"
       },
-      "note": "screen Δ724826px"
-    },
-    "chat.send": {
-      "page": "chat",
-      "box": [
-        929,
-        2217,
-        99,
-        99
-      ],
-      "selfCheck": "pending"
+      "note": "screen Δ961774px"
     },
     "chat.rewrite": {
       "page": "chat",
@@ -105,10 +95,33 @@
       ],
       "selfCheck": "pending",
       "fingerprint": {
-        "desc": "强化 prompt",
+        "desc": "用记忆强化 prompt",
         "cls": "android.widget.Button"
-      },
-      "note": "added 2026-10-28 (W2-2 T4) from the accessibility tree, keyboard down"
+      }
+    },
+    "chat.send": {
+      "page": "chat",
+      "box": [
+        929,
+        2217,
+        99,
+        99
+      ],
+      "selfCheck": "pending"
+    },
+    "chat.rewriteCancel": {
+      "page": "rewrite-confirm",
+      "box": [
+        624,
+        1302,
+        176,
+        149
+      ],
+      "selfCheck": "pending",
+      "fingerprint": {
+        "text": "取消",
+        "cls": "android.widget.Button"
+      }
     }
   },
   "refs": {
@@ -140,7 +153,7 @@
         ]
       },
       "hashes": {
-        "composer": "01136b6b13010100"
+        "composer": "011b6b6b1b010100"
       },
       "greys": {
         "composer": 237
@@ -157,10 +170,27 @@
         ]
       },
       "hashes": {
-        "picker": "00002ca4a6220000"
+        "picker": "000024b4a6220000"
       },
       "greys": {
-        "picker": 252
+        "picker": 251
+      }
+    },
+    "rewrite-confirm": {
+      "image": "refs/android-4f2ebdf2@prod/rewrite-confirm.png",
+      "regions": {
+        "dialog": [
+          71,
+          1014,
+          938,
+          448
+        ]
+      },
+      "hashes": {
+        "dialog": "01d03086b0000c00"
+      },
+      "greys": {
+        "dialog": 239
       }
     }
   },

@@ -1,0 +1,6 @@
+# Approval policy defaults (W2-3 §5.1). Full access approves every plan (sensitive ones too) and the
+# environment configuration items; hard rules are refused whatever it says. The Web switch overrides this
+# default until switched again (platform/state/full-access.json).
+# 2026-10-28: ON while W2-3 was developed, OFF at its end. 2026-10-30 (user decision): ON again for the whole
+# feature-development phase — sensitive plans run without a Web click; turn OFF when development ends.
+fullAccessDefault: true

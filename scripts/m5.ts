@@ -15,6 +15,7 @@ import { openPools } from '../platform/pools';
 import { patternById } from '../skills/teamily/patterns';
 import { AccountPool } from '../platform/accounts/account-pool';
 import type { Env, Surface } from '../platform/accounts/types';
+import { emitTaskResult } from '../core/task-result';
 
 export function flag(args: string[], name: string): string | undefined {
   const i = args.indexOf(`--${name}`);
@@ -186,6 +187,7 @@ async function sync(args: string[]): Promise<number> {
   const r = await runSync({ env, roles, rounds: flag(args, 'rounds') ? Number(flag(args, 'rounds')) : undefined, conversation: flag(args, 'conversation'), timeoutSec: flag(args, 'timeout') ? Number(flag(args, 'timeout')) : undefined, settleSec: flag(args, 'settle') ? Number(flag(args, 'settle')) : undefined, runDir, pool, devices, headed: has(args, 'headed') });
   console.log(`[sync] ${r.conclusion} — ${r.detail}`);
   console.log(`[sync] report → ${resolve(runDir, 'report.md')}`);
+  emitTaskResult({ report: resolve(runDir, 'report.md'), verdict: `${r.conclusion} — ${r.detail}` });
   return r.conclusion === '全部同步' ? 0 : 1;
 }
 

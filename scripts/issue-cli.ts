@@ -9,12 +9,13 @@ import { openPools } from '../platform/pools';
 import { type Surface, type TestPlan, TestPlanZ } from '../platform/schema/test-plan';
 import { parseIssue } from '../issue/parse';
 import { issuePath } from '../issue/paths';
-import { DRAFTS_DIR, loadSavedDraft, PLANS_DIR, saveDraft } from '../issue/drafts';
+import { loadSavedDraft, PLANS_DIR, recordWarmupFailures, saveDraft } from '../issue/drafts';
 import { applyApproval, type Draft, draftIssue } from '../issue/planner';
 import { normalizeResult, runMarkdown, writeIssueReport } from '../issue/report';
 import { classifyRules } from '../issue/classify';
 import { seriesMarkdown, type SeriesRun, summarizeSeries } from '../executor/series';
 import { resolve } from 'node:path';
+import { emitTaskResult } from '../core/task-result';
 
 export { PLANS_DIR };
 
@@ -133,11 +134,8 @@ export async function runIssue(d: Draft, approve: { sub: string; surface?: Surfa
     results.push(r);
   }
   // Warm-up gate feedback: a plan that is not executable on the current UI goes back to the draft.
-  const failed = results.filter((r) => r.conclusion === '计划不可执行');
-  if (failed.length && d.hash) {
-    d.warmupFailures = [...(d.warmupFailures ?? []), ...failed.map((r) => ({ planId: r.planId, at: r.finishedAt, detail: r.conclusionDetail }))];
-    await writeFile(join(DRAFTS_DIR, `${d.issue.id}.json`), JSON.stringify(d, null, 2));
-  }
+  const failed = results.filter((r) => r.conclusion === '计划不可执行').map((r) => ({ planId: r.planId, at: r.finishedAt, detail: r.conclusionDetail }));
+  if (await recordWarmupFailures(d.issue.id, d.hash, failed)) d.warmupFailures = [...(d.warmupFailures ?? []), ...failed];
   return { dir, results, report: await writeIssueReport(d, results, dir) };
 }
 
@@ -166,6 +164,7 @@ export async function runCmd(args: string[]): Promise<number> {
   const num = (n: string) => (flag(args, n) ? Number(flag(args, n)) : undefined);
   const { report, results } = await runIssue(d, approve, { headed: has(args, 'headed'), maxSteps: num('max-steps'), maxMinutes: num('max-minutes'), maxRounds: num('max-rounds'), udid: flag(args, 'device'), taskId: flag(args, 'id') });
   console.log(`[run] report → ${report}`);
+  emitTaskResult({ report, verdict: results.map((r) => `${r.planId}: ${r.conclusion}`).join(' · ') || (d.status !== 'plannable' ? d.reason : undefined) });
   return results.some((r) => r.conclusion === '执行失败' || r.conclusion === 'SKILL 失效' || r.conclusion === '计划不可执行' || r.conclusion === '环境不合格') ? 3 : results.some((r) => r.conclusion === '已复现') ? 1 : 0;
 }
 
@@ -213,6 +212,7 @@ export async function seriesCmd(args: string[]): Promise<number> {
   const s = summarizeSeries(runs);
   console.log(`[series] summary: 工具可靠性 ${s.reachedLoop}/${s.counted}（环境不合格 ${s.envUnfit}）；复现 ${s.reproducedRuns}/${s.validRuns}；有效尝试 ${s.pooled.valid}、命中 ${s.pooled.hits}`);
   console.log(`[series] report → ${join(dir, 'series-report.md')}`);
+  emitTaskResult({ report: join(dir, 'series-report.md'), verdict: `工具可靠性 ${s.reachedLoop}/${s.counted}（环境不合格 ${s.envUnfit}）；复现 ${s.reproducedRuns}/${s.validRuns}；有效尝试 ${s.pooled.valid}、命中 ${s.pooled.hits}` });
   return s.counted && s.reachedLoop / s.counted >= 0.9 ? 0 : 3;
 }
 

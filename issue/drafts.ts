@@ -33,9 +33,27 @@ export async function saveDraft(d: Draft, issueText: string, env: string): Promi
   d.hash = draftHash(d);
   d.issueHash = sha(issueText);
   d.env = env;
+  // Plan ids carry the draft version: the same content keeps its version, new content gets the next one.
+  const f = join(DRAFTS_DIR, `${d.issue.id}.json`);
+  const prev = existsSync(f) ? (JSON.parse(readFileSync(f, 'utf8')) as Draft) : undefined;
+  d.version = prev?.hash === d.hash ? (prev.version ?? 1) : (prev?.version ?? 0) + 1;
   await mkdir(DRAFTS_DIR, { recursive: true });
   await writeFile(join(DRAFTS_DIR, `${d.issue.id}.json`), JSON.stringify(d, null, 2));
   return d;
+}
+
+/** Warm-up gate feedback (W2-1 §6.1): runs that ended 计划不可执行 are appended to the saved draft they ran
+ *  from (same content hash), so the next confirmation sheet / plan view shows them. The draft hash does not
+ *  cover this field. Returns how many were written (0 when the saved draft is another version or missing). */
+export async function recordWarmupFailures(issueId: string, hash: string | undefined, failures: { planId: string; at: string; detail: string }[], dir = DRAFTS_DIR): Promise<number> {
+  if (!failures.length || !hash) return 0;
+  const f = join(dir, `${issueId}.json`);
+  if (!existsSync(f)) return 0;
+  const d = JSON.parse(readFileSync(f, 'utf8')) as Draft;
+  if (d.hash !== hash) return 0;
+  d.warmupFailures = [...(d.warmupFailures ?? []), ...failures];
+  await writeFile(f, JSON.stringify(d, null, 2));
+  return failures.length;
 }
 
 /** The saved draft, if it was made from this exact Issue text for this env and is intact. */

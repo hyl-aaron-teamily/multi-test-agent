@@ -5,7 +5,7 @@ import { z } from 'zod';
 import type { Driver, Point } from '../../drivers/types';
 import { RoundDrift, sleep } from '../../drivers/types';
 import { type Credentials, mobileLayout } from '../../platform/accounts/types';
-import { decodePng, pixelDiff } from '../../core/image';
+import { decodePng, pixelDiff, type Rgba } from '../../core/image';
 import { pointOf, type Profile } from '../profile';
 import { NODE_SPECS } from './node-specs';
 
@@ -23,6 +23,8 @@ export interface NodeContext {
   locate?: (description: string, texts: string[], newest?: boolean, textOnly?: boolean) => Promise<Point | null>;
   /** Preparation only (hierarchy reads allowed): the composer's text, null = unknown. */
   composerText?: () => Promise<string | null>;
+  /** A reference region ("page/region") shows in this screenshot — pixels only (no tree, no model), so loop-safe. */
+  regionShows?: (img: Rgba, key: string) => boolean;
   /** A prepare-only Node froze a dynamic target (id → point); the executor records it with the run's targets. */
   onFreeze?: (id: string, point: Point, chosen: string) => void;
 }
@@ -221,6 +223,8 @@ export const REWRITE_IDLE_PX = 300;
 /** App: tap the AI rewrite control (keyboard down, as calibrated) and wait (pixels only, ≤ 10 s) until the
  *  rewrite has run: its button showed the busy spinner and is back to the idle icon on two polls in a row.
  *  A rewrite too fast to see the spinner counts when the composer area changed and the button is idle.
+ *  A confirmation dialog first (Teamily 2.0.20: "用记忆强化 prompt?", calibrated reference) = 「有确认」:
+ *  tap its 取消 and stop — the draft stays, so the round's check passes (not a hit, W2-2 §5.2).
  *  Never started / still running after 10 s = timeout → drift, not an attempt (W2-2 §5.2). */
 const tapRewrite: Exec<{ timeoutMs?: number }> = async ({ input, context: c }) => {
   await hideKeyboard(c);
@@ -251,6 +255,8 @@ const tapRewrite: Exec<{ timeoutMs?: number }> = async ({ input, context: c }) =
   while (Date.now() - t0 < limit) {
     await sleep(400);
     const now = await shot();
+    // The dialog dims the toolbar too: look for it before reading the button as "busy".
+    if (confirmDialog(c, now)) return cancelConfirm(c, shot, Date.now() - t0);
     const b = pixelDiff(before, now, btnBox);
     if (b > REWRITE_BUSY_PX) {
       busy = true;
@@ -264,6 +270,20 @@ const tapRewrite: Exec<{ timeoutMs?: number }> = async ({ input, context: c }) =
   }
   throw new RoundDrift(busy ? `rewrite still running after ${limit / 1000} s (timeout)` : `rewrite did not start within ${limit / 1000} s (no spinner, no text change)`);
 };
+
+const CONFIRM_KEY = 'rewrite-confirm/dialog';
+const confirmDialog = (c: NodeContext, img: Rgba): boolean => !!c.profile.elements['chat.rewriteCancel'] && !!c.regionShows?.(img, CONFIRM_KEY);
+
+/** 「有确认」: tap the dialog's 取消 and wait (≤ 3 s) until it is gone; still there = drift. */
+async function cancelConfirm(c: NodeContext, shot: () => Promise<Rgba>, afterMs: number): Promise<{ summary: string }> {
+  await tapEl(c, 'chat.rewriteCancel');
+  const t0 = Date.now();
+  while (Date.now() - t0 < 3000) {
+    await sleep(400);
+    if (!confirmDialog(c, await shot())) return { summary: `有确认: confirmation dialog after ${afterMs} ms — 取消 tapped, rewrite not run` };
+  }
+  throw new RoundDrift('rewrite confirmation dialog still open 3 s after tapping 取消');
+}
 
 /** Send what is in the composer: App — hide the keyboard (if up), tap the calibrated send button; elsewhere Enter. */
 const tapSend: Exec<Record<string, never>> = async ({ context: c }) => {

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8"><title>计划审核</title><script src="/web.js"></script></head>
+<body>
+<div id="top"></div>
+<div id="main">加载中…</div>
+<script>
+const STAGE = { setup: '开始', prepare: '准备', warmup: '预热', loop: '每轮', check: '每轮检查', after: '检查后', epilogue: '结束前', acceptance: '验收' };
+const CAT = { default: '默认允许（只操作被测软件）', sensitive: '敏感计划：需要你按按钮同意', refused: '触及硬约束：拒绝执行' };
+async function load() {
+  await header('plan');
+  const id = qs('id');
+  const r = await api('GET', `/plans/${enc(id)}`);
+  if (!r.data) {
+    document.getElementById('main').innerHTML = `<p class="bad">${esc(r.summary)}</p><p>${esc(r.error?.hint ?? '')}</p>`;
+    return;
+  }
+  const v = r.data;
+  const marks = v.marks ?? [];
+  const shots = {};
+  for (const m of marks) (shots[m.image] ??= []).push(m);
+  const shotHtml = Object.entries(shots).map(([img, ms]) => `<div class="shot"><img src="/refs/${esc(img.replace(/^refs\//, ''))}">${ms.map((m) => `<div class="mark" style="left:${(m.box[0] / m.viewport.width) * 100}%;top:${(m.box[1] / m.viewport.height) * 100}%;width:${(m.box[2] / m.viewport.width) * 100}%;height:${(m.box[3] / m.viewport.height) * 100}%"><span>${m.step}</span></div>`).join('')}<div class="muted">${esc(ms[0].page)} 页（标定截图）</div></div>`).join('');
+  const ap = v.approval;
+  document.getElementById('main').innerHTML = `
+  <h1>计划 ${esc(v.id)}</h1>
+  <div class="box"><b>一句话目的：</b>${esc(v.purpose)}<br><span class="muted">哈希 ${esc(v.hash)} · ${esc(v.surface)} · ${esc(v.env)}${v.substitution ? ` · ${term('替代执行')} ${esc(v.substitution.from)} → ${esc(v.substitution.to)}` : ''}</span></div>
+  <h2>要做什么（步骤）</h2>
+  <ol>${v.steps.map((s) => `<li>[${STAGE[s.stage]}] ${terms(s.text)}${s.byModel ? ' <b>（运行时由模型选）</b>' : ''}</li>`).join('')}</ol>
+  <div>${shotHtml || '<span class="muted">（无可标注的元素）</span>'}</div>
+  <h2>怎样算复现</h2>
+  <ul>${v.verdict.map((x) => `<li>${terms(x)}</li>`).join('')}</ul>
+  <h2>会影响什么</h2>
+  <table>
+    <tr><th>最多发送消息</th><td><b>${v.impact.messagesMax} 条</b>（上界）</td></tr>
+    <tr><th>发到哪个会话</th><td>${v.impact.messagesMax ? v.impact.conversations.map(esc).join('<br>') : `<b>不发送</b>${v.impact.conversations.length ? `（只在「${v.impact.conversations.map(esc).join('、')}」里操作）` : ''}`}</td></tr>
+    <tr><th>构造的数据</th><td>${v.impact.data.map(esc).join('<br>') || '无'}</td></tr>
+    <tr><th>环境配置项（注册环境时同意一次）</th><td>${v.impact.envConfig.map(esc).join('<br>') || '无'}</td></tr>
+    <tr><th>额外修改的手机设置</th><td>${v.impact.extraSettings.map(esc).join('<br>') || '<b>无</b>'}</td></tr>
+  </table>
+  <h2>哪些地方不确定</h2>
+  <ul>${v.uncertain.map((x) => `<li>${terms(x)}</li>`).join('') || '<li>无</li>'}</ul>
+  <h2>模型调用</h2>
+  <ul>${v.modelCalls.map((x) => `<li>${esc(x)}</li>`).join('')}</ul>
+  <h2>大约多久</h2>
+  <p><b>${esc(v.estimate.text)}</b></p>
+  <h2>审批</h2>
+  <p>类别：<b>${CAT[ap.category]}</b> — ${ap.reasons.map(esc).join('；')}</p>
+  <p>状态：${ap.state === 'approved' ? `<span class="ok">已批准</span>（${esc(ap.by)}，已用 ${esc(ap.runs)}）` : ap.state === 'rejected' ? `<span class="bad">已驳回</span>（${esc(ap.by)}：${esc(ap.note)}）` : '待审核'}</p>
+  ${ap.category !== 'refused' ? `<p>运行次数 <input id="runs" type="number" min="1" value="1" style="width:60px"> 系列次数 <input id="series" type="number" min="1" placeholder="可空" value="${esc(qs('series') ?? '')}" style="width:60px">
+    <button onclick="approveIt()">同意</button></p>` : ''}
+  <p>驳回意见（必填）<br><textarea id="note" rows="2" cols="60"></textarea><br><button onclick="rejectIt()">驳回</button></p>
+  <p><button onclick="runIt()">运行（提交任务）</button> <span id="msg"></span></p>`;
+}
+async function approveIt() {
+  const series = document.getElementById('series').value;
+  const r = await api('POST', `/plans/${enc(qs('id'))}/approve`, { hash: (await api('GET', `/plans/${enc(qs('id'))}`)).data.hash, runs: Number(document.getElementById('runs').value), series: series ? Number(series) : undefined });
+  alert(r.summary);
+  load();
+}
+async function rejectIt() {
+  const note = document.getElementById('note').value.trim();
+  if (!note) return alert('驳回必须填写意见');
+  const r = await api('POST', `/plans/${enc(qs('id'))}/reject`, { note });
+  alert(r.summary);
+  load();
+}
+async function runIt() {
+  const series = document.getElementById('series')?.value;
+  const r = await api('POST', '/tasks', { planId: qs('id'), series: series ? Number(series) : undefined });
+  document.getElementById('msg').innerHTML = r.code === 'ACCEPTED' ? `已提交：<a href="/task.html?id=${enc(r.data.id)}">${esc(r.data.id)}</a>` : `<span class="bad">${esc(r.code)}：${esc(r.summary)}</span> ${esc(r.error?.hint ?? '')}`;
+}
+load();
+</script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="zh">
+<head><meta charset="utf-8"><title>结果</title><script src="/web.js"></script></head>
+<body>
+<div id="top"></div>
+<div id="main">加载中…</div>
+<script>
+async function load() {
+  await header('result');
+  const r = await api('GET', `/results/${enc(qs('id'))}`);
+  if (!r.data || r.data.kind !== 'ResultView') return (document.getElementById('main').innerHTML = `<p>${esc(r.summary)}</p><p><a href="/task.html?id=${enc(qs('id'))}">任务页</a></p>`);
+  const v = r.data;
+  document.getElementById('main').innerHTML = `
+  <h1>结果：任务 <a href="/task.html?id=${enc(v.taskId)}">${esc(v.taskId)}</a></h1>
+  <div class="box"><b id="sentence">${terms(v.sentence)}</b><br><span class="muted">状态码 ${esc(v.code)}（${v.status}）${v.complete ? '' : ' · 不完整'}</span></div>
+  ${!v.complete ? `<p class="bad">中断：${esc(v.ended?.by ?? '')}${v.ended?.at ? `，${esc(v.ended.at)}` : ''}；${esc(v.ended?.envRecovery ?? '')}</p>` : ''}
+  ${v.series ? `<p>系列：${v.series.runs} 次，进入循环 ${v.series.reachedLoop} 次；复现 ${v.series.reproducedRuns}/${v.series.validRuns}；${term('有效尝试')} ${v.series.valid}、命中 ${v.series.hits}</p>` : ''}
+  ${v.runs
+    .map(
+      (x) => `<h2>${esc(x.planId)}：${esc(x.conclusion)}</h2>
+    <p class="run-sentence">${terms(x.sentence)}</p>
+    ${x.attempts ? `<p>${term('有效尝试')} <b class="valid">${x.attempts.valid}</b>，命中 <b class="hits">${x.attempts.hits}</b>，${term('偏离')} ${x.attempts.drift}；<span class="interval">${terms(x.attempts.text)}</span></p>` : ''}
+    <h3>依据</h3><ol>${x.basis.map((b) => `<li>${esc(b)}</li>`).join('')}</ol>
+    <h3>可信吗</h3><ul><li>证据复核：${esc(x.flags.evidenceReview)}</li><li>${terms(x.flags.substituted)}</li><li>${esc(x.flags.selfCheck)}</li></ul>
+    ${x.failure ? `<p class="bad">失败归类：<b>${esc(x.failure.kindText)}</b>（${esc(x.failure.rule)}）— ${esc(x.failure.reason)}</p><p><b>下一步：</b>${esc(x.failure.suggestion)}</p>` : ''}
+    <p class="muted">耗时 ${x.durationSec ?? '-'} 秒 · 运行标记 ${esc(x.runTag ?? '-')}</p>`,
+    )
+    .join('')}
+  <h2>证据</h2><p>报告：${fileLink(v.evidence.report, 'report.md')}<br>现场包：${v.evidence.incidents.map((i) => fileLink(i + '/index.html', i.split(/[\\/]/).pop())).join('、') || '无'}</p>`;
+}
+load();
+</script>
+</body>
+</html>

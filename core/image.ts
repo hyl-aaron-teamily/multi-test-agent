@@ -223,12 +223,25 @@ export function regionDiffFraction(img: Rgba, ref: Rgba, box: Box, dy = 0): numb
   const thr = bg - Math.max(25, (bg - min) * 0.5);
   let ink = 0;
   let miss = 0;
+  // The reference's background must still be background: a screen that is dark where the reference is light
+  // (another app over a dark wallpaper, a full-screen overlay) has "ink" everywhere and would otherwise match
+  // any region (2026-10-30: the launcher passed the SKILL check after the app was left).
+  let back = 0;
+  let spill = 0;
   for (let y = by; y < by + bh; y += stride) {
     for (let x = bx; x < bx + bw; x += stride) {
-      if (grey(ref, x, y) > thr) continue;
+      if (grey(ref, x, y) > thr) {
+        back++;
+        if (grey(img, x, y + dy) <= thr) spill++;
+        continue;
+      }
       ink++;
       if (grey(img, x, y + dy) > thr + 15) miss++;
     }
   }
+  if (back >= 10 && spill / back > SPILL_MAX) return 1;
   return ink >= 10 ? miss / ink : 1;
 }
+
+/** Share of a reference region's background that may be dark in the image before the region cannot match. */
+export const SPILL_MAX = 0.5;

@@ -149,6 +149,16 @@ export async function visionAsker(driver: Driver & { page?: unknown; o?: any }):
   return (q) => visionAsk(driver, q);
 }
 
+/** The reference region `page/region` shows in this screenshot (pixels only: no tree, no model). False
+ *  when the profile has no such reference. */
+export function regionShows(img: Rgba, p: Profile, key: string, tolerance = MATCH_FRACTION): boolean {
+  const [page, region] = key.split('/');
+  const r = refFor(p, page, region);
+  const refImg = refImage(p, page);
+  if (!r || !refImg) return false;
+  return regionMatch(img, refImg, r.box, dprOf(p, img), SLIDING[key] ?? 0).fraction <= tolerance;
+}
+
 /** Poll the screen until one of the reference regions shows on two polls in a row (a page that is still
  *  loading can show a region for a moment and then redraw), or time out. Returns the key, or undefined.
  *  One screenshot per poll, no model. */
@@ -157,18 +167,7 @@ export async function waitForRegion(driver: Driver, p: Profile, keys: string[], 
   let last: string | undefined;
   for (;;) {
     const img = decodePng(await driver.screenshot());
-    let hit: string | undefined;
-    for (const k of keys) {
-      const [page, region] = k.split('/');
-      const r = refFor(p, page, region);
-      const refImg = refImage(p, page);
-      if (!r || !refImg) continue;
-      const m = regionMatch(img, refImg, r.box, dprOf(p, img), SLIDING[k] ?? 0);
-      if (m.fraction <= tolerance) {
-        hit = k;
-        break;
-      }
-    }
+    const hit = keys.find((k) => regionShows(img, p, k, tolerance));
     if (hit && hit === last) return hit;
     last = hit;
     if (Date.now() - t0 > ms) return undefined;
