@@ -224,12 +224,12 @@
           "suspectedMechanism": "消息数据里有 @（会话列表预览正常），只有会话内气泡的渲染层丢了 @ 提及（Issue 报告的推断）",
           "provenance": {
             "by": "rules",
-            "skillVersion": "2026.10.28-1"
+            "skillVersion": "2026.10.30-1"
           }
         },
         "provenance": {
           "generatedBy": "rules",
-          "skillVersion": "2026.10.28-1",
+          "skillVersion": "2026.10.30-1",
           "pattern": "mention-render"
         },
         "coverage": "covered"
@@ -272,12 +272,13 @@
         "suspectedMechanism": "消息数据里有 @（会话列表预览正常），只有会话内气泡的渲染层丢了 @ 提及（Issue 报告的推断）",
         "provenance": {
           "by": "rules",
-          "skillVersion": "2026.10.28-1"
+          "skillVersion": "2026.10.30-1"
         }
       }
     }
   ],
-  "hash": "ad8b8ddbe61785aa",
+  "hash": "02ee89ccfca9c31d",
   "issueHash": "9fa7c7301fd29e44",
-  "env": "prod"
+  "env": "prod",
+  "version": 1
 }
