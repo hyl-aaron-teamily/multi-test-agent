@@ -1,11 +1,11 @@
 # multi-test-agent 项目总结
 
-> 截至 2026-10-29，按代码核对。当前分支 `feat/w2m3-usability`（W2-3，6 个提交，**未合并到 `main`**）；W1–W4、M5、M6、W2-1、W2-2 已合并到本地 `main`；`origin/main` 停在 M6 的合并提交 `626f1ca`。
+> 截至 2026-10-30，按代码核对。当前分支 `feat/w2m4-perception-mcp`（W2-4，**未合并到 `main`**）；W1–W4、M5、M6、W2-1 — W2-3 已合并到本地 `main`（W2-3 合并提交 `7ef7425`）；`origin/main` 停在 M6 的合并提交 `626f1ca`。
 > 用法见 `README.md`，变更见 `CHANGELOG.md`，每期验收证据见 `docs/*-acceptance.md`，需求原文见各 `dev-week*-milestone*.md`（每份末尾有「实现对照」一节，记录与代码的差异）。介绍页 `docs/intro.html` 与周报 `docs/weekly-2026-10-23.html` 是 2026-10-22 的快照，不随代码更新。
 
 ## 1. 定位
 
-Teamily 客户端测试台。交给它一份 Issue，它判断问题类型、生成测试计划，经一次确认后在 Android App、手机自带浏览器里的 Web、手机视口 Web、桌面 Web（Windows 上为 Edge 最大化窗口）四个执行端上**黑盒**复现或验收，在生产环境给出带证据、可复核、可重放的结论。外部 Agent 通过命令行驱动（`autotest <对象> <动作> --json`），人在 Web 页面上审核与兜底。
+Teamily 客户端测试台。交给它一份 Issue，它判断问题类型、生成测试计划，经一次确认后在 Android App、手机自带浏览器里的 Web、手机视口 Web、桌面 Web（Windows 上为 Edge 最大化窗口）四个执行端上**黑盒**复现或验收，在生产环境给出带证据、可复核、可重放的结论。外部 Agent 通过命令行（`autotest <对象> <动作> --json`）或 MCP 服务（W2-4，同一套命令与信封）驱动，人在 Web 页面上审核与兜底。
 
 核心约定（各期需求文档的共同主线，代码位置见 §5）：
 
@@ -30,7 +30,8 @@ Teamily 客户端测试台。交给它一份 Issue，它判断问题类型、生
 | M6 | **无独立需求文档**（与原计划的 M6 不是一回事） | 10-22 | 证据复核、退出 / 杀进程 / 重新加载、手机浏览器端、Edge 端、端点池与多端同步 | `626f1ca`；证据 `docs/m6-acceptance.md` |
 | W2-1 | `dev-week2-milestone1.md` | 10-26 — 28 | 基座重构、意图契约、循环外分层观察 / 定位、预热闸门、指纹自愈、轨迹 | `3704bbd` |
 | W2-2 | `dev-week2-milestone2.md` | 10-28 | 可信结论、运行清单、预检、隔离、系列运行、Web trace、代码门；MVP 2010 / 1903 | `7e91873` |
-| W2-3 | `dev-week2-milestone3.md` | 10-28 — 29 | 任务与环境分离、收尾可恢复、审批与状态码、命令行给 Agent、Web 给人 | 未合并（`feat/w2m3-usability`） |
+| W2-3 | `dev-week2-milestone3.md` | 10-28 — 30 | 任务与环境分离、收尾可恢复、审批与状态码、命令行给 Agent、Web 给人 | `7ef7425` |
+| W2-4 | `dev-week2-milestone4.md` | 10-30 | 感知层（读树后端可插拔 + 设备端只读读树服务、屏幕快照 / 索引、② 层模糊匹配、循环外执行前校验）、`doctor`、原生 MCP 服务（参考 Artemis，TypeScript 重写） | 未合并（`feat/w2m4-perception-mcp`）；证据 `docs/w2m4-acceptance.md` |
 
 方向的转折在 M5：W1–W4 的目标是通用的「AI 视觉驱动测试平台」（只给包名，视觉模型每步决定操作）；M5 起改为 Teamily 专属、Issue 驱动、循环内不用视觉。W1–W4 的入口（mission / explore / monkey / imui / 基线用例）保留不变，作为没有 Issue 时的旁路。WebView、小程序、iOS 至今未接入。
 
@@ -51,6 +52,8 @@ Teamily 客户端测试台。交给它一份 Issue，它判断问题类型、生
 | 1426 / 1918 | 暂缓（只分类 + 契约） | 需拖选 + 剪贴板 / Agent 回复内容不可构造 |
 
 W2-3 验收（`docs/w2m3-acceptance.md`）：故障注入 20 格全部通过（预热断连一格 2026-10-30 改用 `adb reconnect` 补跑）；确定性、一致性、代码门、脚本化 Agent 闭环通过；同事验收、敏感计划 Web 同意后再执行、旧入口跑 2010 得出结论的一次未完成。
+
+W2-4 验收（`docs/w2m4-acceptance.md`）：执行前校验真机注入 4/4，循环内校验 0 次；`doctor` 四种情况正确；只用 MCP 工具跑通 2010 × 3、1903 × 3（Teamily 2.0.20 上均未复现，与之前口径一致），MCP 与 `--json` 逐字段一致；读树服务退化可见。设备端读树服务的构建、安装与提速计时等本机 Android SDK 到位（需人运行 `fetch-sdk.sh`）。
 
 另检出的产品现象：App 进后台期间收到的消息，回前台 60 秒内不显示（M6 多端同步）；会话列表预览显示「[自定义消息]」占位（W4 自然语言任务，人工确认）。
 

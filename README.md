@@ -163,6 +163,19 @@ npx tsx bin/autotest.ts env list | env show <envId> | env check <envId> | env re
 - **环境与恢复**：`platform/devices.yaml` × 账号池自动登记环境（如 `android-app:4f2ebdf2@prod`）。任务意外结束（崩溃、被杀、卡死、断连、平台停止）后，平台起独立进程 `env recover`，按环境声明与任务的副作用台账恢复到基线；不能恢复就「隔离」并在环境页写明原因与建议，人处理后点「我已处理，重新检查」。手机锁屏 → 「不合格」+ 红色「需人工解锁」，解锁后自动重检。
 - **Web 页面**：`/` 首页（任务、Issue、环境状态条）、`/plan.html?id=…` 计划审核（白话步骤并在标定截图上标出元素、怎样算复现、会影响什么、哪些不确定、大约多久、同意 / 驳回）、`/env.html`、`/task.html`、`/result.html`；术语悬停有解释。审核人名字写在 `platform/reviewer.local.yaml`（`name: …`）。
 
+## 诊断、MCP 与感知层（W2-4）
+
+```bash
+npx tsx bin/autotest.ts doctor [--fix] [--probe] [--json]   # 能不能跑、缺什么、下一步（平台未启动也能答）
+npx tsx scripts/mcp.ts --print-config claude                # 打印接入 Claude Code / Cursor / Codex / VS Code 的配置，人来粘贴
+npx tsx scripts/mcp-check.ts                                # stdio 客户端：列出工具并逐个与 --json 比对
+```
+
+- **MCP**：stdio 服务，工具 = 命令行命令（`issue_list`、`draft_create`、`plan_explain`、`task_run`、`task_wait` …）+ `device_snapshot` + `doctor`，结果就是 `--json` 信封；同意类操作只在 Web；平台未启动返回 54。Agent 先读 `docs/agent-rules.md`。
+- **读树后端**：默认 uiautomator（每次 2.5–3.7 s）；在 `platform/devices.yaml` 的设备项写 `treeBackend: a11y-service` 改用手机上的只读读树服务（`android/a11y-service/`：`sh android/a11y-service/fetch-sdk.sh && sh android/a11y-service/build.sh` 构建到 `tools/a11y/`，`env check` 时按环境配置项安装启用）；服务不可用时自动退回 uiautomator，报告「读树后端」一节写明原因。
+- **执行前校验**：循环外的点击（准备期、偏离后重进、自愈后首次点击、标定自检）先核对目标还在原处——小漂移就地修正，偏移 / 遮挡 / 消失则不点并记录（报告「执行前校验」一节）。循环每步照旧只按坐标。
+- 任务结束写 `platform/state/notifications.ndjson`；`AUTOTEST_DESKTOP_NOTIFY=1` 时弹 Windows 通知。
+
 ## 控制台（`pnpm platform` → `/console`）
 
 单个 `node:http` 服务加单页 HTML，没有前端构建链。W2-3 起首页换成新页面，旧控制台在 `/console`，任务类型照旧。

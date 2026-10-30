@@ -178,3 +178,26 @@
 4. **G5 / G7**：平台未启动时 MCP 是否自动拉起平台？是否需要一键写入 IDE 配置？
 5. MCP 是否暴露 `env recover` / `env offline`（推荐不暴露，只读 + 提交类工具）？
 6. 编号：本文暂按 W2-4，若放到第三周请告知改名。
+
+## 实现对照（2026-10-30 按代码核对）
+
+§11 已答（用户 2026-10-30）：G1 自建只读 APK、允许下载 SDK；G2–G7 与「不暴露 recover / offline」按推荐默认；编号保持 W2-4。W2-3 已于实施前合并（`7ef7425`），分支 `feat/w2m4-perception-mcp`。验收记录：`docs/w2m4-acceptance.md`。
+
+- **T1 读树后端** `core/tree-backend.ts#readTree`（`ui-tree.ts#readUiXml` 改为经它读）；`#setTreeBackend` 按设备选择，失败退回并计入 `treeStats`；报告「读树后端」由 `executor/run.ts` 写入 `stats.treeBackend`、`issue/report.ts` 渲染。
+- **T2 设备端服务** 源码 `android/a11y-service/`（`TreeService` / `Dumper` / `TokenReceiver`，`build.sh`、`fetch-sdk.sh`）；主机侧 `core/a11y-service.ts`；设备声明 `device-pool.ts#declaredTreeBackend`（`devices.yaml` `treeBackend`，环境变量 `AUTOTEST_TREE_BACKEND` 覆盖）；配置项 `android-ops.ts#androidConfigItems`（`optional: true`），基线 `baseline.ts#configWalk`（可选项未生效 = 降级）；会话选择 `executor/session.ts#selectTreeBackend`。
+- **T3 快照与索引** `core/screen-index.ts`（`normalizeNodes`、`search`、`hitTest`、`related`、`similarity`）、`executor/snapshot.ts#snapshot`；② 层 `executor/observe.ts#fuzzyRanker`、`executor/locate.ts#rankText`；`parseNodes` 增加 `rid` 与层级 `id / anc`。
+- **T4 执行前校验** `executor/pretap.ts`（`treeVerdict`、`PreTapGuard`、`PreTapBlocked`）；挂在 `incident/recording-driver.ts#beforeTap`；接入 `run.ts`（enter / prepare、定位与自愈指纹）、`prepare.ts#freeze` / `#runSetup`（被拦截时重挑会话行一次）、`isolation.ts#recoverAfterDrift`（re-entry）、`skills/calibrate-android.ts` 自检。
+- **T5 诊断** `platform/doctor.ts`（`gatherFacts` / `diagnose` / `fixStale`），命令 `scripts/cli-v1.ts#doctorLocal`。
+- **T6 MCP** `platform/mcp.ts`、`scripts/mcp.ts`、`scripts/mcp-check.ts`；§5.3 通知 `platform/lifecycle/notify.ts`（`task.ts#moveTask` 终态时写）。
+- **T7 准则** `docs/agent-rules.md`，`--print-config` 在 `scripts/mcp.ts#printConfig`。
+
+**与正文不同 / 未完成**
+
+- **§4.1 令牌校验的权限**：接收器用 `WRITE_SECURE_SETTINGS` 保护（与 Artemis 相同；只有 adb shell / 系统持有），不是正文写的「只有 adb shell 用户能发」之外的其他机制。
+- **§4.2 稳定等待**：两帧（相隔 300 ms）像素差 < 0.3% 即稳定，最长 1.5 s（执行前校验用 0.9 s）；「上一步不改画面时跳过」由调用方传 `skipStable`（② 层定位时跳过）。
+- **§4.3 接入点**：「准备期目标冻结前后」实现为冻结时记指纹、准备期点击该点前校验；prepare-only Node（`quoteReply` 的长按 / 点菜单项、`freezeMention`）经同一定位入口记指纹，在准备期点击时校验；`freezeMention` 冻结的点只在循环里点，因此不校验（循环不接入）。像素兜底的「执行事件」截图存 `<runDir>/pretap/`。
+- **§4.4 `--fix` 的租约**：只在平台未运行时释放死任务的租约（平台运行时由其看门狗负责），释放后环境进入「恢复中」，由平台启动时的交叉检测恢复设备侧。
+- **§5.1 工具注解**：`doctor` 标为非只读（`fix` 会改本机状态）；`task_wait` 单次等待上限 25 s 由工具层强制。
+- **§5.2 资源**：报告按任务 id（`autotest://reports/{taskId}`），证据文件按相对路径（`autotest://files/{path}`）；现场包查看器入口即 `files` 下的 `viewer.html`。
+- **§7.1 / §7.3（部分）未完成**：本机无 Android SDK，下载被权限拦截；需人运行 `sh android/a11y-service/fetch-sdk.sh` 后构建、安装、计时、比对一致率、人为停用演练。
+- **§7.6 在 Claude Code 界面内的闭环**：用 MCP stdio 客户端脚本（`scripts/w2m4-mcp-e2e.ts`）完成；接入 Claude Code 需要人执行 `--print-config claude` 打印的命令（G7：不代写用户配置）。
