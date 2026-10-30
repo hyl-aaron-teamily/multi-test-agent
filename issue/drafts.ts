@@ -29,6 +29,9 @@ export function draftHash(d: Draft): string {
   return sha(canonical({ issue: d.issue.id, classification: d.classification.category, status: d.status, contracts: d.contracts, subcases: d.subcases.map((s) => ({ sub: s.sub, surface: s.surface, substitution: s.substitution, plan: s.plan, contract: s.contract })) }));
 }
 
+/** Pure: the version a draft with `hash` gets after `prev` (a saved draft without a version counts as v1). */
+export const nextVersion = (prev: Pick<Draft, 'hash' | 'version'> | undefined, hash: string): number => (!prev ? 1 : prev.hash === hash ? (prev.version ?? 1) : (prev.version ?? 1) + 1);
+
 export async function saveDraft(d: Draft, issueText: string, env: string): Promise<Draft> {
   d.hash = draftHash(d);
   d.issueHash = sha(issueText);
@@ -36,7 +39,7 @@ export async function saveDraft(d: Draft, issueText: string, env: string): Promi
   // Plan ids carry the draft version: the same content keeps its version, new content gets the next one.
   const f = join(DRAFTS_DIR, `${d.issue.id}.json`);
   const prev = existsSync(f) ? (JSON.parse(readFileSync(f, 'utf8')) as Draft) : undefined;
-  d.version = prev?.hash === d.hash ? (prev.version ?? 1) : (prev?.version ?? 0) + 1;
+  d.version = nextVersion(prev, d.hash);
   await mkdir(DRAFTS_DIR, { recursive: true });
   await writeFile(join(DRAFTS_DIR, `${d.issue.id}.json`), JSON.stringify(d, null, 2));
   return d;

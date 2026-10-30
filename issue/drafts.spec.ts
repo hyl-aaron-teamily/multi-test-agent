@@ -35,3 +35,14 @@ describe('draft store (confirmation = execution)', () => {
     expect(draftHash(saved)).toBe(d.hash);
   });
 });
+
+describe('draft versions', () => {
+  it('same content keeps its version; new content is the next one; a legacy draft without version counts as v1', async () => {
+    const { nextVersion } = await import('./drafts');
+    expect(nextVersion(undefined, 'a')).toBe(1);
+    expect(nextVersion({ hash: 'a', version: 3 }, 'a')).toBe(3);
+    expect(nextVersion({ hash: 'a', version: 3 }, 'b')).toBe(4);
+    expect(nextVersion({ hash: 'a' } as any, 'a')).toBe(1);
+    expect(nextVersion({ hash: 'a' } as any, 'b')).toBe(2);
+  });
+});
