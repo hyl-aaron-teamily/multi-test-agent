@@ -1,8 +1,6 @@
 package ai.autotest.a11y;
 
 import android.accessibilityservice.AccessibilityService;
-import android.accessibilityservice.AccessibilityServiceInfo;
-import android.os.Build;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.accessibility.AccessibilityWindowInfo;
@@ -23,25 +21,17 @@ import java.util.List;
  */
 public class TreeService extends AccessibilityService {
     static final int PORT = 18765;
-    static final int VERSION = 5;
+    static final int VERSION = 6;
 
     private volatile ServerSocket server;
     private volatile boolean connected;
 
     @Override
     protected void onServiceConnected() {
-        // Fresh trees without perturbing the app under test: an app only generates the accessibility event
-        // types some enabled service subscribes to, so subscribing to all of them (v2/v3) slowed Teamily's own
-        // reactions about 2x on 4f2ebdf2. API 34+: window-state events only (tree_service.xml) and the cache is
-        // cleared at the start of every dump (dump()); a disabled cache (v4) made every child an IPC round trip
-        // (1.3–1.5 s per dump). Older: the cache is kept fresh by receiving every event type.
-        if (Build.VERSION.SDK_INT < 34) {
-            AccessibilityServiceInfo info = getServiceInfo();
-            if (info != null) {
-                info.eventTypes = AccessibilityEvent.TYPES_ALL_MASK;
-                setServiceInfo(info);
-            }
-        }
+        // The node cache stays fresh because the service receives every event type (tree_service.xml): v1
+        // received window-state events only and served the previous screen. v4 (no cache) took 1.3–1.5 s per
+        // dump and v5 (cache cleared per dump) 0.6–0.7 s; a slowdown first blamed on the event subscription
+        // was the phone's screenshot time (same with the service on and off, 4f2ebdf2, 2026-10-31).
         connected = true;
         Thread t = new Thread(this::serve, "autotest-a11y-server");
         t.setDaemon(true);
@@ -118,8 +108,6 @@ public class TreeService extends AccessibilityService {
     }
 
     private String dump() {
-        // Fresh tree: drop what the cache holds; getRoot() prefetches the subtree again in bulk.
-        if (Build.VERSION.SDK_INT >= 34) clearCache();
         List<AccessibilityNodeInfo> roots = new ArrayList<>();
         try {
             List<AccessibilityWindowInfo> ws = getWindows();

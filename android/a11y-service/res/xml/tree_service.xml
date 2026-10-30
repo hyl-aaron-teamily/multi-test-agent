@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Read-only: window content retrieval only (no gestures, no screenshots). Window-state events only, so the
-     app under test generates as few events as possible; the service clears its node cache at every dump (API 34+)
-     so dumps are never stale (TreeService#dump). -->
+<!-- Read-only: window content retrieval only (no gestures, no screenshots). Every event type is received
+     (never acted on): the node cache is invalidated by the events the service receives, so with window-state
+     events only a dump returned the previous screen (v1, 4f2ebdf2). -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-    android:accessibilityEventTypes="typeWindowStateChanged"
+    android:accessibilityEventTypes="typeAllMask"
     android:accessibilityFeedbackType="feedbackGeneric"
     android:notificationTimeout="100"
     android:accessibilityFlags="flagDefault|flagRetrieveInteractiveWindows|flagReportViewIds|flagIncludeNotImportantViews"
