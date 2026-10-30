@@ -42,3 +42,21 @@ describe('platform/mcp (W2-4 §5)', () => {
     expect(safeResourcePath('package.json')).toBeUndefined();
   });
 });
+
+describe('docs/agent-rules.md matches the tool table (W2-4 T7)', () => {
+  it('lists every MCP tool, and only those', async () => {
+    const { readFileSync } = await import('node:fs');
+    const doc = readFileSync('docs/agent-rules.md', 'utf8');
+    const listed = [...doc.matchAll(/^\| `(\w+)` \|/gm)].map((m) => m[1]);
+    expect(listed.sort()).toEqual([...EXPOSED.map(toolName), 'device_snapshot'].sort());
+  });
+  it('--print-config gives a snippet with absolute paths and the rules file for each client', async () => {
+    const { printConfig } = await import('../scripts/mcp');
+    for (const c of ['claude', 'cursor', 'codex', 'vscode']) {
+      const t = printConfig(c, 'D:/repo');
+      expect(t).toMatch(/mcp\.ts/);
+      expect(t).toMatch(/agent-rules\.md/);
+    }
+    expect(printConfig('x')).toMatch(/unknown client/);
+  });
+});

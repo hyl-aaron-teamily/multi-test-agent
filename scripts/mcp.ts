@@ -8,8 +8,6 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-process.chdir(ROOT);
-console.log = console.info = console.debug = (...a: unknown[]) => console.error(...a);
 
 const CLIENTS = ['claude', 'cursor', 'codex', 'vscode'] as const;
 
@@ -37,12 +35,14 @@ export function printConfig(client: string, root = ROOT): string {
 }
 
 async function main() {
+  process.chdir(ROOT);
   const i = process.argv.indexOf('--print-config');
   if (i >= 0) {
     const c = process.argv[i + 1] ?? '';
     process.stdout.write(`${printConfig(c)}\n`);
     process.exit(CLIENTS.includes(c as (typeof CLIENTS)[number]) ? 0 : 40);
   }
+  console.log = console.info = console.debug = (...a: unknown[]) => console.error(...a);
   await import('dotenv/config');
   const { StdioServerTransport } = await import('@modelcontextprotocol/sdk/server/stdio.js');
   const { createMcpServer } = await import('../platform/mcp');
