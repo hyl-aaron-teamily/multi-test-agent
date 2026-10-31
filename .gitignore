@@ -1,6 +1,9 @@
 node_modules/
 .env
 midscene_run/
+# legacy Allure output (no longer produced since refactor P1)
+allure-results/
+allure-report/
 
 # read-only third-party reference projects (nested git repos), not part of this codebase
 ref/
