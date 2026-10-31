@@ -68,6 +68,13 @@ android/a11y-service  读树 APK（B8 放开只读限制，本期不加新功能
 
 **规则边界**：D1–D8 不约束模式 B；B1（黑盒）照常约束。
 
+**P5 从已删代码里借用的部分**（P1 删除；需要时用 `git show 3d7dc46:<路径>` 取出）。需求以 `docs/dev-week2-milestone5.md`（W2-5 草案）为准；其中 H5「保留旧入口」已被 A4 删除决定覆盖。
+- 风险规则表的种子词：`explore/explore-loop.ts` 的 `DEFAULT_AVOID`、`NAV_HINT`，`mission/runner.ts` 的 `HARD_BLOCK`。改成带词边界、中英文分开（W2-5 §0：旧写法会误拦 add / pin / call）。
+- 卡顿判定：`mission/runner.ts#parseGfxinfo`（`dumpsys gfxinfo` 解析，纯函数）。
+- 覆盖记账思路：`explore/state-tracker.ts`（每个界面试过的元素，以及「导航类优先」的排序）。指纹改用屏幕索引。
+- 视觉异常探测提示词（错误、白屏、转圈，两次确认）：`mission/runner.ts` 中的 visual sanity probe。
+
+
 ## 3. 即时定位 + 缓存（C1–C4 定案）
 
 **去掉的东西**
