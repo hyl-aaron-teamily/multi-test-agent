@@ -49,7 +49,7 @@ async function header(active) {
     .join('');
   document.getElementById('top').innerHTML = `
     ${fa?.on ? `<div class="danger">⚠ 完全授权已开启（${esc(fa.by)}，${esc(fa.at)}）：所有计划（含敏感计划）自动批准；硬约束仍然生效。 <button onclick="toggleFA(false)">关闭完全授权</button></div>` : ''}
-    <nav><a href="/" class="${active === 'home' ? 'on' : ''}">首页</a> <a href="/console">旧控制台</a> <span class="muted">审核人：<span id="who"></span></span></nav>
+    <nav><a href="/" class="${active === 'home' ? 'on' : ''}">首页</a> <span class="muted">审核人：<span id="who"></span></span></nav>
     <div class="envbar">环境：${bar || '<span class="muted">（无）</span>'}</div>`;
   api('GET', '/reviewer').then((r) => (document.getElementById('who').textContent = r.data?.name ?? ''));
 }

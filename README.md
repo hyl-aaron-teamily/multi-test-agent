@@ -30,8 +30,7 @@ Teamily 客户端测试台：在 **Android App、手机自带浏览器里的 Web
 | 任务与环境（W2-3） | ✅ 可用 | 环境、任务各有状态机与落盘记录；心跳、副作用台账（先记账再执行）、步骤边界取消、看门狗；意外退出后 `env recover` 按台账恢复，恢复不了就隔离并写明原因；平台启动 / 下线时交叉检测，任务记录反映真实结束方式与停止位置 |
 | 审批与状态码（W2-3） | ✅ 可用 | 被测软件内操作默认允许；敏感计划只在 Web 同意；完全授权开关（红色横幅）；硬约束永远拒绝；批准绑定哈希 / 版本 / 次数（31 / 32 / 33）；两位退出码 = 状态码 |
 | 命令行给 Agent、Web 给人（W2-3） | ✅ 可用 | `autotest <对象> <动作> [--json]`（`help --json` 即工具定义）；Web 首页 / 环境 / 计划审核 / 任务 / 结果页；两者读同一份视图模型 |
-| 控制台 | ✅ 可用 | 上传 Issue → 生成计划 → 一次性确认（替代端复选框）→ 执行 → 报告与证据链接（旧控制台，`/console`） |
-| 自然语言任务 / AI 探索 / Monkey / imui | ✅ 可用 | 早期能力，保留不变 |
+| 自然语言任务 / AI 探索 | 🚧 重做中 | W1 的 mission / explore 已删除，按 `docs/refactor-plan.md` P5 在统一引擎里重做 |
 | iOS、WebView、小程序 | ❌ 未接入 | iOS 问题只能经确认后在 Android 或手机 Web 上替代执行 |
 | 多角色 Issue 计划 | ⏸ 暂缓 | 同步底座已可用；2235 这类 Issue 还未生成多角色计划 |
 
@@ -52,7 +51,7 @@ Teamily 客户端测试台：在 **Android App、手机自带浏览器里的 Web
 
 ## 快速开始
 
-环境：Node.js ≥ 18（已在 22 验证）、pnpm 12；一台开启 USB 调试的 Android 手机 + adb；OpenAI 兼容的模型接口；可选 scrcpy（录屏）、ffmpeg（合并视频、抽帧）、Java（仅 Allure 报告）。
+环境：Node.js ≥ 18（已在 22 验证）、pnpm 12；一台开启 USB 调试的 Android 手机 + adb；OpenAI 兼容的模型接口；可选 scrcpy（录屏）、ffmpeg（合并视频、抽帧）。
 
 ```bash
 pnpm install
@@ -89,7 +88,7 @@ pnpm code-gate                                                                  
    - 每步不截图、不发额外 adb 命令。异常门只看事件流：Android 读 logcat（崩溃、ANR、进程死亡、离开 App），Web 读页面事件。
    - 每轮末尾截一次图，与参考区域比对笔画；对不上才调视觉模型核对。不在预期页面时记为操作偏离，重新进入，不计命中。
    - 一轮的判定前提（如「输入框里确实有草稿」）用 `require` 在轮内读一次；不成立、输入没落下或本轮消息不在屏幕上 = 偏离，不计有效尝试。
-5. **报告**：`midscene_run/issues/<id>-<时间>/` 下的 `report.md`、`result.json`、`manifest.json`、`trajectory.jsonl`，以及每次命中的现场包；同时写 Allure 结果。结论带分母（有效尝试数）与区间 / 上界，执行失败归为环境或工具；Web 运行没有结论时保留 `trace.zip`。
+5. **报告**：`midscene_run/issues/<id>-<时间>/` 下的 `report.md`、`result.json`、`manifest.json`、`trajectory.jsonl`，以及每次命中的现场包。结论带分母（有效尝试数）与区间 / 上界，执行失败归为环境或工具；Web 运行没有结论时保留 `trace.zip`。
 
 现场包结构见 [skills/teamily/report-spec.md](skills/teamily/report-spec.md)。
 
@@ -133,16 +132,11 @@ pnpm autotest sync --roles desktop-web,android-app --rounds 4 --timeout 60
 
 | 命令 | 用途 |
 |---|---|
-| `pnpm autotest mission "聊天时偶发闪退，你试试能不能重现"` | 自然语言任务：模型生成计划，用视觉 AI 动作执行（探索模式） |
-| `pnpm autotest explore --package <pkg>` | AI 探索遍历，按界面状态去重，有界步数 |
-| `pnpm autotest monkey --package <pkg> --seed 12345` | 固定 seed 的 Monkey + logcat 交叉验证（不要对生产账号跑） |
-| `pnpm autotest imui run --client …` | IM 消息在真实界面上的收发耗时、丢失、重复、乱序，见 [docs/imui.md](docs/imui.md) |
 | `pnpm autotest skill smoke --surface <端>` | 冒烟：按坐标打开会话并发一条消息（发到自己的 Personal AI）；`--lifecycle warm` / `cold` 为退出 / 杀进程 / 重开 |
 | `pnpm autotest sync …` | 多端同步测试（见上） |
 | `pnpm autotest evidence …` | 证据复核与预置用例（见上） |
 | `pnpm autotest accounts list` / `pnpm autotest devices` | 账号池 / 设备池状态 |
-| `pnpm test:unit` / `pnpm typecheck` / `pnpm test:web` / `pnpm test:android` | 单测 / 类型检查 / Web 与 Android 基线用例 |
-| `pnpm report` | 生成 Allure 报告（需要 Java） |
+| `pnpm test:unit` / `pnpm typecheck` | 单测 / 类型检查 |
 
 ## Agent 命令行与 Web（W2-3）
 
@@ -168,7 +162,6 @@ npx tsx bin/autotest.ts env list | env show <envId> | env check <envId> | env re
 ```bash
 npx tsx bin/autotest.ts doctor [--fix] [--probe] [--json]   # 能不能跑、缺什么、下一步（平台未启动也能答）
 npx tsx scripts/mcp.ts --print-config claude                # 打印接入 Claude Code / Cursor / Codex / VS Code 的配置，人来粘贴
-npx tsx scripts/mcp-check.ts                                # stdio 客户端：列出工具并逐个与 --json 比对
 ```
 
 - **MCP**：stdio 服务，工具 = 命令行命令（`issue_list`、`draft_create`、`plan_explain`、`task_run`、`task_wait` …）+ `device_snapshot` + `doctor`，结果就是 `--json` 信封；同意类操作只在 Web；平台未启动返回 54。Agent 先读 `docs/agent-rules.md`。
@@ -176,17 +169,9 @@ npx tsx scripts/mcp-check.ts                                # stdio 客户端：
 - **执行前校验**：循环外的点击（准备期、偏离后重进、自愈后首次点击、标定自检）先核对目标还在原处——小漂移就地修正，偏移 / 遮挡 / 消失则不点并记录（报告「执行前校验」一节）。循环每步照旧只按坐标。
 - 任务结束写 `platform/state/notifications.ndjson`；`AUTOTEST_DESKTOP_NOTIFY=1` 时弹 Windows 通知。
 
-## 控制台（`pnpm platform` → `/console`）
+## 平台服务（`pnpm platform`）
 
-单个 `node:http` 服务加单页 HTML，没有前端构建链。W2-3 起首页换成新页面，旧控制台在 `/console`，任务类型照旧。
-
-- **设备**：`platform/devices.yaml`（手机 + 本机端点、各执行端的槽、手机上登录的账号）与 `adb devices` 合并，显示 idle / busy / offline。
-- **新建任务**：Issue 黑盒复现 / 验收、多端同步、自然语言任务、AI 探索、Monkey、IM 界面层收发。
-- **最近任务**：实时日志、渲染后的报告（截图与现场包可直接打开）、取消。
-
-状态落盘在 `platform/state/`，没有数据库。
-
-![控制台](docs/console.png)
+单个 `node:http` 服务（`/api/v1` + `platform/web/` 页面），没有前端构建链。设备来自 `platform/devices.yaml` 与 `adb devices`；状态落盘在 `platform/state/`，没有数据库。
 
 ## 原则与安全
 
@@ -227,13 +212,11 @@ skills/            标定工具（calibrate-web.ts、calibrate-android.ts、cali
 platform/          控制台、任务调度、设备池、账号池（accounts/）、TestPlan schema（schema/）、计划（plans/）
 platform/lifecycle/ W2-3 环境 / 任务对象、状态码、心跳与台账、基线与恢复、交叉检测、调度（supervisor）
 platform/web/      W2-3 页面（首页、环境、计划审核、任务、结果）；api-v1.ts、views.ts、approval.ts 为其服务与视图模型
-mission/ explore/ monkey/ imui/ report/   其他测试入口
 core/              adb 封装、logcat 监控、PNG 解码与区域比对
 bin/autotest.ts    统一命令入口；scripts/ 各命令实现
-tests/             Web / Android 基线用例
-docs/              介绍页、imui 说明、验收证据
+docs/              介绍页、验收证据、规则表（rules-audit.md）与重构方案（refactor-plan.md）
 ```
 
 ## 依赖
 
-`@midscene/web`、`@midscene/android`、`@midscene/core`（Node 定义）、`playwright`、`vitest`、`allure-vitest`、`zod`、`js-yaml`、`dotenv`；adb、scrcpy、ffmpeg 通过子进程调用。
+`@midscene/web`、`@midscene/android`、`@midscene/core`（Node 定义）、`playwright`、`vitest`、`zod`、`js-yaml`、`dotenv`；adb、scrcpy、ffmpeg 通过子进程调用。

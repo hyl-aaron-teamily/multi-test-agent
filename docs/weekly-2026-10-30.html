@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teamily 客户端测试台 · 周报 2026-10-26 — 10-30</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23f6f4ef'/%3E%3Crect x='10' y='7' width='12' height='18' rx='3' fill='none' stroke='%236f9c6a' stroke-width='2.5'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── 与 intro.html 同一套设计令牌：纸质实验记录本 ── */
+:root{
+  --paper:#f4f1ea; --paper-warm:#efebe1; --card:#fffdf8; --card-sunk:#faf7f0;
+  --ink:#3c4743; --ink-strong:#2c3733; --ink-soft:#6f7c76; --ink-faint:#9aa49e;
+  --rule:#e2ddd1; --rule-soft:#ece8dd;
+  --sage:#6f9c6a; --sage-deep:#557f52; --sage-wash:#eef4ea;
+  --slate:#6d8fa8; --slate-wash:#eaf0f4; --ochre:#b58f3f; --ochre-wash:#f7f1de;
+  --clay:#b96b52; --clay-wash:#f8ede8;
+  --r-sm:8px; --r-md:13px; --r-lg:18px; --r-pill:999px;
+  --shadow-card:0 1px 2px rgba(60,71,67,.04),0 18px 44px -26px rgba(60,71,67,.34);
+  --shadow-soft:0 1px 1px rgba(60,71,67,.04),0 6px 16px -12px rgba(60,71,67,.18);
+  --serif:"Fraunces","Songti SC",Georgia,serif;
+  --sans:"Hanken Grotesk","PingFang SC","Microsoft YaHei",sans-serif;
+  --mono:"DM Mono",ui-monospace,Consolas,monospace;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0; color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+  background:
+    radial-gradient(1200px 680px at 86% -10%,#fbf8f1 0%,transparent 60%),
+    radial-gradient(820px 560px at 0% 106%,#f0ede3 0%,transparent 58%),
+    var(--paper);
+}
+.paper{position:fixed;inset:0;pointer-events:none;z-index:99;opacity:.28;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E");}
+a{color:var(--sage-deep);}
+.wrap{max-width:1120px;margin:0 auto;padding:0 26px;}
+
+.rise{opacity:0;transform:translateY(16px);transition:opacity .7s cubic-bezier(.22,.7,.2,1),transform .7s cubic-bezier(.22,.7,.2,1);}
+.rise.in{opacity:1;transform:none;}
+@media (prefers-reduced-motion:reduce){.rise{opacity:1;transform:none;transition:none;}}
+
+/* ── top nav ── */
+.nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(8px);
+  background:linear-gradient(180deg,rgba(244,241,234,.92),rgba(244,241,234,.66));
+  border-bottom:1px solid var(--rule-soft);}
+.nav .wrap{display:flex;align-items:center;justify-content:space-between;height:62px;}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand__mark{width:16px;height:24px;border-radius:5px;border:2.5px solid var(--sage);position:relative;}
+.brand__mark::after{content:"";position:absolute;left:3px;right:3px;bottom:3px;height:3px;border-radius:2px;background:var(--sage);}
+.brand b{font-family:var(--serif);font-weight:600;font-size:17px;color:var(--ink-strong);letter-spacing:.01em;}
+.brand small{font-family:var(--mono);font-size:11px;color:var(--ink-faint);padding:2px 9px;border:1px solid var(--rule);border-radius:var(--r-pill);background:var(--card);}
+.nav__links{display:flex;gap:8px;align-items:center;}
+.nav__links a{padding:7px 14px;border-radius:var(--r-pill);text-decoration:none;color:var(--ink-soft);font-size:13.5px;}
+.nav__links a:hover{background:var(--card);color:var(--ink-strong);}
+.nav__cta{background:var(--sage)!important;color:#fff!important;box-shadow:var(--shadow-soft);padding:7px 14px;border-radius:var(--r-pill);}
+.nav__cmd{font-family:var(--mono);font-size:12px;cursor:default;}
+
+/* ── hero ── */
+.hero{padding:66px 0 40px;}
+.hero__tag{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:var(--r-pill);
+  background:var(--card);border:1px solid var(--rule);color:var(--ink-soft);font-size:12.5px;box-shadow:var(--shadow-soft);}
+.hero__tag i{width:7px;height:7px;border-radius:50%;background:var(--sage);}
+.hero h1{font-family:var(--serif);font-weight:600;font-size:clamp(34px,5vw,54px);line-height:1.12;
+  margin:20px 0 14px;color:var(--ink-strong);letter-spacing:-.01em;}
+.hero h1 em{font-style:italic;color:var(--sage-deep);}
+.hero p.lead{font-size:clamp(15px,1.7vw,18px);color:var(--ink-soft);max-width:720px;margin:0 0 26px;}
+.hero__actions{display:flex;gap:12px;flex-wrap:wrap;}
+.btn{display:inline-flex;align-items:center;gap:9px;padding:12px 22px;border-radius:var(--r-pill);
+  border:1px solid var(--rule);background:var(--card);color:var(--ink);font-family:var(--sans);
+  font-size:14px;font-weight:500;text-decoration:none;cursor:pointer;box-shadow:var(--shadow-soft);transition:.18s;}
+.btn:hover{transform:translateY(-1px);border-color:#d3ccbc;}
+.btn--primary{background:var(--sage);border-color:var(--sage-deep);color:#fff;
+  box-shadow:0 8px 24px -14px rgba(111,156,106,.7);}
+.btn--primary:hover{background:#7aa874;}
+
+/* ── 首图：本周节奏（真实提交记录，不是界面演示） ── */
+.week{margin-top:44px;border-radius:var(--r-lg);overflow:hidden;border:1px solid var(--rule);
+  background:var(--card);box-shadow:var(--shadow-card);}
+.week__bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;
+  border-bottom:1px solid var(--rule-soft);background:linear-gradient(180deg,#fffefa,var(--card-sunk));}
+.week__bar b{font-family:var(--serif);font-weight:600;font-size:14px;color:var(--ink-strong);}
+.week__bar span{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);}
+.week__grid{display:grid;grid-template-columns:repeat(5,1fr);position:relative;}
+.day{padding:24px 16px 20px;border-right:1px solid var(--rule-soft);position:relative;}
+.day:last-child{border-right:0;background:linear-gradient(160deg,#f2f7ee,var(--card));}
+.day::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--rule-soft);}
+.day.done::before{background:linear-gradient(90deg,var(--sage),#9cbf97);}
+.day__d{display:flex;align-items:baseline;gap:10px;margin-bottom:14px;}
+.day__d b{font-family:var(--serif);font-weight:600;font-size:20px;color:var(--ink-strong);}
+.day__d span{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);}
+.ms{display:grid;grid-template-columns:46px 1fr;gap:10px;align-items:center;padding:7px 10px;margin-bottom:6px;
+  border:1px solid var(--rule-soft);border-radius:var(--r-sm);background:var(--card-sunk);font-size:13px;color:var(--ink-strong);}
+.ms i{font-style:normal;font-family:var(--mono);font-size:10.5px;text-align:center;padding:2px 0;border-radius:var(--r-pill);}
+.ms.w i{background:var(--sage-wash);color:var(--sage-deep);border:1px solid #d8e5d3;}
+.ms.m i{background:var(--slate-wash);color:#4c6c7e;border:1px solid #d3e0e9;}
+.ms.x i{background:var(--ochre-wash);color:#7d6425;border:1px solid #e7dabb;}
+.ms.d{background:var(--sage-wash);border-color:#c3d9bd;box-shadow:inset 3px 0 0 var(--sage);}
+.ms.d i{background:var(--sage);color:#fff;border:1px solid var(--sage-deep);}
+.week__foot{display:flex;flex-wrap:wrap;gap:8px 22px;padding:14px 20px;border-top:1px solid var(--rule-soft);background:var(--card-sunk);
+  font-size:13px;color:var(--ink-soft);}
+.week__foot b{font-family:var(--serif);font-weight:600;color:var(--ink-strong);font-size:15px;margin-right:4px;}
+
+/* ── section scaffold ── */
+section{padding:64px 0;}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--sage-deep);}
+.h2{font-family:var(--serif);font-weight:600;font-size:clamp(26px,3.4vw,36px);color:var(--ink-strong);margin:10px 0 12px;letter-spacing:-.01em;}
+.h3{font-family:var(--serif);font-weight:600;font-size:21px;color:var(--ink-strong);margin:40px 0 14px;}
+.sub{color:var(--ink-soft);max-width:700px;margin:0 0 34px;}
+
+/* ── feature cards ── */
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:var(--r-lg);padding:22px;box-shadow:var(--shadow-soft);}
+.card .ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--sage-wash);
+  border:1px solid #d8e5d3;margin-bottom:14px;}
+.card .ic svg{width:20px;height:20px;stroke:var(--sage-deep);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.card h3{font-family:var(--serif);font-weight:600;font-size:18px;color:var(--ink-strong);margin:0 0 7px;}
+.card p{margin:0;font-size:14px;color:var(--ink-soft);}
+.card--hero{grid-column:span 3;display:grid;grid-template-columns:1.1fr 1fr;gap:26px;align-items:center;
+  background:linear-gradient(120deg,#f2f7ee,var(--card));}
+.card--hero .big{font-family:var(--serif);font-weight:600;font-size:clamp(22px,2.6vw,30px);color:var(--ink-strong);line-height:1.2;}
+.pill-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+.pill{padding:6px 13px;border-radius:var(--r-pill);background:var(--card);border:1px solid var(--rule);font-size:12.5px;color:var(--ink-soft);font-family:var(--mono);}
+
+/* ── results ── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+.stat{padding:18px 20px;border:1px solid var(--rule);border-radius:var(--r-md);background:var(--card);box-shadow:var(--shadow-soft);}
+.stat span{display:block;font-size:12px;color:var(--ink-faint);}
+.stat b{display:block;font-family:var(--serif);font-weight:600;font-size:28px;line-height:1.25;color:var(--ink-strong);margin:4px 0 2px;}
+.stat b small{font-size:15px;color:var(--ink-soft);font-weight:500;}
+.stat p{margin:0;font-size:12.5px;color:var(--ink-soft);}
+.stat.hl{background:var(--sage-wash);border-color:#cadfc4;}
+.stat.hl b{color:var(--sage-deep);}
+
+/* ── outlook ── */
+.next{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.nx{display:flex;gap:13px;padding:18px 20px;border:1px solid var(--rule);border-radius:var(--r-md);background:var(--card);box-shadow:var(--shadow-soft);}
+.nx .m{flex:0 0 auto;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;
+  background:var(--sage-wash);border:1px solid #d8e5d3;color:var(--sage-deep);font-family:var(--mono);font-size:11px;}
+.nx b{color:var(--ink-strong);font-weight:600;}
+.nx p{margin:4px 0 0;font-size:13.5px;color:var(--ink-soft);}
+.vision{margin-top:16px;padding:26px 28px;border:1px solid #cadfc4;border-radius:var(--r-lg);
+  background:linear-gradient(120deg,#f2f7ee,var(--card));box-shadow:var(--shadow-soft);}
+.vision .big{font-family:var(--serif);font-weight:600;font-size:clamp(20px,2.4vw,26px);color:var(--ink-strong);line-height:1.3;}
+.vision p{margin:8px 0 0;font-size:14px;color:var(--ink-soft);max-width:820px;}
+
+/* ── footer ── */
+footer{padding:44px 0 60px;border-top:1px solid var(--rule-soft);color:var(--ink-faint);font-size:13px;}
+footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+code{white-space:nowrap;font-family:var(--mono);font-size:.9em;background:var(--card-sunk);border:1px solid var(--rule-soft);border-radius:5px;padding:1px 6px;color:var(--sage-deep);}
+
+@media(max-width:900px){
+  .week__grid{grid-template-columns:1fr 1fr;}
+  .day:nth-child(2n){border-right:0;}
+  .cards,.next{grid-template-columns:1fr;} .card--hero{grid-column:auto;grid-template-columns:1fr;}
+  .stats{grid-template-columns:1fr 1fr;}
+  .nav__links a:not(.nav__cta){display:none;}
+}
+@media(max-width:560px){
+  .week__grid{grid-template-columns:1fr;} .day{border-right:0;}
+  .brand small,.nav__cta{display:none;}
+}
+
+/* ── 流程条 ── */
+.flow{display:flex;flex-wrap:wrap;gap:10px 8px;align-items:center;padding:24px;border:1px solid var(--rule);
+  border-radius:var(--r-lg);background:var(--card);box-shadow:var(--shadow-soft);}
+.flow span{padding:7px 13px;border-radius:var(--r-sm);font-size:13px;border:1px solid var(--rule-soft);background:var(--card-sunk);color:var(--ink-strong);}
+.flow span small{display:block;font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);letter-spacing:.06em;}
+.flow span.prep{background:var(--slate-wash);border-color:#d3e0e9;}
+.flow span.loop{background:var(--sage-wash);border-color:#c3d9bd;box-shadow:inset 3px 0 0 var(--sage);}
+.flow span.gov{background:var(--ochre-wash);border-color:#e7dabb;}
+.flow b{color:var(--ink-faint);font-weight:400;}
+.legend{display:flex;flex-wrap:wrap;gap:18px;margin-top:12px;font-size:12.5px;color:var(--ink-soft);}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px;}
+
+/* ── 两种入口 ── */
+.duo{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.duo .card{padding:24px;}
+.duo .card .who{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--ink-faint);text-transform:uppercase;}
+.duo .card h3{margin-top:6px;}
+.duo ul{margin:10px 0 14px;padding-left:18px;color:var(--ink-soft);font-size:13.5px;}
+.duo li{margin:3px 0;}
+.term{border:1px solid var(--rule-soft);border-radius:var(--r-md);background:var(--card-sunk);padding:14px 16px;
+  font-family:var(--mono);font-size:12px;line-height:1.85;color:var(--ink);overflow-x:auto;white-space:nowrap;}
+.term .k{color:var(--ink-faint);} .term .g{color:var(--sage-deep);} .term .b{color:#4c6c7e;}
+.codes{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:12px;}
+.codes span{font-size:11.5px;padding:6px 9px;border-radius:var(--r-sm);border:1px solid var(--rule-soft);background:var(--card);color:var(--ink-soft);}
+.codes b{font-family:var(--mono);color:var(--ink-strong);margin-right:4px;}
+.pages{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-top:12px;}
+.pages span{text-align:center;font-size:12px;padding:10px 4px;border-radius:var(--r-sm);border:1px solid var(--rule-soft);background:var(--card);color:var(--ink-strong);}
+.pages span small{display:block;font-size:10.5px;color:var(--ink-faint);margin-top:2px;}
+
+@media(max-width:900px){
+  .duo{grid-template-columns:1fr;} .codes{grid-template-columns:1fr 1fr;} .pages{grid-template-columns:repeat(3,1fr);}
+}
+
+/* ── 本周验证的 Issue ── */
+.issues{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.iss{background:var(--card);border:1px solid var(--rule);border-radius:var(--r-lg);padding:20px 22px;box-shadow:var(--shadow-soft);}
+.iss--wide{grid-column:span 2;background:linear-gradient(120deg,#f2f7ee,var(--card));}
+.iss--sum{background:var(--card-sunk);}
+.iss__top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;}
+.iss__id{font-family:var(--mono);font-size:12.5px;color:var(--sage-deep);font-weight:500;}
+.iss h3{font-family:var(--serif);font-weight:600;font-size:18px;color:var(--ink-strong);margin:8px 0 2px;}
+.iss__meta{font-size:12px;color:var(--ink-faint);}
+.iss p{margin:10px 0;font-size:13.5px;color:var(--ink-soft);}
+.iss__data{font-family:var(--mono);font-size:11.5px;color:var(--ink);padding:8px 11px;border-radius:var(--r-sm);background:var(--card-sunk);border:1px solid var(--rule-soft);}
+.iss__ver{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:10px;}
+.iss__ver>div{padding:14px 16px;border:1px solid var(--rule-soft);border-radius:var(--r-md);background:var(--card);}
+.iss__ver p{margin:8px 0;}
+.iss__vh{display:flex;justify-content:space-between;align-items:center;gap:8px;}
+.iss__vh b{font-family:var(--mono);font-size:12px;color:var(--ink-strong);}
+.vd{font-size:11.5px;padding:2px 10px;border-radius:var(--r-pill);border:1px solid;white-space:nowrap;}
+.vd.hit{color:var(--clay);background:var(--clay-wash);border-color:#ecd3c9;}
+.vd.ok{color:var(--sage-deep);background:var(--sage-wash);border-color:#c3d9bd;}
+.vd.req{color:#7d6425;background:var(--ochre-wash);border-color:#e7dabb;}
+.sumrow{display:grid;grid-template-columns:auto 26px 1fr;gap:10px;align-items:center;margin-top:12px;font-size:12.5px;color:var(--ink-soft);}
+.sumrow b{font-family:var(--serif);font-size:20px;color:var(--ink-strong);}
+
+/* ── 本周成果：列表 ── */
+.mlist{display:grid;gap:14px;}
+.mitem{display:grid;grid-template-columns:150px 1fr;gap:26px;padding:26px 30px;background:var(--card);border:1px solid var(--rule);
+  border-radius:var(--r-lg);box-shadow:var(--shadow-soft);}
+.mitem .snum{font-family:var(--serif);font-weight:600;font-size:46px;line-height:1;color:var(--sage);opacity:.5;}
+.mitem .when{display:block;margin-top:10px;font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);line-height:1.6;}
+.mitem h3{font-family:var(--serif);font-weight:600;font-size:21px;color:var(--ink-strong);margin:0 0 8px;}
+.mitem p{margin:0 0 14px;color:var(--ink-soft);}
+.mitem .demo{border:1px solid var(--rule-soft);border-radius:var(--r-md);background:var(--card-sunk);
+  padding:12px 16px;font-family:var(--mono);font-size:12.5px;color:var(--ink);line-height:1.85;overflow-x:auto;white-space:nowrap;}
+.mitem .demo .k{color:var(--ink-faint);} .mitem .demo .g{color:var(--sage-deep);} .mitem .demo .b{color:#4c6c7e;}
+@media(max-width:900px){.issues,.iss__ver{grid-template-columns:1fr;} .iss--wide{grid-column:auto;} .mitem{grid-template-columns:1fr;gap:6px;padding:22px;}}
+</style>
+<body>
+<div class="paper" aria-hidden="true"></div>
+
+<nav class="nav">
+  <div class="wrap">
+    <div class="brand"><span class="brand__mark"></span><b>Teamily 客户端测试台</b><small>周报</small></div>
+    <div class="nav__links">
+      <a href="#issues">Issue</a>
+      <a href="#flow">流程</a>
+      <a href="#milestones">本周成果</a>
+      <a href="#entry">入口</a>
+      <a href="#results">数据</a>
+      <a href="#outlook">展望</a>
+      <span class="nav__cta nav__cmd">2026-10-26 — 10-30</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ════════════ hero ════════════ -->
+<header class="hero">
+  <div class="wrap">
+    <span class="hero__tag rise in"><i></i>周报 · 2026-10-26 — 10-30 · multi-test-agent</span>
+    <h1 class="rise in">10-26 — 10-30：把测试台<br>落成一套<em>能力框架</em></h1>
+    <p class="lead rise in">10-19 — 10-23 证明了「Issue 进，结论出」能在生产环境跑通。这一周先做一次大型重构，把底座理顺；
+      再把整条流程拆成七个能力层：理解、感知、执行、判定、运行、治理、接口。七层逐层落地，每层输入输出清楚，并有单测和真机门守住。
+      本周按 <b>周二、周三、周五三次交付</b>完成三个版本迭代，全部合并到 main，测试台已经基本可用：一轮全量回归约 45 分钟跑完 10+ 项验证；
+      Agent 用命令行、人用 Web，都能完成「提交 → 审批 → 执行 → 结论」。</p>
+    <div class="hero__actions rise in">
+      <a class="btn btn--primary" href="#issues">本周验证的 Issue</a>
+      <a class="btn" href="#milestones">本周成果</a>
+    </div>
+
+    <!-- 首图：本周节奏，按交付日排列 -->
+    <div class="week rise in" aria-label="本周节奏">
+      <div class="week__bar"><b>本周节奏</b><span>周二 · 周三 · 周五 各交付一个版本迭代</span></div>
+      <div class="week__grid">
+        <div class="day done">
+          <div class="day__d"><b>周一</b><span>10-26</span></div>
+          <div class="ms x"><i>重构</i>执行会话 · 端适配器</div>
+          <div class="ms w"><i>迭代一</i>意图契约 · 模式库</div>
+          <div class="ms w"><i>迭代一</i>分层观察 · 预热门</div>
+        </div>
+        <div class="day done">
+          <div class="day__d"><b>周二</b><span>10-27</span></div>
+          <div class="ms w"><i>迭代一</i>各端元素指纹 · 自愈</div>
+          <div class="ms w"><i>迭代一</i>轨迹 · 记忆网关接入</div>
+          <div class="ms d"><i>交付</i>迭代一 · 全量回归通过</div>
+        </div>
+        <div class="day done">
+          <div class="day__d"><b>周三</b><span>10-28</span></div>
+          <div class="ms m"><i>迭代二</i>可信结论 · 运行清单</div>
+          <div class="ms m"><i>迭代二</i>预检 · 隔离 · 系列运行</div>
+          <div class="ms d"><i>交付</i>迭代二 · 系列真机门通过</div>
+        </div>
+        <div class="day done">
+          <div class="day__d"><b>周四</b><span>10-29</span></div>
+          <div class="ms m"><i>迭代三</i>任务 / 环境 · 副作用台账</div>
+          <div class="ms m"><i>迭代三</i>审批策略 · 版本绑定</div>
+          <div class="ms m"><i>迭代三</i>状态码 · 命令行 · Web</div>
+        </div>
+        <div class="day done">
+          <div class="day__d"><b>周五</b><span>10-30</span></div>
+          <div class="ms m"><i>迭代三</i>真机门：故障 · 确定性 · 一致性</div>
+          <div class="ms d"><i>交付</i>迭代三 · 合并到 main</div>
+          <div class="ms x"><i>设计</i>迭代四 · 迭代五</div>
+        </div>
+      </div>
+      <div class="week__foot">
+        <span><b>56</b>次提交</span>
+        <span><b>≈2.1 万</b>行 TypeScript</span>
+        <span><b>215/215</b>单元测试通过（上周 77）</span>
+        <span><b>3</b>个版本迭代合并到 main</span>
+        <span><b>2</b>个后续迭代完成设计</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ════════════ issues ════════════ -->
+<section id="issues">
+  <div class="wrap">
+    <p class="eyebrow rise">Issues Verified</p>
+    <h2 class="h2 rise">本周验证的 Issue</h2>
+    <p class="sub rise">全部在生产环境运行。iOS 报告的问题经一次确认后在 Android 真机替代执行，报告首行标注替代；bug 类给出带分母的结论，需求类逐条验收。</p>
+    <div class="issues">
+      <div class="iss iss--wide rise">
+        <div class="iss__top"><span class="iss__id">issue#2010</span><span class="iss__meta">iOS 报告 · Android App 替代执行 · 系列运行</span></div>
+        <h3>AI 改写误触，覆盖已输入的草稿</h3>
+        <div class="iss__ver">
+          <div><div class="iss__vh"><b>App 2.0.15 · 10-28</b><span class="vd hit">已复现</span></div>
+            <p>点「强化 prompt」后，草稿被直接替换，没有确认，也没有撤销。10 次系列运行中 4 次判定为已复现；合并 52 次有效尝试，命中 25 次。</p>
+            <div class="iss__data">单轮 48.1%（Wilson 95% 35.1%–61.3%）· 25 次命中录屏复核 25/25 符合</div></div>
+          <div><div class="iss__vh"><b>App 2.0.20 · 10-30</b><span class="vd ok">未复现</span></div>
+            <p>新版本点改写前，会先弹「用记忆强化 prompt?」确认框。测试台按像素认出确认框，记为「有确认」并点取消；草稿保持原样。</p>
+            <div class="iss__data">预热 + 3 轮均识别到确认框（点击后约 1.1 s）· 当天完成标定与重新批准</div></div>
+        </div>
+      </div>
+      <div class="iss rise">
+        <div class="iss__top"><span class="iss__id">issue#1903</span><span class="vd ok">未复现</span></div>
+        <h3>发送后气泡里的 @ 不渲染</h3>
+        <div class="iss__meta">iOS 报告 · Android App 替代执行 · 系列运行</div>
+        <p>群聊里 @ 成员后发送，每轮检查气泡中是否有独立的「@成员」节点。10 次运行全部正常显示，会话列表预览 10/10 同样带 @。</p>
+        <div class="iss__data">60 次有效尝试 · 单次复现概率 95% 上界 ≈ 5%</div>
+      </div>
+      <div class="iss rise">
+        <div class="iss__top"><span class="iss__id">issue#2044</span><span class="vd hit">已复现</span></div>
+        <h3>引用预览显示 Markdown 源码</h3>
+        <div class="iss__meta">iOS 报告 · Android App 替代执行</div>
+        <p>测试台先发出一条含 Markdown 链接的消息并引用回复（前置条件自动构造），再逐轮读取引用块文字：引用块输出的是 [url](url) 源码，原消息气泡则正常显示为链接。</p>
+        <div class="iss__data">连续 3 轮命中 · 录屏复核 3/3 符合 · 循环判定全走无障碍层</div>
+      </div>
+      <div class="iss rise">
+        <div class="iss__top"><span class="iss__id">issue#1329</span><span class="vd ok">未复现</span></div>
+        <h3>点赞 / 引用定位 / 键盘弹出</h3>
+        <div class="iss__meta">iOS 报告 · Android App、手机视口 Web 替代执行</div>
+        <p>拆成三个子用例：点赞后立即可见（15 分钟 128 轮）；点引用跳到原消息（App 20 轮，手机视口 Web 15 轮）；点一次输入框键盘即弹出（15 分钟 315 轮）。</p>
+        <div class="iss__data">判定读无障碍层与系统键盘状态 · 循环视觉调用 0</div>
+      </div>
+      <div class="iss rise">
+        <div class="iss__top"><span class="iss__id">issue#1594</span><span class="vd ok">未复现</span></div>
+        <h3>@ 选择器偶发不弹出</h3>
+        <div class="iss__meta">桌面 Web（Edge）</div>
+        <p>选群 → 切到另一会话再切回 → 键入 @ → 检查选择器弹出，反复执行。判定前提不成立的轮次单独记为偏离，不计入分母。</p>
+        <div class="iss__data">全量回归 200 步 · 参考区域比对 · 视觉调用 0</div>
+      </div>
+      <div class="iss rise">
+        <div class="iss__top"><span class="iss__id">issue#2336</span><span class="vd req">未实现</span></div>
+        <h3>通知入口统一</h3>
+        <div class="iss__meta">桌面 Web · 需求验收</div>
+        <p>逐页核对个人主页、Artifacts、CloudDoc 三处的通知铃铛：三处仍各自独立，未合并为统一入口。</p>
+        <div class="iss__data">三个页面逐一打开核对 · 缺项附截图</div>
+      </div>
+      <div class="iss rise">
+        <div class="iss__top"><span class="iss__id">issue#2122</span><span class="vd req">未实现</span></div>
+        <h3>免打扰群里被 @ 的提醒</h3>
+        <div class="iss__meta">桌面 Web · 需求验收</div>
+        <p>核对「@我」聚合入口和免打扰群的显著角标：两项在生产环境都还没有上线。</p>
+        <div class="iss__data">逐条核对需求 · 缺项附截图</div>
+      </div>
+      <div class="iss iss--sum rise">
+        <div class="iss__top"><span class="iss__id">合计</span></div>
+        <h3>7 份 Issue，结论全部来自生产环境</h3>
+        <div class="sumrow"><span class="vd hit">已复现</span><b>2</b><span>issue#2010（2.0.15）· issue#2044</span></div>
+        <div class="sumrow"><span class="vd ok">未复现</span><b>4</b><span>issue#2010（2.0.20）· issue#1903 · issue#1329 · issue#1594</span></div>
+        <div class="sumrow"><span class="vd req">未实现</span><b>2</b><span>issue#2336 · issue#2122</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ flow ════════════ -->
+<section id="flow">
+  <div class="wrap">
+    <p class="eyebrow rise">How It Runs</p>
+    <h2 class="h2 rise">一份 Issue 在框架里怎么走</h2>
+    <p class="sub rise">每一步都写进任务记录，进度精确到阶段、轮次、步骤；无论正常结束还是中途打断，都说得清停在哪一步、环境有没有恢复。</p>
+    <div class="flow rise">
+      <span class="prep"><small>理解</small>Issue → 意图契约</span><b>→</b>
+      <span class="gov"><small>接口</small>计划视图 · 六问</span><b>→</b>
+      <span class="gov"><small>治理</small>审批 · 版本绑定</span><b>→</b>
+      <span class="gov"><small>运行</small>排队 · 租环境</span><b>→</b>
+      <span class="gov"><small>运行</small>预检</span><b>→</b>
+      <span class="prep"><small>感知</small>启动 · SKILL 校验</span><b>→</b>
+      <span class="prep"><small>执行</small>准备：选目标并冻结</span><b>→</b>
+      <span class="prep"><small>执行</small>预热门</span><b>→</b>
+      <span class="loop"><small>执行 · 感知</small>坐标循环 ≤ 1 s</span><b>→</b>
+      <span class="loop"><small>判定</small>轮末判定 · 证据复核</span><b>→</b>
+      <span class="gov"><small>治理</small>报告 · 清单 · 轨迹</span><b>→</b>
+      <span class="gov"><small>运行</small>按台账恢复环境</span>
+    </div>
+    <div class="legend rise">
+      <span><i style="background:var(--slate-wash);border:1px solid #d3e0e9"></i>准备期（可用 AI）</span>
+      <span><i style="background:var(--sage-wash);border:1px solid #c3d9bd"></i>循环期（确定性，0 视觉调用）</span>
+      <span><i style="background:var(--ochre-wash);border:1px solid #e7dabb"></i>平台：审批、任务、环境、记录</span>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ carousel: 本周成果 ════════════ -->
+<section id="milestones">
+  <div class="wrap">
+    <p class="eyebrow rise">Milestones</p>
+    <h2 class="h2 rise">本周成果：三个版本迭代</h2>
+    <p class="sub rise">周二交付的迭代一重构底座、建好理解与感知层；周三交付的迭代二让结论可信、运行可追溯；周五交付的迭代三让它可用：任务与环境分离，Agent 和人各有入口。</p>
+
+    <div class="mlist">
+      <div class="mitem rise">
+        <div><div class="snum">01</div><span class="when">迭代一<br>周一 — 周二<br>10-26 — 10-27<br>周二交付</span></div>
+        <div>
+          <h3>大型重构 · 意图契约 · 分层感知</h3>
+          <p>先做一次行为不变的大型重构：四个执行端共用一个执行会话和端适配器，执行主函数从 458 行拆成 96 行的编排。随后 Issue 先转成意图契约，再由模式库或模型组合生成计划。
+                观察和定位分三层，循环中的判定全部走确定性层；正式循环前，预热门逐步核验每个动作；各端元素都带指纹，改版后可自愈。
+                每次运行产出规范的 trajectory-v1 轨迹，并可写入 TencentDB Agent Memory。</p>
+          <div class="demo"><span class="b">refactor</span>　执行主函数 458 → 96 行 · 运行 / 同步 / 重放共用一个会话<br>
+                <span class="b">issue#1329 s3</span>　15 分钟 315 轮（基线的 3 倍）· 循环视觉调用 <span class="g">0</span> · 最大间隔 967 ms<br>
+                <span class="b">issue#2044</span>　自动构造前置条件 → 连续 3 轮命中 → <span class="g">已复现</span> · 证据复核 3/3<br>
+                <span class="b">gate</span>　全量回归 ≈ 45 分钟 · 8 个 Issue 用例 + 四端冒烟 / 自愈 / 三端同步</div>
+        </div>
+      </div>
+      <div class="mitem rise">
+        <div><div class="snum">02</div><span class="when">迭代二<br>周三<br>10-28<br>当天交付</span></div>
+        <div>
+          <h3>可信结论与运行可追溯</h3>
+          <p>结论只有已复现、未复现、环境不合格三类，附有效尝试、命中率区间和上界。每次运行写运行清单：版本、设备、App、输入法、账号、预检结果。
+                预检先确认环境合格再开始；运行标记把每轮输入隔开；系列运行把多次结果合并统计；回归由一条命令的代码门守住。</p>
+          <div class="demo"><span class="k">$</span> pnpm autotest series --issue 2010 --approve main:android-app --runs 10<br>
+                <span class="b">issue#2010</span>　工具可靠性 <span class="g">10/10</span> · 52 次有效尝试 · 单轮 48.1%（Wilson 35.1%–61.3%）<br>
+                <span class="b">issue#1903</span>　工具可靠性 <span class="g">10/10</span> · 60 次有效尝试 · 上界 ≈ 5%<br>
+                <span class="b">preflight</span>　0.7 s 完成；锁屏时 3.1 s 判定环境不合格，不产生任何点击</div>
+        </div>
+      </div>
+      <div class="mitem rise">
+        <div><div class="snum">03</div><span class="when">迭代三<br>周四 — 周五<br>10-29 — 10-30<br>周五交付</span></div>
+        <div>
+          <h3>可用性：任务与环境分离</h3>
+          <p>任务和环境各有自己的状态机和原子记录。操作被测软件前先记账，任务结束或中断后，由独立进程按台账恢复环境。
+                审批按策略分级，并绑定版本；两位状态码让 Agent 只看退出码就能决定下一步；Web 让人看清计划、环境、进度和结论。</p>
+          <div class="demo"><span class="k">$</span> autotest task run 2010/main:android-app@v1　<span class="k">→</span> <span class="b">20</span> 已排队<br>
+                <span class="k">$</span> autotest task wait t-…　<span class="k">→</span> <span class="g">10</span> 未复现<br>
+                <span class="b">faults</span>　4 种故障 × 5 个阶段 · <span class="g">20/20</span> 恢复后照常得出结论<br>
+                <span class="b">2.0.20</span>　App 更新当天：重新标定 → 旧批准按版本失效 → 重新批准 → 出结论</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ entry ════════════ -->
+<section id="entry">
+  <div class="wrap">
+    <p class="eyebrow rise">Two Entry Points</p>
+    <h2 class="h2 rise">两种入口：Agent 用命令行，人用 Web</h2>
+    <p class="sub rise">同一套视图模型同时生成命令行文本、JSON 和 Web 页面。三种形态下，结论句、有效尝试、命中数和区间文字已在真机任务上逐项核对一致。</p>
+    <div class="duo">
+      <div class="card rise">
+        <div class="who">For Agents · CLI v1</div>
+        <h3>一条命令一个动作，只看退出码</h3>
+        <ul>
+          <li>覆盖 Issue、草稿、计划、环境、任务、结果六类对象的全部操作，<code>help --json</code> 自描述</li>
+          <li><code>--json</code> 时 stdout 只有一个 JSON；从不提问，不会卡在交互上</li>
+          <li>两位状态码，十位表示类别；附可重试标记与下一步提示</li>
+        </ul>
+        <div class="term"><span class="k">$</span> autotest plan explain 2010/main:android-app@v1<br>
+          <span class="k">$</span> autotest task run 2010/main:android-app@v1 --max-rounds 3　<span class="b">20</span><br>
+          <span class="k">$</span> autotest task wait t-20261030080949-karl　<span class="g">10 未复现</span></div>
+        <div class="codes">
+          <span><b>1x</b>结论</span><span><b>2x</b>已受理</span><span><b>3x</b>审批</span><span><b>4x</b>输入 / 计划</span>
+          <span><b>5x</b>环境</span><span><b>6x</b>工具 / 任务</span><span><b>7x</b>取消 / 中断</span><span><b>0</b>成功</span>
+        </div>
+      </div>
+      <div class="card rise">
+        <div class="who">For People · Web</div>
+        <h3>看得懂计划，看得见环境</h3>
+        <ul>
+          <li>计划审核页把每一步标在标定截图上，回答六个问题：做什么、影响什么、哪里不确定、调用几次模型、要多久、属于哪类审批</li>
+          <li>环境页逐项列出基线、租约和配置项，可一键重新检查、恢复、下线</li>
+          <li>结果页给出结论句、依据、证据，以及中断位置与环境恢复结果；术语悬停即可看解释</li>
+        </ul>
+        <div class="pages">
+          <span>首页<small>任务 · Issue · 环境</small></span>
+          <span>环境<small>基线 · 租约</small></span>
+          <span>计划审核<small>六问 · 同意</small></span>
+          <span>任务<small>进度 · 台账</small></span>
+          <span>结果<small>结论 · 证据</small></span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ results ════════════ -->
+<section id="results">
+  <div class="wrap">
+    <p class="eyebrow rise">By the Numbers · 2026-10-30</p>
+    <h2 class="h2 rise">关键数据</h2>
+    <p class="sub rise">数据全部来自生产环境运行：teamily.ai · Redmi 2211133C / Android 16 · Windows 11 上的 Edge。</p>
+    <div class="stats">
+      <div class="stat hl rise"><span>全量回归</span><b>≈45 <small>分钟</small></b><p>一轮串行跑完 10+ 项验证：8 个 Issue 用例，加上四端冒烟、生命周期、自愈、三端同步</p></div>
+      <div class="stat rise"><span>大型重构</span><b>458 → 96 <small>行</small></b><p>执行主函数拆成准备、阶段、循环、检查点等模块，四端共用一个执行会话</p></div>
+      <div class="stat rise"><span>判定吞吐</span><b>3 <small>倍</small></b><p>issue#1329 键盘用例每分钟 21 轮（基线 7 轮）；循环内视觉调用 0</p></div>
+      <div class="stat rise"><span>系列运行</span><b>10 <small>/ 10 × 2</small></b><p>issue#2010、issue#1903 各 10 次运行全部走完循环、得出结论</p></div>
+      <div class="stat hl rise"><span>故障恢复</span><b>20 <small>/ 20</small></b><p>强杀任务、冻结进程、重启平台、断开设备，覆盖 5 个阶段，每格之后都照常得出结论</p></div>
+      <div class="stat rise"><span>确定性</span><b>31 · 32 · 33</b><p>计划哈希不符、批准后版本变化、超出批准次数，在真机上分别按状态码拦下</p></div>
+      <div class="stat rise"><span>轨迹与记忆</span><b>49 <small>/ 49</small></b><p>issue#2044 运行轨迹写入 TencentDB Agent Memory，与本地 trajectory.jsonl 逐条一致</p></div>
+      <div class="stat rise"><span>回归</span><b>215 <small>/ 215</small></b><p>单元测试全部通过（上周 77）；代码门一条命令 192 s 跑完</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ outlook ════════════ -->
+<section id="outlook">
+  <div class="wrap">
+    <p class="eyebrow rise">Next</p>
+    <h2 class="h2 rise">未来展望</h2>
+    <p class="sub rise">本周把框架落了地。接下来的两个迭代在这套框架上加深感知、开放接入、扩展到探索测试，设计均已完成。</p>
+    <div class="next">
+      <div class="nx rise"><div class="m">01</div><div><b>感知层升级（迭代四）</b>
+        <p>设备侧常驻读树服务，目标 p95 ≤ 500 ms；循环外每次点击前，先核对目标还在原处（界面树优先，像素兜底）。</p></div></div>
+      <div class="nx rise"><div class="m">02</div><div><b>原生 MCP 服务（迭代四）</b>
+        <p>作为标准 MCP 服务器接入 IDE 与开发环境：Issue、计划、任务、结果以工具和资源暴露，并附测试行为准则。</p></div></div>
+      <div class="nx rise"><div class="m">03</div><div><b>探索测试模块（迭代五）</b>
+        <p>重做自然语言任务和 AI 探索，接入任务、环境、审批和现场包；动作按风险分级，执行前先校验。</p></div></div>
+      <div class="nx rise"><div class="m">04</div><div><b>通用判定库</b>
+        <p>没有 Issue 时，也能识别闪退、白屏、一直加载、错误提示、占位文字、点了没反应等通用现象。</p></div></div>
+      <div class="nx rise"><div class="m">05</div><div><b>发现 → Issue → 复现</b>
+        <p>探索中发现的现象自动生成 Issue 草稿，交给确定性主线复现，给出带分母的结论。</p></div></div>
+      <div class="nx rise"><div class="m">06</div><div><b>持续回归</b>
+        <p>定时跑 SKILL 自检和已知 Issue 系列；App 一更新，就重新标定、复测。</p></div></div>
+    </div>
+    <div class="vision rise">
+      <div class="big">目标：一句话或一份 Issue，就换来一份可核对、可重放、可追溯版本的结论。</div>
+      <p>人在 Web 上看得懂、管得住；Agent 在 IDE 里直接调用。确定性主线负责复现和验收，探索模块负责发现。两者共用同一套感知、执行、判定和治理能力。</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Teamily 客户端测试台 · multi-test-agent · 周报 2026-10-26 — 10-30</span>
+  </div>
+</footer>
+
+<script>
+// ── reveal on scroll ──
+(function(){
+  const els = document.querySelectorAll('.rise:not(.in)');
+  if (!('IntersectionObserver' in window)){ els.forEach(e=>e.classList.add('in')); return; }
+  const io = new IntersectionObserver((ents)=>{
+    ents.forEach(en=>{ if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target);} });
+  }, {threshold:.12});
+  els.forEach(e=>io.observe(e));
+})();
+</script>
+</body>
+</html>

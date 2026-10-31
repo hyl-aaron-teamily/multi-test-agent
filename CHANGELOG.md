@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased] — 重构 P1：删除旧路径（`docs/refactor-plan.md`）
+
+范围收窄为两项能力（自然语言自主测试 / 探索；Issue 驱动的确定性测试 + 现场包），规则见 `docs/rules-audit.md`。本阶段只删除，主链路（`/api/v1`、CLI、MCP、Issue 执行与系列、现场包、重放、`autotest sync`）行为不变。
+
+### Removed
+- W1–W4 旁路入口：`mission/`、`explore/`、`monkey/`、`replay/`（Midscene 动作重放）、`report/`（问题报告）、`imui/`（im-loadtest 界面层移植）及其脚本（`scripts/{mission,explore,monkey,imui,replay,report,loop-android,crash-check-android}.ts`）。自然语言任务与 AI 探索将在 P5 的统一引擎里重做。
+- W1 基线用例 `tests/`、`fixtures/{page,android}.ts`、`android/flows/`；`core/{logcat-monitor,task-result,credentials}.ts`。
+- 旧控制台 `platform/console.html`、`/console`、旧 `/api/tasks*`、`/api/issues*` 路由与 `platform/tasks.ts`（TaskManager）。新页面只用 `/api/v1`；多端同步暂时只有 `autotest sync` 命令入口，P6 接入 v1 任务。
+- 里程碑一次性验收脚本：`scripts/{w2m1-gate,w2m3-gate,w2m4-tree-bench,w2m4-pretap-inject,w2m4-mcp-e2e,mcp-check}.ts`、`scripts/w2m4-claude-code-mcp.sh`（结果已记录在各验收文档里）。
+- Allure：Issue 运行不再写 `allure-results/`；依赖 `allure-commandline`、`allure-js-commons`、`allure-vitest`，以及从未使用的 `@playwright/test`；`package.json` 中对应脚本（`test:web`、`test:android`、`loop:android`、`report`、`mission`、`explore`、`monkey`、`imui` …）。
+- `docs/imui.md`、`docs/console.png`。
+
+### Changed
+- `autotest replay` 只接受坐标级 `replay.json`（现场包格式）。
+- `vitest.config.ts` 只剩 unit 项目；`tsconfig.json` 只包含现存目录。
+
 ## W2-4（2026-10-31 合并到 main，`ae5843e`）：感知层增强（参考 Artemis）+ 原生 MCP 服务
 
 需求：`dev-week2-milestone4.md`；验收证据：`docs/w2m4-acceptance.md`、`docs/w2m4/`；Agent 准则：`docs/agent-rules.md`。借鉴 Google Artemis（`ref/artemis`，Apache-2.0）的思路——设备端读树服务、屏幕索引、Safety Net、`mobile_diagnose`、MCP 接入——全部用 TypeScript / Java 重写，未复制其代码或二进制。

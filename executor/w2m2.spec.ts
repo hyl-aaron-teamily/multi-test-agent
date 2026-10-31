@@ -11,7 +11,6 @@ import { parseDeviceState, taplusWith } from './preflight';
 import { attemptsOf, attemptsText, wilson } from './stats';
 import { expand, expandAction, expandCheck, newRunToken } from './template';
 import { seriesMarkdown, summarizeSeries } from './series';
-import { taskArgs, validateTaskInput } from '../platform/tasks';
 
 describe('attempts (W2-2 §3.1)', () => {
   it('Wilson 95% interval', () => {
@@ -163,12 +162,5 @@ describe('series (W2-2 §3.4)', () => {
     const md = seriesMarkdown({ issue: '1903', sub: 'main', surface: 'android-app', env: 'prod', runs: [1, 2].map((i) => ({ index: i, dir: `d/run-0${i}`, result: mk('未复现', 6, 0) })), dir: 'd', startedAt: 'a', finishedAt: 'b' });
     expect(md).toMatch(/未复现（本系列 12 次有效尝试）/);
     expect(md).toMatch(/上界 ≈ 25%/);
-  });
-  it('series task: exactly one sub-case, runs 1..50', () => {
-    expect(validateTaskInput({ type: 'series', issue: '2010', approve: 'main:android-app', runs: 10, maxRounds: 6 })).toMatchObject({ type: 'series', runs: 10, maxRounds: 6 });
-    expect(validateTaskInput({ type: 'series', issue: '2010', approve: 's1,s2' })).toMatch(/exactly one/);
-    expect(validateTaskInput({ type: 'series', issue: '2010', approve: 'main', runs: 99 })).toMatch(/runs/);
-    const t = { ...(validateTaskInput({ type: 'series', issue: '2010', approve: 'main:android-app', runs: 3 }) as any), id: 'T1' };
-    expect(taskArgs(t, '4f2e')).toEqual(['bin/autotest.ts', 'series', '--issue', '2010', '--approve', 'main:android-app', '--env', 'prod', '--id', 'T1', '--runs', '3', '--device', '4f2e']);
   });
 });
