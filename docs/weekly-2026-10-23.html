@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Teamily 客户端测试台 · 周报 2026-10-19 — 10-23</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23f6f4ef'/%3E%3Crect x='10' y='7' width='12' height='18' rx='3' fill='none' stroke='%236f9c6a' stroke-width='2.5'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── 与 intro.html 同一套设计令牌：纸质实验记录本 ── */
+:root{
+  --paper:#f4f1ea; --paper-warm:#efebe1; --card:#fffdf8; --card-sunk:#faf7f0;
+  --ink:#3c4743; --ink-strong:#2c3733; --ink-soft:#6f7c76; --ink-faint:#9aa49e;
+  --rule:#e2ddd1; --rule-soft:#ece8dd;
+  --sage:#6f9c6a; --sage-deep:#557f52; --sage-wash:#eef4ea;
+  --slate:#6d8fa8; --slate-wash:#eaf0f4; --ochre:#b58f3f; --ochre-wash:#f7f1de;
+  --clay:#b96b52; --clay-wash:#f8ede8;
+  --r-sm:8px; --r-md:13px; --r-lg:18px; --r-pill:999px;
+  --shadow-card:0 1px 2px rgba(60,71,67,.04),0 18px 44px -26px rgba(60,71,67,.34);
+  --shadow-soft:0 1px 1px rgba(60,71,67,.04),0 6px 16px -12px rgba(60,71,67,.18);
+  --serif:"Fraunces","Songti SC",Georgia,serif;
+  --sans:"Hanken Grotesk","PingFang SC","Microsoft YaHei",sans-serif;
+  --mono:"DM Mono",ui-monospace,Consolas,monospace;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{
+  margin:0; color:var(--ink); font-family:var(--sans); font-size:15px; line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+  background:
+    radial-gradient(1200px 680px at 86% -10%,#fbf8f1 0%,transparent 60%),
+    radial-gradient(820px 560px at 0% 106%,#f0ede3 0%,transparent 58%),
+    var(--paper);
+}
+.paper{position:fixed;inset:0;pointer-events:none;z-index:99;opacity:.28;mix-blend-mode:multiply;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)' opacity='.05'/%3E%3C/svg%3E");}
+a{color:var(--sage-deep);}
+.wrap{max-width:1120px;margin:0 auto;padding:0 26px;}
+
+.rise{opacity:0;transform:translateY(16px);transition:opacity .7s cubic-bezier(.22,.7,.2,1),transform .7s cubic-bezier(.22,.7,.2,1);}
+.rise.in{opacity:1;transform:none;}
+@media (prefers-reduced-motion:reduce){.rise{opacity:1;transform:none;transition:none;}}
+
+/* ── top nav ── */
+.nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(8px);
+  background:linear-gradient(180deg,rgba(244,241,234,.92),rgba(244,241,234,.66));
+  border-bottom:1px solid var(--rule-soft);}
+.nav .wrap{display:flex;align-items:center;justify-content:space-between;height:62px;}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand__mark{width:16px;height:24px;border-radius:5px;border:2.5px solid var(--sage);position:relative;}
+.brand__mark::after{content:"";position:absolute;left:3px;right:3px;bottom:3px;height:3px;border-radius:2px;background:var(--sage);}
+.brand b{font-family:var(--serif);font-weight:600;font-size:17px;color:var(--ink-strong);letter-spacing:.01em;}
+.brand small{font-family:var(--mono);font-size:11px;color:var(--ink-faint);padding:2px 9px;border:1px solid var(--rule);border-radius:var(--r-pill);background:var(--card);}
+.nav__links{display:flex;gap:8px;align-items:center;}
+.nav__links a{padding:7px 14px;border-radius:var(--r-pill);text-decoration:none;color:var(--ink-soft);font-size:13.5px;}
+.nav__links a:hover{background:var(--card);color:var(--ink-strong);}
+.nav__cta{background:var(--sage)!important;color:#fff!important;box-shadow:var(--shadow-soft);padding:7px 14px;border-radius:var(--r-pill);}
+.nav__cmd{font-family:var(--mono);font-size:12px;cursor:default;}
+
+/* ── hero ── */
+.hero{padding:66px 0 40px;}
+.hero__tag{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:var(--r-pill);
+  background:var(--card);border:1px solid var(--rule);color:var(--ink-soft);font-size:12.5px;box-shadow:var(--shadow-soft);}
+.hero__tag i{width:7px;height:7px;border-radius:50%;background:var(--sage);}
+.hero h1{font-family:var(--serif);font-weight:600;font-size:clamp(34px,5vw,54px);line-height:1.12;
+  margin:20px 0 14px;color:var(--ink-strong);letter-spacing:-.01em;}
+.hero h1 em{font-style:italic;color:var(--sage-deep);}
+.hero p.lead{font-size:clamp(15px,1.7vw,18px);color:var(--ink-soft);max-width:720px;margin:0 0 26px;}
+.hero__actions{display:flex;gap:12px;flex-wrap:wrap;}
+.btn{display:inline-flex;align-items:center;gap:9px;padding:12px 22px;border-radius:var(--r-pill);
+  border:1px solid var(--rule);background:var(--card);color:var(--ink);font-family:var(--sans);
+  font-size:14px;font-weight:500;text-decoration:none;cursor:pointer;box-shadow:var(--shadow-soft);transition:.18s;}
+.btn:hover{transform:translateY(-1px);border-color:#d3ccbc;}
+.btn--primary{background:var(--sage);border-color:var(--sage-deep);color:#fff;
+  box-shadow:0 8px 24px -14px rgba(111,156,106,.7);}
+.btn--primary:hover{background:#7aa874;}
+
+/* ── 首图：本周节奏（真实提交记录，不是界面演示） ── */
+.week{margin-top:44px;border-radius:var(--r-lg);overflow:hidden;border:1px solid var(--rule);
+  background:var(--card);box-shadow:var(--shadow-card);}
+.week__bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;
+  border-bottom:1px solid var(--rule-soft);background:linear-gradient(180deg,#fffefa,var(--card-sunk));}
+.week__bar b{font-family:var(--serif);font-weight:600;font-size:14px;color:var(--ink-strong);}
+.week__bar span{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);}
+.week__grid{display:grid;grid-template-columns:repeat(4,1fr);position:relative;}
+.day{padding:26px 20px 22px;border-right:1px solid var(--rule-soft);position:relative;}
+.day:last-child{border-right:0;background:linear-gradient(160deg,#f2f7ee,var(--card));}
+.day::before{content:"";position:absolute;left:0;right:0;top:0;height:3px;background:var(--rule-soft);}
+.day.done::before{background:linear-gradient(90deg,var(--sage),#9cbf97);}
+.day__d{display:flex;align-items:baseline;gap:10px;margin-bottom:14px;}
+.day__d b{font-family:var(--serif);font-weight:600;font-size:20px;color:var(--ink-strong);}
+.day__d span{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);}
+.ms{display:grid;grid-template-columns:34px 1fr;gap:10px;align-items:center;padding:7px 10px;margin-bottom:6px;
+  border:1px solid var(--rule-soft);border-radius:var(--r-sm);background:var(--card-sunk);font-size:13px;color:var(--ink-strong);}
+.ms i{font-style:normal;font-family:var(--mono);font-size:10.5px;text-align:center;padding:2px 0;border-radius:var(--r-pill);}
+.ms.w i{background:var(--sage-wash);color:var(--sage-deep);border:1px solid #d8e5d3;}
+.ms.m i{background:var(--slate-wash);color:#4c6c7e;border:1px solid #d3e0e9;}
+.ms.x i{background:var(--ochre-wash);color:#7d6425;border:1px solid #e7dabb;}
+.week__foot{display:flex;flex-wrap:wrap;gap:8px 22px;padding:14px 20px;border-top:1px solid var(--rule-soft);background:var(--card-sunk);
+  font-size:13px;color:var(--ink-soft);}
+.week__foot b{font-family:var(--serif);font-weight:600;color:var(--ink-strong);font-size:15px;margin-right:4px;}
+
+/* ── section scaffold ── */
+section{padding:64px 0;}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--sage-deep);}
+.h2{font-family:var(--serif);font-weight:600;font-size:clamp(26px,3.4vw,36px);color:var(--ink-strong);margin:10px 0 12px;letter-spacing:-.01em;}
+.h3{font-family:var(--serif);font-weight:600;font-size:21px;color:var(--ink-strong);margin:40px 0 14px;}
+.sub{color:var(--ink-soft);max-width:700px;margin:0 0 34px;}
+
+/* ── feature cards ── */
+.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.card{background:var(--card);border:1px solid var(--rule);border-radius:var(--r-lg);padding:22px;box-shadow:var(--shadow-soft);}
+.card .ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--sage-wash);
+  border:1px solid #d8e5d3;margin-bottom:14px;}
+.card .ic svg{width:20px;height:20px;stroke:var(--sage-deep);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+.card h3{font-family:var(--serif);font-weight:600;font-size:18px;color:var(--ink-strong);margin:0 0 7px;}
+.card p{margin:0;font-size:14px;color:var(--ink-soft);}
+.card--hero{grid-column:span 3;display:grid;grid-template-columns:1.1fr 1fr;gap:26px;align-items:center;
+  background:linear-gradient(120deg,#f2f7ee,var(--card));}
+.card--hero .big{font-family:var(--serif);font-weight:600;font-size:clamp(22px,2.6vw,30px);color:var(--ink-strong);line-height:1.2;}
+.pill-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;}
+.pill{padding:6px 13px;border-radius:var(--r-pill);background:var(--card);border:1px solid var(--rule);font-size:12.5px;color:var(--ink-soft);font-family:var(--mono);}
+
+/* ── layers ── */
+.layers{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid var(--rule);border-radius:var(--r-lg);
+  overflow:hidden;background:var(--card);box-shadow:var(--shadow-soft);}
+.layer{padding:22px 22px 24px;border-right:1px solid var(--rule-soft);}
+.layer:last-child{border-right:0;background:linear-gradient(160deg,#f2f7ee,var(--card));}
+.layer .who{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--ink-faint);text-transform:uppercase;}
+.layer h3{font-family:var(--serif);font-weight:600;font-size:19px;color:var(--ink-strong);margin:6px 0 4px;}
+.layer .q{font-size:13.5px;color:var(--sage-deep);margin:0 0 12px;}
+.layer ul{margin:0;padding-left:18px;color:var(--ink-soft);font-size:13.5px;}
+.layer li{margin:3px 0;}
+
+/* ── carousel (本周里程碑) ── */
+.stage{background:var(--card);border:1px solid var(--rule);border-radius:var(--r-lg);box-shadow:var(--shadow-card);overflow:hidden;}
+.track-vp{overflow:hidden;}
+.track{display:flex;transition:transform .5s cubic-bezier(.22,.7,.2,1);}
+.slide{min-width:100%;display:grid;grid-template-columns:104px 1fr;gap:24px;padding:38px 40px;align-items:start;}
+.snum{font-family:var(--serif);font-weight:600;font-size:64px;line-height:1;color:var(--sage);opacity:.5;}
+.slide .when{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);letter-spacing:.06em;}
+.slide h3{font-family:var(--serif);font-weight:600;font-size:22px;color:var(--ink-strong);margin:2px 0 10px;}
+.slide p{margin:0 0 14px;color:var(--ink-soft);}
+.slide .demo{border:1px solid var(--rule-soft);border-radius:var(--r-md);background:var(--card-sunk);
+  padding:14px 16px;font-family:var(--mono);font-size:12.5px;color:var(--ink);line-height:1.85;overflow-x:auto;white-space:nowrap;}
+.slide .demo .k{color:var(--ink-faint);}
+.slide .demo .g{color:var(--sage-deep);}
+.slide .demo .b{color:#4c6c7e;}
+.caro__foot{display:flex;align-items:center;justify-content:space-between;padding:16px 22px;border-top:1px solid var(--rule-soft);background:var(--card-sunk);}
+.dots{display:flex;gap:8px;}
+.dot{width:9px;height:9px;border-radius:50%;background:#d7d1c3;border:0;cursor:pointer;padding:0;transition:.2s;}
+.dot.on{background:var(--sage);width:26px;border-radius:var(--r-pill);}
+.arrows{display:flex;gap:8px;}
+.arrow{width:38px;height:38px;border-radius:50%;border:1px solid var(--rule);background:var(--card);cursor:pointer;
+  display:grid;place-items:center;color:var(--ink-soft);transition:.18s;}
+.arrow:hover{border-color:#d3ccbc;color:var(--ink-strong);background:#fff;}
+.arrow svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+
+/* ── results ── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+.stat{padding:18px 20px;border:1px solid var(--rule);border-radius:var(--r-md);background:var(--card);box-shadow:var(--shadow-soft);}
+.stat span{display:block;font-size:12px;color:var(--ink-faint);}
+.stat b{display:block;font-family:var(--serif);font-weight:600;font-size:28px;line-height:1.25;color:var(--ink-strong);margin:4px 0 2px;}
+.stat b small{font-size:15px;color:var(--ink-soft);font-weight:500;}
+.stat p{margin:0;font-size:12.5px;color:var(--ink-soft);}
+.stat.hl{background:var(--sage-wash);border-color:#cadfc4;}
+.stat.hl b{color:var(--sage-deep);}
+.findings{display:grid;gap:12px;}
+.finding{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:start;padding:18px 22px;
+  border:1px solid #efd9cf;border-radius:var(--r-lg);background:linear-gradient(120deg,var(--clay-wash),var(--card));box-shadow:var(--shadow-soft);}
+.finding .m{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;background:#fff;border:1px solid #efd9cf;color:var(--clay);font-family:var(--serif);font-weight:600;}
+.finding b{color:var(--ink-strong);font-family:var(--serif);font-size:17px;font-weight:600;}
+.finding p{margin:4px 0 0;font-size:13.5px;color:var(--ink-soft);}
+.finding .src{font-family:var(--mono);font-size:11px;color:var(--ink-faint);white-space:nowrap;padding-top:4px;}
+
+/* ── stack ── */
+.stack{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border:1px solid var(--rule);border-radius:var(--r-lg);
+  overflow:hidden;background:var(--card);box-shadow:var(--shadow-soft);}
+.tech{padding:18px 22px;border-right:1px solid var(--rule-soft);border-bottom:1px solid var(--rule-soft);}
+.tech:nth-child(3n){border-right:0;}
+.tech:nth-last-child(-n+3){border-bottom:0;}
+.tech .who{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--ink-faint);text-transform:uppercase;}
+.tech b{display:block;margin:4px 0 2px;font-size:15px;font-weight:600;color:var(--ink-strong);}
+.tech p{margin:0;font-size:13px;color:var(--ink-soft);}
+
+/* ── outlook ── */
+.next{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.nx{display:flex;gap:13px;padding:18px 20px;border:1px solid var(--rule);border-radius:var(--r-md);background:var(--card);box-shadow:var(--shadow-soft);}
+.nx .m{flex:0 0 auto;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;
+  background:var(--sage-wash);border:1px solid #d8e5d3;color:var(--sage-deep);font-family:var(--mono);font-size:11px;}
+.nx b{color:var(--ink-strong);font-weight:600;}
+.nx p{margin:4px 0 0;font-size:13.5px;color:var(--ink-soft);}
+.vision{margin-top:16px;padding:26px 28px;border:1px solid #cadfc4;border-radius:var(--r-lg);
+  background:linear-gradient(120deg,#f2f7ee,var(--card));box-shadow:var(--shadow-soft);}
+.vision .big{font-family:var(--serif);font-weight:600;font-size:clamp(20px,2.4vw,26px);color:var(--ink-strong);line-height:1.3;}
+.vision p{margin:8px 0 0;font-size:14px;color:var(--ink-soft);max-width:820px;}
+
+/* ── footer ── */
+footer{padding:44px 0 60px;border-top:1px solid var(--rule-soft);color:var(--ink-faint);font-size:13px;}
+footer .wrap{display:flex;justify-content:space-between;flex-wrap:wrap;gap:12px;}
+code{font-family:var(--mono);font-size:.9em;background:var(--card-sunk);border:1px solid var(--rule-soft);border-radius:5px;padding:1px 6px;color:var(--sage-deep);}
+
+@media(max-width:900px){
+  .week__grid{grid-template-columns:1fr 1fr;}
+  .day:nth-child(2n){border-right:0;}
+  .cards,.layers,.next,.stack{grid-template-columns:1fr;} .card--hero{grid-column:auto;grid-template-columns:1fr;}
+  .layer{border-right:0;border-bottom:1px solid var(--rule-soft);}
+  .tech{border-right:0!important;border-bottom:1px solid var(--rule-soft)!important;}
+  .tech:last-child{border-bottom:0!important;}
+  .stats{grid-template-columns:1fr 1fr;}
+  .finding{grid-template-columns:auto 1fr;} .finding .src{grid-column:2;padding-top:0;}
+  .slide{grid-template-columns:1fr;gap:8px;padding:28px 24px;} .snum{font-size:44px;}
+  .nav__links a:not(.nav__cta){display:none;}
+}
+@media(max-width:560px){
+  .week__grid{grid-template-columns:1fr;} .day{border-right:0;}
+  .brand small,.nav__cta{display:none;}
+}
+</style>
+</head>
+<body>
+<div class="paper" aria-hidden="true"></div>
+
+<nav class="nav">
+  <div class="wrap">
+    <div class="brand"><span class="brand__mark"></span><b>Teamily 客户端测试台</b><small>周报</small></div>
+    <div class="nav__links">
+      <a href="#purpose">用途</a>
+      <a href="#layers">定位</a>
+      <a href="#milestones">本周成果</a>
+      <a href="#results">数据</a>
+      <a href="#stack">技术栈</a>
+      <a href="#outlook">展望</a>
+      <span class="nav__cta nav__cmd">开发第 1 周 · 10-19 — 10-23</span>
+    </div>
+  </div>
+</nav>
+
+<!-- ════════════ hero ════════════ -->
+<header class="hero">
+  <div class="wrap">
+    <span class="hero__tag rise in"><i></i>周报 · 2026-10-19 — 10-23 · multi-test-agent</span>
+    <h1 class="rise in">第一周：从零搭起<br>能在<em>生产环境</em>下结论的测试台</h1>
+    <p class="lead rise in">multi-test-agent 是 Teamily 的客户端测试台。交给它一份 Issue，它判断问题类型、生成测试计划，确认一次后在
+      Android App、手机浏览器、手机视口 Web 和 Edge 桌面 Web 上以黑盒方式自动复现或验收，并留下可回放的证据。
+      本周完成 W1–W4 与 M5、M6 共 <b>6 个里程碑</b>，样例 Issue 的结论全部来自生产环境运行。</p>
+    <div class="hero__actions rise in">
+      <a class="btn btn--primary" href="#milestones">看本周成果</a>
+      <a class="btn" href="#outlook">未来展望</a>
+    </div>
+
+    <!-- 首图：本周节奏，取自 git 提交记录 -->
+    <div class="week rise in" aria-label="本周节奏">
+      <div class="week__bar"><b>本周节奏</b><span>git log · main</span></div>
+      <div class="week__grid">
+        <div class="day done">
+          <div class="day__d"><b>周一</b><span>10-19</span></div>
+          <div class="ms w"><i>W1</i>Web 测试基线</div>
+          <div class="ms w"><i>W2</i>Android 接入 · 闪退监控</div>
+          <div class="ms w"><i>W3</i>AI 探索 · Monkey 压测</div>
+        </div>
+        <div class="day done">
+          <div class="day__d"><b>周二</b><span>10-20</span></div>
+          <div class="ms w"><i>W4</i>控制台 · 设备池</div>
+          <div class="ms w"><i>W4</i>自然语言测试任务</div>
+          <div class="ms x"><i>+</i>即时重放 · IM 界面测试</div>
+        </div>
+        <div class="day done">
+          <div class="day__d"><b>周三</b><span>10-21</span></div>
+          <div class="ms m"><i>M5</i>Issue 分类与测试计划</div>
+          <div class="ms m"><i>M5</i>Teamily SKILL · 坐标执行器</div>
+          <div class="ms m"><i>M5</i>事故现场包 · 重放</div>
+        </div>
+        <div class="day done">
+          <div class="day__d"><b>周四</b><span>10-22</span></div>
+          <div class="ms m"><i>M6</i>证据复核 · 退出 / 杀进程</div>
+          <div class="ms m"><i>M6</i>手机浏览器 · Edge 执行端</div>
+          <div class="ms m"><i>M6</i>端点池 · 多端同步</div>
+        </div>
+      </div>
+      <div class="week__foot">
+        <span><b>95</b>次提交</span>
+        <span><b>≈1.2 万</b>行 TypeScript</span>
+        <span><b>77/77</b>单元测试通过</span>
+        <span><b>6</b>个里程碑全部合并到 main</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ════════════ purpose ════════════ -->
+<section id="purpose">
+  <div class="wrap">
+    <p class="eyebrow rise">Purpose</p>
+    <h2 class="h2 rise">它解决什么问题</h2>
+    <p class="sub rise">客户端问题的复现和验收长期靠人工：偶发问题要人反复点，需求是否上线要人逐页看，多端是否同步要几个人对着屏幕。测试台把这些交给机器，人只在开始时确认一次。</p>
+    <div class="cards">
+      <div class="card card--hero rise">
+        <div>
+          <div class="big">Issue 进，<br>结论和证据出</div>
+          <div class="pill-row">
+            <span class="pill">自动分类</span>
+            <span class="pill">一次确认</span>
+            <span class="pill">动作间隔 ≤ 1 s</span>
+            <span class="pill">生产环境出结论</span>
+            <span class="pill">可重放的现场包</span>
+          </div>
+        </div>
+        <p>bug 类按上限跑满，给出「可复现 / 未复现」及执行步数；需求类逐条验收，列出已实现和缺项；服务端问题、不可执行的 Issue 直接说明原因，不做无用功。</p>
+      </div>
+
+      <div class="card rise">
+        <div class="ic"><svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 3-6.2"/><path d="M4 4v4h4"/></svg></div>
+        <h3>偶发问题自动复现</h3>
+        <p>按标定坐标高频重复用户操作，一次可跑上千步；人难以坚持的机械重复交给机器。</p>
+      </div>
+      <div class="card rise">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/></svg></div>
+        <h3>证据可核对、可重放</h3>
+        <p>出事即导出现场包：出事前的录屏、对齐的日志、坐标级操作序列。命中先经录屏复核，开发拿到即可重放。</p>
+      </div>
+      <div class="card rise">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 9l2 2 4-4M8 15h8"/></svg></div>
+        <h3>需求上线验收</h3>
+        <p>在生产环境逐条核对需求是否落地，附截图列出已实现与缺项。</p>
+      </div>
+      <div class="card rise">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="2" y="4" width="12" height="9" rx="1.5"/><rect x="16" y="6" width="6" height="12" rx="1.5"/><path d="M5 17h6M8 13v4"/></svg></div>
+        <h3>多端多账号同步</h3>
+        <p>App、手机浏览器、桌面 Edge 各登一个账号进同一会话，验证一端发送、其余端都能看到。</p>
+      </div>
+      <div class="card rise">
+        <div class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/></svg></div>
+        <h3>黑盒，测的就是用户所见</h3>
+        <p>不读源码、不装调试包、不向页面注入代码；只做用户能做的操作，只看用户能看到的现象。</p>
+      </div>
+      <div class="card rise">
+        <div class="ic"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="14" rx="2"/><path d="M3 9h18M8 21h8"/></svg></div>
+        <h3>一个入口</h3>
+        <p>本地控制台统一发起 Issue 复现、自然语言任务、AI 探索、Monkey、IM 界面层收发和多端同步。</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ layers ════════════ -->
+<section id="layers">
+  <div class="wrap">
+    <p class="eyebrow rise">Positioning</p>
+    <h2 class="h2 rise">补上「用户看到什么」这一层</h2>
+    <p class="sub rise">im-loadtest 绕过客户端直连协议测服务端，它的 probe 测 Web SDK 算得对不对；屏幕上的表现此前没有工具测。三层合起来，覆盖从服务端到界面的完整链路。</p>
+    <div class="layers rise">
+      <div class="layer">
+        <div class="who">im-loadtest · imload</div>
+        <h3>服务端链路</h3>
+        <p class="q">服务端扛不扛得住？</p>
+        <ul><li>协议直连收发</li><li>多账号多平台并发吞吐</li></ul>
+      </div>
+      <div class="layer">
+        <div class="who">im-loadtest · probe</div>
+        <h3>Web SDK 正确性</h3>
+        <p class="q">客户端算得对不对？</p>
+        <ul><li>浏览器内 SDK 差分校验</li><li>不变量 PASS / FAIL</li></ul>
+      </div>
+      <div class="layer">
+        <div class="who">本项目 · multi-test-agent</div>
+        <h3>界面表现</h3>
+        <p class="q">用户看到的是否正常？</p>
+        <ul><li>四个执行端的黑盒操作</li><li>Issue 复现与需求验收</li><li>多端同步、闪退、界面异常</li></ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ carousel: 本周成果 ════════════ -->
+<section id="milestones">
+  <div class="wrap">
+    <p class="eyebrow rise">Milestones</p>
+    <h2 class="h2 rise">本周成果：六个里程碑</h2>
+    <p class="sub rise">前两天打通 Web、Android 与平台底座，后两天在其上建成 Issue 驱动的黑盒复现与多端同步。左右切换查看。</p>
+
+    <div class="stage rise" id="carousel">
+      <div class="track-vp">
+        <div class="track" id="track">
+          <div class="slide">
+            <div class="snum">W1</div>
+            <div>
+              <span class="when">周一 · 10-19</span>
+              <h3>Web 测试基线</h3>
+              <p>跑通 AI 驱动 Web 用例的最小闭环：AI 定位元素，原生断言兜底，每一步截图进报告，失败可定位到步骤。</p>
+              <div class="demo"><span class="k">$</span> pnpm test:web<br>
+                <span class="g">✓</span> saucedemo 登录 5 步　<span class="k">1/1 · Allure 逐步截图</span></div>
+            </div>
+          </div>
+          <div class="slide">
+            <div class="snum">W2</div>
+            <div>
+              <span class="when">周一 · 10-19</span>
+              <h3>Android 接入与闪退监控</h3>
+              <p>adb 连接真机跑原生流程；logcat 实时捕获闪退与 ANR，自动保存截图、日志和上下文；高频循环每轮重置应用。</p>
+              <div class="demo"><span class="k">$</span> pnpm test:android<br>
+                <span class="g">✓</span> 5/5　<span class="k">Xiaomi 2211133C · Android 16</span><br>
+                <span class="b">crash</span> → crashes/&lt;ts&gt;/　screenshot · logcat · context</div>
+            </div>
+          </div>
+          <div class="slide">
+            <div class="snum">W3</div>
+            <div>
+              <span class="when">周一 · 10-19</span>
+              <h3>AI 探索与 Monkey 压测</h3>
+              <p>给一个包名即可自主探索：识别可交互元素、记录界面状态、避开付费和设置类入口；Monkey 固定 seed 可复现。两条路径汇总为统一问题报告。</p>
+              <div class="demo"><span class="b">explore</span>　真机 6 次运行 · 每次覆盖 4–9 个界面状态<br>
+                <span class="b">monkey</span>　seed 12345 · 3000 事件 · 注入崩溃被捕获并关联日志</div>
+            </div>
+          </div>
+          <div class="slide">
+            <div class="snum">W4</div>
+            <div>
+              <span class="when">周二 · 10-20</span>
+              <h3>平台 alpha</h3>
+              <p>统一命令行与本地控制台、设备池与排队、一句话描述的自然语言测试任务、GitHub Actions 工作流；补上计划缓存与即时重放，并把 im-loadtest 的指标移植到界面层（imui）。</p>
+              <div class="demo"><span class="k">$</span> pnpm autotest mission "聊天时偶发闪退，你试试能不能重现"<br>
+                <span class="b">cache</span>　同一计划重跑 207.8 s → 88.7 s（−57%）<br>
+                <span class="b">imui</span>　Android 60 s · 回显 p99 3.6 s · <span class="g">PASS</span></div>
+            </div>
+          </div>
+          <div class="slide">
+            <div class="snum">M5</div>
+            <div>
+              <span class="when">周三 · 10-21</span>
+              <h3>Issue 驱动的黑盒复现</h3>
+              <p>Issue 自动分类并生成结构化测试计划；Teamily SKILL 标定各端坐标；执行器只按坐标操作，动作间隔 ≤ 1 秒；出事即导出现场包，可坐标级重放；控制台一次性确认。</p>
+              <div class="demo"><span class="b">1594</span>　desktop-web · 1000 步 · 最大间隔 918 ms · 视觉调用 0<br>
+                <span class="b">2336</span>　需求验收 → 未实现（三处独立通知铃铛）<br>
+                <span class="b">incident</span>　录屏覆盖出事前 153 s · 离线查看器</div>
+            </div>
+          </div>
+          <div class="slide">
+            <div class="snum">M6</div>
+            <div>
+              <span class="when">周四 · 10-22</span>
+              <h3>证据复核与多端同步</h3>
+              <p>命中先由视觉模型对照录屏复核；计划支持退出 / 杀进程 / 重新加载；新增手机浏览器与 Edge 执行端；端点池按「设备 × 执行端」租用，支持多账号多端同步测试。</p>
+              <div class="demo"><span class="k">$</span> pnpm autotest sync --roles desktop-web,android-web,android-app<br>
+                <span class="b">sync</span>　三端 3 轮 · <span class="g">9/9 可见</span><br>
+                <span class="b">evidence</span>　预置用例 2/2 · 生命周期热 / 冷 0 命中</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="caro__foot">
+        <div class="dots" id="dots"></div>
+        <div class="arrows">
+          <button class="arrow" id="prev" aria-label="上一个"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+          <button class="arrow" id="next" aria-label="下一个"><svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg></button>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ results ════════════ -->
+<section id="results">
+  <div class="wrap">
+    <p class="eyebrow rise">By the Numbers · 2026-10-22</p>
+    <h2 class="h2 rise">关键数据</h2>
+    <p class="sub rise">M5、M6 的数据全部来自生产环境运行：teamily.ai · Xiaomi 2211133C / Android 16 · Windows 11 上的 Edge。</p>
+    <div class="stats">
+      <div class="stat rise"><span>执行端</span><b>4</b><p>Android App · 手机浏览器 · 手机视口 Web · Edge 桌面 Web，标定自检全部通过</p></div>
+      <div class="stat rise"><span>样例 Issue</span><b>10 <small>/ 10 已分类</small></b><p>5 份执行出结论，2 份说明原因不执行，3 份暂缓（多账号 / 需构造存储）</p></div>
+      <div class="stat hl rise"><span>1594 @ 选择器</span><b>1000 <small>步</small></b><p>最大动作间隔 918 ms，只启动 1 次，视觉模型调用 0</p></div>
+      <div class="stat rise"><span>需求验收</span><b>2 <small>份</small></b><p>2336、2122（单账号部分）在生产环境逐条验收，缺项附截图</p></div>
+      <div class="stat rise"><span>事故现场包</span><b>153 <small>s</small></b><p>录屏覆盖出事前 153 秒，日志与视频对齐到步号</p></div>
+      <div class="stat hl rise"><span>三端同步</span><b>9 <small>/ 9</small></b><p>Edge、手机浏览器、手机 App 三个账号同一群聊，3 轮收发全部可见</p></div>
+      <div class="stat rise"><span>证据复核</span><b>2 <small>/ 2</small></b><p>预置用例三次运行结论一致；严格阈值复跑，误报全部被排除</p></div>
+      <div class="stat rise"><span>回归</span><b>77 <small>/ 77</small></b><p>单元测试全部通过；Web 1/1、Android 5/5 基线保持</p></div>
+    </div>
+
+    <h3 class="h3 rise">本周检出的产品问题</h3>
+    <div class="findings">
+      <div class="finding rise"><div class="m">1</div>
+        <div><b>App 后台期间收到的消息，回前台后不显示</b>
+          <p>手机 App 打开群聊后切到后台，期间另一账号发来的消息，回到前台 45–60 秒内都不显示；App 自己再发一条后才补到，且排序错乱。手机单机两端测试 7 次中 5 次出现；App 保持前台时 3 秒内正常。</p></div>
+        <span class="src">多端同步</span></div>
+      <div class="finding rise"><div class="m">2</div>
+        <div><b>两项需求在生产环境尚未落地</b>
+          <p>2336：个人主页、Artifacts、CloudDoc 仍各有独立通知铃铛，没有统一入口。2122：没有「@我」聚合入口，免打扰群没有显著角标。</p></div>
+        <span class="src">需求验收</span></div>
+      <div class="finding rise"><div class="m">3</div>
+        <div><b>会话列表预览显示占位文本</b>
+          <p>Health Assistant 的最后一条「WEB 交付物」卡片在会话内显示正常，列表预览却只显示「[自定义消息]」。</p></div>
+        <span class="src">自然语言任务 · 人工确认</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ stack ════════════ -->
+<section id="stack">
+  <div class="wrap">
+    <p class="eyebrow rise">Stack</p>
+    <h2 class="h2 rise">技术栈</h2>
+    <p class="sub rise">TypeScript 单一技术栈，依赖少；任务与设备状态用 JSON 文件落盘，不依赖数据库。</p>
+    <div class="stack rise">
+      <div class="tech"><div class="who">Runtime</div><b>TypeScript · Node.js · pnpm</b><p>命令行与控制台共用一套代码</p></div>
+      <div class="tech"><div class="who">AI</div><b>Midscene.js + 视觉模型</b><p>准备阶段选目标、计划生成、证据复核</p></div>
+      <div class="tech"><div class="who">Web</div><b>Playwright</b><p>Edge / Chromium，trace 与网络记录</p></div>
+      <div class="tech"><div class="who">Android</div><b>adb · uiautomator · scrcpy</b><p>坐标输入、无障碍层读取、录屏</p></div>
+      <div class="tech"><div class="who">Test &amp; Report</div><b>Vitest · Allure · zod</b><p>单元测试、报告、测试计划校验</p></div>
+      <div class="tech"><div class="who">Platform</div><b>node:http 控制台</b><p>任务队列、端点池、账号池</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ════════════ outlook ════════════ -->
+<section id="outlook">
+  <div class="wrap">
+    <p class="eyebrow rise">Next</p>
+    <h2 class="h2 rise">未来展望</h2>
+    <p class="sub rise">第一周解决了「能跑通、结论可信」。下一阶段让它好用、常用、覆盖更全。</p>
+    <div class="next">
+      <div class="nx rise"><div class="m">01</div><div><b>正式的控制台界面</b>
+        <p>当前控制台是最小可用版本。下一步做正式 UI：任务看板、报告与现场包在线查看、历史趋势。</p></div></div>
+      <div class="nx rise"><div class="m">02</div><div><b>多角色 Issue 计划</b>
+        <p>多端同步底座已就绪，下一步让测试计划直接编排多个账号和执行端，接上 1919、2235 这类多账号 Issue。</p></div></div>
+      <div class="nx rise"><div class="m">03</div><div><b>自动准备前置数据</b>
+        <p>由测试台自行构造用例需要的会话数据（如一条引用回复），减少对现有数据的依赖。</p></div></div>
+      <div class="nx rise"><div class="m">04</div><div><b>更多客户端形态</b>
+        <p>扩展到 iOS、WebView 与小程序 H5，覆盖 Teamily 全部客户端。</p></div></div>
+      <div class="nx rise"><div class="m">05</div><div><b>持续回归</b>
+        <p>接入 CI 与定时任务，定期跑 SKILL 自检、冒烟和已知 Issue 回归，App 或 Web 改版后第一时间发现。</p></div></div>
+      <div class="nx rise"><div class="m">06</div><div><b>规模化执行</b>
+        <p>多台手机、多机调度与任务恢复，支撑更长时间、更高频率的压测。</p></div></div>
+    </div>
+    <div class="vision rise">
+      <div class="big">目标：每一份客户端 Issue，都自动带上一份可核对、可重放的结论。</div>
+      <p>开发不必再花时间复现，测试不必再守着屏幕重复点击；需求上线、多端一致性、偶发问题，都由测试台在生产环境给出证据。</p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>Teamily 客户端测试台 · multi-test-agent · 周报 2026-10-19 — 10-23</span>
+    <span>详见：<code>docs/intro.html</code> <code>docs/m6-acceptance.md</code> <code>docs/m5-acceptance.md</code> <code>CHANGELOG.md</code></span>
+  </div>
+</footer>
+
+<script>
+// ── carousel ──
+(function(){
+  const track = document.getElementById('track');
+  const slides = track ? track.children.length : 0;
+  const dotsBox = document.getElementById('dots');
+  const labels = [...track.children].map(s => s.querySelector('.snum').textContent);
+  let i = 0;
+  for (let k = 0; k < slides; k++){
+    const d = document.createElement('button');
+    d.className = 'dot' + (k === 0 ? ' on' : '');
+    d.setAttribute('aria-label', labels[k]);
+    d.addEventListener('click', () => go(k));
+    dotsBox.appendChild(d);
+  }
+  function render(){
+    track.style.transform = `translateX(-${i*100}%)`;
+    [...dotsBox.children].forEach((d,k)=>d.classList.toggle('on', k===i));
+  }
+  // Manual only — no auto-advance; the ends do not wrap.
+  function go(n){ i = Math.max(0, Math.min(slides - 1, n)); render(); }
+  document.getElementById('next').addEventListener('click', ()=>go(i+1));
+  document.getElementById('prev').addEventListener('click', ()=>go(i-1));
+  document.addEventListener('keydown', e=>{
+    if (e.key==='ArrowRight') go(i+1);
+    if (e.key==='ArrowLeft')  go(i-1);
+  });
+})();
+
+// ── reveal on scroll ──
+(function(){
+  const els = document.querySelectorAll('.rise:not(.in)');
+  if (!('IntersectionObserver' in window)){ els.forEach(e=>e.classList.add('in')); return; }
+  const io = new IntersectionObserver((ents)=>{
+    ents.forEach(en=>{ if(en.isIntersecting){ en.target.classList.add('in'); io.unobserve(en.target);} });
+  }, {threshold:.12});
+  els.forEach(e=>io.observe(e));
+})();
+</script>
+</body>
+</html>
