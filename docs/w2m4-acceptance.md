@@ -23,8 +23,8 @@
 | 2 | 不回退 | **PASS**：代码门全绿；两种后端各跑 2010 × 3、1903 × 3（全部只用 MCP 工具）：uiautomator（`mcp-e2e-2010.json`、`mcp-e2e-1903.json`）与 a11y-service v6（`mcp-e2e-2010-a11y.json`、`mcp-e2e-1903-a11y.json`）结论都是未复现 0/3（各 18 次有效尝试、0 命中），与 W2-3（2010，2.0.20 有确认框）、W2-2（1903）一致；服务后端 0 次退回。每轮耗时：服务后端的轮内前提读取（`require`）从 2.4 s 降到约 0.45 s；同一天的动作间隔反而变长，是手机截图变慢（见发现 4），不是后端造成的 |
 | 3 | 退化可见 | **PASS**：未安装（声明了服务）与人为停用（已安装 v6，关掉无障碍开关）两种情况，运行都照常完成、结论未复现，报告「读树后端」写明退回 uiautomator 及原因；停用后任务结束时的环境恢复按配置项重新启用了服务（见「退化演练」） |
 | 4 | 执行前校验 | **PASS**：真机注入 4/4（同点通过；+60 px 修正回中心；+200 px 判「偏移」不点；不存在的目标判「消失」不点，`docs/w2m4/pretap-inject.json`）；单测覆盖偏移修正 / 遮挡 / 消失 / 资源 id / 像素；6 次真机运行每次准备期 1 次校验（冻结的会话行，通过），**循环内校验 0 次**（报告「执行前校验」一节） |
-| 5 | 诊断 | **PASS**：四种情况单测（锁屏 → blocked 51 + 需人工解锁；未授权 → blocked 52 + 需人工点允许；无模型配置 → degraded + 配 .env；平台未启动 → blocked 54 + `pnpm platform`）；真机：平台未启动时 exit 54 与下一步正确；`--fix` 只删本机残留（单测），全文无 `adb kill-server` |
-| 6 | MCP 闭环 | **PASS（脚本客户端）**：经 stdio 只用 MCP 工具完成 2010 × 3 与 1903 × 3：`doctor` → `draft_create` → `plan_explain` → `task_run`（20）→ `task_wait` ×18 / ×20（21 再等）→ `result_show`（`docs/w2m4/mcp-e2e-*.json`）；平台未启动 → 全部 54；敏感计划 → 30 + 审核页链接（完全授权开启时不会出现，按 G6 用关闭完全授权的隔离状态目录跑真实 API + MCP 映射验证，单测）。**在 Claude Code 界面里接入（`claude mcp add …`）需要人执行 `--print-config claude` 打印的命令**，未代为写入用户配置（G7） |
+| 5 | 诊断 | **PASS**：四种情况单测（锁屏 → blocked 51 + 需人工解锁；未授权 → blocked 52 + 需人工点允许；无模型配置 → degraded + 配 .env；平台未启动 → blocked 54 + `pnpm platform`）；真机：平台未启动时 exit 54 与下一步正确；**2026-10-31 手机真的锁屏时**结论 blocked、「锁屏（有 PIN，只能人工解锁）」；`--fix` 只删本机残留（单测），全文无 `adb kill-server` |
+| 6 | MCP 闭环 | **PASS**：**在 Claude Code 中**（`scripts/w2m4-claude-code-mcp.sh`：无头 `claude -p`，内置工具全部关闭 `--tools ""`，只加载 autotest MCP 服务 `--strict-mcp-config`，配置内联传入、不写任何 IDE 配置）只用 MCP 工具完成 2010：`doctor` → `draft_show` → `plan_explain` → `task_run` → `task_wait` ×4 → `result_show`，结论「未复现：6 次有效尝试」，0 条消息（`docs/w2m4/claude-code-mcp-2010.ndjson`，任务 `t-20261031031751-56vs`）。另经 stdio 脚本客户端完成 2010 / 1903 各两组系列（`mcp-e2e-*.json`）；平台未启动 → 全部 54；敏感计划 → 30 + 审核页链接（完全授权开启时不会出现，用关闭完全授权的隔离状态目录跑真实 API + MCP 映射验证，单测） |
 | 7 | 一致性 | **PASS**：`scripts/mcp-check.ts` 11 个只读调用与 `--json` 逐字段一致（平台未启动 4/4、启动后 11/11）；两个 MCP 闭环的 `result_show` 与 `autotest result show --json` 逐字段一致；Web 结果页与命令行同源（W2-3 已验证） |
 
 ## 读树服务的真机发现（2026-10-30 — 31）
@@ -61,7 +61,10 @@
 - `docs/cli-reference.md` 比对受 Windows 检出换行影响 → 比对时统一换行。
 - W2-3 单测按固定 `@v1` 取计划 → 改为按保存草稿的版本。
 
+## 同胞环境的竞争（2026-10-31 发现并修复，W2-3 遗留）
+
+同一台手机的 android-app 与 android-web 两个环境各自检查 / 恢复。Claude Code 闭环之后，平台恢复 android-app 的同时检查 android-web：后者把前者正在进行的 `uiautomator dump` 当成「残留进程」杀掉，并把自己隔离；每次重新检查都抓到新的进程号。修复：残留只认存在 ≥ 20 s 的辅助进程（`android-ops.ts#residualHelpers`，`ps -o ETIME`），杀进程也只杀这些；环境检查 / 恢复读树也走设备声明的后端（常驻服务时不再起 uiautomator 进程）。修复后 android-web 重新检查即「就绪」。
+
 ## 未完成 / 需人工
 
-1. 在 Claude Code 界面中接入：运行 `npx tsx scripts/mcp.ts --print-config claude` 打印的 `claude mcp add …`（G7：工具不代写用户配置）。
-2. 合并到 `main` 需用户同意。
+1. 在交互式 Claude Code 里长期使用：运行 `npx tsx scripts/mcp.ts --print-config claude` 打印的 `claude mcp add …`（G7：工具不代写用户配置；验收用的是内联配置的无头会话）。

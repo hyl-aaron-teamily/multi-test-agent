@@ -1,6 +1,6 @@
 # multi-test-agent 项目总结
 
-> 截至 2026-10-30，按代码核对。当前分支 `feat/w2m4-perception-mcp`（W2-4，**未合并到 `main`**）；W1–W4、M5、M6、W2-1 — W2-3 已合并到本地 `main`（W2-3 合并提交 `7ef7425`）；`origin/main` 停在 M6 的合并提交 `626f1ca`。
+> 截至 2026-10-31，按代码核对。W1–W4、M5、M6、W2-1 — W2-4 均已合并到 `main` 并推送到 `origin/main`（W2-4 合并提交 `ae5843e`）。
 > 用法见 `README.md`，变更见 `CHANGELOG.md`，每期验收证据见 `docs/*-acceptance.md`，需求原文见各 `dev-week*-milestone*.md`（每份末尾有「实现对照」一节，记录与代码的差异）。介绍页 `docs/intro.html` 与周报 `docs/weekly-2026-10-23.html` 是 2026-10-22 的快照，不随代码更新。
 
 ## 1. 定位
@@ -31,7 +31,7 @@ Teamily 客户端测试台。交给它一份 Issue，它判断问题类型、生
 | W2-1 | `dev-week2-milestone1.md` | 10-26 — 28 | 基座重构、意图契约、循环外分层观察 / 定位、预热闸门、指纹自愈、轨迹 | `3704bbd` |
 | W2-2 | `dev-week2-milestone2.md` | 10-28 | 可信结论、运行清单、预检、隔离、系列运行、Web trace、代码门；MVP 2010 / 1903 | `7e91873` |
 | W2-3 | `dev-week2-milestone3.md` | 10-28 — 30 | 任务与环境分离、收尾可恢复、审批与状态码、命令行给 Agent、Web 给人 | `7ef7425` |
-| W2-4 | `dev-week2-milestone4.md` | 10-30 | 感知层（读树后端可插拔 + 设备端只读读树服务、屏幕快照 / 索引、② 层模糊匹配、循环外执行前校验）、`doctor`、原生 MCP 服务（参考 Artemis，TypeScript 重写） | 未合并（`feat/w2m4-perception-mcp`）；证据 `docs/w2m4-acceptance.md` |
+| W2-4 | `dev-week2-milestone4.md` | 10-30 | 感知层（读树后端可插拔 + 设备端只读读树服务、屏幕快照 / 索引、② 层模糊匹配、循环外执行前校验）、`doctor`、原生 MCP 服务（参考 Artemis，TypeScript 重写） | `ae5843e`；证据 `docs/w2m4-acceptance.md` |
 
 方向的转折在 M5：W1–W4 的目标是通用的「AI 视觉驱动测试平台」（只给包名，视觉模型每步决定操作）；M5 起改为 Teamily 专属、Issue 驱动、循环内不用视觉。W1–W4 的入口（mission / explore / monkey / imui / 基线用例）保留不变，作为没有 Issue 时的旁路。WebView、小程序、iOS 至今未接入。
 

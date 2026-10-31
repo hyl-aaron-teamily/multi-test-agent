@@ -76,3 +76,20 @@ describe('task finished → notifications.ndjson (W2-4 §5.3)', () => {
     }
   });
 });
+
+describe('leftover helper processes (sibling environments on one phone)', () => {
+  it('only helpers older than the minimum age count; ps / grep lines never do', async () => {
+    const { etimeSeconds, residualHelpers } = await import('./android-ops');
+    expect(etimeSeconds('00:02')).toBe(2);
+    expect(etimeSeconds('01:02:03')).toBe(3723);
+    expect(etimeSeconds('1-00:00:10')).toBe(86410);
+    const ps = `  PID ELAPSED ARGS
+22182    00:02 sh -c rm -f /sdcard/autotest_ui_0.xml; uiautomator dump /sdcard/autotest_ui_0.xml
+22185    00:02 uiautomator
+ 9001    05:10 app_process / com.android.commands.input text abc
+ 9002    12:00 /system/bin/sh -c ps -A -o PID,ETIME,ARGS
+ 9003    03:00 yadb -keyboard x
+ 9004    00:30 grep uiautomator`;
+    expect(residualHelpers(ps).map((h) => h.pid)).toEqual(['9001', '9003']);
+  });
+});
