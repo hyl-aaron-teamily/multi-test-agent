@@ -56,6 +56,30 @@ export interface Walk {
 
 const item = (id: string, ok: boolean, detail: string, auto = true): BaselineItem => ({ id, ok, detail, auto });
 
+/** One configuration item: check, apply when fixing, check again. An optional item (the tree service) that
+ *  stays unmet — or whose apply fails — leaves the environment usable (degraded), never unfit. */
+async function configWalk(d: AndroidBaselineDriver, c: ConfigItem, fix: boolean, did: string[]): Promise<BaselineItem> {
+  let r = await d.configOk(c);
+  let err = '';
+  // An optional item (installing the tree service) is applied only after its one-time consent.
+  if (!r.ok && fix && c.optional && !c.consentedAt) err = '；待同意，未应用';
+  else if (!r.ok && fix) {
+    try {
+      await d.applyConfig(c);
+      did.push(`按声明重写 ${c.id}：${c.what}`);
+    } catch (e) {
+      if (!c.optional) throw e;
+      const lines = (e as Error).message.split('\n');
+      err = `；应用失败：${(lines.find((l) => /Failure|失败|没有/.test(l)) ?? lines[0]).trim().slice(0, 160)}`;
+      // A recovery reports its follow-up check walk: keep the reason with its actions too.
+      did.push(`${c.id} 未能应用${err.slice(1)}`);
+    }
+    r = await d.configOk(c);
+  }
+  if (r.ok || !c.optional) return item(`config:${c.id}`, r.ok, r.detail);
+  return { ...item(`config:${c.id}`, true, `${r.detail}${err}（可选项未生效：读树退回 uiautomator）`), ...(!fix && c.consentedAt ? { pending: true } : {}) };
+}
+
 /** Conversations the last task typed into (ledger), each once. Clearing the input leaves no draft: not a touch. */
 export const touchedConversations = (ledger: { kind: string; target?: string; value?: string }[]) => [...new Set(ledger.filter((l) => (l.kind === 'type' || l.kind === 'send') && l.target && l.value !== 'clearComposer').map((l) => l.target!))];
 
@@ -153,15 +177,7 @@ export async function walkAndroid(d: AndroidBaselineDriver, env: Pick<EnvRecord,
     }
     items.push(item('ime', ime === env.ime, `输入法 ${ime ?? '?'}${ime === env.ime ? '（声明的默认）' : `，应为 ${env.ime}`}`));
   }
-  for (const c of env.configItems) {
-    let r = await d.configOk(c);
-    if (!r.ok && fix) {
-      await d.applyConfig(c);
-      did.push(`按声明重写 ${c.id}：${c.what}`);
-      r = await d.configOk(c);
-    }
-    items.push(item(`config:${c.id}`, r.ok, r.detail));
-  }
+  for (const c of env.configItems) items.push(await configWalk(d, c, fix, did));
   return end();
 }
 
@@ -237,15 +253,7 @@ export async function walkAndroidWeb(d: AndroidBaselineDriver, env: Pick<EnvReco
     }
     items.push(item('ime', ime === env.ime, `输入法 ${ime ?? '?'}${ime === env.ime ? '（声明的默认）' : `，应为 ${env.ime}`}`));
   }
-  for (const c of env.configItems) {
-    let r = await d.configOk(c);
-    if (!r.ok && fix) {
-      await d.applyConfig(c);
-      did.push(`按声明重写 ${c.id}：${c.what}`);
-      r = await d.configOk(c);
-    }
-    items.push(item(`config:${c.id}`, r.ok, r.detail));
-  }
+  for (const c of env.configItems) items.push(await configWalk(d, c, fix, did));
   return end();
 }
 

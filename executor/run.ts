@@ -17,7 +17,9 @@ import type { AccountPool, Lease } from '../platform/accounts/account-pool';
 import { onAndroid, onPlaywright } from '../platform/accounts/types';
 import type { DevicePool } from '../platform/device-pool';
 import type { PlannedAction, TestPlan } from '../platform/schema/test-plan';
-import { loadProfile, SkillStaleError } from '../skills/profile';
+import { center, loadProfile, SkillStaleError } from '../skills/profile';
+import { percentiles, treeStats } from '../core/tree-backend';
+import { PreTapGuard } from './pretap';
 import type { NodeContext } from '../skills/teamily/nodes';
 import { execAction } from './actions';
 import { locate, locateTally, locateText } from './locate';
@@ -134,6 +136,8 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   const stats = newStats();
   const calls0 = { ...modelCalls, byPurpose: { ...modelCalls.byPurpose } };
   const locate0 = JSON.parse(JSON.stringify(locateTally)) as typeof locateTally;
+  const tree0 = { reads: Object.fromEntries(Object.entries(treeStats.reads).map(([k, v]) => [k, v.n])), fallbacks: treeStats.fallbacks.length };
+  let guard: PreTapGuard | undefined;
   const runTag = o.runTag ?? newRunToken();
   const res: RunResult = { planId: plan.id, issue: plan.issueRef, title: plan.title, category: plan.category, surface: plan.surface, substitution: plan.substitution, env: plan.env, coverage: plan.coverage, phenomenon: plan.contract?.observable.phenomenon, conclusion: '执行失败', conclusionDetail: '', startedAt: new Date(t0).toISOString(), finishedAt: '', stats, hits: [], incidents: [], targets: [], roundLog: [], runTag, phases: {} };
   const phase = (name: string, since: number) => {
@@ -172,6 +176,15 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     if (NO_VERDICT.includes(res.conclusion)) res.failure = classifyFailure(res.conclusion, res.error ?? res.conclusionDetail, envAtFailure);
     if (plan.category !== 'feature') res.lead = leadOf(plan, res);
     if (res.manifest) await writeManifest(o.runDir, res.manifest).catch(() => {});
+    if (guard?.tally.checked) stats.preTap = { ...guard.tally, lines: guard.reportLines() };
+    const reads = Object.fromEntries(
+      Object.entries(treeStats.reads)
+        .map(([k, v]) => [k, v.n - (tree0.reads[k] ?? 0), v.ms] as const)
+        .filter(([, n]) => n > 0)
+        .map(([k, n, ms]) => [k, { n, ...(({ p50, p95 }) => ({ p50, p95 }))(percentiles(ms.slice(-n))) }]),
+    );
+    const fb = treeStats.fallbacks.slice(tree0.fallbacks);
+    if (Object.keys(reads).length || fb.length) stats.treeBackend = { reads, fallbacks: fb.length, ...(fb[0] ? { firstFallback: fb[0].reason } : {}) };
     stats.locateTiers = Object.fromEntries(Object.entries(locateTally).map(([k, v]) => [k, { n: v.n - (locate0[k]?.n ?? 0), ms: v.ms - (locate0[k]?.ms ?? 0) }]).filter(([, v]) => (v as { n: number }).n > 0));
     const out = finish(res, t0, stats, calls0);
     writeTrajectory(traj, out, opsOf());
@@ -244,10 +257,12 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     sess = await openSession({ surface: plan.surface, env: plan.env, account: account.id, udid, pool: o.pool, headed: o.headed, profile: o.profile, onLog: afr?.onLog, onConsole: wfr?.onConsole, log });
     const s = sess;
     opsOf = () => s.d.ops;
+    // Pre-tap check (W2-4 §4.3): on for entering / preparation / re-entry only — never during the loop.
+    const g = (guard = new PreTapGuard(s.inner, { dir: o.runDir, log }).attach(s.d));
     // Clean start (W2-2 §4.3): the App is cold-started, never resumed on a screen an earlier run left.
     if (plan.surface === 'android-app' && s.inner instanceof AndroidDriver) await s.inner.killApp();
     await afr?.start();
-    await enterApp(s, {
+    await g.during('enter', () => enterApp(s, {
       afterLaunch: async () => {
         if (s.web) await wfr!.start(s.web.context!, s.web.page!);
       },
@@ -255,9 +270,16 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       chatTab: plan.setup.some((a) => a.node?.name === 'teamily.openConversation'),
       staleShot: staleShotPath(o.runDir),
       healDir: o.runDir,
-      onHeal: (h) => (res.healed ??= []).push(...h),
+      onHeal: (h) => {
+        (res.healed ??= []).push(...h);
+        // The first tap on a healed element is checked against its fingerprint.
+        for (const x of h) {
+          const fp = s.profile.elements[x.element]?.fingerprint;
+          void g.remember(center(x.to), { purpose: `healed ${x.element}`, text: fp?.text || fp?.desc, box: x.to, once: true });
+        }
+      },
       onPhase: (name, ms) => (res.phases![name] = ms),
-    });
+    }));
     stats.launches++;
 
     const targets: Record<string, import('../drivers/types').Point> = {};
@@ -267,7 +289,11 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       targets,
       credentials: () => o.pool.backend.get(account.id),
       // prepare-only Nodes (validator keeps them out of the loop)
-      locate: async (desc, texts, newest, textOnly) => (textOnly ? await locateText(s.inner, texts, newest) : await locate(s.inner, desc, { texts, newest, purpose: 'prep' }))?.point ?? null,
+      locate: async (desc, texts, newest, textOnly) => {
+        const r = textOnly ? await locateText(s.inner, texts, newest) : await locate(s.inner, desc, { texts, newest, purpose: 'prep' });
+        if (r) await g.remember(r.point, { purpose: desc.slice(0, 80), ...r.ref, ...(r.ref ? {} : { png: await s.inner.screenshot().catch(() => undefined) }) });
+        return r?.point ?? null;
+      },
       regionShows: (img, key) => regionShows(img, s.profile, key),
       onFreeze: (id, point, chosen) => res.targets.push({ id, kind: 'picker-row', point, chosen, reason: 'located by its literal text (①) at preparation', by: 'text' }),
     };
@@ -298,6 +324,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       setupOps: [],
       afr,
       wfr,
+      guard: g,
     };
     cRef = c;
     setModelPurpose('prep');
@@ -305,9 +332,11 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     const tPrep = Date.now();
     o.hooks?.phase('prepare');
     res.isolation = { cleanStart: [], teardown: [] };
-    await prepare(c, async () => {
-      res.isolation!.cleanStart = await cleanStart(c);
-    });
+    await g.during('prepare', () =>
+      prepare(c, async () => {
+        res.isolation!.cleanStart = await cleanStart(c);
+      }),
+    );
     phase('prepare', tPrep);
     nodeCtx.composerText = undefined; // the loop reads no hierarchy
     if (plan.category === 'feature') {

@@ -108,6 +108,8 @@ export async function checkEnv(id: string, drivers: DriverFactory, by = 'platfor
   const at = new Date().toISOString();
   const failed = w.items.filter((i) => !i.ok);
   const reason = failed.map((i) => i.detail).join('；') || (w as { error?: string }).error;
+  // A consented optional item not applied yet (e.g. the tree service): one recovery pass applies it.
+  if (w.ok && w.items.some((i) => i.pending)) return recoverEnv(id, drivers, by);
   if (w.ok) return { env: moveEnv(id, 'ready', { by, basis: 'baseline passed' }, (e) => void (e.baseline = { at, ok: true, items: w.items })), walk: w, did: [] };
   if (w.blocker) return { env: moveEnv(id, 'unfit', { by, basis: `baseline: ${reason}`, reason, suggestion: SUGGEST[w.blocker] }, (e) => void (e.baseline = { at, ok: false, items: w.items })), walk: w, did: [] };
   return recoverEnv(id, drivers, by);

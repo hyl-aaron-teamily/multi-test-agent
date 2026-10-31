@@ -1,0 +1,81 @@
+{
+  "at": "2026-10-30T16:41:22.958Z",
+  "udid": "4f2ebdf2",
+  "n": 50,
+  "results": [
+    {
+      "screen": "conversation list",
+      "uiautomator": {
+        "n": 50,
+        "p50": 2645,
+        "p95": 3058,
+        "fails": 0,
+        "min": 2399,
+        "max": 3365
+      },
+      "a11yService": {
+        "n": 50,
+        "p50": 49,
+        "p95": 61,
+        "fails": 0,
+        "min": 32,
+        "max": 670
+      },
+      "agreement": {
+        "coverage": 1,
+        "jaccard": 1,
+        "ua": 45,
+        "svc": 45,
+        "onlyUa": [],
+        "onlySvc": [],
+        "usable": {
+          "coverage": 1,
+          "jaccard": 1,
+          "ua": 45,
+          "svc": 45,
+          "onlyUa": [],
+          "onlySvc": []
+        }
+      }
+    },
+    {
+      "screen": "chat page",
+      "uiautomator": {
+        "n": 50,
+        "p50": 2661,
+        "p95": 3312,
+        "fails": 0,
+        "min": 2443,
+        "max": 3956
+      },
+      "a11yService": {
+        "n": 50,
+        "p50": 51,
+        "p95": 61,
+        "fails": 0,
+        "min": 27,
+        "max": 743
+      },
+      "agreement": {
+        "coverage": 0.9333333333333333,
+        "jaccard": 0.9333333333333333,
+        "ua": 45,
+        "svc": 42,
+        "onlyUa": [
+          "aaron+test1's Personal AI|149,297,585,63",
+          "收到，autotest smoke 04:24:42 r3fae3b ✅|160,297,981,157",
+          "autotest smoke 04:25:53 r6a0721|326,297,982,272"
+        ],
+        "onlySvc": [],
+        "usable": {
+          "coverage": 1,
+          "jaccard": 1,
+          "ua": 42,
+          "svc": 42,
+          "onlyUa": [],
+          "onlySvc": []
+        }
+      }
+    }
+  ]
+}

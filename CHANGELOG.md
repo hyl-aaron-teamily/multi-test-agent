@@ -1,6 +1,27 @@
 # Changelog
 
-## [Unreleased] — W2-3：可用性——任务与环境分离、收尾可恢复、Agent 用命令行、人用 Web
+## [Unreleased] — W2-4：感知层增强（参考 Artemis）+ 原生 MCP 服务
+
+需求：`dev-week2-milestone4.md`；验收证据：`docs/w2m4-acceptance.md`、`docs/w2m4/`；Agent 准则：`docs/agent-rules.md`。借鉴 Google Artemis（`ref/artemis`，Apache-2.0）的思路——设备端读树服务、屏幕索引、Safety Net、`mobile_diagnose`、MCP 接入——全部用 TypeScript / Java 重写，未复制其代码或二进制。
+
+### Added
+- **读树后端可插拔**（`core/tree-backend.ts`）：所有 Android 读树经 `readTree`；默认 uiautomator（行为不变），设备声明 `treeBackend: a11y-service` 时用常驻服务，失败本次退回 uiautomator 并计数；报告新增「读树后端」一节（各后端次数、p50 / p95、退回次数与首次原因）。
+- **设备端只读读树服务**（`android/a11y-service/`，Java，无 Gradle 构建 `build.sh` / `fetch-sdk.sh`）：无障碍服务只导出窗口内容，监听手机回环 `127.0.0.1:18765`（`/ping`、`/dump?token=`，uiautomator 同格式 XML）；令牌只能由 adb shell 广播下发（接收器要求 `WRITE_SECURE_SETTINGS`）。主机侧 `core/a11y-service.ts`：转发端口按设备复用、退出时移除，健康检查，安装 / 追加启用 / 停用 / 卸载。作为**可选**环境配置项（`env check` / 恢复时应用，预检只检查；未生效 = 降级不判不合格）。
+- **屏幕快照与屏幕索引**（`core/screen-index.ts`、`executor/snapshot.ts`）：等画面稳定 → 截图与读树并发 → 规范化节点（文字 / 描述 / 资源 id / 类型 / 可点击 / 边界 / 中心 / 层级）；精确 / 子串 / 模糊（编辑距离）搜索、命中测试；Web 由 Playwright 只读角色定位器生成同构快照。
+- **定位 ② 层**：确定性模糊排序器（`fuzzyRanker`）填入 W2-1 留空的插槽；① 与 ② 共用一次读树。
+- **执行前校验**（`executor/pretap.ts`）：循环外的点击（准备期、偏离后重进、自愈后的首次点击、Android 标定自检）先核对目标——树校验（资源 id 0.5 / 文字 0.4 / 边界 0.3 / 位置 0.3，小漂移就地修正，否则偏移 / 遮挡 / 消失）、无指纹时像素对比再视觉兜底；拦截记「执行事件」与两帧截图；报告新增「执行前校验」一节；循环内 0 次。
+- **`autotest doctor [--fix] [--probe]`**（`platform/doctor.ts`）：平台未启动也能答；Node / 依赖、adb、手机（在线 / 授权 / 锁屏）、读树后端、平台、模型（只报有无）、录屏、环境、残留；结论 ready / degraded / blocked 与首个阻塞原因的状态码；下一步按依赖排序，分「可执行」与「需人工」；`--fix` 只清本机残留（锁、读树转发、死任务租约），从不 `adb kill-server`、不动设备；`--probe` 计时截图与两种读树。
+- **原生 MCP 服务**（`platform/mcp.ts`、`scripts/mcp.ts`，官方 TypeScript SDK `@modelcontextprotocol/sdk`）：stdio；16 个命令工具由 `help --json` 命令表生成（参数 Schema、只读 / 副作用注解），调用命令行同一个 `dispatch()`，结果就是 `--json` 信封（≥ 30 标为工具错误，带 status / code / hint / retryable）；`task_wait` 单次 ≤ 25 s；`device_snapshot`（截图 + 节点，只读，手机被任务占用时拒绝）；资源：结果视图、计划视图、报告、证据文件（只限 `midscene_run/`、`skills/teamily/refs/`）；不暴露 `env recover` / `env offline` 与任何同意类操作；平台未启动 → 54。`--print-config claude|cursor|codex|vscode` 只打印。`scripts/mcp-check.ts` 用 stdio 客户端逐字段比对 MCP 与 `--json`。
+- **测试行为准则** `docs/agent-rules.md`（工具表由单测与代码同步）。
+- **服务定型（v6）与真机验收**：读树 p95 61 ms（uiautomator 3.1–3.3 s），与 uiautomator 节点一致率 100%（有文字、正面积的节点）；主机侧 `pruneOffscreen` 去掉屏幕外 / 边界倒置的不可见节点；主机要求服务版本 `A11Y_VERSION`，旧版自动重装。`scripts/w2m4-tree-bench.ts`（计时 + 一致率）。
+- **完成通知**：任务结束写 `platform/state/notifications.ndjson`（系列只记父任务）；`AUTOTEST_DESKTOP_NOTIFY=1` 时 Windows 系统通知（默认关）。
+
+### Fixed
+- 读树服务：v1 只收窗口切换事件，节点缓存不刷新、返回上一屏（v2 起接收全部事件）；v2 少列 uiautomator 会列的被遮挡节点（v3 起全部导出，主机侧剪枝）；可选配置项未生效时 `env check` 不进修复流程、安装错误被丢弃、刚安装就启用会被系统丢掉（均已修）。
+- 没有 `version` 字段的旧草稿内容变化后仍记为 v1 → 记为 v2（`issue/drafts.ts#nextVersion`）。
+- `docs/cli-reference.md` 一致性单测不受 Windows 检出换行影响；W2-3 单测按保存草稿的版本取计划 id。
+
+## W2-3（2026-10-30 合并到 main）：可用性——任务与环境分离、收尾可恢复、Agent 用命令行、人用 Web
 
 需求：`dev-week2-milestone3.md`；验收证据：`docs/w2m3-acceptance.md`；命令行参考：`docs/cli-reference.md`。
 

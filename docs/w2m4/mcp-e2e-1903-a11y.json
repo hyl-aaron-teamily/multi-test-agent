@@ -1,0 +1,365 @@
+{
+  "issue": "1903",
+  "surface": "android-app",
+  "series": 3,
+  "log": [
+    {
+      "tool": "doctor",
+      "args": {},
+      "code": "OK",
+      "exit": 0,
+      "summary": "ready：可以运行",
+      "at": "2026-10-30T16:50:43.864Z"
+    },
+    {
+      "tool": "draft_create",
+      "args": {
+        "id": "1903",
+        "env": "prod"
+      },
+      "code": "OK",
+      "exit": 0,
+      "summary": "草稿 v1（plannable）：1903/main:android-app@v1, 1903/main:mobile-web@v1",
+      "at": "2026-10-30T16:50:43.885Z"
+    },
+    {
+      "tool": "plan_explain",
+      "args": {
+        "planId": "1903/main:android-app@v1",
+        "series": 3
+      },
+      "code": "OK",
+      "exit": 0,
+      "summary": "在 android-app 上重复「发送带 @ 的消息后气泡里应显示 @成员名」，看 Issue 1903 描述的现象会不会出现；最多发送 18 条消息；约 2 分钟 – 4 分钟（同计划最近 10 次运行）；默认允许",
+      "at": "2026-10-30T16:50:43.928Z"
+    },
+    {
+      "tool": "task_run",
+      "args": {
+        "planId": "1903/main:android-app@v1",
+        "series": 3,
+        "hash": "f5ebb4409b6ba6f4"
+      },
+      "code": "ACCEPTED",
+      "exit": 20,
+      "summary": "任务 t-20261030165043-8yo8 已排队：1903/main:android-app@v1 @ android-app:4f2ebdf2@prod，系列 3 次",
+      "at": "2026-10-30T16:50:43.958Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：等环境",
+      "at": "2026-10-30T16:51:09.453Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：运行中，启动",
+      "at": "2026-10-30T16:51:35.098Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：运行中，准备 第 0 轮 第 0 步",
+      "at": "2026-10-30T16:52:00.240Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：运行中，预热 第 0 轮 第 0 步",
+      "at": "2026-10-30T16:52:25.649Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：运行中，循环 第 3 轮 第 24 步",
+      "at": "2026-10-30T16:52:50.872Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：运行中，循环 第 6 轮 第 48 步",
+      "at": "2026-10-30T16:53:16.319Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：收尾，收尾 第 6 轮 第 48 步",
+      "at": "2026-10-30T16:53:41.717Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：收尾，启动",
+      "at": "2026-10-30T16:54:06.939Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：收尾，准备 第 0 轮 第 0 步",
+      "at": "2026-10-30T16:54:32.335Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：收尾，循环 第 1 轮 第 8 步",
+      "at": "2026-10-30T16:54:57.539Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：收尾，循环 第 4 轮 第 31 步",
+      "at": "2026-10-30T16:55:23.090Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：收尾，收尾 第 6 轮 第 48 步",
+      "at": "2026-10-30T16:55:48.491Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：收尾，收尾 第 6 轮 第 48 步",
+      "at": "2026-10-30T16:56:13.730Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：收尾，准备",
+      "at": "2026-10-30T16:56:39.154Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：收尾，预热 第 0 轮 第 0 步",
+      "at": "2026-10-30T16:57:04.573Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：收尾，循环 第 2 轮 第 15 步",
+      "at": "2026-10-30T16:57:29.813Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "STILL_RUNNING",
+      "exit": 21,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：收尾，循环 第 5 轮 第 38 步",
+      "at": "2026-10-30T16:57:55.208Z"
+    },
+    {
+      "tool": "task_wait",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "SERIES_DONE",
+      "exit": 17,
+      "summary": "任务 t-20261030165043-8yo8（1903/main:android-app@v1 @ android-app:4f2ebdf2@prod）：完成 — 系列 3/3 次",
+      "at": "2026-10-30T16:58:18.378Z"
+    },
+    {
+      "tool": "result_show",
+      "args": {
+        "taskId": "t-20261030165043-8yo8"
+      },
+      "code": "SERIES_DONE",
+      "exit": 17,
+      "summary": "系列 3 次：复现 0/3 次；有效尝试 18、命中 0",
+      "at": "2026-10-30T16:58:18.382Z"
+    }
+  ],
+  "planId": "1903/main:android-app@v1",
+  "taskId": "t-20261030165043-8yo8",
+  "waits": 18,
+  "result": {
+    "status": 207,
+    "code": "SERIES_DONE",
+    "exit": 17,
+    "summary": "系列 3 次：复现 0/3 次；有效尝试 18、命中 0",
+    "data": {
+      "schemaVersion": 1,
+      "kind": "ResultView",
+      "taskId": "t-20261030165043-8yo8",
+      "code": "SERIES_DONE",
+      "status": 207,
+      "sentence": "系列 3 次：复现 0/3 次；有效尝试 18、命中 0",
+      "complete": true,
+      "runs": [
+        {
+          "planId": "1903-android-app-v1",
+          "conclusion": "未复现",
+          "sentence": "未复现：6 次有效尝试未复现；单次复现概率 95% 上界 ≈ 50%（3/n）（替代执行 ios → android-app）",
+          "basis": [
+            "触发路径：清空输入框（全选 + 删除） → 在输入框键入「autotest-1903 r8cebc3 <轮号> 」 → 在输入框键入「@」 → 等待 1000 毫秒 → 点击目标「member」 → 确认输入框里有「@aaron+test2」（没有 = 本轮操作偏离，不计入） → 点发送，把输入框里的内容发出去（会真的发出一条消息） → 等待 1000 毫秒（计划动作，每轮执行；6 次有效尝试，无命中）",
+            "出现位置：聊天页本轮最新一条含「autotest-1903 r8cebc3 <轮号>」的消息气泡（检查「已发送气泡里显示 @aaron+test2（独立的 @ 提及）」）",
+            "推测机制（未验证）：消息数据里有 @（会话列表预览正常），只有会话内气泡的渲染层丢了 @ 提及（Issue 报告的推断）"
+          ],
+          "attempts": {
+            "valid": 6,
+            "hits": 0,
+            "drift": 0,
+            "rate": 0,
+            "wilson": [
+              0,
+              0.3903
+            ],
+            "upper95": 0.5,
+            "text": "6 次有效尝试未复现；单次复现概率 95% 上界 ≈ 50%（3/n）"
+          },
+          "flags": {
+            "evidenceReview": "无命中，无需复核",
+            "substituted": "替代执行（ios → android-app）",
+            "selfCheck": "工具自检：未接入（P1）"
+          },
+          "durationSec": 114,
+          "runTag": "r8cebc3"
+        },
+        {
+          "planId": "1903-android-app-v1",
+          "conclusion": "未复现",
+          "sentence": "未复现：6 次有效尝试未复现；单次复现概率 95% 上界 ≈ 50%（3/n）（替代执行 ios → android-app）",
+          "basis": [
+            "触发路径：清空输入框（全选 + 删除） → 在输入框键入「autotest-1903 r96983e <轮号> 」 → 在输入框键入「@」 → 等待 1000 毫秒 → 点击目标「member」 → 确认输入框里有「@aaron+test2」（没有 = 本轮操作偏离，不计入） → 点发送，把输入框里的内容发出去（会真的发出一条消息） → 等待 1000 毫秒（计划动作，每轮执行；6 次有效尝试，无命中）",
+            "出现位置：聊天页本轮最新一条含「autotest-1903 r96983e <轮号>」的消息气泡（检查「已发送气泡里显示 @aaron+test2（独立的 @ 提及）」）",
+            "推测机制（未验证）：消息数据里有 @（会话列表预览正常），只有会话内气泡的渲染层丢了 @ 提及（Issue 报告的推断）"
+          ],
+          "attempts": {
+            "valid": 6,
+            "hits": 0,
+            "drift": 0,
+            "rate": 0,
+            "wilson": [
+              0,
+              0.3903
+            ],
+            "upper95": 0.5,
+            "text": "6 次有效尝试未复现；单次复现概率 95% 上界 ≈ 50%（3/n）"
+          },
+          "flags": {
+            "evidenceReview": "无命中，无需复核",
+            "substituted": "替代执行（ios → android-app）",
+            "selfCheck": "工具自检：未接入（P1）"
+          },
+          "durationSec": 145,
+          "runTag": "r96983e"
+        },
+        {
+          "planId": "1903-android-app-v1",
+          "conclusion": "未复现",
+          "sentence": "未复现：6 次有效尝试未复现；单次复现概率 95% 上界 ≈ 50%（3/n）（替代执行 ios → android-app）",
+          "basis": [
+            "触发路径：清空输入框（全选 + 删除） → 在输入框键入「autotest-1903 r3d4620 <轮号> 」 → 在输入框键入「@」 → 等待 1000 毫秒 → 点击目标「member」 → 确认输入框里有「@aaron+test2」（没有 = 本轮操作偏离，不计入） → 点发送，把输入框里的内容发出去（会真的发出一条消息） → 等待 1000 毫秒（计划动作，每轮执行；6 次有效尝试，无命中）",
+            "出现位置：聊天页本轮最新一条含「autotest-1903 r3d4620 <轮号>」的消息气泡（检查「已发送气泡里显示 @aaron+test2（独立的 @ 提及）」）",
+            "推测机制（未验证）：消息数据里有 @（会话列表预览正常），只有会话内气泡的渲染层丢了 @ 提及（Issue 报告的推断）"
+          ],
+          "attempts": {
+            "valid": 6,
+            "hits": 0,
+            "drift": 0,
+            "rate": 0,
+            "wilson": [
+              0,
+              0.3903
+            ],
+            "upper95": 0.5,
+            "text": "6 次有效尝试未复现；单次复现概率 95% 上界 ≈ 50%（3/n）"
+          },
+          "flags": {
+            "evidenceReview": "无命中，无需复核",
+            "substituted": "替代执行（ios → android-app）",
+            "selfCheck": "工具自检：未接入（P1）"
+          },
+          "durationSec": 146,
+          "runTag": "r3d4620"
+        }
+      ],
+      "series": {
+        "runs": 3,
+        "reachedLoop": 3,
+        "reproducedRuns": 0,
+        "validRuns": 3,
+        "valid": 18,
+        "hits": 0
+      },
+      "ended": {
+        "by": "normal",
+        "at": "停在收尾",
+        "envRecovery": "环境恢复结果未知"
+      },
+      "evidence": {
+        "report": "D:\\projects\\Tools\\multi-test-agent\\midscene_run\\series\\1903-t-20261030165043-8yo8-2026-10-30T16-51-32-297Z\\report.md",
+        "runDir": "D:\\projects\\Tools\\multi-test-agent\\midscene_run\\series\\1903-t-20261030165043-8yo8-2026-10-30T16-51-32-297Z",
+        "incidents": []
+      }
+    }
+  },
+  "cliDiffs": []
+}

@@ -1,0 +1,234 @@
+{
+  "at": "2026-10-30T13:14:04.824Z",
+  "tools": [
+    {
+      "name": "issue_list",
+      "readOnly": true,
+      "args": []
+    },
+    {
+      "name": "issue_show",
+      "readOnly": true,
+      "args": [
+        "id"
+      ]
+    },
+    {
+      "name": "draft_create",
+      "readOnly": false,
+      "args": [
+        "id",
+        "env",
+        "no-model"
+      ]
+    },
+    {
+      "name": "draft_show",
+      "readOnly": true,
+      "args": [
+        "id"
+      ]
+    },
+    {
+      "name": "plan_explain",
+      "readOnly": true,
+      "args": [
+        "planId",
+        "series",
+        "max-rounds"
+      ]
+    },
+    {
+      "name": "plan_approve",
+      "readOnly": false,
+      "args": [
+        "planId",
+        "hash",
+        "runs",
+        "series"
+      ]
+    },
+    {
+      "name": "plan_reject",
+      "readOnly": false,
+      "args": [
+        "planId",
+        "note"
+      ]
+    },
+    {
+      "name": "env_list",
+      "readOnly": true,
+      "args": []
+    },
+    {
+      "name": "env_show",
+      "readOnly": true,
+      "args": [
+        "envId"
+      ]
+    },
+    {
+      "name": "env_check",
+      "readOnly": false,
+      "args": [
+        "envId"
+      ]
+    },
+    {
+      "name": "task_run",
+      "readOnly": false,
+      "args": [
+        "planId",
+        "env",
+        "series",
+        "max-rounds",
+        "hash",
+        "dry-run",
+        "idempotency-key"
+      ]
+    },
+    {
+      "name": "task_status",
+      "readOnly": true,
+      "args": [
+        "taskId"
+      ]
+    },
+    {
+      "name": "task_wait",
+      "readOnly": true,
+      "args": [
+        "taskId",
+        "timeout"
+      ]
+    },
+    {
+      "name": "task_cancel",
+      "readOnly": false,
+      "args": [
+        "taskId"
+      ]
+    },
+    {
+      "name": "result_show",
+      "readOnly": true,
+      "args": [
+        "taskId"
+      ]
+    },
+    {
+      "name": "doctor",
+      "readOnly": false,
+      "args": [
+        "fix",
+        "probe"
+      ]
+    },
+    {
+      "name": "device_snapshot",
+      "readOnly": true,
+      "args": [
+        "udid",
+        "pkg",
+        "maxNodes"
+      ]
+    }
+  ],
+  "templates": [
+    "autotest://results/{taskId}",
+    "autotest://plans/{planId}",
+    "autotest://reports/{taskId}",
+    "autotest://files/{+path}"
+  ],
+  "rows": [
+    {
+      "tool": "issue_list",
+      "code": "OK",
+      "exit": 0,
+      "isError": false,
+      "diffs": []
+    },
+    {
+      "tool": "env_list",
+      "code": "OK",
+      "exit": 0,
+      "isError": false,
+      "diffs": []
+    },
+    {
+      "tool": "doctor",
+      "code": "OK",
+      "exit": 0,
+      "isError": false,
+      "diffs": []
+    },
+    {
+      "tool": "issue_show",
+      "code": "OK",
+      "exit": 0,
+      "isError": false,
+      "diffs": []
+    },
+    {
+      "tool": "draft_show",
+      "code": "OK",
+      "exit": 0,
+      "isError": false,
+      "diffs": []
+    },
+    {
+      "tool": "plan_explain",
+      "code": "OK",
+      "exit": 0,
+      "isError": false,
+      "diffs": []
+    },
+    {
+      "tool": "env_show",
+      "code": "OK",
+      "exit": 0,
+      "isError": false,
+      "diffs": []
+    },
+    {
+      "tool": "task_status",
+      "code": "OK",
+      "exit": 0,
+      "isError": false,
+      "diffs": []
+    },
+    {
+      "tool": "result_show",
+      "code": "NOT_REPRODUCED",
+      "exit": 10,
+      "isError": false,
+      "diffs": []
+    },
+    {
+      "tool": "task_wait",
+      "code": "NOT_REPRODUCED",
+      "exit": 10,
+      "isError": false,
+      "diffs": []
+    },
+    {
+      "tool": "issue_show",
+      "code": "NOT_FOUND",
+      "exit": 41,
+      "isError": true,
+      "diffs": []
+    }
+  ],
+  "extra": {
+    "device_snapshot": {
+      "code": "OK",
+      "summary": "4f2ebdf2：50 个节点（uiautomator），读树 2673 ms",
+      "nodes": 50,
+      "image": true
+    },
+    "autotest://results/t-20261030081403-ybjp": "application/json 1406 chars",
+    "autotest://reports/t-20261030081403-ybjp": "text/markdown 2856 chars",
+    "autotest://files/../.env": "refused"
+  }
+}

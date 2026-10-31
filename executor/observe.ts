@@ -5,6 +5,7 @@
 import type { Page } from 'playwright';
 import { clickableAncestor, dumpTree, inside, keyboardShown, matches, type TextMatch, type UiNode } from '../core/ui-tree';
 import { visionAsk } from '../core/model/midscene';
+import { similarity } from '../core/screen-index';
 import { AndroidDriver } from '../drivers/android';
 import type { Driver, Point } from '../drivers/types';
 import { WebDriver } from '../drivers/web';
@@ -18,11 +19,23 @@ export interface Observed extends CheckResult {
   ms?: number;
 }
 
-/** ② slot: rank candidate texts against a description. Empty this milestone (D2). */
+/** ② slot: rank candidate texts against a query (W2-1 D2; filled in W2-4 by the fuzzy ranker). */
 export interface Ranker {
   rank(query: string, candidates: string[]): Promise<{ index: number; score: number } | undefined>;
 }
 export const noRanker: Ranker = { rank: async () => undefined };
+
+/** ② deterministic fuzzy ranker: best edit-distance similarity ≥ threshold (core/screen-index.ts#similarity). */
+export const fuzzyRanker = (threshold = 0.75): Ranker => ({
+  async rank(query, candidates) {
+    let best: { index: number; score: number } | undefined;
+    candidates.forEach((c, index) => {
+      const score = similarity(c, query);
+      if (score >= threshold && (!best || score > best.score)) best = { index, score };
+    });
+    return best;
+  },
+});
 
 /** Observation ids → surfaces where a deterministic (①) channel exists. Used by the plan validator. */
 export const OBSERVATIONS: Record<string, { meaning: string; tier1: string[]; usable: string[] }> = {

@@ -10,6 +10,7 @@ import { sleep } from '../drivers/types';
 import { listDevices } from '../platform/adb-devices';
 import type { Env } from '../platform/accounts/types';
 import { dumpTree, toBox as nodeBox, type UiNode } from '../core/ui-tree';
+import { PreTapGuard } from '../executor/pretap';
 import { queueReview, saveRef } from './calibrate-common';
 import { type Profile, SKILL_DIR, saveProfile } from './profile';
 import { ELEMENTS, SKILL_VERSION } from './teamily/vocab';
@@ -49,11 +50,27 @@ export async function calibrateAndroid(o: CalibrateAndroidOptions): Promise<Prof
     prof.elements[id] = { page: spec.page, box: toBox(n), selfCheck: 'pending', ...(n.text || n.desc ? { fingerprint: { text: n.text || undefined, desc: n.desc || undefined, cls: n.cls } } : {}) };
     log(`  · ${id} ${JSON.stringify(toBox(n))}`);
   };
+  // Pre-tap check (W2-4 §4.3): the element must still be where it was read before the self-check taps it.
+  const guard = new PreTapGuard(d);
   const selfCheck = async (id: string, minPx = 2000) => {
     const e = prof.elements[id];
     if (!e) return;
+    let pt = { x: Math.round(e.box[0] + e.box[2] / 2), y: Math.round(e.box[1] + e.box[3] / 2) };
+    const fp = e.fingerprint;
+    if (fp?.text || fp?.desc) {
+      const r = await guard.check(pt, { purpose: `self-check ${id}`, text: fp.text || fp.desc, box: e.box });
+      if (r.kind !== 'pass' && r.kind !== 'corrected' && r.kind !== 'uncertain') {
+        e.selfCheck = 'fail';
+        e.note = `执行前校验拦截（${r.kind}）：${r.detail}`;
+        log(`  ✗ self-check ${id}: ${e.note}`);
+        queueReview(prof, id, e.note);
+        return;
+      }
+      if (r.kind === 'corrected') log(`  · pre-tap ${id}: ${r.detail}`);
+      pt = r.point;
+    }
     const before = await shot();
-    await d.tap({ x: e.box[0] + e.box[2] / 2, y: e.box[1] + e.box[3] / 2 });
+    await d.tap(pt);
     await sleep(1500);
     const after = await shot();
     const px = pixelDiff(before, after);

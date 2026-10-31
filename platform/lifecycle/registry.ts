@@ -20,6 +20,7 @@ export interface EnvDecl {
   udid?: string;
   package?: string;
   account?: string;
+  treeBackend?: 'uiautomator' | 'a11y-service';
 }
 
 export const envIdOf = (surface: string, device: string, serviceEnv: string) => `${surface}:${device}@${serviceEnv}`;
@@ -34,7 +35,7 @@ export function declareEnvs(cfg: PoolConfig, accounts: { id: string; env: 'test'
       const env = accounts.find((a) => a.id === acc)?.env;
       if (!acc || !env) continue;
       // android-web: the app under test on the phone is its browser (preflight, recovery and versions use it).
-      out.push({ id: envIdOf(surface, d.udid, env), surface, serviceEnv: env, device: d.udid, udid: d.udid, package: surface === 'android-app' ? TEAMILY_PACKAGE : surface === 'android-web' ? BROWSER_PACKAGE : undefined, account: acc });
+      out.push({ id: envIdOf(surface, d.udid, env), surface, serviceEnv: env, device: d.udid, udid: d.udid, package: surface === 'android-app' ? TEAMILY_PACKAGE : surface === 'android-web' ? BROWSER_PACKAGE : undefined, account: acc, ...(d.treeBackend ? { treeBackend: d.treeBackend } : {}) });
     }
   }
   const envs = [...new Set(accounts.map((a) => a.env))];
@@ -52,7 +53,7 @@ export function syncEnvs(cfg: PoolConfig, pool: AccountPool): EnvRecord[] {
   return declareEnvs(cfg, accounts).map((d) => {
     const pf = profilePath(profileKey(d.surface, d.serviceEnv, d.udid));
     // Both phone surfaces: the preflight writes the same items (Taplus for the app under test, stay-on).
-    return registerEnv({ ...d, profile: { name: profileKey(d.surface, d.serviceEnv, d.udid), hash: existsSync(pf) ? sha(readFileSync(pf, 'utf8')) : undefined }, configItems: (d.surface === 'android-app' || d.surface === 'android-web') && d.package ? androidConfigItems(d.package) : [] });
+    return registerEnv({ ...d, profile: { name: profileKey(d.surface, d.serviceEnv, d.udid), hash: existsSync(pf) ? sha(readFileSync(pf, 'utf8')) : undefined }, configItems: (d.surface === 'android-app' || d.surface === 'android-web') && d.package ? androidConfigItems(d.package, d.treeBackend) : [] });
   });
 }
 

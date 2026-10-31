@@ -11,7 +11,8 @@
 //   pnpm autotest accounts|skill|nodes|plan|run|series|rerender ...  (milestone 5 / W2-2, see scripts/m5.ts)
 //   pnpm autotest replay <incident>/replay.json                        (coordinate replay; old bundles → scripts/replay.ts)
 // W2-3 (for agents; `autotest help --json`): issue list|show, draft create|show, plan explain|approve|reject,
-//   env list|show|check|recover|offline, task run|status|wait|cancel|list, result show, help. Old entries
+//   env list|show|check|recover|offline, task run|status|wait|cancel|list, result show, help; W2-4: doctor,
+//   mcp [--print-config claude|cursor|codex|vscode] (MCP over stdio). Old entries
 //   (plan <file>, run, series, …) keep their behaviour and exit codes.
 import 'dotenv/config';
 import { spawn } from 'node:child_process';
@@ -45,7 +46,7 @@ function run(bin: string, args: string[]): Promise<number> {
 const tsx = resolve('node_modules/tsx/dist/cli.mjs');
 const vitest = resolve('node_modules/vitest/vitest.mjs');
 
-const V1 = ['issue', 'draft', 'env', 'task', 'result', 'help'];
+const V1 = ['issue', 'draft', 'env', 'task', 'result', 'help', 'doctor'];
 
 async function main(): Promise<number> {
   // `task exec <id>` is the platform's internal child; the rest of the v1 objects are thin service clients.
@@ -54,6 +55,8 @@ async function main(): Promise<number> {
     const { cliV1 } = await import('../scripts/cli-v1');
     return cliV1(cmd, rest);
   }
+  // MCP over stdio: start it with node + tsx directly (pnpm prints a banner on stdout); see --print-config.
+  if (cmd === 'mcp') return run(tsx, ['scripts/mcp.ts', ...rest]);
   if (cmd && SCRIPTS[cmd]) return run(tsx, [SCRIPTS[cmd], ...rest]);
   if (cmd && M5.includes(cmd)) return run(tsx, ['scripts/m5.ts', cmd, ...rest]);
   if (cmd === 'replay') {

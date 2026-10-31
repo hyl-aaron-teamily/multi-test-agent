@@ -43,6 +43,7 @@ export const COMMANDS: CommandSpec[] = [
   { command: 'task wait', doc: 'Wait until the task ends; exit = its outcome code, 21 when --timeout passes first', args: [TASK, { name: 'timeout', type: 'integer', doc: 'seconds (default 600)' }, J], codes: ['STILL_RUNNING', 'NOT_REPRODUCED', 'REPRODUCED', 'PARTIAL', 'IMPLEMENTED', 'NOT_IMPLEMENTED', 'SUSPECTED_MISOP', 'TURNED_BUG', 'SERIES_DONE', 'PLAN_NOT_EXECUTABLE', 'ENV_UNFIT', 'ENV_LOCKED', 'ENV_OFFLINE', 'TOOL_FAILED', 'SKILL_STALE', 'TASK_STUCK', 'TASK_CRASHED', 'CANCELLED', 'TIMED_OUT', 'INTERRUPTED'] },
   { command: 'task cancel', doc: 'Cancel: queued → cancelled; running → stops at the next step boundary, then teardown + recovery', args: [TASK, J], codes: ['OK', 'NOT_FOUND', 'BAD_INPUT'] },
   { command: 'task list', doc: 'Recent tasks', args: [{ name: 'limit', type: 'integer', doc: 'default 50' }, J], codes: ['OK'] },
+  { command: 'doctor', doc: 'Can runs start, what is missing, what to do next (ready / degraded / blocked; next steps split into commands and things only a person can do). Works with the platform down', args: [{ name: 'fix', type: 'boolean', doc: 'safe local cleanup: stale locks, stale tree-service forwards, leases of dead tasks (never touches the device, never restarts adb)' }, { name: 'probe', type: 'boolean', doc: 'one screenshot + tree read per phone, both backends timed' }, J], codes: ['OK', 'PLATFORM_DOWN', 'ENV_LOCKED', 'ENV_OFFLINE', 'ENV_UNFIT'] },
   { command: 'result show', doc: 'ResultView of a finished task: conclusion sentence, basis, attempts, flags, failure kind, evidence', args: [TASK, J], codes: ['STILL_RUNNING', 'NOT_REPRODUCED', 'REPRODUCED', 'PARTIAL', 'IMPLEMENTED', 'NOT_IMPLEMENTED', 'SERIES_DONE', 'TOOL_FAILED', 'ENV_UNFIT', 'CANCELLED', 'INTERRUPTED', 'TASK_CRASHED', 'TASK_STUCK'] },
 ];
 
@@ -62,7 +63,7 @@ const positional = (a: string[]) => {
   const out: string[] = [];
   for (let i = 0; i < a.length; i++) {
     if (a[i].startsWith('--')) {
-      if (!['json', 'dry-run', 'no-model', 'non-interactive', 'all'].includes(a[i].slice(2))) i++;
+      if (!['json', 'dry-run', 'no-model', 'non-interactive', 'all', 'fix', 'probe'].includes(a[i].slice(2))) i++;
       continue;
     }
     out.push(a[i]);
@@ -150,12 +151,31 @@ export async function dispatch(obj: string, act: string | undefined, a: string[]
       }
       case 'result show':
         return call('GET', `/results/${enc(need(0, 'taskId'))}`);
+      case 'doctor':
+        return doctorLocal(has(a, 'fix'), has(a, 'probe'));
       default:
         return bad(`未知命令：${obj} ${act ?? ''}（autotest help）`);
     }
   } catch (e) {
     return bad(`缺少参数：${(e as Error).message}`);
   }
+}
+
+/** `doctor` in this process (it must answer when the platform is down). */
+export async function doctorLocal(fix: boolean, probe: boolean): Promise<Env> {
+  const { diagnose, doctorText, fixStale, gatherFacts } = await import('../platform/doctor');
+  let facts = await gatherFacts({ probe });
+  let did: string[] = [];
+  if (fix) {
+    did = await fixStale(facts);
+    if (did.length) facts = await gatherFacts({ probe });
+  }
+  const d = diagnose(facts);
+  const code: Code = d.code;
+  const text = `${doctorText(d)}${fix ? `
+
+--fix：${did.length ? did.join('；') : '没有需要清理的残留'}` : ''}`;
+  return { status: STATUS[code].status, code, exit: STATUS[code].exit, summary: `${d.conclusion}：${d.summary}`, data: { ...d, ...(fix ? { fixed: did } : {}) }, text };
 }
 
 /** `env recover <envId>` in this process (the platform starts it as its own process). */

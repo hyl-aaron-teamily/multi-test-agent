@@ -1,7 +1,8 @@
-// Android accessibility tree: the one place that reads it (`uiautomator dump`). Reads are serialised
-// per device (concurrent dumps to one file returned each other's stale snapshots), retried while the UI
-// is not idle, and timed (≈ 2.6–3.7 s on the test phone, 2026-10-26) — never used inside the action loop.
+// Android accessibility tree: the one place that reads it, through the device's tree backend
+// (core/tree-backend.ts: uiautomator ≈ 2.6–3.7 s on the test phone, or the on-device service). Retried while
+// the UI is not idle and timed — never used inside the action loop.
 import { adb } from './adb';
+import { readTree, type TreeRead } from './tree-backend';
 
 export interface UiNode {
   x1: number;
@@ -14,6 +15,11 @@ export interface UiNode {
   desc: string;
   cls: string;
   clickable: boolean;
+  /** resource-id (often empty in React Native apps). */
+  rid?: string;
+  /** Document order of the node in the dump, and its ancestors' (hierarchy for hit tests). */
+  id?: number;
+  anc?: number[];
 }
 
 export type UiBox = [number, number, number, number];
@@ -37,42 +43,35 @@ const unescape = (s: string) =>
 /** Pure: uiautomator XML → nodes of `pkg` (all packages when pkg is empty). */
 export function parseNodes(xml: string, pkg: string): UiNode[] {
   const out: UiNode[] = [];
-  for (const m of xml.matchAll(/<node\b[^>]*>/g)) {
+  const stack: number[] = [];
+  let id = -1;
+  for (const m of xml.matchAll(/<node\b[^>]*>|<\/node>/g)) {
     const n = m[0];
+    if (n === '</node>') {
+      stack.pop();
+      continue;
+    }
+    id++;
+    const anc = [...stack];
+    if (!n.endsWith('/>')) stack.push(id);
     if (pkg && attr(n, 'package') !== pkg) continue;
     const b = attr(n, 'bounds').match(/\[(\d+),(\d+)\]\[(\d+),(\d+)\]/);
     if (!b) continue;
     const [x1, y1, x2, y2] = b.slice(1).map(Number);
-    out.push({ x1, y1, x2, y2, text: unescape(attr(n, 'text')), hint: unescape(attr(n, 'hint')), desc: unescape(attr(n, 'content-desc')), cls: attr(n, 'class'), clickable: attr(n, 'clickable') === 'true' });
+    out.push({ x1, y1, x2, y2, text: unescape(attr(n, 'text')), hint: unescape(attr(n, 'hint')), desc: unescape(attr(n, 'content-desc')), cls: attr(n, 'class'), clickable: attr(n, 'clickable') === 'true', ...(attr(n, 'resource-id') ? { rid: attr(n, 'resource-id') } : {}), id, anc });
   }
   return out;
 }
 
-const locks = new Map<string, Promise<unknown>>();
-const seqs = new Map<string, number>();
 /** Recent dump durations (ms), for reports. */
 export const dumpTimings: number[] = [];
 
-/** Raw XML of one dump, serialised per device. */
-export function readUiXml(udid?: string, timeoutMs = 20_000): Promise<{ xml: string; t0: number; t1: number }> {
-  const key = udid ?? '';
-  const run = (locks.get(key) ?? Promise.resolve()).then(
-    () => once(),
-    () => once(),
-  );
-  locks.set(key, run.catch(() => {}));
-  return run;
-  async function once() {
-    const n = (seqs.get(key) ?? 0) + 1;
-    seqs.set(key, n);
-    const f = `/sdcard/autotest_ui_${n % 4}.xml`;
-    const t0 = Date.now();
-    const xml = await adb(['shell', `rm -f ${f}; uiautomator dump ${f} >/dev/null 2>&1; cat ${f}`], udid, timeoutMs);
-    const t1 = Date.now();
-    dumpTimings.push(t1 - t0);
-    if (dumpTimings.length > 200) dumpTimings.shift();
-    return { xml, t0, t1 };
-  }
+/** Raw XML of one read through the device's tree backend (core/tree-backend.ts). */
+export async function readUiXml(udid?: string, timeoutMs = 20_000): Promise<TreeRead> {
+  const r = await readTree(udid, timeoutMs);
+  dumpTimings.push(r.t1 - r.t0);
+  if (dumpTimings.length > 200) dumpTimings.shift();
+  return r;
 }
 
 /** Nodes of `pkg`, retried while the UI animates ("could not get idle state"). Empty on failure. */
