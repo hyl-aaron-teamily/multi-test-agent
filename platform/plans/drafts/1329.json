@@ -64,7 +64,7 @@
           {
             "id": "msg",
             "kind": "others-text-message",
-            "guidance": "别人发的普通文本消息（不是图片/卡片/系统消息），点赞类问题用它"
+            "guidance": "别人发的普通文本消息（不是图片/卡片/系统消息，也不是链接/URL——点到链接会打开浏览器），点赞类问题用它"
           },
           {
             "id": "like",
@@ -164,12 +164,12 @@
           },
           "provenance": {
             "by": "rules",
-            "skillVersion": "2026.10.26-1"
+            "skillVersion": "2026.10.30-1"
           }
         },
         "provenance": {
           "generatedBy": "rules",
-          "skillVersion": "2026.10.26-1",
+          "skillVersion": "2026.10.30-1",
           "pattern": "like-visible"
         },
         "coverage": "covered"
@@ -208,7 +208,7 @@
         },
         "provenance": {
           "by": "rules",
-          "skillVersion": "2026.10.26-1"
+          "skillVersion": "2026.10.30-1"
         }
       }
     },
@@ -267,7 +267,7 @@
             "node": {
               "name": "teamily.sendMessage",
               "input": {
-                "text": "autotest-quote-source 1329"
+                "text": "autotest-quote-source 1329 {token}"
               }
             },
             "delayAfterMs": 1000
@@ -277,8 +277,8 @@
             "node": {
               "name": "teamily.quoteReply",
               "input": {
-                "quote": "autotest-quote-source 1329",
-                "text": "autotest-quote-reply 1329"
+                "quote": "autotest-quote-source 1329 {token}",
+                "text": "autotest-quote-reply 1329 {token}"
               }
             },
             "delayAfterMs": 1000
@@ -368,12 +368,12 @@
           },
           "provenance": {
             "by": "rules",
-            "skillVersion": "2026.10.26-1"
+            "skillVersion": "2026.10.30-1"
           }
         },
         "provenance": {
           "generatedBy": "rules",
-          "skillVersion": "2026.10.26-1",
+          "skillVersion": "2026.10.30-1",
           "pattern": "quote-jump"
         },
         "coverage": "covered"
@@ -414,7 +414,7 @@
         },
         "provenance": {
           "by": "rules",
-          "skillVersion": "2026.10.26-1"
+          "skillVersion": "2026.10.30-1"
         }
       }
     },
@@ -527,12 +527,12 @@
           },
           "provenance": {
             "by": "rules",
-            "skillVersion": "2026.10.26-1"
+            "skillVersion": "2026.10.30-1"
           }
         },
         "provenance": {
           "generatedBy": "rules",
-          "skillVersion": "2026.10.26-1",
+          "skillVersion": "2026.10.30-1",
           "pattern": "keyboard-single-tap"
         },
         "coverage": "covered"
@@ -566,12 +566,13 @@
         },
         "provenance": {
           "by": "rules",
-          "skillVersion": "2026.10.26-1"
+          "skillVersion": "2026.10.30-1"
         }
       }
     }
   ],
-  "hash": "b2399250dd48d72f",
+  "hash": "de0bb355062140d9",
   "issueHash": "24a4cc92ff5b388b",
-  "env": "prod"
+  "env": "prod",
+  "version": 2
 }

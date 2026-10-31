@@ -91,7 +91,7 @@
               "name": "teamily.quoteReply",
               "input": {
                 "quote": "github.com/TensorOpera-Inc/chat-web/pull/654",
-                "text": "autotest-2044 quote"
+                "text": "autotest-2044 {token} quote"
               }
             },
             "delayAfterMs": 1000
@@ -178,12 +178,12 @@
           },
           "provenance": {
             "by": "rules",
-            "skillVersion": "2026.10.21-1"
+            "skillVersion": "2026.10.30-1"
           }
         },
         "provenance": {
           "generatedBy": "rules",
-          "skillVersion": "2026.10.21-1",
+          "skillVersion": "2026.10.30-1",
           "pattern": "quote-preview-text"
         },
         "coverage": "covered"
@@ -219,12 +219,13 @@
         },
         "provenance": {
           "by": "rules",
-          "skillVersion": "2026.10.21-1"
+          "skillVersion": "2026.10.30-1"
         }
       }
     }
   ],
-  "hash": "d832fc0506792d19",
+  "hash": "6106c58547675cf2",
   "issueHash": "2ab96787c9722ea9",
-  "env": "prod"
+  "env": "prod",
+  "version": 2
 }
