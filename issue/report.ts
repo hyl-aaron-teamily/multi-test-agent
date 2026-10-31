@@ -1,16 +1,12 @@
-// Issue reports: report.md + result.json per Issue run, an Allure test per sub-case (steps + screenshots +
-// incident viewer attached), and one-page reports for refused / deferred Issues.
-import { randomUUID } from 'node:crypto';
+// Issue reports: report.md + result.json per Issue run, and one-page reports for refused / deferred Issues.
 import { existsSync, readdirSync } from 'node:fs';
-import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
-import { basename, join, relative, resolve } from 'node:path';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { basename, join, relative } from 'node:path';
 import { FAILURE_TEXT } from '../executor/failure';
 import { manifestMarkdown } from '../executor/manifest';
 import type { RunResult } from '../executor/run';
 import { attemptsOf, attemptsText } from '../executor/stats';
 import type { Draft } from './planner';
-
-export const ALLURE_DIR = resolve('allure-results');
 
 const REVIEW_TEXT: Record<string, string> = { consistent: '符合 Issue 描述', inconsistent: '不符', unverified: '未能复核（视觉模型不可用），结论仅依据自动检查' };
 
@@ -100,68 +96,12 @@ export function runMarkdown(d: Draft, input: RunResult[], runDir: string): strin
   return lines.join('\n');
 }
 
-/** Allure result per sub-case (allure-results/<uuid>-result.json + attachments). */
-export async function writeAllure(d: Draft, r: RunResult, runDir: string): Promise<void> {
-  await mkdir(ALLURE_DIR, { recursive: true });
-  const att = async (src: string, name: string, type: string) => {
-    if (!existsSync(src)) return undefined;
-    const ext = src.split('.').pop();
-    const source = `${randomUUID()}-attachment.${ext}`;
-    await copyFile(src, join(ALLURE_DIR, source));
-    return { name, source, type };
-  };
-  const steps = [];
-  for (const a of r.acceptance ?? []) {
-    const shot = a.evidence ? await att(join(runDir, r.planId, a.evidence), `${a.id}.png`, 'image/png') : undefined;
-    steps.push({ name: a.text, status: a.pass === null ? 'skipped' : a.pass ? 'passed' : 'failed', statusDetails: { message: a.detail }, attachments: shot ? [shot] : [], stage: 'finished' });
-  }
-  for (const h of r.hits.slice(0, 5)) steps.push({ name: `命中：第 ${h.round} 轮 第 ${h.step} 步`, status: 'failed', statusDetails: { message: h.reason }, attachments: [], stage: 'finished' });
-  const attachments = [];
-  for (const inc of r.incidents) {
-    const a = await att(join(inc, 'index.html'), `现场包 ${basename(inc)}`, 'text/html');
-    if (a) attachments.push(a);
-  }
-  const rep = await att(join(runDir, 'report.md'), 'report.md', 'text/markdown');
-  if (rep) attachments.push(rep);
-  const status = r.conclusion === '已复现' || r.conclusion === '未实现' || r.conclusion === '部分实现' ? 'failed' : r.conclusion === '执行失败' || r.conclusion === 'SKILL 失效' || r.conclusion === '计划不可执行' || r.conclusion === '环境不合格' ? 'broken' : 'passed';
-  const start = Date.parse(r.startedAt);
-  await writeFile(
-    join(ALLURE_DIR, `${randomUUID()}-result.json`),
-    JSON.stringify({
-      uuid: randomUUID(),
-      historyId: r.planId,
-      name: `Issue ${r.issue} · ${r.title} [${r.surface}]`,
-      fullName: `issues/${r.issue}/${r.planId}`,
-      status,
-      statusDetails: { message: `${r.conclusion} — ${r.conclusionDetail}${r.substitution ? `（替代执行 ${r.substitution.from}→${r.surface}）` : ''}` },
-      stage: 'finished',
-      start,
-      stop: Date.parse(r.finishedAt),
-      steps,
-      attachments,
-      labels: [
-        { name: 'suite', value: `Issue ${r.issue}` },
-        { name: 'feature', value: d.issue.featureArea || 'issue' },
-        { name: 'tag', value: r.category },
-        { name: 'tag', value: r.surface },
-        { name: 'tag', value: r.env },
-        ...(r.substitution ? [{ name: 'tag', value: 'substituted' }] : []),
-      ],
-      parameters: [
-        { name: 'env', value: r.env },
-        { name: 'surface', value: r.surface },
-      ],
-    }),
-  );
-}
-
 export async function writeIssueReport(d: Draft, results: RunResult[], runDir: string): Promise<string> {
   await mkdir(runDir, { recursive: true });
   const md = d.status === 'plannable' ? runMarkdown(d, results, runDir) : refusalMarkdown(d);
   const f = join(runDir, 'report.md');
   await writeFile(f, md);
   await writeFile(join(runDir, 'result.json'), JSON.stringify({ issue: d.issue.id, status: d.status, category: d.classification.category, reason: d.reason, deferredPart: d.deferredPart, contracts: d.status === 'plannable' ? undefined : d.contracts, results }, null, 2));
-  for (const r of results) await writeAllure(d, r, runDir);
   return f;
 }
 

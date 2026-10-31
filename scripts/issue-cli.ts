@@ -15,7 +15,6 @@ import { normalizeResult, runMarkdown, writeIssueReport } from '../issue/report'
 import { classifyRules } from '../issue/classify';
 import { seriesMarkdown, type SeriesRun, summarizeSeries } from '../executor/series';
 import { resolve } from 'node:path';
-import { emitTaskResult } from '../core/task-result';
 
 export { PLANS_DIR };
 
@@ -164,7 +163,6 @@ export async function runCmd(args: string[]): Promise<number> {
   const num = (n: string) => (flag(args, n) ? Number(flag(args, n)) : undefined);
   const { report, results } = await runIssue(d, approve, { headed: has(args, 'headed'), maxSteps: num('max-steps'), maxMinutes: num('max-minutes'), maxRounds: num('max-rounds'), udid: flag(args, 'device'), taskId: flag(args, 'id') });
   console.log(`[run] report → ${report}`);
-  emitTaskResult({ report, verdict: results.map((r) => `${r.planId}: ${r.conclusion}`).join(' · ') || (d.status !== 'plannable' ? d.reason : undefined) });
   return results.some((r) => r.conclusion === '执行失败' || r.conclusion === 'SKILL 失效' || r.conclusion === '计划不可执行' || r.conclusion === '环境不合格') ? 3 : results.some((r) => r.conclusion === '已复现') ? 1 : 0;
 }
 
@@ -212,7 +210,6 @@ export async function seriesCmd(args: string[]): Promise<number> {
   const s = summarizeSeries(runs);
   console.log(`[series] summary: 工具可靠性 ${s.reachedLoop}/${s.counted}（环境不合格 ${s.envUnfit}）；复现 ${s.reproducedRuns}/${s.validRuns}；有效尝试 ${s.pooled.valid}、命中 ${s.pooled.hits}`);
   console.log(`[series] report → ${join(dir, 'series-report.md')}`);
-  emitTaskResult({ report: join(dir, 'series-report.md'), verdict: `工具可靠性 ${s.reachedLoop}/${s.counted}（环境不合格 ${s.envUnfit}）；复现 ${s.reproducedRuns}/${s.validRuns}；有效尝试 ${s.pooled.valid}、命中 ${s.pooled.hits}` });
   return s.counted && s.reachedLoop / s.counted >= 0.9 ? 0 : 3;
 }
 

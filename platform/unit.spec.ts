@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import { parseAdbDevices } from './adb-devices';
 import { DevicePool, parsePoolConfig } from './device-pool';
 import { safeFilePath } from './server';
-import { type Task, taskArgs, validateTaskInput } from './tasks';
 
 describe('platform', () => {
   it('parses adb devices -l', () => {
@@ -65,37 +64,6 @@ describe('platform', () => {
     const c = parsePoolConfig('devices:\n  - udid: a\n');
     expect(Object.keys(c.devices[0].capacity)).toEqual(['android-app', 'android-web']);
     expect(c.hosts.map((h) => h.udid)).toEqual(['host:local']);
-  });
-
-  it('validates task input', () => {
-    expect(validateTaskInput({ type: 'mission', package: 'ai.teamily.mobile' })).toMatch(/request/);
-    expect(validateTaskInput({ type: 'rm -rf', package: 'a.b' })).toMatch(/type/);
-    expect(validateTaskInput({ type: 'monkey', package: 'a.b; reboot' })).toMatch(/package/);
-    expect(validateTaskInput({ type: 'monkey', package: 'a.b', seed: '7' })).toEqual({ type: 'monkey', package: 'a.b', seed: 7 });
-  });
-
-  it('sync tasks: roles validated, the runner leases its own slots', () => {
-    expect(validateTaskInput({ type: 'sync', roles: 'desktop-web' })).toMatch(/two or more/);
-    expect(validateTaskInput({ type: 'sync', roles: 'desktop-web,android-app', rounds: 50 })).toMatch(/rounds/);
-    const v = validateTaskInput({ type: 'sync', roles: 'desktop-web, android-web,android-app', rounds: 3 });
-    expect(v).toEqual({ type: 'sync', package: 'ai.teamily.mobile', roles: 'desktop-web,android-web,android-app', env: 'prod', rounds: 3 });
-    expect(taskArgs({ ...(v as object), id: 't1' } as Task, '')).toEqual(['bin/autotest.ts', 'sync', '--roles', 'desktop-web,android-web,android-app', '--env', 'prod', '--rounds', '3']);
-  });
-
-  it('builds CLI args without a shell', () => {
-    const t = { id: 't1', type: 'mission', package: 'a.b', request: '聊天 "闪退"', maxMinutes: 5 } as Task;
-    expect(taskArgs(t, 'dev')).toEqual(['bin/autotest.ts', 'mission', '聊天 "闪退"', '--id', 't1', '--package', 'a.b', '--device', 'dev', '--max-minutes', '5']);
-  });
-
-  it('imui tasks need a conversation and map to imui run with the pool device', () => {
-    expect(validateTaskInput({ type: 'imui', package: 'ai.teamily.mobile' })).toMatch(/conversation/);
-    expect(validateTaskInput({ type: 'imui', package: 'a.b', conversation: 'x', rate: 5 })).toMatch(/rate/);
-    const v = validateTaskInput({ type: 'imui', package: 'a.b', conversation: "A's AI", web: 'test', duration: 30, rate: 0.2, msgTypes: 'text,long', yesProd: true });
-    expect(typeof v).toBe('object');
-    expect(taskArgs({ ...(v as object), id: 't9' } as Task, 'dev1')).toEqual([
-      'bin/autotest.ts', 'imui', 'run', '--client', "android:dev1@A's AI", '--client', "web:test@A's AI",
-      '--duration', '30', '--rate', '0.2', '--msg-types', 'text,long', '--yes-prod',
-    ]);
   });
 
   it('keeps /files inside midscene_run', () => {
