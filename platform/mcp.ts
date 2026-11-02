@@ -107,7 +107,7 @@ export async function deviceSnapshot(args: { udid?: string; pkg?: string; maxNod
 }
 
 /** Read-only file roots for resources (same as the platform's /files and /refs). */
-export const FILE_ROOTS = () => [resolve('midscene_run'), resolve('skills/teamily/refs')];
+export const FILE_ROOTS = () => [resolve('midscene_run')];
 
 /** Pure-ish: a path inside one of the roots, or undefined. */
 export function safeResourcePath(rel: string, roots = FILE_ROOTS()): string | undefined {
@@ -159,7 +159,7 @@ export function createMcpServer(): McpServer {
     },
   );
 
-  // Resources (§5.2): reports, views, evidence files — read-only, only inside midscene_run/ and skills/teamily/refs/.
+  // Resources (§5.2): reports, views, evidence files — read-only, only inside midscene_run/.
   const textOf = (uri: URL, e: Envelope) => ({ contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify((({ text, ...x }) => x)(e)) }] });
   server.registerResource('task-result', new ResourceTemplate('autotest://results/{taskId}', { list: undefined }), { title: 'ResultView of a task', mimeType: 'application/json' }, async (uri, v) => textOf(uri, await runCommand('result show', { taskId: String(v.taskId) })));
   server.registerResource('plan-view', new ResourceTemplate('autotest://plans/{planId}', { list: undefined }), { title: 'PlanView (plan explain)', mimeType: 'application/json' }, async (uri, v) => textOf(uri, await runCommand('plan explain', { planId: decodeURIComponent(String(v.planId)) })));
@@ -170,9 +170,9 @@ export function createMcpServer(): McpServer {
     if (!f) throw new Error(`no report for task ${v.taskId}`);
     return { contents: [{ uri: uri.href, mimeType: 'text/markdown', text: readFileSync(f, 'utf8') }] };
   });
-  server.registerResource('file', new ResourceTemplate('autotest://files/{+path}', { list: undefined }), { title: 'Evidence file (screenshots, reports, incident viewer) under midscene_run/ or skills/teamily/refs/' }, async (uri, v) => {
+  server.registerResource('file', new ResourceTemplate('autotest://files/{+path}', { list: undefined }), { title: 'Evidence file (screenshots, reports, incident viewer) under midscene_run/' }, async (uri, v) => {
     const f = safeResourcePath(String(v.path));
-    if (!f) throw new Error('path outside midscene_run/ and skills/teamily/refs/, or missing');
+    if (!f) throw new Error('path outside midscene_run/, or missing');
     const mime = MIME[extname(f).toLowerCase()] ?? 'application/octet-stream';
     return /^(text|application\/(json|x-ndjson))/.test(mime) ? { contents: [{ uri: uri.href, mimeType: mime, text: readFileSync(f, 'utf8') }] } : { contents: [{ uri: uri.href, mimeType: mime, blob: readFileSync(f).toString('base64') }] };
   });

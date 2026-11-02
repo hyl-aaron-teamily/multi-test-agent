@@ -11,8 +11,7 @@ import { evaluateVisual } from './checks';
 import { VerdictTracker } from './verdict';
 import { type Anomaly, type Driver, HARD_ANOMALIES, lifecycle, sleep } from '../drivers/types';
 import { AccountPool } from '../platform/accounts/account-pool';
-import { openSession } from './session';
-import { loadProfile } from '../skills/profile';
+import { attachSkillCache, openSession } from './session';
 import type { ReplayFile } from '../incident/bundle';
 import type { CoordOp } from '../incident/recording-driver';
 
@@ -75,14 +74,12 @@ async function playOp(d: Driver, op: CoordOp): Promise<void> {
 
 export async function replayIncident(file: string, variant: Variant, log = (s: string) => console.log(`[replay] ${s}`)): Promise<VariantResult> {
   const r: ReplayFile = JSON.parse(await readFile(file, 'utf8'));
-  const profile = loadProfile(r.profile);
-  if (!profile) throw new Error(`profile ${r.profile} missing — recalibrate`);
-  if (profile.skillVersion !== r.skillVersion) log(`warning: SKILL ${profile.skillVersion} ≠ recorded ${r.skillVersion}`);
   const pool = new AccountPool();
   await pool.reload();
   // Older replay files carry the phone only in the profile name.
   const udid = r.device ?? r.profile.match(/^android-(?:web-)?(.+)@/)?.[1];
-  const sess = await openSession({ surface: r.surface, env: r.env, account: r.account!, udid, pool, profile, url: r.url, log });
+  const sess = await openSession({ surface: r.surface, env: r.env, account: r.account!, udid, pool, url: r.url, log });
+  const profile = sess.profile;
   const d: Driver = sess.inner;
   if (variant === 'cold' && d.killApp) await d.killApp();
   const tracker = new VerdictTracker(r.verdictRule);
@@ -90,6 +87,9 @@ export async function replayIncident(file: string, variant: Variant, log = (s: s
   const anomalies: Anomaly[] = [];
   try {
     await d.launch();
+    // The SKILL cache of the same app version holds the reference regions the recorded run captured.
+    await attachSkillCache(sess);
+    if (profile.name !== r.profile) log(`note: SKILL cache ${profile.name} ≠ recorded ${r.profile} (other app version / screen size)`);
     await sess.adapter.waitFirstScreen(sess);
     d.drainAnomalies();
     const play = async (ops: CoordOp[]) => {

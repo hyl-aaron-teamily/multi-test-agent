@@ -1,6 +1,6 @@
 // Minimal PNG decode + perceptual hash, no native deps. Covers what Playwright screenshots and
 // `adb screencap -p` produce: 8-bit, non-interlaced, colour type 2 (RGB) or 6 (RGBA).
-// Used for SKILL reference regions (calibration-time) and checkpoint/deviation comparison (run-time).
+// Used for SKILL reference regions (captured from the live screen) and checkpoint/deviation comparison.
 import { deflateSync, inflateSync } from 'node:zlib';
 
 export interface Rgba {

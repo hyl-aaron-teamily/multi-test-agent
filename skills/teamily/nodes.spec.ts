@@ -12,7 +12,7 @@ const profile = (withCancel: boolean): Profile =>
   ({
     name: 'android-test@prod',
     viewport: { width: W, height: W },
-    refs: {},
+    refs: withCancel ? { 'rewrite-confirm': { dialog: { box: [4, 2, 6, 6], image: 'ref-rewrite-confirm-dialog.png' } } } : {},
     elements: {
       'chat.rewrite': { page: 'chat', box: [1, 8, 2, 2] },
       'chat.composer': { page: 'chat', box: [0, 6, 10, 2] },
@@ -46,7 +46,7 @@ describe('teamily.tapRewrite confirmation dialog', () => {
       { x: 7, y: 5 },
     ]);
   });
-  it('no calibrated dialog (older app) → never tapped, no start = drift', async () => {
+  it('no captured dialog (older app, or the loop never saw one) → never tapped, no start = drift', async () => {
     const { c, taps } = ctx(false);
     await expect(runNode('teamily.tapRewrite', { timeoutMs: 1200 }, c)).rejects.toThrow(/did not start/);
     expect(taps).toHaveLength(1);

@@ -1,5 +1,5 @@
 // Screen snapshot structure + index (W2-4 §4.2 K1). One normalised node list serves locate, the pre-tap
-// check, checkpoints, calibration and `doctor --probe`. Pure: no device access here (capture lives in
+// check, checkpoints, the SKILL locate cache and `doctor --probe`. Pure: no device access here (capture lives in
 // executor/snapshot.ts). Fuzzy matching after Artemis' screen index (ref/artemis, Apache-2.0), rewritten.
 import type { UiNode } from './ui-tree';
 

@@ -1,12 +1,13 @@
 // Teamily SKILL Nodes (table: node-specs.ts). Nodes of phase "any" only perform coordinate operations
-// through a black-box Driver (coordinates from the surface profile and the targets frozen at preparation);
+// through a black-box Driver (element points from the SKILL cache — located outside the loop the first time
+// they are needed — and the targets frozen at preparation);
 // "prepare-only" Nodes may also locate (hierarchy / vision) and never run in the loop.
 import { z } from 'zod';
 import type { Driver, Point } from '../../drivers/types';
 import { RoundDrift, sleep } from '../../drivers/types';
 import { type Credentials, mobileLayout } from '../../platform/accounts/types';
 import { decodePng, pixelDiff, type Rgba } from '../../core/image';
-import { pointOf, type Profile } from '../profile';
+import { hasElement, pointFor, type Profile } from '../profile';
 import { NODE_SPECS } from './node-specs';
 
 export interface NodeContext {
@@ -43,10 +44,10 @@ const target = (c: NodeContext, id: string): Point => {
   return p;
 };
 
-const tapEl = (c: NodeContext, id: string) => c.driver.tap(pointOf(c.profile, id));
-const pointBox = (c: NodeContext, id: string) => {
+const tapEl = async (c: NodeContext, id: string) => c.driver.tap(await pointFor(c.profile, id));
+const pointBox = async (c: NodeContext, id: string) => {
+  await pointFor(c.profile, id);
   const e = c.profile.elements[id];
-  if (!e) throw new Error(`element ${id} not calibrated in profile ${c.profile.name}`);
   return e.box;
 };
 
@@ -75,7 +76,7 @@ const sendMessage: Exec<{ text: string; kind?: 'plain' | 'markdown-link' }> = as
   const input = raw.kind === 'markdown-link' ? { ...raw, text: `[${raw.text}](${raw.text})` } : raw;
   // Screen checks (no hierarchy reads): the keyboard really came up before Back hides it, and the composer
   // box looks empty again after sending — otherwise send once more with the send button.
-  const box = pointBox(c, 'chat.composer');
+  const box = await pointBox(c, 'chat.composer');
   const shot = async () => decodePng(await c.driver.screenshot());
   const empty = await shot();
   await tapEl(c, 'chat.composer');
@@ -102,7 +103,7 @@ const sendMessage: Exec<{ text: string; kind?: 'plain' | 'markdown-link' }> = as
   await c.driver.type(input.text);
   if (c.driver.surface === 'android-app') {
     // RN composer: Enter is a newline. Hide the keyboard (only if it is up: Back would otherwise leave the
-    // conversation), then tap the (calibrated, keyboard-down) send button.
+    // conversation), then tap the (located, keyboard-down) send button.
     const kbUp = c.driver.keyboardShown ? await c.driver.keyboardShown() : null;
     if (kbUp === true || (kbUp === null && pixelDiff(empty, focused) > 20_000)) {
       await c.driver.back();
@@ -120,7 +121,7 @@ const sendMessage: Exec<{ text: string; kind?: 'plain' | 'markdown-link' }> = as
         await tapEl(c, 'chat.send');
       }
     }
-  } else if (mobileLayout(c.driver.surface)) await tapEl(c, 'chat.send'); // touch keyboard: Enter is a newline (phone browser: send calibrated with the keyboard up)
+  } else if (mobileLayout(c.driver.surface)) await tapEl(c, 'chat.send'); // touch keyboard: Enter is a newline (phone browser: send located with the keyboard up)
   else await c.driver.key('Enter');
   await sleep(800);
   if (!mobileLayout(c.driver.surface)) {
@@ -129,7 +130,7 @@ const sendMessage: Exec<{ text: string; kind?: 'plain' | 'markdown-link' }> = as
     const dpr = after.width / c.profile.viewport.width;
     // Baseline: the focused, still-empty composer (no placeholder difference).
     const px = pixelDiff(focused, after, [box[0] * dpr, box[1] * dpr, box[2] * dpr, box[3] * dpr]);
-    if (px > 150 && c.profile.elements['chat.send']) {
+    if (px > 150 && (await hasElement(c.profile, 'chat.send'))) {
       await tapEl(c, 'chat.send');
       await sleep(800);
       return { summary: `sent ${input.text.length} chars (Enter did not send; used the send button)` };
@@ -187,7 +188,7 @@ const hideKeyboard = async (c: NodeContext) => {
   }
 };
 
-/** App: focus the composer (tap only while the keyboard is down — with it up the calibrated point is on the
+/** App: focus the composer (tap only while the keyboard is down — with it up the located point is on the
  *  keyboard) and wait for the keyboard; not focused = the round's input cannot land (drift). */
 const focusComposer = async (c: NodeContext) => {
   for (let i = 0; i < 2; i++) {
@@ -220,17 +221,17 @@ const clearComposer: Exec<Record<string, never>> = async ({ context: c }) => {
 export const REWRITE_BUSY_PX = 600;
 export const REWRITE_IDLE_PX = 300;
 
-/** App: tap the AI rewrite control (keyboard down, as calibrated) and wait (pixels only, ≤ 10 s) until the
+/** App: tap the AI rewrite control (keyboard down, as located) and wait (pixels only, ≤ 10 s) until the
  *  rewrite has run: its button showed the busy spinner and is back to the idle icon on two polls in a row.
  *  A rewrite too fast to see the spinner counts when the composer area changed and the button is idle.
- *  A confirmation dialog first (Teamily 2.0.20: "用记忆强化 prompt?", calibrated reference) = 「有确认」:
+ *  A confirmation dialog first (Teamily 2.0.20: "用记忆强化 prompt?", reference captured on first sight) = 「有确认」:
  *  tap its 取消 and stop — the draft stays, so the round's check passes (not a hit, W2-2 §5.2).
  *  Never started / still running after 10 s = timeout → drift, not an attempt (W2-2 §5.2). */
 const tapRewrite: Exec<{ timeoutMs?: number }> = async ({ input, context: c }) => {
   await hideKeyboard(c);
   const shot = async () => decodePng(await c.driver.screenshot());
-  const btn = pointBox(c, 'chat.rewrite');
-  const comp = pointBox(c, 'chat.composer');
+  const btn = await pointBox(c, 'chat.rewrite');
+  const comp = await pointBox(c, 'chat.composer');
   // Reference frame only once the keyboard-hide animation is over (two equal frames): a frame taken
   // mid-animation has the toolbar elsewhere and the button would look "busy" forever.
   let before = await shot();
@@ -256,7 +257,7 @@ const tapRewrite: Exec<{ timeoutMs?: number }> = async ({ input, context: c }) =
     await sleep(400);
     const now = await shot();
     // The dialog dims the toolbar too: look for it before reading the button as "busy".
-    if (confirmDialog(c, now)) return cancelConfirm(c, shot, Date.now() - t0);
+    if (await confirmDialog(c, now)) return cancelConfirm(c, shot, Date.now() - t0);
     const b = pixelDiff(before, now, btnBox);
     if (b > REWRITE_BUSY_PX) {
       busy = true;
@@ -272,7 +273,13 @@ const tapRewrite: Exec<{ timeoutMs?: number }> = async ({ input, context: c }) =
 };
 
 const CONFIRM_KEY = 'rewrite-confirm/dialog';
-const confirmDialog = (c: NodeContext, img: Rgba): boolean => !!c.profile.elements['chat.rewriteCancel'] && !!c.regionShows?.(img, CONFIRM_KEY);
+/** The confirmation dialog shows. Outside the loop its reference is captured the first time it appears (versions
+ *  without the dialog never capture one, and the loop then never sees it). */
+const confirmDialog = async (c: NodeContext, img: Rgba): Promise<boolean> => {
+  const r = c.profile.resolver;
+  if (!c.profile.refs['rewrite-confirm']?.dialog) return !!r && !r.inLoop && r.region(CONFIRM_KEY);
+  return !!c.regionShows?.(img, CONFIRM_KEY);
+};
 
 /** 「有确认」: tap the dialog's 取消 and wait (≤ 3 s) until it is gone; still there = drift. */
 async function cancelConfirm(c: NodeContext, shot: () => Promise<Rgba>, afterMs: number): Promise<{ summary: string }> {
@@ -280,12 +287,12 @@ async function cancelConfirm(c: NodeContext, shot: () => Promise<Rgba>, afterMs:
   const t0 = Date.now();
   while (Date.now() - t0 < 3000) {
     await sleep(400);
-    if (!confirmDialog(c, await shot())) return { summary: `有确认: confirmation dialog after ${afterMs} ms — 取消 tapped, rewrite not run` };
+    if (!(await confirmDialog(c, await shot()))) return { summary: `有确认: confirmation dialog after ${afterMs} ms — 取消 tapped, rewrite not run` };
   }
   throw new RoundDrift('rewrite confirmation dialog still open 3 s after tapping 取消');
 }
 
-/** Send what is in the composer: App — hide the keyboard (if up), tap the calibrated send button; elsewhere Enter. */
+/** Send what is in the composer: App — hide the keyboard (if up), tap the send button; elsewhere Enter. */
 const tapSend: Exec<Record<string, never>> = async ({ context: c }) => {
   if (c.driver.surface === 'android-app') {
     await hideKeyboard(c);

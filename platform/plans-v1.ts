@@ -2,11 +2,9 @@
 // binds to, its content hash, and the version facts it was approved under (SKILL / profile / App / Issue).
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { profileKey } from '../drivers/factory';
 import { canonical, DRAFTS_DIR, sha } from '../issue/drafts';
 import { issuePath } from '../issue/paths';
 import { applyApproval, type Draft } from '../issue/planner';
-import { profilePath } from '../skills/profile';
 import { SKILL_VERSION } from '../skills/teamily/vocab';
 import { CodedError } from './lifecycle/status';
 import type { Surface, TestPlan } from './schema/test-plan';
@@ -69,15 +67,13 @@ export function resolvePlan(id: string): ResolvedPlan {
 /** What an approval is bound to besides the plan hash (§5.1): any change after approval → 32. */
 export interface VersionFacts {
   skillVersion: string;
-  profileHash?: string;
   appVersion?: string;
   issueHash?: string;
 }
 
 export function versionFacts(p: Pick<TestPlan, 'surface' | 'env' | 'issueRef'>, udid?: string, appVersion?: string): VersionFacts {
-  const pf = profilePath(profileKey(p.surface, p.env, udid));
   const issueF = issuePath(p.issueRef);
-  return { skillVersion: SKILL_VERSION, profileHash: existsSync(pf) ? sha(readFileSync(pf, 'utf8')) : undefined, appVersion, issueHash: existsSync(issueF) ? sha(readFileSync(issueF, 'utf8')) : undefined };
+  return { skillVersion: SKILL_VERSION, appVersion, issueHash: existsSync(issueF) ? sha(readFileSync(issueF, 'utf8')) : undefined };
 }
 
 /** Pure: which bound facts changed (empty = still valid). An unknown current value is not a change. */

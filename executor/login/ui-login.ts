@@ -1,17 +1,16 @@
 // Sign-in for surfaces that keep their own session (the phone's browser):
-// after launch, if the login page is on screen (its calibrated reference region), sign in with the leased
+// after launch, if the login page is on screen (its email field is found), sign in with the leased
 // account by coordinates (teamily.login), then wait for the home screen. Nothing is read from the page.
-import { assertSkillFresh, evaluateVisual } from '../checks';
+import { assertSkillFresh } from '../checks';
 import type { Driver } from '../../drivers/types';
 import { sleep } from '../../drivers/types';
 import { type Profile, SkillStaleError } from '../../skills/profile';
 import { runNode } from '../../skills/teamily/nodes';
 import type { AccountPool } from '../../platform/accounts/account-pool';
 
-/** True when the login page is shown (calibrated login/form region matches). */
-export async function onLoginPage(d: Driver, p: Profile): Promise<boolean> {
-  if (!p.refs.login?.regions.form) return false;
-  return (await evaluateVisual(d, p, { kind: 'visual-region', page: 'login', region: 'form', expect: 'login page shown', want: 'present', onlyOnAnomaly: false })).pass === true;
+/** True when the login page is shown: its email field is found on screen now (rules only). */
+export async function onLoginPage(_d: Driver, p: Profile): Promise<boolean> {
+  return !!(await p.resolver?.refresh('login.email', { rulesOnly: true }).catch(() => false));
 }
 
 /** Sign in if needed. Returns 'signed-in' (was already), 'logged-in' (did it now); throws if it fails. */

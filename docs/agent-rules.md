@@ -34,8 +34,8 @@
 - 账号密码、模型 Key 永远不经过对话：不要索要，不要回显，不要写进计划或日志。
 - 改了 `.env` 或设备配置后，重启 MCP 服务，再调 `doctor` 确认。
 
-## 7. 不改标定与计划
-- 不手改标定文件（`skills/teamily/profiles/*`）与计划 / 草稿文件；需要改时告诉用户重新标定（`autotest skill calibrate …`）或重新生成草稿（`draft_create`）。
+## 7. 不改缓存与计划
+- 不手改 SKILL 缓存（`platform/state/skill-cache/`）与计划 / 草稿文件；界面变了认不出（`SKILL 失效`）时告诉用户需要更新 `skills/teamily/finders.ts` 的识别规则，计划要改就重新生成草稿（`draft_create`）。
 
 ## 工具一览
 
@@ -61,6 +61,6 @@
 
 不提供：任何"同意"类操作（只能在 Web）。
 
-资源（只读）：`autotest://results/{taskId}`、`autotest://plans/{planId}`、`autotest://reports/{taskId}`、`autotest://files/{path}`（仅 `midscene_run/` 与 `skills/teamily/refs/` 内的文件）。
+资源（只读）：`autotest://results/{taskId}`、`autotest://plans/{planId}`、`autotest://reports/{taskId}`、`autotest://files/{path}`（仅 `midscene_run/` 内的文件）。
 
 状态码见 `autotest help --json`（十位是类别：1x 结论、2x 受理 / 仍在运行、3x 需要审批 / 计划不一致、4x 参数、5x 环境、6x 工具、7x 取消 / 超时 / 中断）。

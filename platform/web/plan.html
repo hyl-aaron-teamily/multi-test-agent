@@ -16,17 +16,12 @@ async function load() {
     return;
   }
   const v = r.data;
-  const marks = v.marks ?? [];
-  const shots = {};
-  for (const m of marks) (shots[m.image] ??= []).push(m);
-  const shotHtml = Object.entries(shots).map(([img, ms]) => `<div class="shot"><img src="/refs/${esc(img.replace(/^refs\//, ''))}">${ms.map((m) => `<div class="mark" style="left:${(m.box[0] / m.viewport.width) * 100}%;top:${(m.box[1] / m.viewport.height) * 100}%;width:${(m.box[2] / m.viewport.width) * 100}%;height:${(m.box[3] / m.viewport.height) * 100}%"><span>${m.step}</span></div>`).join('')}<div class="muted">${esc(ms[0].page)} 页（标定截图）</div></div>`).join('');
   const ap = v.approval;
   document.getElementById('main').innerHTML = `
   <h1>计划 ${esc(v.id)}</h1>
   <div class="box"><b>一句话目的：</b>${esc(v.purpose)}<br><span class="muted">哈希 ${esc(v.hash)} · ${esc(v.surface)} · ${esc(v.env)}${v.substitution ? ` · ${term('替代执行')} ${esc(v.substitution.from)} → ${esc(v.substitution.to)}` : ''}</span></div>
   <h2>要做什么（步骤）</h2>
   <ol>${v.steps.map((s) => `<li>[${STAGE[s.stage]}] ${terms(s.text)}${s.byModel ? ' <b>（运行时由模型选）</b>' : ''}</li>`).join('')}</ol>
-  <div>${shotHtml || '<span class="muted">（无可标注的元素）</span>'}</div>
   <h2>怎样算复现</h2>
   <ul>${v.verdict.map((x) => `<li>${terms(x)}</li>`).join('')}</ul>
   <h2>会影响什么</h2>

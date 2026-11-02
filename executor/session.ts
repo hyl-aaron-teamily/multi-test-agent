@@ -1,19 +1,20 @@
-// Execution session: one implementation of "profile → web session → driver → launch → sign in → back
+// Execution session: one implementation of "web session → driver → launch → SKILL cache → sign in → back
 // to the home list", shared by the Issue executor, the multi-client sync, coordinate replay and smoke.
 // Surface-specific behaviour (how a phone browser gets back to the list, which dialogs appear, how long a
 // page takes to load) lives in the surface adapters (./surfaces), not in the callers.
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createDriver, profileKey } from '../drivers/factory';
+import { BROWSER_PACKAGE, createDriver, TEAMILY_PACKAGE } from '../drivers/factory';
 import type { Driver } from '../drivers/types';
 import { WebDriver } from '../drivers/web';
 import { RecordingDriver } from '../incident/recording-driver';
 import type { AccountPool } from '../platform/accounts/account-pool';
 import { ensureWebSession, type PlaywrightSurface } from './login/sessions';
 import { type Env, onPlaywright, type Surface } from '../platform/accounts/types';
-import { loadProfile, type Profile, SkillStaleError } from '../skills/profile';
+import { type Profile, SkillStaleError } from '../skills/profile';
+import { SKILL_VERSION } from '../skills/teamily/vocab';
+import { skillProfile } from './skill-resolver';
 import { assertSkillFresh } from './checks';
-import { fingerprintedOf, type Healed, healElements } from './heal';
 import { adapterFor, type SurfaceAdapter } from './surfaces';
 import { a11yBackend, activateA11y } from '../core/a11y-service';
 import { setTreeBackend, treeStats } from '../core/tree-backend';
@@ -26,7 +27,7 @@ export interface SessionOptions {
   udid?: string;
   pool: AccountPool;
   headed?: boolean;
-  /** Use this profile instead of the calibrated one (replay of a recorded profile, tests). */
+  /** Use this profile instead of the SKILL cache (tests). */
   profile?: Profile;
   url?: string;
   onLog?: (at: number, line: string) => void;
@@ -63,11 +64,13 @@ export async function selectTreeBackend(udid: string, log: (s: string) => void):
   log(`tree backend: a11y-service unusable (${r.reason}) — falling back to uiautomator`);
 }
 
-/** Profile + (web) signed-in session + driver. Nothing is launched yet. */
+/** Package of the app under test on a phone surface (the browser for android-web). */
+export const packageOf = (surface: Surface): string | undefined => (surface === 'android-app' ? TEAMILY_PACKAGE : surface === 'android-web' ? BROWSER_PACKAGE : undefined);
+
+/** (Web) signed-in session + driver + an empty SKILL profile (filled from the cache once the app runs:
+ *  attachSkillCache). Nothing is launched yet. */
 export async function openSession(o: SessionOptions): Promise<Session> {
-  const name = profileKey(o.surface, o.env, o.udid);
-  const profile = o.profile ?? loadProfile(name);
-  if (!profile) throw new Error(`no SKILL profile ${name} — run \`pnpm autotest skill calibrate --surface ${o.surface} --env ${o.env}${o.udid ? ` --device ${o.udid}` : ''}\``);
+  const profile: Profile = o.profile ?? { surface: o.surface, name: '', skillVersion: SKILL_VERSION, env: o.env, viewport: { width: 0, height: 0 }, packageName: packageOf(o.surface), elements: {}, refs: {} };
   const url = o.url ?? o.pool.webUrl(o.env);
   let storageState: string | undefined;
   if (onPlaywright(o.surface)) {
@@ -77,7 +80,7 @@ export async function openSession(o: SessionOptions): Promise<Session> {
   }
   if ((o.surface === 'android-app' || o.surface === 'android-web') && !o.udid) throw new Error(`${o.surface} session without a device`);
   if (o.udid) await selectTreeBackend(o.udid, o.log ?? ((s) => console.log(`[session] ${s}`)));
-  const inner = createDriver({ surface: o.surface, profile, url, udid: o.udid, storageState, headless: !o.headed, onLog: o.onLog, onConsole: o.onConsole });
+  const inner = createDriver({ surface: o.surface, packageName: profile.packageName, url, udid: o.udid, storageState, headless: !o.headed, onLog: o.onLog, onConsole: o.onConsole });
   return { surface: o.surface, profile, url, inner, d: new RecordingDriver(inner), web: inner instanceof WebDriver ? inner : undefined, adapter: adapterFor(o.surface), account: o.account, udid: o.udid, pool: o.pool, log: o.log ?? ((s) => console.log(`[session] ${s}`)) };
 }
 
@@ -88,21 +91,27 @@ export interface EnterOptions {
   chatTab?: boolean;
   /** Where to save the screen when the SKILL is stale. */
   staleShot?: string;
-  /** Self-heal by fingerprint before reporting a stale SKILL: candidate profile goes here. */
-  healDir?: string;
-  onHeal?: (h: Healed[]) => void;
   /** Phase durations (run manifest / report): launch (to the first screen), login (sign-in + home list). */
   onPhase?: (name: 'launch' | 'login', ms: number) => void;
 }
 
+/** The SKILL cache of this surface@env@appVersion@screen size, loaded into the session's profile (same object:
+ *  callers holding it see the elements), with a resolver that locates what the cache lacks. */
+export async function attachSkillCache(s: Session): Promise<void> {
+  const p = s.profile;
+  if (p.resolver || p.name) return; // a given profile (tests) or already attached
+  await skillProfile(s.inner, { surface: s.surface, env: p.env, udid: s.udid, packageName: p.packageName, log: s.log, into: p });
+}
+
 /** Launch once, wait for the first screen, dismiss known dialogs, sign in if needed, get back to the
- *  home list and check the SKILL is still valid (SkillStaleError otherwise). */
+ *  home list and check the SKILL still recognises it (SkillStaleError otherwise). */
 export async function enterApp(s: Session, o: EnterOptions = {}): Promise<void> {
   const { d, profile, adapter } = s;
   const t0 = Date.now();
   await adapter.beforeLaunch?.(s);
   d.label = 'launch';
   await d.launch();
+  await attachSkillCache(s);
   await o.afterLaunch?.();
   await adapter.waitFirstScreen(s);
   await adapter.dismissDialogs(s);
@@ -115,15 +124,6 @@ export async function enterApp(s: Session, o: EnterOptions = {}): Promise<void> 
       break;
     } catch (e) {
       if (!(e instanceof SkillStaleError) || !(await adapter.recoverHome(s, i))) {
-        // Layout moved but the home elements are still there (found by their fingerprints): heal and go on.
-        if (e instanceof SkillStaleError && o.healDir) {
-          const healed = await healElements(s, fingerprintedOf(profile, 'home'), o.healDir);
-          if (healed.length) {
-            s.log(`SKILL check failed but ${healed.length} home element(s) re-resolved by fingerprint — continuing with healed coordinates (calibrated profile unchanged): ${healed.map((h) => h.element).join(', ')}`);
-            o.onHeal?.(healed);
-            break;
-          }
-        }
         if (e instanceof SkillStaleError && o.staleShot) await writeFile(o.staleShot, await d.screenshot()).catch(() => {});
         throw e;
       }

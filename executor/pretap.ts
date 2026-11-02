@@ -101,7 +101,7 @@ export interface PreTapEvent extends PreTapResult {
 }
 
 export class PreTapGuard {
-  /** On during preparation, re-entry, heal and calibration; off during the loop. */
+  /** On during preparation and re-entry; off during the loop. */
   enabled = false;
   phase = '';
   readonly refs = new Map<string, TapRef>();

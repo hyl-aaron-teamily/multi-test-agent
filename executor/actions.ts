@@ -1,9 +1,9 @@
-// One plan action by coordinates: element / target → point through the profile and the frozen targets.
+// One plan action by coordinates: element / target → point through the SKILL cache and the frozen targets.
 // Loop-safe: no hierarchy read, no vision (prepare-only Nodes may locate; see skills/teamily/nodes).
 import { lifecycle, type Point, sleep } from '../drivers/types';
 import { RecordingDriver } from '../incident/recording-driver';
 import { MAX_IDLE_MS, type PlannedAction } from '../platform/schema/test-plan';
-import { pointOf, type Profile } from '../skills/profile';
+import { pointFor, pointOf, type Profile } from '../skills/profile';
 import { type NodeContext, runNode } from '../skills/teamily/nodes';
 
 export const idleMs = (a: PlannedAction) => Math.min(MAX_IDLE_MS, Math.max(0, Number(a.value ?? 1000)));
@@ -26,6 +26,8 @@ export function resolvePoint(element: string | undefined, profile: Profile, targ
 
 export async function execAction(a: PlannedAction, ctx: NodeContext, profile: Profile, targets: Record<string, Point>): Promise<void> {
   const d = ctx.driver;
+  // Elements are located outside the loop the first time they are needed (cache only inside it).
+  if (a.element && !a.element.startsWith('target.')) await pointFor(profile, a.element);
   const pt = () => resolvePoint(a.element, profile, targets);
   const mid = { x: Math.round(profile.viewport.width / 2), y: Math.round(profile.viewport.height / 2) };
   switch (a.type) {

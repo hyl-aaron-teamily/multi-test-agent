@@ -42,8 +42,12 @@ async function runSetup(c: RunCtx): Promise<void> {
   }
 }
 
-/** Does the plan expect to sit in a conversation (and is the chat page calibrated)? */
-const inChat = (c: RunCtx) => c.plan.setup.some((a) => a.node?.name === 'teamily.openConversation') && !!c.sess.profile.refs.chat?.regions.composer;
+/** Does the plan expect to sit in a conversation (and can the chat page be recognised: its reference is cached,
+ *  or — outside the loop — can be captured now)? */
+const inChat = (c: RunCtx) => {
+  const p = c.sess.profile;
+  return c.plan.setup.some((a) => a.node?.name === 'teamily.openConversation') && !!(p.refs.chat?.composer || (p.resolver && !p.resolver.inLoop));
+};
 
 /** On the chat page (or the plan does not need it)? One screenshot unless `png` is given. */
 export async function onChat(c: RunCtx, png?: Buffer): Promise<boolean> {
@@ -81,7 +85,7 @@ export async function prepare(c: RunCtx, afterSetup?: () => Promise<void>): Prom
   c.res.targets = [];
   // Conversation rows are picked on the home list: a restored conversation (phone browser) or a sheet left
   // open would make the row pick tap something else — get back to the list first.
-  if (c.plan.targets.some((t) => isRowKind(t.kind)) && c.sess.profile.refs.home && !(await waitForRegion(d, profile, ['home/nav'], 6000))) {
+  if (c.plan.targets.some((t) => isRowKind(t.kind)) && !(await waitForRegion(d, profile, ['home/nav'], 6000))) {
     c.log('not on the home list before picking conversations — going back to it');
     for (let i = 0; i < 2 && !(await waitForRegion(d, profile, ['home/nav'], 4000)); i++) await c.sess.adapter.recoverHome(c.sess, i);
   }

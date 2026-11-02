@@ -21,7 +21,7 @@ export async function runAcceptance(c: RunCtx): Promise<void> {
     const png = await d.screenshot();
     c.stats.checkpointScreenshots++;
     await writeFile(join(shotDir, `${item.id}.png`), png);
-    const r = item.check.kind === 'ai' ? await evaluateAi(item.check, c.ask) : await evaluateVisual(d, profile, { ...item.check, onlyOnAnomaly: item.check.onlyOnAnomaly ?? false }, undefined, png);
+    const r = item.check.kind === 'ai' ? await evaluateAi(item.check, c.ask) : await evaluateVisual(d, profile, { ...item.check, onlyOnAnomaly: item.check.onlyOnAnomaly ?? false }, c.ask, png); // ask: only when the element was never seen and is not found now
     c.res.acceptance.push({ id: item.id, text: item.text, pass: r.pass, detail: r.detail, evidence: `evidence/${item.id}.png` });
     c.log(`acceptance ${item.id}: ${r.pass === null ? '未验证' : r.pass ? '满足' : '不满足'} — ${r.detail}`);
   }

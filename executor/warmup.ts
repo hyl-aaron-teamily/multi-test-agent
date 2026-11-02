@@ -18,7 +18,6 @@ import { waitForRegion } from './checks';
 import { Checkpoint } from './checkpoint';
 import type { RunCtx } from './context';
 import { recordIncident } from './incident-hook';
-import { healElement } from './heal';
 
 export interface WarmupStep {
   step: number;
@@ -164,11 +163,8 @@ export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
     };
     let r = await attempt();
     if (r.pass === false) {
-      // One redo; a fixed element first gets a fingerprint re-resolve (self-heal) when it has one.
-      if (a.element && !a.element.startsWith('target.')) {
-        const h = await healElement(c, a.element);
-        if (h) st.healed = h;
-      }
+      // One redo; a fixed element is first located again on the live screen (its cached point may be stale).
+      if (a.element && !a.element.startsWith('target.') && (await c.sess.profile.resolver?.refresh(a.element).catch(() => false))) st.healed = `重新定位 ${a.element}`;
       st.redo = true;
       r = await attempt();
     }

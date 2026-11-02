@@ -6,9 +6,9 @@ import { type Driver, type Point, sleep } from '../drivers/types';
 import { notifyPromptClose } from '../drivers/web-dialogs';
 import { ensureUiLogin } from './login/ui-login';
 import type { Surface } from '../platform/accounts/types';
-import { pointOf, type Profile } from '../skills/profile';
+import { hasElement, pointFor, type Profile } from '../skills/profile';
 import { visionAsk } from '../core/model/midscene';
-import { evaluateVisual, waitForRegion } from './checks';
+import { waitForRegion } from './checks';
 import type { Session } from './session';
 import { visionLocator } from './targets';
 
@@ -51,7 +51,7 @@ const webAdapter: SurfaceAdapter = {
   },
   async showChatTab() {},
   async leaveConversation(d, p) {
-    if (p.elements['chat.back']) await d.tap(pointOf(p, 'chat.back'));
+    if (await hasElement(p, 'chat.back')) await d.tap(await pointFor(p, 'chat.back'));
     else await d.back();
   },
 };
@@ -80,8 +80,8 @@ const androidAppAdapter: SurfaceAdapter = {
     return true;
   },
   async showChatTab(s) {
-    if (!s.profile.elements['nav.chat']) return;
-    await s.d.tap(pointOf(s.profile, 'nav.chat'));
+    if (!(await hasElement(s.profile, 'nav.chat'))) return;
+    await s.d.tap(await pointFor(s.profile, 'nav.chat'));
     await sleep(1500);
   },
   async leaveConversation(d) {
@@ -115,7 +115,7 @@ const androidWebAdapter: SurfaceAdapter = {
   showChatTab: androidAppAdapter.showChatTab,
   // System Back closes the tab: use the conversation's own back arrow.
   async leaveConversation(d, p) {
-    await d.tap(pointOf(p, 'chat.back'));
+    await d.tap(await pointFor(p, 'chat.back'));
   },
 };
 
@@ -125,13 +125,11 @@ export function adapterFor(surface: Surface): SurfaceAdapter {
 
 /** Mobile web shows a "download the app" dialog on some loads: dismiss it only if it is visibly there. */
 async function dismissBanner(s: Session): Promise<void> {
-  if (!s.profile.refs.banner) return;
-  const banner = await evaluateVisual(s.d, s.profile, { kind: 'visual-region', page: 'banner', region: 'dismiss', expect: 'app banner shown', want: 'present' });
-  if (banner.pass) {
-    s.log('app download banner visible — dismissing');
-    await s.d.tap(pointOf(s.profile, 'popup.appBannerDismiss'));
-    await sleep(1500);
-  }
+  // Rules only: its "忽略" button is on screen now (never a vision guess here).
+  if (!(await s.profile.resolver?.refresh('popup.appBannerDismiss', { rulesOnly: true }).catch(() => false))) return;
+  s.log('app download banner visible — dismissing');
+  await s.d.tap(await pointFor(s.profile, 'popup.appBannerDismiss'));
+  await sleep(1500);
 }
 
 /** android-web: Teamily web reopens the last conversation on load, and that conversation's back arrow
@@ -141,25 +139,25 @@ export async function toChatListAndroidWeb(d: Driver, a: AndroidDriver, profile:
   log('android-web: not on the chat list (last conversation restored?) — Artifacts → 聊天 → back');
   await a.openUrl('/artifacts');
   if (!(await waitPastDialog(d, a, profile, ['artifacts/nav', 'home/nav'], 40_000, log))) return false;
-  await d.tap(pointOf(profile, 'nav.chat'));
+  await d.tap(await pointFor(profile, 'nav.chat'));
   const where = await waitPastDialog(d, a, profile, ['chat/composer', 'home/nav'], 20_000, log);
   if (where === 'chat/composer') {
-    await d.tap(pointOf(profile, 'chat.back'));
+    await d.tap(await pointFor(profile, 'chat.back'));
     return !!(await waitPastDialog(d, a, profile, ['home/nav'], 15_000, log));
   }
   return where === 'home/nav';
 }
 
 /** Wait for a reference region; Teamily web shows a "download the app" dialog on some page loads, which
- *  dims the page: dismiss it (its calibrated button, or — preparation only — the vision model locates
+ *  dims the page: dismiss it (its located button, or — preparation only — the vision model locates
  *  "忽略") and keep waiting. */
 async function waitPastDialog(d: Driver, a: AndroidDriver, profile: Profile, keys: string[], ms: number, log: (s: string) => void): Promise<string | undefined> {
-  const banner = profile.refs.banner ? ['banner/dismiss'] : [];
+  const banner = ['banner/dismiss'];
   const t0 = Date.now();
   for (let tries = 0; tries < 3; tries++) {
     const hit = await waitForRegion(d, profile, [...keys, ...banner], Math.max(5000, ms - (Date.now() - t0)) / (tries ? 2 : 1));
     if (hit && hit !== 'banner/dismiss') return hit;
-    let p: Point | null = hit ? pointOf(profile, 'popup.appBannerDismiss') : null;
+    let p: Point | null = hit ? await pointFor(profile, 'popup.appBannerDismiss') : null;
     if (!p) p = (await (await visionLocator(a as any))?.('the "忽略" (Ignore) button of a dialog asking to download the Teamily mobile app')) ?? null;
     if (!p) return undefined;
     log('android-web: app download dialog over the page — dismissing');
