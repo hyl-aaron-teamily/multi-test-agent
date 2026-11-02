@@ -1,3 +1,4 @@
+import { issueExists, issueIds, issuePath } from '../issue/paths';
 // /api/v1 (W2-3 §5–6): the one service the CLI (for agents) and the Web pages (for people) both call.
 // Every answer is an envelope { status, code, exit, summary, data?, error? } built from the view models, so
 // the CLI text, `--json` and the pages say the same thing. Consent-type actions (sensitive plans, full
@@ -43,10 +44,9 @@ export interface Ctx {
   sup?: Supervisor;
 }
 
-const ISSUES = () => resolve('issues');
 
 function issueSummary(id: string) {
-  const text = readFileSync(join(ISSUES(), `${id}.md`), 'utf8');
+  const text = readFileSync(issuePath(id), 'utf8');
   const i = parseIssue(id, text);
   const c = classifyRules(i);
   const d = savedDraft(id);
@@ -155,16 +155,16 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
   const M = q.method;
   try {
     if (M === 'GET' && seg[0] === 'issues' && !seg[1]) {
-      const list = readdirSync(ISSUES()).filter((f) => f.endsWith('.md')).map((f) => issueSummary(f.slice(0, -3)));
+      const list = issueIds().map((id) => issueSummary(id));
       return ok('OK', `${list.length} 个 Issue`, list, list.map((i) => `${i.id.padEnd(6)} ${i.category.padEnd(18)} ${i.draft ? `草稿 v${i.draft.version} ${i.draft.status}` : '无草稿'}  ${i.plans.map((x) => `${x.id} [${x.approval}]`).join(', ')}`).join('\n'));
     }
     if (M === 'GET' && seg[0] === 'issues' && seg[1]) {
-      if (!existsSync(join(ISSUES(), `${seg[1]}.md`))) return fail('NOT_FOUND', `没有 Issue ${seg[1]}`);
+      if (!issueExists(seg[1])) return fail('NOT_FOUND', `没有 Issue ${seg[1]}`);
       const s = issueSummary(seg[1]);
       return ok('OK', `Issue ${s.id}：${s.category}；${s.draft ? `草稿 v${s.draft.version}（${s.draft.status}）` : '无草稿'}`, s, [`Issue ${s.id}：${s.title.slice(0, 120)}`, `类别：${s.category} — ${s.reason}`, s.draft ? `草稿 v${s.draft.version} ${s.draft.hash}（${s.draft.status}）` : '无草稿（autotest draft create）', ...s.plans.map((x) => `计划 ${x.id} [${x.approval}]`)].join('\n'));
     }
     if (seg[0] === 'drafts' && seg[1]) {
-      if (!existsSync(join(ISSUES(), `${seg[1]}.md`))) return fail('NOT_FOUND', `没有 Issue ${seg[1]}`);
+      if (!issueExists(seg[1])) return fail('NOT_FOUND', `没有 Issue ${seg[1]}`);
       if (M === 'POST') {
         const { loadDraft } = await import('../scripts/issue-cli');
         const d = await loadDraft(seg[1], (q.body.env ?? 'prod') as 'test' | 'prod', q.body.model !== false, q.body.redraft !== false);

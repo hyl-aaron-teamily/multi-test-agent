@@ -1,9 +1,13 @@
 // `autotest explore run "<goal>"` — the quick tier (capability ①) from the command line, without the platform:
+//   pnpm autotest explore issue <run dir> <finding n>   (finding → issues/explore/<id>.md for the pro tier)
 //   pnpm autotest explore run "看看个人主页的通知铃铛能不能打开" [--mode task|explore] [--surface android-app|desktop-web|…]
 //        [--env prod|test] [--device <udid>] [--writable] [--max-steps N] [--max-minutes M] [--headed]
 // The platform's v1 task type `explore` (autotest task run --explore …) runs the same engine/agent/run.ts.
 import 'dotenv/config';
-import { resolve } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { writeFindingIssue } from '../engine/agent/to-issue';
+import type { AgentResult } from '../engine/agent/run';
 import { runAgent } from '../engine/agent/run';
 import type { Env, Surface } from '../platform/accounts/types';
 import { openPools } from '../platform/pools';
@@ -15,6 +19,16 @@ const flag = (a: string[], k: string) => {
 
 export async function exploreCmd(args: string[]): Promise<number> {
   const [sub, goal] = args;
+  if (sub === 'issue') {
+    // explore issue <run dir> <finding n>: the finding as an Issue draft for the pro tier (capability ②).
+    const [, runDir, n] = args;
+    if (!runDir || !n) return (console.error('Usage: autotest explore issue <exploration run dir> <finding number>'), 40);
+    const r = JSON.parse(readFileSync(join(runDir, 'result.json'), 'utf8')) as AgentResult;
+    const out = await writeFindingIssue(r, Number(n));
+    console.log(`[explore] Issue ${out.id} → ${out.file}
+  next: autotest draft create ${out.id}  (then plan explain / task run)`);
+    return 0;
+  }
   if (sub !== 'run' || !goal) {
     console.error('Usage: autotest explore run "<goal>" [--mode task|explore] [--surface <s>] [--env prod|test] [--device <udid>] [--writable] [--max-steps N] [--max-minutes M] [--headed]');
     return 40;

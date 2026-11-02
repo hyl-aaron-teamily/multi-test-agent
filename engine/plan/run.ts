@@ -353,7 +353,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     }
     if (err instanceof CancelledError) res.cancelled = true;
     o.hooks?.phase('finishing');
-    res.error = (err as Error).message.split('\n')[0];
+    res.error = errorLine(err);
     log(`error: ${res.error}`);
     // The screen and the device state at the moment of the error (diagnosis: environment or tool).
     if (sess) await sess.d.screenshot().then((png) => writeFile(join(o.runDir, 'error.png'), png)).catch(() => {});
@@ -436,3 +436,10 @@ function finish(res: RunResult, t0: number, stats: Stats, calls0: typeof modelCa
 }
 
 export const runDirFor = (planId: string) => resolve('midscene_run/issues', `${planId}-${new Date().toISOString().replace(/[:.]/g, '-')}`);
+
+/** One readable line of an error (a zod error is a JSON list: name its first issues instead of "["). */
+export function errorLine(err: unknown): string {
+  const e = err as Error & { issues?: { path: (string | number)[]; message: string }[] };
+  if (Array.isArray(e?.issues) && e.issues.length) return `invalid input: ${e.issues.map((i) => `${i.path.join('.') || '(input)'}: ${i.message}`).slice(0, 3).join('; ')}`;
+  return String(e?.message ?? err).split('\n')[0];
+}

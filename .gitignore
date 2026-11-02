@@ -19,3 +19,7 @@ platform/state/
 *.local.yaml
 platform/secrets/
 .m5tmp/
+# Issues drafted from exploration findings and their drafts / plans (runtime artifacts)
+issues/explore/
+platform/plans/drafts/explore-*
+platform/plans/explore-*

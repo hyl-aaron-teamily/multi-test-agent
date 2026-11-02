@@ -1,6 +1,7 @@
 // Rule validation of a TestPlan against the SKILL vocabulary and platform limits (milestone 5 §A.5).
 import { APP_SURFACES, HARD_LIMITS, MAX_IDLE_MS, type PlannedAction, type TestPlan, TestPlanZ } from '../platform/schema/test-plan';
 import { observationOf, OBSERVATIONS } from '../engine/observe';
+import { NODE_SPECS } from '../skills/teamily/node-specs';
 import { ELEMENTS, NODES, REGIONS } from '../skills/teamily/vocab';
 
 export interface Validation {
@@ -30,6 +31,10 @@ export function validatePlan(raw: unknown): Validation {
     if (a.type === 'node') {
       const n = NODES.find((x) => x.name === a.node?.name);
       if (!n) errors.push(`${where}: unknown node ${a.node?.name ?? '(missing)'}`);
+      // Inputs against the Node's schema (a model-composed plan once asked openPage for page "discover").
+      const schema = n && NODE_SPECS.find((x) => x.name === n.name)?.schema;
+      const parsed = schema?.safeParse(a.node?.input ?? {});
+      if (parsed && !parsed.success) errors.push(`${where}: node ${n!.name} input ${parsed.error.issues.map((i) => `${i.path.join('.') || '(input)'}: ${i.message}`).join('; ')}`);
       // prepare-only Nodes may locate (hierarchy / vision): never in the loop or the round's restore steps.
       if (n?.phase === 'prepare-only' && !where.startsWith('prepare')) errors.push(`${where}: node ${n.name} is prepare-only (it locates on screen; the loop is coordinates only)`);
       for (const k of ['target', 'from', 'to'] as const) {
