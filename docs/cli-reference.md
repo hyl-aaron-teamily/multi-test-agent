@@ -7,7 +7,7 @@
 - --json: stdout is exactly one JSON object; logs go to stderr
 - never interactive
 - exit code = envelope.exit (two digits, tens = class); 1 = uncaught tool exception
-- every command except help and env recover needs the platform service (pnpm platform) → else 54
+- every command except help and doctor needs the platform service (pnpm platform) → else 54
 - sensitive plans / full access / environment configuration items are approved on the Web only
 
 ## 命令
@@ -118,7 +118,7 @@ Environments and their state (EnvView)
 
 ### `autotest env show`
 
-One environment: baseline items, lease, dirty mark, configuration items
+One environment: last check items, lease, configuration items
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
@@ -129,36 +129,14 @@ One environment: baseline items, lease, dirty mark, configuration items
 
 ### `autotest env check`
 
-Baseline check (recovers what it can); quarantined → checking needs this from a person
+Check the environment now (online, unlocked, app version, configuration items) → ready / unfit
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | <envId> | string | 是 | <surface>:<device>@<service env>, e.g. android-app:4f2ebdf2@prod |
 | --json | boolean |  | stdout = one JSON envelope { status, code, exit, summary, data, error } |
 
-可能的状态码：`OK`、`ENV_UNFIT`、`ENV_LOCKED`、`ENV_OFFLINE`、`ENV_QUARANTINED`（另有 1 / 40 / 54）
-
-### `autotest env recover`
-
-Recover an environment from its declaration and the last task ledger (local process)
-
-| 参数 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| <envId> | string | 是 | <surface>:<device>@<service env>, e.g. android-app:4f2ebdf2@prod |
-| --json | boolean |  | stdout = one JSON envelope { status, code, exit, summary, data, error } |
-
-可能的状态码：`OK`、`ENV_UNFIT`、`ENV_LOCKED`、`ENV_OFFLINE`、`ENV_QUARANTINED`（另有 1 / 40 / 54）
-
-### `autotest env offline`
-
-Take an environment offline (stops its task gracefully, recovers)
-
-| 参数 | 类型 | 必填 | 说明 |
-|---|---|---|---|
-| <envId> | string | 是 | <surface>:<device>@<service env>, e.g. android-app:4f2ebdf2@prod |
-| --json | boolean |  | stdout = one JSON envelope { status, code, exit, summary, data, error } |
-
-可能的状态码：`OK`（另有 1 / 40 / 54）
+可能的状态码：`OK`、`ENV_UNFIT`、`ENV_LOCKED`、`ENV_OFFLINE`（另有 1 / 40 / 54）
 
 ### `autotest task run`
 
@@ -175,11 +153,11 @@ Submit a plan; returns the task id at once (20). Default-class plans are approve
 | --idempotency-key | string |  | same key → the same task |
 | --json | boolean |  | stdout = one JSON envelope { status, code, exit, summary, data, error } |
 
-可能的状态码：`ACCEPTED`、`OK`、`APPROVAL_REQUIRED`、`PLAN_HASH_MISMATCH`、`PLAN_STALE`、`APPROVAL_EXHAUSTED`、`NOT_FOUND`、`PLAN_NOT_EXECUTABLE`、`ENV_UNFIT`、`ENV_LOCKED`、`ENV_OFFLINE`、`ENV_QUARANTINED`（另有 1 / 40 / 54）
+可能的状态码：`ACCEPTED`、`OK`、`APPROVAL_REQUIRED`、`PLAN_HASH_MISMATCH`、`PLAN_STALE`、`APPROVAL_EXHAUSTED`、`NOT_FOUND`、`PLAN_NOT_EXECUTABLE`、`ENV_UNFIT`、`ENV_LOCKED`、`ENV_OFFLINE`（另有 1 / 40 / 54）
 
 ### `autotest task status`
 
-TaskView: state, phase / round / step, how and where it ended, ledger summary, recovery
+TaskView: state, phase / round / step, how and where it ended, side-effect summary
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
@@ -198,11 +176,11 @@ Wait until the task ends; exit = its outcome code, 21 when --timeout passes firs
 | --timeout | integer |  | seconds (default 600) |
 | --json | boolean |  | stdout = one JSON envelope { status, code, exit, summary, data, error } |
 
-可能的状态码：`STILL_RUNNING`、`NOT_REPRODUCED`、`REPRODUCED`、`PARTIAL`、`IMPLEMENTED`、`NOT_IMPLEMENTED`、`SUSPECTED_MISOP`、`TURNED_BUG`、`SERIES_DONE`、`PLAN_NOT_EXECUTABLE`、`ENV_UNFIT`、`ENV_LOCKED`、`ENV_OFFLINE`、`TOOL_FAILED`、`SKILL_STALE`、`TASK_STUCK`、`TASK_CRASHED`、`CANCELLED`、`TIMED_OUT`、`INTERRUPTED`（另有 1 / 40 / 54）
+可能的状态码：`STILL_RUNNING`、`NOT_REPRODUCED`、`REPRODUCED`、`PARTIAL`、`IMPLEMENTED`、`NOT_IMPLEMENTED`、`SUSPECTED_MISOP`、`TURNED_BUG`、`SERIES_DONE`、`PLAN_NOT_EXECUTABLE`、`ENV_UNFIT`、`ENV_LOCKED`、`ENV_OFFLINE`、`TOOL_FAILED`、`SKILL_STALE`、`TASK_CRASHED`、`CANCELLED`、`INTERRUPTED`（另有 1 / 40 / 54）
 
 ### `autotest task cancel`
 
-Cancel: queued → cancelled; running → stops at the next step boundary, then teardown + recovery
+Cancel: queued → cancelled; running → stops at the next step boundary (killed if not stopped within 60 s)
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
@@ -243,7 +221,7 @@ ResultView of a finished task: conclusion sentence, basis, attempts, flags, fail
 | <taskId> | string | 是 | task id from task run |
 | --json | boolean |  | stdout = one JSON envelope { status, code, exit, summary, data, error } |
 
-可能的状态码：`STILL_RUNNING`、`NOT_REPRODUCED`、`REPRODUCED`、`PARTIAL`、`IMPLEMENTED`、`NOT_IMPLEMENTED`、`SERIES_DONE`、`TOOL_FAILED`、`ENV_UNFIT`、`CANCELLED`、`INTERRUPTED`、`TASK_CRASHED`、`TASK_STUCK`（另有 1 / 40 / 54）
+可能的状态码：`STILL_RUNNING`、`NOT_REPRODUCED`、`REPRODUCED`、`PARTIAL`、`IMPLEMENTED`、`NOT_IMPLEMENTED`、`SERIES_DONE`、`TOOL_FAILED`、`ENV_UNFIT`、`CANCELLED`、`INTERRUPTED`、`TASK_CRASHED`（另有 1 / 40 / 54）
 
 ## 状态码
 
@@ -271,15 +249,13 @@ ResultView of a finished task: conclusion sentence, basis, attempts, flags, fail
 | 50 | 503 | `ENV_UNFIT` | 环境不合格（预检失败） |
 | 51 | 423 | `ENV_LOCKED` | 手机锁屏，需人工解锁 |
 | 52 | 503 | `ENV_OFFLINE` | 设备离线 / 浏览器不可用 |
-| 53 | 423 | `ENV_QUARANTINED` | 环境已隔离，需人工处理 |
 | 54 | 503 | `PLATFORM_DOWN` | 平台服务未启动 |
 | 60 | 500 | `TOOL_FAILED` | 工具失败 |
 | 61 | 500 | `SKILL_STALE` | SKILL 失效 |
 | 62 | 500 | `TASK_STUCK` | 任务卡死，被看门狗终止 |
 | 63 | 500 | `TASK_CRASHED` | 任务进程意外退出 |
 | 70 | 499 | `CANCELLED` | 已取消 |
-| 71 | 504 | `TIMED_OUT` | 超出时长上限 |
-| 72 | 410 | `INTERRUPTED` | 环境下线 / 服务重启导致中断 |
+| 72 | 410 | `INTERRUPTED` | 服务重启时任务进程已不在，导致中断 |
 
 ## 结果信封
 

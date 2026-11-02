@@ -103,7 +103,6 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
   if (env.surface !== r.plan.surface || env.serviceEnv !== r.plan.env) return fail('BAD_INPUT', `环境 ${env.id} 不是 ${r.plan.surface}@${r.plan.env}`);
   // Environment refusals come after the policy checks: those are definitive, an unfit phone is transient.
   const envRefusal = (): Envelope | undefined => {
-    if (env.state === 'quarantined') return fail('ENV_QUARANTINED', `环境 ${env.id} 已隔离：${env.reason ?? ''}`, env.suggestion ?? webUrl(`/env.html?id=${encodeURIComponent(env.id)}`));
     if (env.state === 'offline') return fail('ENV_OFFLINE', `环境 ${env.id} 已下线`, 'autotest env check <envId>（或在环境页点「重新检查」）');
     if (env.state === 'unfit') return fail(/锁屏/.test(env.reason ?? '') ? 'ENV_LOCKED' : /不在线|离线/.test(env.reason ?? '') ? 'ENV_OFFLINE' : 'ENV_UNFIT', `环境 ${env.id} 不合格：${env.reason ?? ''}`, env.suggestion);
     return undefined;
@@ -208,21 +207,19 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
       if (!env) return fail('NOT_FOUND', `没有环境 ${seg[1]}`, 'autotest env list');
       if (M === 'GET' && !seg[2]) {
         const v = envView(env);
-        return ok('OK', v.summary, v, [v.summary, ...(v.baseline?.items ?? []).map((i) => `  ${i.ok ? '✓' : '✗'} ${i.id}: ${i.detail}`), ...v.configItems.map((c) => `  配置项 ${c.id}：${c.what}（${c.consented ? `已同意 ${c.by}` : '待同意'}）`)].join('\n'));
+        return ok('OK', v.summary, v, [v.summary, ...(v.check?.items ?? []).map((i) => `  ${i.ok ? '✓' : '✗'} ${i.id}: ${i.detail}`), ...v.configItems.map((c) => `  配置项 ${c.id}：${c.what}（${c.consented ? `已同意 ${c.by}` : '待同意'}）`)].join('\n'));
       }
       if (M === 'POST' && seg[2] === 'consent') {
         if (!q.web) return fail('APPROVAL_REQUIRED', '环境配置项只能在 Web 上同意', webUrl(`/env.html?id=${encodeURIComponent(env.id)}`));
         const e = consentConfig(env.id, String(q.body.item ?? ''), reviewerName());
         return ok('OK', `已同意 ${q.body.item}`, envView(e));
       }
-      if (M === 'POST' && ['check', 'recover', 'offline', 'online'].includes(seg[2])) {
+      if (M === 'POST' && seg[2] === 'check') {
         if (!ctx.sup) return fail('PLATFORM_DOWN', '平台服务未启动', 'pnpm platform');
-        const by = q.web ? reviewerName() : 'cli';
-        if (seg[2] === 'offline') await ctx.sup.offline(env.id, by);
-        else if (seg[2] === 'recover') await ctx.sup.recover(env.id);
-        else await ctx.sup.online(env.id, by);
+        if (env.state === 'leased') return fail('BAD_INPUT', `环境 ${env.id} 正被任务 ${env.lease?.taskId} 使用，结束后会自动检查`);
+        await ctx.sup.check(env.id, q.web ? reviewerName() : 'cli');
         const v = envView(getEnv(env.id)!);
-        const code: Code = v.state === 'ready' || v.state === 'offline' ? 'OK' : v.state === 'quarantined' ? 'ENV_QUARANTINED' : v.state === 'unfit' ? (/锁屏/.test(v.reason ?? '') ? 'ENV_LOCKED' : /不在线|离线|adb/.test(v.reason ?? '') ? 'ENV_OFFLINE' : 'ENV_UNFIT') : 'OK';
+        const code: Code = v.state === 'ready' || v.state === 'offline' ? 'OK' : v.state === 'unfit' ? (/锁屏/.test(v.reason ?? '') ? 'ENV_LOCKED' : /不在线|离线|adb/.test(v.reason ?? '') ? 'ENV_OFFLINE' : 'ENV_UNFIT') : 'OK';
         return ok(code, v.summary, v);
       }
     }
@@ -246,7 +243,6 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
           cur = getTask(t.id)!;
         }
         const v = tv(cur);
-        // A terminal task with a closed recovery (or none needed) is final.
         if (!isTerminal(cur.state)) return ok('STILL_RUNNING', v.summary, v, taskText(v));
         return ok(cur.outcome?.code ?? 'OK', v.summary, v, taskText(v));
       }
@@ -287,7 +283,7 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
 }
 
 export function taskText(v: ReturnType<typeof taskView>): string {
-  return [v.summary, v.progress.phaseText ? `  进度：${v.progress.phaseText}${v.progress.round !== undefined ? ` 第 ${v.progress.round} 轮` : ''}${v.progress.step !== undefined ? ` 第 ${v.progress.step} 步` : ''}（${v.progress.at ?? '-'}）` : '', v.endedBy ? `  结束方式：${v.endedBy}${v.endedAt ? `，停在 ${v.endedAt}` : ''}` : '', v.partial ? `  部分结果：有效尝试 ${v.partial.valid}，命中 ${v.partial.hits}（${v.partial.note}）` : '', v.recovery ? `  环境恢复：${v.recovery.result}${v.recovery.reason ? ` — ${v.recovery.reason}` : ''}` : '', `  副作用：进入 ${v.ledger.entered.join('、') || '-'}；键入 ${v.ledger.typedInto.join('、') || '-'}；发送 ${v.ledger.sent} 条`].filter(Boolean).join('\n');
+  return [v.summary, v.progress.phaseText ? `  进度：${v.progress.phaseText}${v.progress.round !== undefined ? ` 第 ${v.progress.round} 轮` : ''}${v.progress.step !== undefined ? ` 第 ${v.progress.step} 步` : ''}（${v.progress.at ?? '-'}）` : '', v.endedBy ? `  结束方式：${v.endedBy}${v.endedAt ? `，停在 ${v.endedAt}` : ''}` : '', v.partial ? `  部分结果：有效尝试 ${v.partial.valid}，命中 ${v.partial.hits}（${v.partial.note}）` : '', `  副作用：进入 ${v.ledger.entered.join('、') || '-'}；键入 ${v.ledger.typedInto.join('、') || '-'}；发送 ${v.ledger.sent} 条`].filter(Boolean).join('\n');
 }
 
 /** /api/v1/refs/<profile dir>/<file>: calibration screenshots (read-only, inside skills/teamily/refs). */

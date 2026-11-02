@@ -1,24 +1,61 @@
-// Platform side of tasks and environments (W2-3 §3–4): schedules queued tasks onto ready environments
-// (FIFO, one lease per environment, one task per phone), spawns `autotest task exec`, runs the watchdog
-// (heartbeat 30 s / progress budget + 60 s / hard limit), closes tasks that ended without a terminal
-// state, recovers environments in a separate `autotest env recover` process, rechecks unfit environments,
-// and drains everything on Ctrl+C / SIGTERM. On start: environment registry + cross-check (L4).
+// Platform side of tasks and environments (W2-3 §3–4, refactor P2): schedules queued tasks onto ready
+// environments (FIFO, one lease per environment, one task per phone), spawns `autotest task exec`, closes
+// tasks whose process ended without a terminal record, and checks an environment again when its lease ends.
+// Liveness is the task process only (pid + start time recorded in the lease): no heartbeat, no watchdog.
+// A cancel stops at the next step boundary; a process that has not stopped CANCEL_KILL_MS later is killed.
 import { spawn } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { AccountPool } from '../accounts/account-pool';
 import type { DevicePool } from '../device-pool';
-import { closeTask, offlineEnv, onlineEnv, orphanSweep, startupCrossCheck, watchdogTick } from './crosscheck';
+import { checkEnv } from './check';
 import { endLease, getEnv, leaseEnv, listEnvs, moveEnv } from './env';
+import { alive, killTree, type ProcId } from './proc';
 import { prodDrivers, syncEnvs } from './registry';
-import { recoverEnv } from './recover';
-import { event, getTask, isTerminal, listTasks, moveTask, taskDir } from './task';
+import { closeTask, event, getTask, isTerminal, LIVE, listTasks, moveTask, taskDir, updateTask } from './task';
 
 const TSX = resolve('node_modules/tsx/dist/cli.mjs');
+export const CANCEL_KILL_MS = Number(process.env.AUTOTEST_CANCEL_KILL_MS ?? 60_000);
+const RECHECK_MS = 30_000;
+
+export interface Reconciled {
+  task: string;
+  env?: string;
+  action: 'adopted' | 'requeued' | 'closed' | 'released';
+}
+
+/** Platform start: leases left by a previous run are kept only while their task process (pid + start time) is
+ *  alive; tasks in a live state without a lease cannot be running and are closed. Pure over the state files. */
+export function reconcile(isAlive: (p: ProcId | undefined) => boolean = (p) => alive(p), kill: (pid: number) => void = killTree): Reconciled[] {
+  const out: Reconciled[] = [];
+  for (const e of listEnvs()) {
+    if (!e.lease) continue;
+    const t = getTask(e.lease.taskId);
+    if (t && !isTerminal(t.state) && isAlive(e.lease.proc ?? t.proc)) {
+      out.push({ task: t.id, env: e.id, action: 'adopted' });
+      continue;
+    }
+    if (t && (t.state === 'queued' || t.state === 'waiting-env')) {
+      endLease(e.id, t.id, { by: 'platform', basis: `lease holder ${t.id} never started: requeued` });
+      out.push({ task: t.id, env: e.id, action: 'requeued' });
+      continue;
+    }
+    if (t && !isTerminal(t.state)) closeTask(t.id, 'server-restart', 'platform', 'task process gone at platform start');
+    endLease(e.id, e.lease.taskId, { by: 'platform', basis: `lease holder ${e.lease.taskId} ${t ? 'ended' : 'missing'}` });
+    out.push({ task: e.lease.taskId, env: e.id, action: t && getTask(t.id)!.endedBy === 'server-restart' ? 'closed' : 'released' });
+  }
+  for (const t of listTasks()) {
+    if (!LIVE.includes(t.state) || getEnv(t.envId)?.lease?.taskId === t.id || t.parent) continue;
+    if (isAlive(t.proc)) kill(t.proc!.pid);
+    closeTask(t.id, 'server-restart', 'platform', 'live state without a lease at platform start');
+    out.push({ task: t.id, env: t.envId, action: 'closed' });
+  }
+  return out;
+}
 
 export class Supervisor {
   private timers: NodeJS.Timeout[] = [];
-  private recovering = new Set<string>();
+  private checking = new Set<string>();
   private children = new Map<string, number>();
   private busy = false;
   private lastRecheck = 0;
@@ -29,33 +66,33 @@ export class Supervisor {
     private accounts: AccountPool,
   ) {}
 
-  /** Registry + startup cross-check, then the scheduler and watchdog ticks. */
+  /** Registry, then the leases left by a previous platform run, then a check of every free environment. */
   async start(): Promise<void> {
     syncEnvs(this.devices.config, this.accounts);
-    const fixes = await startupCrossCheck({ drivers: prodDrivers, recover: (id) => this.recover(id) });
-    for (const f of fixes) this.log(`cross-check: task ${f.task} ${f.action}${f.endedBy ? ` (${f.endedBy})` : ''} [${f.health}]`);
+    for (const a of reconcile()) {
+      this.log(`start: ${a.task} on ${a.env ?? '-'} ${a.action}`);
+      const e = a.env ? getEnv(a.env) : undefined;
+      if (a.action === 'adopted' && e?.udid) this.devices.acquire(a.task, e.udid, e.surface);
+    }
+    for (const e of listEnvs()) if (!e.lease) await this.check(e.id);
     this.timers.push(setInterval(() => void this.tick(), 2000));
     this.timers.push(setInterval(() => void this.watch(), 5000));
   }
 
-  /** Recover an environment in its own process (§4.3 L3); one at a time per environment. */
-  recover(envId: string): Promise<void> {
-    if (this.recovering.has(envId)) return Promise.resolve();
-    this.recovering.add(envId);
-    return new Promise((res) => {
-      const p = spawn(process.execPath, [TSX, 'bin/autotest.ts', 'env', 'recover', envId, '--json'], { stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
-      let out = '';
-      p.stdout.on('data', (d) => (out += d));
-      p.on('close', (c) => {
-        this.recovering.delete(envId);
-        this.log(`recover ${envId}: exit ${c} ${out.slice(0, 200).replace(/\s+/g, ' ')}`);
-        res();
-      });
-      p.on('error', () => {
-        this.recovering.delete(envId);
-        void recoverEnv(envId, prodDrivers, 'platform').finally(() => res());
-      });
-    });
+  /** Check an environment (one at a time per environment). */
+  async check(envId: string, by = 'platform'): Promise<void> {
+    if (this.checking.has(envId)) return;
+    this.checking.add(envId);
+    try {
+      const e = getEnv(envId);
+      if (e?.state === 'offline') moveEnv(envId, 'checking', { by, basis: 'check requested' });
+      const r = await checkEnv(envId, prodDrivers, by);
+      if (r.env.state !== 'ready') this.log(`check ${envId}: ${r.env.state}${r.env.reason ? ` — ${r.env.reason}` : ''}`);
+    } catch (err) {
+      this.log(`check ${envId}: ${(err as Error).message}`);
+    } finally {
+      this.checking.delete(envId);
+    }
   }
 
   async tick(): Promise<void> {
@@ -67,8 +104,8 @@ export class Supervisor {
         if (t.state === 'queued') moveTask(t.id, 'waiting-env', 'platform', 'scheduler');
         if (getTask(t.id)!.state !== 'waiting-env' || t.parent) continue;
         const env = getEnv(t.envId);
-        if (!env || env.state !== 'ready' || this.recovering.has(env.id)) continue;
-        // One task per phone (strictly serial on devices; legacy console tasks hold pool slots too).
+        if (!env || env.state !== 'ready' || this.checking.has(env.id)) continue;
+        // One task per phone (strictly serial on a device).
         if (env.udid) {
           const dev = this.devices.get(env.udid);
           if (!dev || dev.status !== 'idle' || listEnvs().some((e) => e.udid === env.udid && e.id !== env.id && e.lease)) continue;
@@ -77,10 +114,10 @@ export class Supervisor {
         if (env.udid) this.devices.acquire(t.id, env.udid, env.surface);
         this.launch(t.id);
       }
-      // Unfit environments are rechecked automatically (e.g. after the phone was unlocked), every 30 s.
-      if (Date.now() - this.lastRecheck > 30_000) {
+      // Unfit / offline-by-check environments are checked again every 30 s (e.g. after the phone was unlocked).
+      if (Date.now() - this.lastRecheck > RECHECK_MS) {
         this.lastRecheck = Date.now();
-        for (const e of listEnvs()) if (e.state === 'unfit' && !this.recovering.has(e.id)) await onlineEnv(e.id, { drivers: prodDrivers, recover: (id) => this.recover(id) }, 'runtime', 'platform').catch((err) => this.log(`recheck ${e.id}: ${(err as Error).message}`));
+        for (const e of listEnvs()) if (e.state === 'unfit' || e.state === 'checking') await this.check(e.id);
       }
     } catch (e) {
       this.log(`tick: ${(e as Error).message}`);
@@ -104,7 +141,7 @@ export class Supervisor {
     });
   }
 
-  /** The task process exited: close the record if it did not end itself, release, recover. */
+  /** The task process exited: close the record if it did not end itself, release, check the environment. */
   private async ended(id: string, envId: string, code: number | null): Promise<void> {
     const t = getTask(id)!;
     if (!isTerminal(t.state)) closeTask(id, t.cancelRequested ? 'cancel' : 'crash', 'platform', `task process exited (code ${code}) in ${t.state}`);
@@ -112,24 +149,29 @@ export class Supervisor {
     if (env?.udid) this.devices.release(env.udid, undefined, id);
     if (env?.lease?.taskId === id) {
       endLease(envId, id, { by: 'platform', basis: `task ${id} ended (${getTask(id)!.state})` });
-      await this.recover(envId);
+      await this.check(envId);
     }
     void this.tick();
   }
 
+  /** Adopted tasks (not our children) and cancels that did not stop: decided by the process alone. */
   private async watch(): Promise<void> {
     try {
-      const fixes = await watchdogTick({ drivers: prodDrivers, recover: (id) => this.recover(id) });
-      for (const f of fixes) this.log(`watchdog: task ${f.task} ${f.action} (${f.endedBy}) [${f.health}]`);
-      await orphanSweep({ drivers: prodDrivers }, 'runtime');
-      // Tasks adopted after a platform restart are not our children: finish them when their record ends.
       for (const e of listEnvs()) {
-        if (!e.lease || this.children.has(e.lease.taskId)) continue;
+        if (!e.lease) continue;
         const t = getTask(e.lease.taskId);
-        if (t && isTerminal(t.state)) await this.ended(t.id, e.id, null);
+        if (!t) continue;
+        const proc = e.lease.proc ?? t.proc;
+        const mine = this.children.has(t.id);
+        if (proc && t.cancelRequested && !isTerminal(t.state) && Date.now() - Date.parse(t.cancelRequested.at) > CANCEL_KILL_MS && alive(proc)) {
+          this.log(`task ${t.id}: no stop ${CANCEL_KILL_MS / 1000} s after cancel — killing pid ${proc.pid}`);
+          killTree(proc.pid);
+        }
+        if (mine) continue; // our child: its 'close' event ends it
+        if (isTerminal(t.state) || (proc && !alive(proc))) await this.ended(t.id, e.id, null);
       }
     } catch (e) {
-      this.log(`watchdog: ${(e as Error).message}`);
+      this.log(`watch: ${(e as Error).message}`);
     }
   }
 
@@ -140,27 +182,14 @@ export class Supervisor {
       closeTask(id, 'cancel', by, 'cancelled before start');
       return true;
     }
-    const { updateTask } = await import('./task');
     updateTask(id, (x) => void (x.cancelRequested = { at: new Date().toISOString(), by }));
     event(id, { type: 'note', note: `cancel requested by ${by}` });
     return true;
   }
 
-  /** A person takes an environment offline (or the platform stops). */
-  async offline(envId: string, by: string, endedBy: 'env-offline' | 'server-restart' = 'env-offline'): Promise<void> {
-    const env = getEnv(envId)!;
-    await offlineEnv(envId, { drivers: prodDrivers, recover: (id) => recoverEnv(id, prodDrivers, by).then(() => undefined), reachable: async () => (env.udid ? (await this.devices.refresh(), this.devices.get(env.udid)?.adbState === 'device') : true) }, by, endedBy);
-  }
-
-  async online(envId: string, by: string): Promise<void> {
-    const e = getEnv(envId)!;
-    if (e.state === 'offline') moveEnv(envId, 'checking', { by, basis: 'online requested' });
-    await onlineEnv(envId, { drivers: prodDrivers, recover: (id) => this.recover(id) }, 'runtime', by);
-  }
-
-  /** Ctrl+C / SIGTERM: drain every environment that holds a lease, then stop. */
+  /** Ctrl+C / SIGTERM: stop scheduling. Running task processes keep their lease and are adopted (or closed)
+   *  on the next start. */
   async shutdown(): Promise<void> {
     for (const t of this.timers) clearInterval(t);
-    for (const e of listEnvs()) if (e.lease) await this.offline(e.id, 'platform', 'server-restart').catch((err) => this.log(`drain ${e.id}: ${(err as Error).message}`));
   }
 }

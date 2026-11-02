@@ -42,7 +42,7 @@ exports[`W2-3 T6 view models > PlanView snapshot: 1329-s1-android-app-v1 1`] = `
     "命中时：视觉模型复核证据（每次命中 1 次）",
   ],
   "purpose": "在 android-app 上重复「点赞后立即可见」，看 Issue 1329 描述的现象会不会出现",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "steps": [
     {
       "byModel": true,
@@ -142,7 +142,7 @@ exports[`W2-3 T6 view models > PlanView snapshot: 1329-s2-mobile-web-v1 1`] = `
     "命中时：视觉模型复核证据（每次命中 1 次）",
   ],
   "purpose": "在 mobile-web 上重复「点引用定位应稳定跳到被引用消息」，看 Issue 1329 描述的现象会不会出现",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "steps": [
     {
       "byModel": false,
@@ -255,7 +255,7 @@ exports[`W2-3 T6 view models > PlanView snapshot: 1903-android-app-v1 1`] = `
     "命中时：视觉模型复核证据（每次命中 1 次）",
   ],
   "purpose": "在 android-app 上重复「发送带 @ 的消息后气泡里应显示 @成员名」，看 Issue 1903 描述的现象会不会出现",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "steps": [
     {
       "byModel": false,
@@ -384,7 +384,7 @@ exports[`W2-3 T6 view models > PlanView snapshot: 2010-android-app-v1 1`] = `
     "命中时：视觉模型复核证据（每次命中 1 次）",
   ],
   "purpose": "在 android-app 上重复「点 AI 改写后输入框草稿应保留（或先确认 / 可撤销）」，看 Issue 2010 描述的现象会不会出现",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "steps": [
     {
       "byModel": false,
@@ -479,7 +479,7 @@ exports[`W2-3 T6 view models > PlanView snapshot: 2044-android-app-v1 1`] = `
     "命中时：视觉模型复核证据（每次命中 1 次）",
   ],
   "purpose": "在 android-app 上重复「引用块预览应显示链接文本而不是 Markdown 源码」，看 Issue 2044 描述的现象会不会出现",
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "steps": [
     {
       "byModel": false,

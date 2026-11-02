@@ -24,15 +24,14 @@ export const STATUS = {
   ENV_UNFIT: { exit: 50, status: 503, text: '环境不合格（预检失败）' },
   ENV_LOCKED: { exit: 51, status: 423, text: '手机锁屏，需人工解锁' },
   ENV_OFFLINE: { exit: 52, status: 503, text: '设备离线 / 浏览器不可用' },
-  ENV_QUARANTINED: { exit: 53, status: 423, text: '环境已隔离，需人工处理' },
   PLATFORM_DOWN: { exit: 54, status: 503, text: '平台服务未启动' },
   TOOL_FAILED: { exit: 60, status: 500, text: '工具失败' },
   SKILL_STALE: { exit: 61, status: 500, text: 'SKILL 失效' },
+  /** Only in task records written before refactor P2 (the watchdog is gone). */
   TASK_STUCK: { exit: 62, status: 500, text: '任务卡死，被看门狗终止' },
   TASK_CRASHED: { exit: 63, status: 500, text: '任务进程意外退出' },
   CANCELLED: { exit: 70, status: 499, text: '已取消' },
-  TIMED_OUT: { exit: 71, status: 504, text: '超出时长上限' },
-  INTERRUPTED: { exit: 72, status: 410, text: '环境下线 / 服务重启导致中断' },
+  INTERRUPTED: { exit: 72, status: 410, text: '服务重启时任务进程已不在，导致中断' },
 } as const;
 
 export type Code = keyof typeof STATUS;
@@ -54,7 +53,7 @@ export interface ApiError extends Outcome {
 export const outcome = (code: Code): Outcome => ({ status: STATUS[code].status, code, exit: STATUS[code].exit });
 
 const KIND: Partial<Record<Code, ErrorKind>> = { BAD_INPUT: 'input', NOT_FOUND: 'input', APPROVAL_REQUIRED: 'policy', PLAN_HASH_MISMATCH: 'policy', PLAN_STALE: 'policy', APPROVAL_EXHAUSTED: 'policy', PLAN_NOT_EXECUTABLE: 'tool', TOOL_FAILED: 'tool', SKILL_STALE: 'tool', TASK_STUCK: 'tool', TASK_CRASHED: 'tool', UNCAUGHT: 'tool' };
-const RETRYABLE = new Set<Code>(['STILL_RUNNING', 'ENV_UNFIT', 'ENV_LOCKED', 'ENV_OFFLINE', 'PLATFORM_DOWN', 'TASK_STUCK', 'TASK_CRASHED', 'INTERRUPTED', 'TIMED_OUT', 'TOOL_FAILED']);
+const RETRYABLE = new Set<Code>(['STILL_RUNNING', 'ENV_UNFIT', 'ENV_LOCKED', 'ENV_OFFLINE', 'PLATFORM_DOWN', 'TASK_STUCK', 'TASK_CRASHED', 'INTERRUPTED', 'TOOL_FAILED']);
 
 export function apiError(code: Code, message: string, hint?: string): ApiError {
   return { ...outcome(code), message, hint, retryable: RETRYABLE.has(code), kind: KIND[code] ?? 'env' };

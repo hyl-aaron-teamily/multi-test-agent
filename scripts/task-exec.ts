@@ -1,8 +1,8 @@
 // `autotest task exec <taskId>` (internal; spawned by the platform): run a submitted task in this process.
 // Reads the frozen plan from the task dir (confirmation = execution), runs it on the leased environment with
-// the lifecycle hooks (heartbeat, progress, ledger before effects, cancel at step boundaries), writes the
-// usual Issue report (unchanged format) and result.json, and ends the task record in its real state.
-// The environment's recovery is not done here: the platform runs `autotest env recover` after this exits.
+// the lifecycle hooks (progress, side-effect record, cancel at step boundaries), writes the usual Issue report
+// and result.json, and ends the task record in its real state. The platform checks the environment again
+// after this exits.
 import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { RunResult } from '../executor/run';
@@ -97,7 +97,7 @@ export async function execTask(id: string): Promise<number> {
     if (ver && ver !== getEnv(t0.envId)?.appVersion) updateEnv(t0.envId, (e) => void (e.appVersion = ver));
     if (child) {
       const code = r.cancelled ? 'CANCELLED' : codeOfRuns([r]);
-      if (r.cancelled) advance(child, ['recovering', 'cancelled'], 'cancel requested');
+      if (r.cancelled) advance(child, ['cancelled'], 'cancel requested');
       else if (r.conclusion === '环境不合格' && getTask(child)!.state === 'preflight') moveTask(child, 'env-unfit', 'task', r.conclusionDetail);
       else advance(child, [...(getTask(child)!.state === 'preflight' ? (['running'] as TaskState[]) : []), 'finishing', 'done'], 'run ended');
       updateTask(child, (c) => void Object.assign(c, { outcome: { code, summary: r.conclusion }, endedBy: r.cancelled ? 'cancel' : 'normal', runDir }));
@@ -131,18 +131,15 @@ export async function execTask(id: string): Promise<number> {
   const hits = results.reduce((s, r) => s + (r.attempts?.hits ?? 0), 0);
   const cur = getTask(id)!.state;
   const patch = (x: Parameters<Parameters<typeof updateTask>[1]>[0]) => {
-    x.outcome = { code, summary: n > 1 ? `系列 ${results.length}/${n} 次` : (last?.cancelled ? '已取消' : last?.conclusion) ?? code };
+    x.outcome = { code, summary: cancelled ? `已取消（完成 ${results.filter((r) => !r.cancelled).length}/${n} 次运行）` : n > 1 ? `系列 ${results.length}/${n} 次` : (last?.conclusion ?? code) };
     x.endedBy = cancelled ? 'cancel' : 'normal';
     x.endedAt = pos;
     x.report = report;
     if (cancelled) x.partial = { valid, hits, note: '不完整，不给结论' };
   };
-  if (state === 'cancelled') advance(id, [...(cur === 'preflight' ? (['running'] as TaskState[]) : []), 'recovering'], 'cancel requested');
-  if (state === 'env-unfit' && cur !== 'preflight') advance(id, ['recovering'], 'environment unfit');
   if (state === 'done' && cur === 'preflight') advance(id, ['running'], 'run ended');
   if (state === 'done') advance(id, ['finishing'], 'run ended');
   moveTask(id, state, 'task', `run ended: ${code}`, patch);
-  rt.stop();
   return 0;
 }
 
@@ -154,7 +151,7 @@ if (process.argv[1] && /task-exec\.ts$/.test(process.argv[1])) {
     (c) => process.exit(c),
     (e) => {
       console.error(`[task exec] ${(e as Error).stack ?? e}`);
-      // Leave the record as it is: the platform sees the exit without a terminal state (63).
+      // Leave the record as it is: the platform sees the exit without a terminal state (63 TASK_CRASHED).
       const t = getTask(id);
       if (t && !isTerminal(t.state)) console.error(`[task exec] task ${id} left in ${t.state}`);
       process.exit(1);

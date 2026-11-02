@@ -1,16 +1,17 @@
-// Environment (W2-3 §3, F5): one execution endpoint a task uses exclusively — a phone surface or a host
+// Environment (W2-3 §3, F1): one execution endpoint a task uses exclusively — a phone surface or a host
 // browser, for one service env. Own state machine, persisted record (platform/state/envs/<id>.json, atomic),
-// one lease at a time (lock + atomic write), audit of every transition.
+// one lease at a time (lock + atomic write), audit of every transition. Refactor P2: no recovery, quarantine
+// or draining — a lease ends, the environment is checked again (check.ts) and is ready or unfit.
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ProcId } from './proc';
 import { audit, readJson, stateRoot, withLock, writeJsonAtomic } from './store';
 
-export type EnvState = 'offline' | 'checking' | 'ready' | 'leased' | 'recovering' | 'unfit' | 'quarantined' | 'draining';
+export type EnvState = 'offline' | 'checking' | 'ready' | 'leased' | 'unfit';
 export type EnvSurface = 'android-app' | 'android-web' | 'desktop-web' | 'mobile-web';
 
 /** A system change the environment needs to be testable (e.g. Taplus blacklist): declared once, consented
- *  once at registration, then applied by every preflight without per-plan approval (§3.1). */
+ *  once at registration, then applied by every check / preflight without per-plan approval (§3.1). */
 export interface ConfigItem {
   id: string;
   what: string;
@@ -22,14 +23,10 @@ export interface ConfigItem {
   consentedAt?: string;
 }
 
-export interface BaselineItem {
+export interface CheckItem {
   id: string;
   ok: boolean;
   detail: string;
-  /** Can the recovery fix it without a person (锁屏: no). */
-  auto: boolean;
-  /** Passes (optional, degraded) but a fix pass could still make it work (consented, not yet applied). */
-  pending?: boolean;
 }
 
 export interface EnvLease {
@@ -53,39 +50,28 @@ export interface EnvRecord {
   profile?: { name: string; hash?: string };
   state: EnvState;
   stateSince: string;
-  /** Why it is unfit / quarantined, and what a person should do. */
+  /** Why it is unfit, and what a person should do. */
   reason?: string;
   suggestion?: string;
   configItems: ConfigItem[];
   lease?: EnvLease;
-  /** The task that held the last lease: its ledger tells the recovery what was touched. Cleared on ready. */
-  lastTask?: string;
-  /** Declared default input method (baseline: the keyboard is this one). */
-  ime?: string;
   /** Phones: declared hierarchy read backend (W2-4 §4.1). */
   treeBackend?: 'uiautomator' | 'a11y-service';
-  dirty?: { reason: string; at: string };
-  baseline?: { at: string; ok: boolean; items: BaselineItem[] };
-  /** Last time it went offline: did it leave clean? */
-  offlineAs?: 'clean' | 'dirty';
+  /** Last check: what was looked at and what was done. */
+  check?: { at: string; ok: boolean; items: CheckItem[]; did: string[] };
   updatedAt: string;
 }
 
-/** Allowed transitions (§3.2). 'draining' is reachable from every state. */
+/** Allowed transitions. */
 export const ENV_FLOW: Record<EnvState, EnvState[]> = {
   offline: ['checking'],
-  checking: ['ready', 'unfit', 'quarantined', 'recovering', 'offline'],
+  checking: ['ready', 'unfit', 'offline'],
   ready: ['leased', 'checking', 'unfit', 'offline'],
-  leased: ['recovering', 'unfit'],
-  recovering: ['ready', 'quarantined', 'unfit'],
-  unfit: ['checking', 'recovering', 'offline'],
-  quarantined: ['checking'],
-  draining: ['offline'],
+  leased: ['checking'],
+  unfit: ['checking', 'offline'],
 };
 
-export function canMove(from: EnvState, to: EnvState): boolean {
-  return to === 'draining' ? from !== 'draining' && from !== 'offline' : ENV_FLOW[from].includes(to);
-}
+export const canMove = (from: EnvState, to: EnvState) => ENV_FLOW[from].includes(to);
 
 export class TransitionError extends Error {}
 
@@ -118,6 +104,9 @@ export function updateEnv(id: string, fn: (e: EnvRecord) => EnvRecord | void): E
   });
 }
 
+/** States of records written before refactor P2, mapped onto the current machine (lease kept). */
+const LEGACY_STATE: Record<string, EnvState> = { recovering: 'checking', quarantined: 'unfit', draining: 'checking' };
+
 /** Register or refresh an environment's declaration (state untouched for an existing one). */
 export function registerEnv(decl: Omit<EnvRecord, 'schemaVersion' | 'state' | 'stateSince' | 'updatedAt' | 'configItems'> & { configItems?: ConfigItem[] }): EnvRecord {
   return withLock(`env-${decl.id}`, () => {
@@ -128,7 +117,8 @@ export function registerEnv(decl: Omit<EnvRecord, 'schemaVersion' | 'state' | 's
       const p = prev?.configItems.find((x) => x.id === c.id && x.what === c.what && x.restore === c.restore);
       return p?.consentedAt ? { ...c, consentedBy: p.consentedBy, consentedAt: p.consentedAt } : c;
     });
-    const e: EnvRecord = prev ? { ...prev, ...decl, configItems: items, updatedAt: now } : { schemaVersion: 1, ...decl, configItems: items, state: 'offline', stateSince: now, updatedAt: now };
+    const state = prev ? (LEGACY_STATE[prev.state] ?? prev.state) : 'offline';
+    const e: EnvRecord = prev ? { ...prev, ...decl, state, configItems: items, updatedAt: now } : { schemaVersion: 1, ...decl, configItems: items, state, stateSince: now, updatedAt: now };
     writeJsonAtomic(envFile(decl.id), e);
     if (!prev) audit({ by: 'platform', action: 'env.register', object: decl.id, after: 'offline' });
     return e;
@@ -148,8 +138,6 @@ export function moveEnv(id: string, to: EnvState, o: MoveOpts, patch?: (e: EnvRe
   const e = updateEnv(id, (e) => {
     before = e.state;
     if (e.state !== to && !canMove(e.state, to)) throw new TransitionError(`env ${id}: ${e.state} → ${to} not allowed`);
-    // quarantined → checking only by a person (§3.2).
-    if (e.state === 'quarantined' && to === 'checking' && ['platform', 'crosscheck', 'recover', 'watchdog', 'policy'].includes(o.by)) throw new TransitionError(`env ${id}: leaving quarantine needs a person`);
     e.state = to;
     e.stateSince = new Date().toISOString();
     e.reason = to === 'ready' || to === 'leased' ? undefined : (o.reason ?? e.reason);
@@ -185,22 +173,11 @@ export function bindLeaseProc(id: string, taskId: string, proc: ProcId): void {
   });
 }
 
-/** Lease ends: the environment goes to `recovering` (the recovery decides ready / quarantined). */
+/** Lease ends: the environment goes to `checking` (the next check decides ready / unfit). */
 export function endLease(id: string, taskId: string, o: MoveOpts): EnvRecord | undefined {
   const e = getEnv(id);
   if (!e || e.lease?.taskId !== taskId) return e;
-  const to: EnvState = e.state === 'draining' ? 'draining' : 'recovering';
-  return moveEnv(id, to, o, (x) => {
-    x.lease = undefined;
-    x.lastTask = taskId;
-  });
-}
-
-export function setDirty(id: string, reason: string, by: string): void {
-  updateEnv(id, (e) => {
-    e.dirty = { reason, at: new Date().toISOString() };
-  });
-  audit({ by, action: 'env.dirty', object: id, after: reason });
+  return moveEnv(id, 'checking', o, (x) => void (x.lease = undefined));
 }
 
 export function consentConfig(id: string, itemId: string, by: string): EnvRecord {

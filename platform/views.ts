@@ -14,7 +14,7 @@ import { STATUS, type Code } from './lifecycle/status';
 import { PHASE_TEXT, type TaskRecord, type LedgerEntry } from './lifecycle/task';
 import type { CheckPoint, PlannedAction, TestPlan } from './schema/test-plan';
 
-export const VIEW_SCHEMA_VERSION = 1;
+export const VIEW_SCHEMA_VERSION = 2;
 
 // ---------------------------------------------------------------- plan
 
@@ -268,15 +268,14 @@ export interface EnvView {
   reason?: string;
   suggestion?: string;
   lease?: { taskId: string; pid?: number; at: string };
-  dirty?: { reason: string; at: string };
-  baseline?: { at: string; ok: boolean; items: { id: string; ok: boolean; detail: string }[] };
+  check?: { at: string; ok: boolean; items: { id: string; ok: boolean; detail: string }[]; did: string[] };
   configItems: { id: string; what: string; why: string; restore: string; consented: boolean; by?: string }[];
   device: string;
   account?: string;
   appVersion?: string;
 }
 
-export const ENV_STATE_TEXT: Record<EnvRecord['state'], string> = { offline: '下线', checking: '检查中', ready: '就绪', leased: '使用中', recovering: '恢复中', unfit: '不合格', quarantined: '已隔离', draining: '下线中' };
+export const ENV_STATE_TEXT: Record<EnvRecord['state'], string> = { offline: '下线', checking: '检查中', ready: '就绪', leased: '使用中', unfit: '不合格' };
 
 export function envView(e: EnvRecord): EnvView {
   const summary = `${e.id}：${ENV_STATE_TEXT[e.state]}${e.lease ? `（任务 ${e.lease.taskId}）` : ''}${e.reason ? ` — ${e.reason}` : ''}${e.suggestion ? `；建议：${e.suggestion}` : ''}`;
@@ -291,8 +290,7 @@ export function envView(e: EnvRecord): EnvView {
     reason: e.reason,
     suggestion: e.suggestion,
     lease: e.lease && { taskId: e.lease.taskId, pid: e.lease.proc?.pid, at: e.lease.at },
-    dirty: e.dirty,
-    baseline: e.baseline && { at: e.baseline.at, ok: e.baseline.ok, items: e.baseline.items.map(({ id, ok, detail }) => ({ id, ok, detail })) },
+    check: e.check && { at: e.check.at, ok: e.check.ok, items: e.check.items.map(({ id, ok, detail }) => ({ id, ok, detail })), did: e.check.did },
     configItems: e.configItems.map((c) => ({ id: c.id, what: c.what, why: c.why, restore: c.restore, consented: !!c.consentedAt, by: c.consentedBy })),
     device: e.device,
     account: e.account,
@@ -324,7 +322,7 @@ export interface ResultView {
   complete: boolean;
   runs: ResultRun[];
   series?: { runs: number; reachedLoop: number; reproducedRuns: number; validRuns: number; valid: number; hits: number };
-  ended?: { by?: string; at?: string; envRecovery?: string };
+  ended?: { by?: string; at?: string };
   evidence: { report?: string; runDir?: string; incidents: string[] };
 }
 
@@ -362,8 +360,7 @@ export function resultView(t: TaskRecord, runs: RunResult[], code: Code, extra: 
   const rr = runs.map(resultRun);
   const complete = !!t.endedBy ? t.endedBy === 'normal' : t.state === 'done';
   const where = t.endedAt?.phase ? `停在${PHASE_TEXT[t.endedAt.phase] ?? t.endedAt.phase}${t.endedAt.round !== undefined ? ` 第 ${t.endedAt.round} 轮` : ''}${t.endedAt.step !== undefined ? ` 第 ${t.endedAt.step} 步` : ''}` : '';
-  const recov = t.recovery ? (t.recovery.result === 'recovered' ? '环境已恢复' : t.recovery.result === 'pending' ? '环境恢复中' : `环境${t.recovery.result === 'unfit' ? '不合格' : '已隔离'}（${t.recovery.reason ?? ''}）`) : '环境恢复结果未知';
-  const sentence = !complete ? `${STATUS[code].text}：不完整，不给结论${where ? `（${where}）` : ''}；${recov}` : extra.series ? `系列 ${extra.series.runs} 次：复现 ${extra.series.reproducedRuns}/${extra.series.validRuns} 次；有效尝试 ${extra.series.valid}、命中 ${extra.series.hits}` : rr.map((r) => r.sentence).join('；') || STATUS[code].text;
+  const sentence = !complete ? `${STATUS[code].text}：不完整，不给结论${where ? `（${where}）` : ''}` : extra.series ? `系列 ${extra.series.runs} 次：复现 ${extra.series.reproducedRuns}/${extra.series.validRuns} 次；有效尝试 ${extra.series.valid}、命中 ${extra.series.hits}` : rr.map((r) => r.sentence).join('；') || STATUS[code].text;
   return {
     schemaVersion: VIEW_SCHEMA_VERSION,
     kind: 'ResultView',
@@ -374,7 +371,7 @@ export function resultView(t: TaskRecord, runs: RunResult[], code: Code, extra: 
     complete,
     runs: rr,
     series: extra.series,
-    ended: { by: t.endedBy, at: where || undefined, envRecovery: recov },
+    ended: { by: t.endedBy, at: where || undefined },
     evidence: { report: extra.report ?? t.report, runDir: extra.runDir ?? t.runDir, incidents: runs.flatMap((r) => r.incidents) },
   };
 }
@@ -394,18 +391,16 @@ export interface TaskView {
   startedAt?: string;
   finishedAt?: string;
   progress: { phase?: string; phaseText?: string; round?: number; step?: number; at?: string; summary?: string };
-  heartbeatAt?: string;
   timeline: { at: string; state?: string; phase?: string }[];
   endedBy?: string;
   endedAt?: string;
   partial?: TaskRecord['partial'];
   ledger: { entered: string[]; typedInto: string[]; sent: number; settings: string[] };
-  recovery?: TaskRecord['recovery'];
   outcome?: { code: Code; status: number; exit: number; summary: string };
   cancelRequested: boolean;
 }
 
-export const TASK_STATE_TEXT: Record<TaskRecord['state'], string> = { queued: '排队', 'waiting-env': '等环境', preflight: '预检', running: '运行中', finishing: '收尾', recovering: '恢复中', done: '完成', 'env-unfit': '环境不合格', failed: '失败', interrupted: '中断', cancelled: '已取消', 'timed-out': '超时' };
+export const TASK_STATE_TEXT: Record<TaskRecord['state'], string> = { queued: '排队', 'waiting-env': '等环境', preflight: '预检', running: '运行中', finishing: '收尾', done: '完成', 'env-unfit': '环境不合格', failed: '失败', interrupted: '中断', cancelled: '已取消' };
 
 export function taskView(t: TaskRecord, events: { at: string; type: string; state?: unknown; phase?: unknown }[], ledger: LedgerEntry[]): TaskView {
   const pos = t.progress;
@@ -427,13 +422,11 @@ export function taskView(t: TaskRecord, events: { at: string; type: string; stat
     startedAt: t.startedAt,
     finishedAt: t.finishedAt,
     progress: { ...pos, phaseText: ph },
-    heartbeatAt: t.heartbeatAt,
     timeline: events.filter((e) => e.type === 'state' || e.type === 'progress').map((e) => ({ at: e.at, state: e.state as string | undefined, phase: e.phase as string | undefined })),
     endedBy: t.endedBy,
     endedAt,
     partial: t.partial,
     ledger: { entered: uniq(ledger.filter((l) => l.kind === 'enter-conversation').map((l) => l.target)), typedInto: uniq(ledger.filter((l) => l.kind === 'type').map((l) => l.target)), sent: ledger.filter((l) => l.kind === 'send').length, settings: uniq(ledger.filter((l) => l.kind === 'setting').map((l) => l.value)) },
-    recovery: t.recovery,
     outcome: t.outcome && { code: t.outcome.code, status: STATUS[t.outcome.code].status, exit: STATUS[t.outcome.code].exit, summary: t.outcome.summary },
     cancelRequested: !!t.cancelRequested,
   };
@@ -462,7 +455,7 @@ export function resultText(v: ResultView): string {
     out.push(`  标识：${r.flags.evidenceReview}；${r.flags.substituted}；${r.flags.selfCheck}`);
     if (r.failure) out.push(`  失败归类：${r.failure.kindText}（${r.failure.rule}）— ${r.failure.reason}`, `  建议：${r.failure.suggestion}`);
   }
-  if (v.ended?.at || v.ended?.envRecovery) out.push(`结束：${v.ended.by ?? '-'}${v.ended.at ? `，${v.ended.at}` : ''}；${v.ended.envRecovery}`);
+  if (v.ended?.at) out.push(`结束：${v.ended.by ?? '-'}，${v.ended.at}`);
   if (v.evidence.report) out.push(`报告：${v.evidence.report}`);
   return out.join('\n');
 }

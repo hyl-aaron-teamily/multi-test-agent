@@ -1,6 +1,6 @@
 // Test task (W2-3 §4, F5): one approved plan run on one environment (a series = parent + N children).
 // Structured files under platform/state/tasks/<id>/: task.json (record, atomic), events.ndjson (progress),
-// ledger.ndjson (side effects, written BEFORE each effect — G6), result.json (final outcome). The platform
+// ledger.ndjson (side effects, for the task view), result.json (final outcome). The platform
 // reads these, never the log text.
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -9,15 +9,17 @@ import type { Code } from './status';
 import { appendLine, audit, readJson, readLines, stateRoot, withLock, writeJsonAtomic } from './store';
 import { notifyFinished } from './notify';
 
-export type TaskState = 'queued' | 'waiting-env' | 'preflight' | 'running' | 'finishing' | 'recovering' | 'done' | 'env-unfit' | 'failed' | 'interrupted' | 'cancelled' | 'timed-out';
-export const TERMINAL: TaskState[] = ['done', 'env-unfit', 'failed', 'interrupted', 'cancelled', 'timed-out'];
-/** States that need a live process with a fresh heartbeat (§4.2). */
+export type TaskState = 'queued' | 'waiting-env' | 'preflight' | 'running' | 'finishing' | 'done' | 'env-unfit' | 'failed' | 'interrupted' | 'cancelled';
+export const TERMINAL: TaskState[] = ['done', 'env-unfit', 'failed', 'interrupted', 'cancelled'];
+/** States that need a live task process (pid + start time, §4.2). */
 export const LIVE: TaskState[] = ['preflight', 'running', 'finishing'];
 
-export type EndedBy = 'normal' | 'cancel' | 'timeout' | 'stuck' | 'crash' | 'env-offline' | 'server-restart';
+/** How a task ended: by itself (normal / cancel), or found ended by the platform (crash = its process exited
+ *  without a terminal record; server-restart = it was gone when the platform came back). */
+export type EndedBy = 'normal' | 'cancel' | 'crash' | 'server-restart';
 
-export type Phase = 'preflight' | 'launch' | 'prepare' | 'warmup' | 'loop' | 'finishing' | 'recovery';
-export const PHASE_TEXT: Record<Phase, string> = { preflight: '预检', launch: '启动', prepare: '准备', warmup: '预热', loop: '循环', finishing: '收尾', recovery: '恢复' };
+export type Phase = 'preflight' | 'launch' | 'prepare' | 'warmup' | 'loop' | 'finishing';
+export const PHASE_TEXT: Record<Phase, string> = { preflight: '预检', launch: '启动', prepare: '准备', warmup: '预热', loop: '循环', finishing: '收尾' };
 
 export interface Position {
   phase?: Phase;
@@ -45,14 +47,12 @@ export interface TaskRecord {
   startedAt?: string;
   finishedAt?: string;
   proc?: ProcId;
-  heartbeatAt?: string;
   progress: Position & { at?: string; summary?: string; stepBudgetMs?: number };
   cancelRequested?: { at: string; by: string };
   endedBy?: EndedBy;
   endedAt?: Position;
   /** Runs cut short: valid attempts / hits so far, marked incomplete (no verdict). */
   partial?: { valid: number; hits: number; note: string };
-  recovery?: { result: 'recovered' | 'quarantined' | 'unfit' | 'pending'; reason?: string; at: string; steps?: string[] };
   outcome?: { code: Code; summary: string };
   /** Report / run dir of the executor (for links). */
   runDir?: string;
@@ -62,16 +62,14 @@ export interface TaskRecord {
 export const TASK_FLOW: Record<TaskState, TaskState[]> = {
   queued: ['waiting-env', 'cancelled'],
   'waiting-env': ['preflight', 'cancelled', 'interrupted'],
-  preflight: ['running', 'env-unfit', 'recovering', 'finishing'],
-  running: ['finishing', 'recovering'],
-  finishing: ['done', 'recovering'],
-  recovering: ['failed', 'interrupted', 'cancelled', 'timed-out', 'done', 'env-unfit'],
+  preflight: ['running', 'finishing', 'env-unfit', 'cancelled', 'failed', 'interrupted'],
+  running: ['finishing', 'env-unfit', 'cancelled', 'failed', 'interrupted'],
+  finishing: ['done', 'env-unfit', 'cancelled', 'failed', 'interrupted'],
   done: [],
   'env-unfit': [],
   failed: [],
   interrupted: [],
   cancelled: [],
-  'timed-out': [],
 };
 
 export const isTerminal = (s: TaskState) => TERMINAL.includes(s);
@@ -150,7 +148,7 @@ export function event(id: string, e: Omit<TaskEvent, 'at'>): void {
 }
 export const readEvents = (id: string) => readLines<TaskEvent>(join(taskDir(id), 'events.ndjson'));
 
-/** Side-effect ledger entry (G6): written before the effect. `done` follows when the effect returned. */
+/** Side-effect record: what the task did to the environment (shown in the task view), written before the effect. */
 export interface LedgerEntry {
   at: string;
   seq: number;
@@ -159,8 +157,6 @@ export interface LedgerEntry {
   target?: string;
   /** Typed / sent text (includes the run marker), setting value. */
   value?: string;
-  /** Point the conversation was entered at (recovery reopens it by name first). */
-  point?: { x: number; y: number };
   phase?: Phase;
   round?: number;
   state: 'intent' | 'done';
@@ -173,3 +169,34 @@ export function writeResult(id: string, r: unknown): void {
   writeJsonAtomic(join(taskDir(id), 'result.json'), r);
 }
 export const readResult = <T = unknown>(id: string) => readJson<T>(join(taskDir(id), 'result.json'));
+
+const END: Record<Exclude<EndedBy, 'normal'>, { state: TaskState; code: Code; text: string }> = {
+  cancel: { state: 'cancelled', code: 'CANCELLED', text: '已取消' },
+  crash: { state: 'interrupted', code: 'TASK_CRASHED', text: '任务进程意外退出' },
+  'server-restart': { state: 'interrupted', code: 'INTERRUPTED', text: '服务重启时任务进程已不在' },
+};
+
+function stoppedAt(t: TaskRecord): string {
+  const p = t.progress;
+  return p.phase ? `（停在${PHASE_TEXT[p.phase] ?? p.phase}${p.round !== undefined ? ` 第 ${p.round} 轮` : ''}${p.step !== undefined ? ` 第 ${p.step} 步` : ''}）` : '';
+}
+
+/** Close a task that did not end by itself: terminal state, code, where it stopped, and the partial results
+ *  marked incomplete (no verdict). A series parent takes its unfinished children with it. */
+export function closeTask(id: string, endedBy: Exclude<EndedBy, 'normal'>, by: string, basis: string): TaskRecord {
+  const t = getTask(id)!;
+  if (isTerminal(t.state)) return t;
+  const end = END[endedBy];
+  const r = readResult<{ runs?: { attempts?: { valid: number; hits: number } }[] }>(id);
+  const valid = r?.runs?.reduce((n, x) => n + (x.attempts?.valid ?? 0), 0);
+  const hits = r?.runs?.reduce((n, x) => n + (x.attempts?.hits ?? 0), 0);
+  const to: TaskState = t.state === 'queued' || t.state === 'waiting-env' ? (endedBy === 'cancel' ? 'cancelled' : 'interrupted') : end.state;
+  const closed = moveTask(id, to, by, basis, (x) => {
+    x.endedBy = endedBy;
+    x.endedAt = { phase: x.progress.phase, round: x.progress.round, step: x.progress.step };
+    x.outcome = { code: end.code, summary: `${end.text}${stoppedAt(x)}` };
+    if (valid !== undefined) x.partial = { valid, hits: hits ?? 0, note: '不完整，不给结论' };
+  });
+  for (const c of listTasks()) if (c.parent === id && !isTerminal(c.state)) closeTask(c.id, endedBy, by, `parent ${id}: ${basis}`);
+  return closed;
+}

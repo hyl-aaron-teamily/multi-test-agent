@@ -18,11 +18,10 @@ import { readDeviceState } from '../executor/preflight';
 import { listDevices } from './adb-devices';
 import { CONFIG_FILE, declaredTreeBackend, parsePoolConfig } from './device-pool';
 import { endLease, listEnvs } from './lifecycle/env';
-import { closeTask } from './lifecycle/crosscheck';
 import { alive } from './lifecycle/proc';
 import type { Code } from './lifecycle/status';
 import { stateRoot } from './lifecycle/store';
-import { getTask, isTerminal } from './lifecycle/task';
+import { closeTask, getTask, isTerminal } from './lifecycle/task';
 
 export type Level = 'ok' | 'warn' | 'fail';
 export interface Next {
@@ -60,7 +59,7 @@ export interface Facts {
   adb: { ok: boolean; path: string; version?: string; error?: string };
   devices: DeviceFact[];
   recorder: { scrcpy: boolean };
-  envs: { id: string; state: string; reason?: string; suggestion?: string; lease?: string; dirty?: string }[];
+  envs: { id: string; state: string; reason?: string; suggestion?: string; lease?: string }[];
   stale: { locks: string[]; forwards: { serial: string; local: string }[]; leases: { env: string; task: string; why: string }[] };
   probe?: ProbeResult[];
 }
@@ -146,9 +145,8 @@ export function diagnose(f: Facts): Diagnosis {
   add({ id: 'recorder', title: '录屏工具链', level: 'ok', detail: f.recorder.scrcpy ? 'scrcpy 可用' : 'scrcpy 不在，录屏用手机自带 screenrecord（每段最长 3 分钟）' });
 
   for (const e of f.envs) {
-    const bad = e.state === 'unfit' || e.state === 'quarantined';
-    if (!bad && !e.dirty) continue;
-    add({ id: `env:${e.id}`, title: `环境 ${e.id}`, level: 'warn', detail: `${e.state}${e.reason ? `：${e.reason}` : ''}${e.dirty ? `；脏标记：${e.dirty}` : ''}`, next: [e.state === 'quarantined' ? { kind: 'human', text: `看过环境 ${e.id} 后在 Web 上放行，或运行检查`, cmd: `pnpm autotest env check ${e.id}` } : { kind: 'run', text: `重新检查环境 ${e.id}`, cmd: `pnpm autotest env check ${e.id}` }] });
+    if (e.state !== 'unfit') continue;
+    add({ id: `env:${e.id}`, title: `环境 ${e.id}`, level: 'warn', detail: `${e.state}${e.reason ? `：${e.reason}` : ''}`, next: [{ kind: 'run', text: `重新检查环境 ${e.id}`, cmd: `pnpm autotest env check ${e.id}` }] });
   }
 
   const st = f.stale;
@@ -207,7 +205,7 @@ export async function gatherFacts(o: { probe?: boolean } = {}): Promise<Facts> {
     }
     devices.push(d);
   }
-  const envs = listEnvs().map((e) => ({ id: e.id, state: e.state, reason: e.reason, suggestion: e.suggestion, lease: e.lease?.taskId, dirty: e.dirty?.reason }));
+  const envs = listEnvs().map((e) => ({ id: e.id, state: e.state, reason: e.reason, suggestion: e.suggestion, lease: e.lease?.taskId }));
   const stale = await findStale(up, adbF.ok);
   const f: Facts = { node: { version: process.versions.node, missing }, platform: { up, url }, model: { text: modelConfigured(), vision: visionConfigured() }, adb: adbF, devices, recorder: { scrcpy: !!findScrcpy() }, envs, stale };
   if (o.probe) f.probe = await Promise.all(devices.filter((d) => d.state === 'device' && !d.locked).map((d) => probe(d)));
@@ -268,9 +266,9 @@ export async function fixStale(f: Facts): Promise<string[]> {
   for (const l of f.stale.leases) {
     const t = getTask(l.task);
     if (t && !isTerminal(t.state)) closeTask(l.task, 'crash', 'doctor', `doctor --fix: ${l.why}`);
-    // The environment goes to recovering: the platform recovers it (device side) when it starts.
+    // The environment goes to checking: the platform checks it when it starts.
     endLease(l.env, l.task, { by: 'doctor', basis: `doctor --fix: ${l.why}` });
-    did.push(`释放环境 ${l.env} 的租约（${l.task}：${l.why}），平台启动时恢复`);
+    did.push(`释放环境 ${l.env} 的租约（${l.task}：${l.why}），平台启动时重新检查`);
   }
   return did;
 }
