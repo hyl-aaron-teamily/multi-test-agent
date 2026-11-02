@@ -141,6 +141,8 @@ send-button: { page: chat, role: button, desc: ["发送", "Send"], near: compose
 
 ## 6. 迁移顺序
 
+> 2026-11-03：P0–P3 已完成；**P4–P8 改由 `docs/dev-week2-milestone4.1.md`（W2-4.1）承接**，并在那里定了重构的完成标准（DoD）与封闭范围。下表保留作记录。
+
 每个阶段在独立的 `feat/refactor-*` 分支上做，用 `--no-ff` 合并，合并需要用户同意（I10）。每个阶段结束都跑代码门（I8）。
 
 | 阶段 | 内容 | 验证 |
