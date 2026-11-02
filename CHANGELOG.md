@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased] — W2-4.1 P5 / T3–T6：快速档（能力①）
+
+### Added
+- `engine/agent/`：自然语言任务与 AI 探索。每一步把截图和编号元素表交给视觉模型，模型给出一个动作；动作先过风险规则（默认只读）和点击前检查再执行。崩溃、ANR、App 退出、页面崩溃这类硬异常立即生成现场包和一条发现；模型报告的问题先做证据复核，结论一致才计入。覆盖按屏幕指纹统计。上限参考 Artemis Flash：默认不限步数，每 12 步压缩一次历史，单次模型调用最长 180 s，硬上限 3000 步 / 120 分钟。
+- 平台任务类型 `explore`：`autotest explore run`（= `task run --explore`）；结果码 18（有发现）/ 19（未发现）；`result show` 给出发现、覆盖、拦截和用量；`explore issue` 把一条发现写成 Issue 草稿，交给 Pro 档复现（`issues/explore/`）。MCP 新增 `explore_run`、`explore_issue` 两个工具。每步保存缩略图和模型思路。
+- 循环提示：同一动作连续 3 次，或两个动作交替出现时，提醒模型换路。
+- 驱动把 HyperOS 的 `am_kill … stop <pkg>` 识别为 App 退出。
+
+### Changed
+- 社交类操作（关注 / 点赞 / 收藏 / 订阅）只在测试账号自己的主页和内容上放行，可写模式也一样。测试账号名单写在 `accounts.local.yaml` 的 `environments.<env>.ownContent`（用户反馈 2026-11-03）。
+- 计划校验按 Node 的参数 schema 检查输入。
+
 ## [Unreleased] — W2-4.1 P5 / T2：统一引擎（行为不变）
 
 ### Changed

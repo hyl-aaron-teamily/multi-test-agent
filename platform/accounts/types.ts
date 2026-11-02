@@ -43,4 +43,7 @@ export interface Credentials {
 
 export interface EnvConfig {
   webUrl: string;
+  /** Names that mark the agent accounts' own content (nicknames, their agents / posts): the quick tier
+   *  likes / follows / favourites only next to these (engine/agent/risk.ts). */
+  ownContent: string[];
 }

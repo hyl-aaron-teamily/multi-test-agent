@@ -25,8 +25,8 @@ import { type EvidenceVerdict, reviewIncident } from '../recorder/evidence-revie
 import { WebFlightRecorder } from '../recorder/web-recorder';
 import { closeSession, enterApp, openSession, packageOf, type Session } from '../session';
 import { snapshot } from '../snapshot';
-import { classifyRisk } from './risk';
-import { type AgentAction, type AgentAnswer, fingerprint, historyText, parseAnswer, planState, type StepRecord, SYSTEM, userPrompt, visibleElements } from './step';
+import { classifyRisk, nearOwnContent } from './risk';
+import { type AgentAction, type AgentAnswer, fingerprint, historyText, loopHint, parseAnswer, planState, type StepRecord, SYSTEM, userPrompt, visibleElements } from './step';
 import { scalePng } from '../recorder/evidence-review';
 
 export type AgentMode = 'task' | 'explore';
@@ -47,6 +47,8 @@ export interface AgentOptions {
   runDir: string;
   taskId?: string;
   hooks?: Partial<RunHooks>;
+  /** Called after every step (the platform writes task progress from it). */
+  onStep?: (r: StepRecord) => void;
   headed?: boolean;
   log?: (s: string) => void;
 }
@@ -94,6 +96,8 @@ export interface AgentResult {
 const MODEL_TIMEOUT_MS = 180_000;
 /** Screenshot width sent to the model (tokens); taps stay in the element coordinate space. */
 const SHOT_WIDTH = 720;
+/** Step thumbnails for the task page. */
+const THUMB_WIDTH = 240;
 
 /** The minimal plan an incident bundle carries for a quick-tier run (no Issue behind it). */
 function planStub(o: AgentOptions, id: string): TestPlan {
@@ -122,13 +126,14 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
   const log = o.log ?? ((s: string) => console.log(`[agent] ${s}`));
   const t0 = Date.now();
   const id = `agent-${o.mode}-${t0}`;
-  await mkdir(o.runDir, { recursive: true });
+  await mkdir(join(o.runDir, 'steps'), { recursive: true });
   const traj = openTrajectory(join(o.runDir, 'trajectory.jsonl'));
   const res: AgentResult = { schemaVersion: 1, kind: 'agent', goal: o.goal, mode: o.mode, surface: o.surface, env: o.env, writable: !!o.writable, startedAt: new Date(t0).toISOString(), finishedAt: '', status: 'error', summary: '', findings: [], blocked: [], coverage: { screens: 0, actions: 0, byScreen: {} }, usage: { steps: 0, seconds: 0, modelCalls: 0 }, steps: [], runDir: o.runDir };
   const calls0 = modelCalls.vision + modelCalls.text;
   const maxSteps = Math.min(o.maxSteps ?? HARD_LIMITS.maxSteps, HARD_LIMITS.maxSteps);
   const deadline = t0 + Math.min(o.maxMinutes ?? HARD_LIMITS.maxMinutes, HARD_LIMITS.maxMinutes) * 60_000;
   const tried = new Map<string, Set<string>>();
+  const ownNames = o.pool.ownContent(o.env);
   const finish = async (): Promise<AgentResult> => {
     res.finishedAt = new Date().toISOString();
     res.usage = { steps: res.steps.length, seconds: Math.round((Date.now() - t0) / 1000), modelCalls: modelCalls.vision + modelCalls.text - calls0 };
@@ -214,20 +219,29 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       const vp = s.profile.viewport.width ? s.profile.viewport : { width: snap?.width ?? 0, height: snap?.height ?? 0 };
       const prompt = userPrompt({ goal: o.goal, mode: o.mode, plan, history: historyText(res.steps), screen, els, tried: [...triedHere], feedback, size: vp });
       let ans: AgentAnswer | undefined;
-      for (let k = 0; k < 2 && !ans; k++) ans = parseAnswer(await visionJson(SYSTEM(!!o.writable), [prompt, { label: 'Screenshot (scaled; use the element coordinates for taps)', png: shot }], MODEL_TIMEOUT_MS).catch(() => undefined));
+      for (let k = 0; k < 2 && !ans; k++) ans = parseAnswer(await visionJson(SYSTEM(!!o.writable, ownNames), [prompt, { label: 'Screenshot (scaled; use the element coordinates for taps)', png: shot }], MODEL_TIMEOUT_MS).catch(() => undefined));
       if (!ans) {
         res.status = 'failed';
         res.summary = '模型连续两次没有给出可用的动作';
         break;
       }
       plan = ans.plan ?? plan;
+      res.plan = plan;
+      const thought = ans.thought.slice(0, 300);
+      const thumb = `steps/${String(step).padStart(4, '0')}.png`;
+      await writeFile(join(o.runDir, thumb), scalePng(png, THUMB_WIDTH)).catch(() => {});
+      const record = (result: string) => {
+        const r: StepRecord = { step, screen, action: act, result, thought, thumb };
+        res.steps.push(r);
+        o.onStep?.(r);
+      };
       const a = ans.action;
       const act = describe(a, els);
-      traj.emit('agent.step', { step, screen, thought: ans.thought.slice(0, 300), action: act });
+      traj.emit('agent.step', { step, screen, thought, action: act, thumb });
       if (a.type === 'done') {
         res.status = a.status;
         res.summary = a.summary;
-        res.steps.push({ step, screen, action: act, result: `done (${a.status})` });
+        record(`done (${a.status})`);
         break;
       }
       if (a.type === 'report_issue') {
@@ -237,18 +251,20 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
         res.findings.push({ n: res.findings.length + 1, source: 'reported', kind: 'visual-anomaly', description: a.description, step, screen, incident: dir, review: review?.verdict, counted, path: [...path] });
         traj.emit('finding', { step, description: a.description, review: review?.verdict, counted });
         feedback = counted ? 'issue recorded and confirmed by the evidence review' : `issue recorded; the evidence review says ${review?.verdict ?? 'unverified'} — look closer or move on`;
-        res.steps.push({ step, screen, action: act, result: `issue ${counted ? 'confirmed' : review?.verdict ?? 'unverified'}` });
+        record(`issue ${counted ? 'confirmed' : review?.verdict ?? 'unverified'}`);
         continue;
       }
       // Risk rules before anything touches the app.
       const el = 'target' in a && a.target !== undefined ? els[a.target - 1] : undefined;
       const lbl = el ? label(el) : 'description' in a ? (a.description ?? '') : '';
-      const risk = classifyRisk({ type: a.type, label: lbl, text: a.type === 'type' ? a.text : undefined }, !!o.writable);
+      const y = el ? el.center.y : 'y' in a ? a.y : undefined;
+      const own = y !== undefined && nearOwnContent(y, nodes.map((n) => ({ label: label(n), y: n.center.y })), ownNames, vp.height);
+      const risk = classifyRisk({ type: a.type, label: lbl, text: a.type === 'type' ? a.text : undefined, free: !el }, !!o.writable, { ownContent: own });
       if (risk.blocked) {
         res.blocked.push({ step, action: act, reason: risk.reason });
         traj.emit('blocked', { step, action: act, reason: risk.reason });
         feedback = `BLOCKED: ${risk.reason}`;
-        res.steps.push({ step, screen, action: act, result: `blocked: ${risk.reason}` });
+        record(`blocked: ${risk.reason}`);
         continue;
       }
       feedback = await perform(s, guard, a, el, vp).catch((e) => `error: ${(e as Error).message.split('\n')[0].slice(0, 160)}`);
@@ -266,7 +282,9 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
         await s.d.launch().catch(() => {});
         await sleep(2500);
       }
-      res.steps.push({ step, screen, action: act, result: feedback ?? 'ok' });
+      record(feedback ?? 'ok');
+      const loop = loopHint(res.steps);
+      if (loop) feedback = `${feedback ?? 'ok'}. ${loop}`;
     }
   } catch (e) {
     if (e instanceof CancelledError) {
@@ -284,7 +302,6 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
     await closeSession(sess);
     o.pool.release(lease, o.devices);
   }
-  res.plan = res.plan ?? undefined;
   return finish();
 }
 

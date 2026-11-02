@@ -9,6 +9,7 @@ import { join, normalize, resolve, sep } from 'node:path';
 import { classifyRules } from '../issue/classify';
 import { parseIssue } from '../issue/parse';
 import type { RunResult } from '../engine/plan/run';
+import type { AgentResult } from '../engine/agent/run';
 import { allowList, approve, classifyPlan, getApproval, getFullAccess, reject, reviewerName, setFullAccess, useApproval, webUrl } from './approval';
 import { consentConfig, type EnvRecord, getEnv, listEnvs, unconsented } from './lifecycle/env';
 import { STATUS, type Code, CodedError, apiError, outcome } from './lifecycle/status';
@@ -16,7 +17,7 @@ import { readAudit, writeJsonAtomic } from './lifecycle/store';
 import type { Supervisor } from './lifecycle/supervisor';
 import { createTask, getTask, isTerminal, listTasks, newTaskId, readEvents, readLedger, readResult, taskDir, type TaskRecord } from './lifecycle/task';
 import { parsePlanId, planIdOf, planIdsOf, resolvePlan, savedDraft, staleFacts, versionFacts } from './plans-v1';
-import { envView, planText, planView, resultText, resultView, taskView, type ResultView } from './views';
+import { envView, exploreSummary, planText, planView, resultText, resultView, taskView, type ResultView } from './views';
 
 export interface Envelope {
   status: number;
@@ -78,6 +79,10 @@ function explain(planId: string, o: { series?: number; maxRounds?: number } = {}
 }
 
 function resultOf(t: TaskRecord): ResultView {
+  if (t.kind === 'explore') {
+    const a = readResult<{ code?: Code; agent?: AgentResult; report?: string; runDir?: string }>(t.id);
+    return resultView(t, [], t.outcome?.code ?? a?.code ?? 'STILL_RUNNING', { report: a?.report, runDir: a?.runDir, explore: a?.agent && exploreSummary(a.agent) });
+  }
   const res = readResult<{ code?: Code; runs?: RunResult[]; report?: string; runDir?: string; series?: { counted: number; reachedLoop: number; reproducedRuns: number; validRuns: number; pooled: { valid: number; hits: number } } }>(t.id);
   const code: Code = t.outcome?.code ?? res?.code ?? 'STILL_RUNNING';
   const s = res?.series;
@@ -86,8 +91,71 @@ function resultOf(t: TaskRecord): ResultView {
 
 const tv = (t: TaskRecord) => taskView(t, readEvents(t.id) as any, readLedger(t.id));
 
+/** Environment refusals: offline / unfit (transient, so they come after the definitive checks). */
+function envRefusalOf(env: EnvRecord): Envelope | undefined {
+  if (env.state === 'offline') return fail('ENV_OFFLINE', `环境 ${env.id} 已下线`, 'autotest env check <envId>（或在环境页点「重新检查」）');
+  if (env.state === 'unfit') return fail(/锁屏/.test(env.reason ?? '') ? 'ENV_LOCKED' : /不在线|离线/.test(env.reason ?? '') ? 'ENV_OFFLINE' : 'ENV_UNFIT', `环境 ${env.id} 不合格：${env.reason ?? ''}`, env.suggestion);
+  return undefined;
+}
+
+/** Configuration items still to consent; full access consents them (recorded as such). */
+function pendingConfig(env: EnvRecord) {
+  const pending = unconsented(env);
+  if (!pending.length || !getFullAccess().on) return pending;
+  for (const c of pending) consentConfig(env.id, c.id, `full-access（${getFullAccess().by}）`);
+  return [];
+}
+
+const EXPLORE_SURFACES = ['android-app', 'android-web', 'mobile-web', 'desktop-web'];
+
+/** Submit a quick-tier task (§5.4, capability ①): a goal in plain words, run by the agent loop. Read-only
+ *  by default; --writable needs full access (the risk rules still block payment / logout / delete …). */
+function submitExplore(b: any): Envelope {
+  const goal = String(b.explore ?? '').trim();
+  if (!goal) return fail('BAD_INPUT', '--explore 需要一句目标，例如 "看看个人主页的通知铃铛能不能打开"');
+  const mode = b.mode === 'task' ? 'task' : 'explore';
+  const surface = String(b.surface ?? 'android-app');
+  if (!EXPLORE_SURFACES.includes(surface)) return fail('BAD_INPUT', `--surface: ${EXPLORE_SURFACES.join(' | ')}`);
+  for (const [k, flag, max] of [['maxSteps', 'max-steps', 3000], ['maxMinutes', 'max-minutes', 120]] as const) {
+    if (b[k] !== undefined && b[k] !== null && !(Number.isInteger(Number(b[k])) && Number(b[k]) >= 1 && Number(b[k]) <= max)) return fail('BAD_INPUT', `--${flag}: 1..${max}`);
+  }
+  const serviceEnv = String(b.env ?? 'prod');
+  const env = envFor(surface, serviceEnv, b.envId);
+  if (!env) return fail(b.envId ? 'NOT_FOUND' : 'ENV_OFFLINE', b.envId ? `没有环境 ${b.envId}` : `没有 ${surface}@${serviceEnv} 的环境`, 'autotest env list');
+  const writable = !!b.writable;
+  if (writable && !getFullAccess().on) return fail('APPROVAL_REQUIRED', '可写探索（--writable）需要完全授权：它会真的发消息、改资料', webUrl('/'));
+  const pending = pendingConfig(env);
+  if (pending.length) return fail('APPROVAL_REQUIRED', `环境 ${env.id} 的配置项尚未同意：${pending.map((c) => c.what).join('；')}`, webUrl(`/env.html?id=${encodeURIComponent(env.id)}`));
+  if (b.idempotencyKey) {
+    const same = listTasks().find((t) => t.idempotencyKey === String(b.idempotencyKey) && !t.parent);
+    if (same) return ok('ACCEPTED', `同一幂等键的任务已存在：${same.id}`, tv(same));
+  }
+  const er = envRefusalOf(env);
+  if (er) return er;
+  const what = mode === 'explore' ? '探索' : '自然语言任务';
+  if (b.dryRun) return ok('OK', `演练：${what}「${goal}」将在 ${env.id} 上运行（${writable ? '可写' : '只读'}）`, { envId: env.id, envState: env.state, mode, writable });
+  const id = newTaskId();
+  const num = (v: unknown) => (v === undefined || v === null ? undefined : Number(v));
+  const t = createTask({ id, kind: 'explore', issue: 'explore', planId: `explore:${mode}`, planHash: '-', envId: env.id, options: { maxSteps: num(b.maxSteps), maxMinutes: num(b.maxMinutes) }, explore: { goal, mode, writable }, idempotencyKey: b.idempotencyKey ? String(b.idempotencyKey) : undefined });
+  return ok('ACCEPTED', `任务 ${id} 已排队：${what} @ ${env.id}`, tv(t));
+}
+
+/** Finding n of an exploration task (or exploration run dir) → issues/explore/<id>.md for the pro tier (§5.3). */
+async function exploreIssue(ref: string, n: number): Promise<Envelope> {
+  const dir = getTask(ref)?.runDir ?? resolve(ref);
+  if (!normalize(dir).startsWith(resolve('midscene_run') + sep)) return fail('BAD_INPUT', `${ref} 不是探索任务，也不是 midscene_run 下的探索目录`);
+  if (!existsSync(join(dir, 'result.json'))) return fail('NOT_FOUND', `${ref} 还没有探索结果`);
+  const r = JSON.parse(readFileSync(join(dir, 'result.json'), 'utf8')) as AgentResult;
+  if (r.kind !== 'agent') return fail('BAD_INPUT', `${ref} 不是探索结果`);
+  if (!r.findings.some((f) => f.n === n)) return fail('NOT_FOUND', `${ref} 没有发现 #${n}（共 ${r.findings.length} 个）`);
+  const { writeFindingIssue } = await import('../engine/agent/to-issue');
+  const out = await writeFindingIssue(r, n);
+  return ok('OK', `Issue ${out.id} 已生成`, { issue: out.id, file: out.file }, `Issue ${out.id} → ${out.file}\n下一步：autotest draft create ${out.id}，再 plan explain / task run`);
+}
+
 /** Submit a task (§5.3 task run): resolve → hash → environment → policy → approval → task record. */
 function submit(b: any, via: 'cli' | 'web'): Envelope {
+  if (b.explore !== undefined && b.explore !== null) return submitExplore(b);
   const planId = String(b.planId ?? '');
   const series = b.series !== undefined ? Number(b.series) : undefined;
   if (series !== undefined && !(Number.isInteger(series) && series >= 1 && series <= 100)) return fail('BAD_INPUT', '--series: 1..100');
@@ -99,17 +167,8 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
   if (!env) return fail(b.envId ? 'NOT_FOUND' : 'ENV_OFFLINE', b.envId ? `没有环境 ${b.envId}` : `没有 ${r.plan.surface}@${r.plan.env} 的环境`, 'autotest env list');
   if (env.surface !== r.plan.surface || env.serviceEnv !== r.plan.env) return fail('BAD_INPUT', `环境 ${env.id} 不是 ${r.plan.surface}@${r.plan.env}`);
   // Environment refusals come after the policy checks: those are definitive, an unfit phone is transient.
-  const envRefusal = (): Envelope | undefined => {
-    if (env.state === 'offline') return fail('ENV_OFFLINE', `环境 ${env.id} 已下线`, 'autotest env check <envId>（或在环境页点「重新检查」）');
-    if (env.state === 'unfit') return fail(/锁屏/.test(env.reason ?? '') ? 'ENV_LOCKED' : /不在线|离线/.test(env.reason ?? '') ? 'ENV_OFFLINE' : 'ENV_UNFIT', `环境 ${env.id} 不合格：${env.reason ?? ''}`, env.suggestion);
-    return undefined;
-  };
-  let pending = unconsented(env);
-  // Full access consents the environment configuration items too (recorded as such).
-  if (pending.length && getFullAccess().on) {
-    for (const c of pending) consentConfig(env.id, c.id, `full-access（${getFullAccess().by}）`);
-    pending = [];
-  }
+  const envRefusal = () => envRefusalOf(env);
+  const pending = pendingConfig(env);
   if (pending.length) return fail('APPROVAL_REQUIRED', `环境 ${env.id} 的配置项尚未同意：${pending.map((c) => c.what).join('；')}`, webUrl(`/env.html?id=${encodeURIComponent(env.id)}`));
   const classified = classifyPlan(r.plan, { series, maxRounds, allow: allowList() });
   if (classified.category === 'refused') return fail('PLAN_NOT_EXECUTABLE', `计划触及硬约束：${classified.reasons.join('；')}`);
@@ -251,6 +310,7 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
         return ok('OK', `已请求取消：${v.summary}`, v);
       }
     }
+    if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'issue') return exploreIssue(seg[1], Number(q.body.n));
     if (M === 'GET' && seg[0] === 'results' && seg[1]) {
       const t = getTask(seg[1]);
       if (!t) return fail('NOT_FOUND', `没有任务 ${seg[1]}`);

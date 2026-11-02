@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyRisk } from './risk';
+import { classifyRisk, nearOwnContent } from './risk';
 
 const tap = (label: string, writable = false) => classifyRisk({ type: 'tap', label }, writable);
 
@@ -27,5 +27,26 @@ describe('quick tier risk rules (read-only by default)', () => {
 
   it('scrolling, going back and launching carry no risk', () => {
     for (const t of ['swipe', 'back', 'launch', 'wait']) expect(classifyRisk({ type: t }).blocked).toBe(false);
+  });
+  it('social actions: only on the own accounts’ content, in writable runs too (2026-11-03: likes / follows on real users)', () => {
+    for (const l of ['点赞, 12', '已关注', '收藏 3', '赞', 'Like', 'Liked 4', 'Following', 'Bookmark']) expect(tap(l), l).toMatchObject({ blocked: true, category: 'social' });
+    expect(tap('点赞', true)).toMatchObject({ blocked: true, category: 'social' });
+    expect(classifyRisk({ type: 'tap', label: '帖子右下角的爱心按钮', free: true }, true)).toMatchObject({ blocked: true, category: 'social' });
+    expect(classifyRisk({ type: 'tap', label: 'the heart icon', free: true })).toMatchObject({ blocked: true, category: 'social' });
+    expect(classifyRisk({ type: 'tap', label: 'Start button', free: true }).blocked).toBe(false);
+    expect(classifyRisk({ type: 'tap', label: '点赞' }, false, { ownContent: true }).blocked).toBe(false);
+    expect(classifyRisk({ type: 'tap', label: '点赞' }, true, { ownContent: true }).blocked).toBe(false);
+    // own content does not lift the other categories
+    expect(classifyRisk({ type: 'tap', label: '发送' }, false, { ownContent: true }).blocked).toBe(true);
+    for (const l of ['0 粉丝', 'Open 关注列表', '关注者 12 人', '发现', 'Likely']) expect(tap(l).blocked, l).toBe(false);
+  });
+
+  it('own content: an own name within a fifth of the screen height of the tap', () => {
+    const nodes = [{ label: 'aaron+test2', y: 400 }, { label: 'kissme00126', y: 1500 }, { label: '黄悦龙-AgentEval 的帖子', y: 2000 }];
+    const names = ['aaron+test2', '黄悦龙-AgentEval'];
+    expect(nearOwnContent(600, nodes, names, 2400)).toBe(true);
+    expect(nearOwnContent(1500, nodes, names, 2400)).toBe(false);
+    expect(nearOwnContent(2100, nodes, names, 2400)).toBe(true);
+    expect(nearOwnContent(600, nodes, [], 2400)).toBe(false);
   });
 });

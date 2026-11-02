@@ -35,12 +35,14 @@ export const COMMANDS: CommandSpec[] = [
   { command: 'env list', doc: 'Environments and their state (EnvView)', args: [J], codes: ['OK'] },
   { command: 'env show', doc: 'One environment: last check items, lease, configuration items', args: [ENV, J], codes: ['OK', 'NOT_FOUND'] },
   { command: 'env check', doc: 'Check the environment now (online, unlocked, app version, configuration items) → ready / unfit', args: [ENV, J], codes: ['OK', 'ENV_UNFIT', 'ENV_LOCKED', 'ENV_OFFLINE'] },
-  { command: 'task run', doc: 'Submit a plan; returns the task id at once (20). Default-class plans are approved by policy', args: [PLAN, { name: 'env', type: 'string', doc: 'environment id (default: the plan surface’s ready one)' }, { name: 'series', type: 'integer', doc: 'N independent runs' }, { name: 'max-rounds', type: 'integer', doc: 'valid attempts per run' }, { name: 'hash', type: 'string', doc: 'expected plan hash (31 on mismatch)' }, { name: 'dry-run', type: 'boolean', doc: 'check everything, start nothing' }, { name: 'idempotency-key', type: 'string', doc: 'same key → the same task' }, J], codes: ['ACCEPTED', 'OK', 'APPROVAL_REQUIRED', 'PLAN_HASH_MISMATCH', 'PLAN_STALE', 'APPROVAL_EXHAUSTED', 'NOT_FOUND', 'PLAN_NOT_EXECUTABLE', 'ENV_UNFIT', 'ENV_LOCKED', 'ENV_OFFLINE'] },
+  { command: 'task run', doc: 'Submit a plan; returns the task id at once (20). Default-class plans are approved by policy. `task run --explore "<goal>" …` = explore run', args: [PLAN, { name: 'env', type: 'string', doc: 'environment id (default: the plan surface’s ready one)' }, { name: 'series', type: 'integer', doc: 'N independent runs' }, { name: 'max-rounds', type: 'integer', doc: 'valid attempts per run' }, { name: 'hash', type: 'string', doc: 'expected plan hash (31 on mismatch)' }, { name: 'dry-run', type: 'boolean', doc: 'check everything, start nothing' }, { name: 'idempotency-key', type: 'string', doc: 'same key → the same task' }, J], codes: ['ACCEPTED', 'OK', 'APPROVAL_REQUIRED', 'PLAN_HASH_MISMATCH', 'PLAN_STALE', 'APPROVAL_EXHAUSTED', 'NOT_FOUND', 'PLAN_NOT_EXECUTABLE', 'ENV_UNFIT', 'ENV_LOCKED', 'ENV_OFFLINE'] },
   { command: 'task status', doc: 'TaskView: state, phase / round / step, how and where it ended, side-effect summary', args: [TASK, J], codes: ['OK', 'NOT_FOUND'] },
   { command: 'task wait', doc: 'Wait until the task ends; exit = its outcome code, 21 when --timeout passes first', args: [TASK, { name: 'timeout', type: 'integer', doc: 'seconds (default 600)' }, J], codes: ['STILL_RUNNING', 'NOT_REPRODUCED', 'REPRODUCED', 'PARTIAL', 'IMPLEMENTED', 'NOT_IMPLEMENTED', 'SUSPECTED_MISOP', 'TURNED_BUG', 'SERIES_DONE', 'PLAN_NOT_EXECUTABLE', 'ENV_UNFIT', 'ENV_LOCKED', 'ENV_OFFLINE', 'TOOL_FAILED', 'SKILL_STALE', 'TASK_CRASHED', 'CANCELLED', 'INTERRUPTED'] },
   { command: 'task cancel', doc: 'Cancel: queued → cancelled; running → stops at the next step boundary (killed if not stopped within 60 s)', args: [TASK, J], codes: ['OK', 'NOT_FOUND', 'BAD_INPUT'] },
   { command: 'task list', doc: 'Recent tasks', args: [{ name: 'limit', type: 'integer', doc: 'default 50' }, J], codes: ['OK'] },
   { command: 'doctor', doc: 'Can runs start, what is missing, what to do next (ready / degraded / blocked; next steps split into commands and things only a person can do). Works with the platform down', args: [{ name: 'fix', type: 'boolean', doc: 'safe local cleanup: stale locks, stale tree-service forwards, leases of dead tasks (never touches the device, never restarts adb)' }, { name: 'probe', type: 'boolean', doc: 'one screenshot + tree read per phone, both backends timed' }, J], codes: ['OK', 'PLATFORM_DOWN', 'ENV_LOCKED', 'ENV_OFFLINE', 'ENV_UNFIT'] },
+  { command: 'explore run', doc: 'Quick tier (capability ①): a goal in plain words, run by the vision agent on a real phone / browser; returns the task id at once (20). Read-only unless --writable (needs full access). result show → findings (each with an incident bundle), coverage, blocked actions, usage', args: [{ name: 'goal', type: 'string', required: true, positional: true, doc: 'what to do or explore, e.g. "看看个人主页的通知铃铛能不能打开"' }, { name: 'mode', type: 'string', doc: 'explore (find problems, default) | task (reach the goal)' }, { name: 'surface', type: 'string', doc: 'android-app (default) | desktop-web | android-web | mobile-web' }, { name: 'env', type: 'string', doc: 'environment id (default: the surface’s ready prod one)' }, { name: 'max-steps', type: 'integer', doc: 'default: none (hard cap 3000)' }, { name: 'max-minutes', type: 'integer', doc: 'default: none (hard cap 120)' }, { name: 'writable', type: 'boolean', doc: 'allow sending / editing (full access only; payment, logout, deleting stay blocked)' }, { name: 'dry-run', type: 'boolean', doc: 'check everything, start nothing' }, { name: 'idempotency-key', type: 'string', doc: 'same key → the same task' }, J], codes: ['ACCEPTED', 'OK', 'APPROVAL_REQUIRED', 'NOT_FOUND', 'ENV_UNFIT', 'ENV_LOCKED', 'ENV_OFFLINE'] },
+  { command: 'explore issue', doc: 'Exploration finding → Issue draft (issues/explore/<id>.md) for the pro tier: then draft create / plan explain / task run', args: [{ name: 'taskId', type: 'string', required: true, positional: true, doc: 'exploration task id (or its run dir under midscene_run)' }, { name: 'n', type: 'integer', required: true, positional: true, doc: 'finding number from result show' }, J], codes: ['OK', 'NOT_FOUND', 'BAD_INPUT'] },
   { command: 'result show', doc: 'ResultView of a finished task: conclusion sentence, basis, attempts, flags, failure kind, evidence', args: [TASK, J], codes: ['STILL_RUNNING', 'NOT_REPRODUCED', 'REPRODUCED', 'PARTIAL', 'IMPLEMENTED', 'NOT_IMPLEMENTED', 'SERIES_DONE', 'TOOL_FAILED', 'ENV_UNFIT', 'CANCELLED', 'INTERRUPTED', 'TASK_CRASHED'] },
 ];
 
@@ -60,7 +62,7 @@ const positional = (a: string[]) => {
   const out: string[] = [];
   for (let i = 0; i < a.length; i++) {
     if (a[i].startsWith('--')) {
-      if (!['json', 'dry-run', 'no-model', 'non-interactive', 'all', 'fix', 'probe'].includes(a[i].slice(2))) i++;
+      if (!['json', 'dry-run', 'no-model', 'non-interactive', 'all', 'fix', 'probe', 'writable'].includes(a[i].slice(2))) i++;
       continue;
     }
     out.push(a[i]);
@@ -92,6 +94,9 @@ async function call(method: string, path: string, body?: unknown): Promise<Env> 
 const enc = encodeURIComponent;
 const bad = (m: string): Env => ({ status: 400, code: 'BAD_INPUT', exit: 40, summary: m, error: { message: m, hint: 'autotest help' } });
 const int = (v: string | undefined) => (v === undefined ? undefined : Number(v));
+
+const exploreRun = (goal: string, a: string[]) =>
+  call('POST', '/tasks', { explore: goal, mode: flag(a, 'mode'), surface: flag(a, 'surface'), envId: flag(a, 'env'), maxSteps: int(flag(a, 'max-steps')), maxMinutes: int(flag(a, 'max-minutes')), writable: has(a, 'writable'), dryRun: has(a, 'dry-run'), idempotencyKey: flag(a, 'idempotency-key') });
 
 export async function dispatch(obj: string, act: string | undefined, a: string[]): Promise<Env> {
   const pos = positional(a);
@@ -126,6 +131,7 @@ export async function dispatch(obj: string, act: string | undefined, a: string[]
       case 'env check':
         return call('POST', `/envs/${enc(need(0, 'envId'))}/check`);
       case 'task run':
+        if (flag(a, 'explore') !== undefined) return exploreRun(flag(a, 'explore')!, a);
         return call('POST', '/tasks', { planId: need(0, 'planId'), envId: flag(a, 'env'), series: int(flag(a, 'series')), maxRounds: int(flag(a, 'max-rounds')), hash: flag(a, 'hash'), dryRun: has(a, 'dry-run'), idempotencyKey: flag(a, 'idempotency-key') });
       case 'task status':
         return call('GET', `/tasks/${enc(need(0, 'taskId'))}`);
@@ -142,6 +148,10 @@ export async function dispatch(obj: string, act: string | undefined, a: string[]
           if (r.code !== 'STILL_RUNNING' || Date.now() >= deadline) return r;
         }
       }
+      case 'explore run':
+        return exploreRun(need(0, 'goal'), a);
+      case 'explore issue':
+        return call('POST', `/explore/${enc(need(0, 'taskId'))}/issue`, { n: Number(need(1, 'finding number')) });
       case 'result show':
         return call('GET', `/results/${enc(need(0, 'taskId'))}`);
       case 'doctor':

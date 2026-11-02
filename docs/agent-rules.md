@@ -56,6 +56,8 @@
 | `task_wait` | `task wait` | 是 | 单次最多等 25 s；返回 21 表示仍在运行，再调一次 |
 | `task_cancel` | `task cancel` | 否 | 取消任务（到下一步边界停下，收尾并恢复环境） |
 | `result_show` | `result show` | 是 | 结论句、依据、有效尝试、命中、证据 |
+| `explore_run` | `explore run` | 否 | 快速档：一句话目标，视觉 agent 自主执行 / 探索；默认只读，`writable` 需完全授权；立即返回任务 id（20），结果用 result_show（18 有发现 / 19 未发现） |
+| `explore_issue` | `explore issue` | 否 | 把探索发现 #n 写成 Issue 草稿，交给 pro 档（draft_create → plan_explain → task_run） |
 | `doctor` | `doctor` | 否（`fix` 只清本机残留） | 能不能跑、缺什么、下一步 |
 | `device_snapshot` | — | 是 | 当前屏幕截图 + 规范化节点（只读） |
 

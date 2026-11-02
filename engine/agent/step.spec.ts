@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ScreenNode } from '../../core/screen-index';
-import { fingerprint, historyText, KEEP_STEPS, parseAnswer, planState, type StepRecord, visibleElements } from './step';
+import { fingerprint, historyText, KEEP_STEPS, loopHint, parseAnswer, planState, type StepRecord, visibleElements } from './step';
 
 const n = (text: string, clickable = true, desc = ''): ScreenNode => ({ text, desc, rid: '', cls: 'android.widget.Button', clickable, box: [0, 0, 10, 10], center: { x: 5, y: 5 } });
 
@@ -32,5 +32,12 @@ describe('quick tier step', () => {
 
   it('plan checklist state', () => {
     expect(planState('- [x] open chat\n- [/] scroll\n- [ ] back\n- [!] search')).toEqual({ todo: 2, done: 1, failed: 1 });
+  });
+  it('loop hint: one pair three times, or two pairs alternating', () => {
+    const st = (screen: string, action: string, step = 0): StepRecord => ({ step, screen, action, result: 'ok' });
+    expect(loopHint([st('a', 'tap #9 ""'), st('b', 'tap #9 "Close"'), st('a', 'tap #9 ""'), st('b', 'tap #9 "Close"')])).toMatch(/^LOOP: the last 4 steps repeated tap #9 "" \/ tap #9 "Close"/);
+    expect(loopHint([st('a', 'swipe up'), st('a', 'swipe up'), st('a', 'swipe up')])).toMatch(/last 3 steps/);
+    expect(loopHint([st('a', 'tap #1'), st('b', 'tap #2'), st('c', 'tap #3'), st('b', 'tap #2')])).toBeUndefined();
+    expect(loopHint([st('a', 'swipe up'), st('b', 'swipe up'), st('c', 'swipe up')])).toBeUndefined();
   });
 });

@@ -3,7 +3,7 @@
 //   pnpm autotest doctor | mcp [--print-config claude|cursor|codex|vscode]      (W2-4)
 //   pnpm autotest accounts|nodes|plan|run|series|rerender|evidence|sync ... (scripts/m5.ts)
 //   pnpm autotest replay <incident>/replay.json [--times 3]                     (coordinate replay)
-//   pnpm autotest explore run "<goal>" [--mode task|explore] [--surface …]   (quick tier, capability ①)
+//   pnpm autotest explore run "<goal>" [--mode task|explore] [--surface …]   (quick tier, capability ①; explore local = no platform)
 //   pnpm autotest devices [--json]
 import 'dotenv/config';
 import { spawn } from 'node:child_process';
@@ -28,19 +28,19 @@ function run(bin: string, args: string[]): Promise<number> {
 
 const tsx = resolve('node_modules/tsx/dist/cli.mjs');
 
-const V1 = ['issue', 'draft', 'env', 'task', 'result', 'help', 'doctor'];
+const V1 = ['issue', 'draft', 'env', 'task', 'result', 'explore', 'help', 'doctor'];
 
 async function main(): Promise<number> {
   // `task exec <id>` is the platform's internal child; the rest of the v1 objects are thin service clients.
   if (cmd === 'task' && rest[0] === 'exec') return run(tsx, ['scripts/task-exec.ts', ...rest.slice(1)]);
+  // explore local "<goal>": the quick tier in this process, without the platform (development).
+  if (cmd === 'explore' && rest[0] === 'local') return run(tsx, ['scripts/explore.ts', ...rest]);
   if (cmd && (V1.includes(cmd) || (cmd === 'plan' && ['explain', 'approve', 'reject'].includes(rest[0])))) {
     const { cliV1 } = await import('../scripts/cli-v1');
     return cliV1(cmd, rest);
   }
   // MCP over stdio: start it with node + tsx directly (pnpm prints a banner on stdout); see --print-config.
   if (cmd === 'mcp') return run(tsx, ['scripts/mcp.ts', ...rest]);
-  // Quick tier (capability ①) from the command line: explore run "<goal>".
-  if (cmd === 'explore') return run(tsx, ['scripts/explore.ts', ...rest]);
   if (cmd && M5.includes(cmd)) return run(tsx, ['scripts/m5.ts', cmd, ...rest]);
   if (cmd === 'replay') return run(tsx, ['scripts/m5.ts', 'replay', ...rest]);
   if (cmd === 'devices') {

@@ -5,7 +5,10 @@
 // after this exits.
 import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import type { AgentResult } from '../engine/agent/run';
+import type { StepRecord } from '../engine/agent/step';
 import type { RunResult } from '../engine/plan/run';
+import type { Surface } from '../platform/accounts/types';
 import { summarizeSeries, type SeriesRun } from '../engine/plan/series';
 import type { Draft } from '../issue/planner';
 import { getEnv, updateEnv } from '../platform/lifecycle/env';
@@ -30,11 +33,61 @@ function advance(id: string, to: TaskState[], basis: string): void {
   for (const s of to) if (getTask(id)!.state !== s) moveTask(id, s, 'task', basis);
 }
 
+/** Pure: the code a finished quick-tier run maps to. */
+export function exploreCode(r: Pick<AgentResult, 'status' | 'summary' | 'findings'>): Code {
+  if (r.status === 'cancelled') return 'CANCELLED';
+  if (r.status === 'env-unfit') return unfitCode(r.summary.replace(/^环境不合格：/, ''));
+  if (r.status === 'error') return 'TOOL_FAILED';
+  return r.findings.some((f) => f.counted) ? 'EXPLORE_FINDINGS' : 'EXPLORE_DONE';
+}
+
+/** Task kind explore (§5.4): the quick tier's agent loop on the leased environment. */
+async function execExplore(id: string, rt: TaskRuntime): Promise<number> {
+  const t0 = getTask(id)!;
+  const x = t0.explore!;
+  const env = getEnv(t0.envId)!;
+  rt.move('preflight', `process ${process.pid} started`);
+  const hooks = {
+    phase: (p: Parameters<TaskRuntime['phase']>[0]) => {
+      rt.phase(p);
+      if (p !== 'preflight' && getTask(id)!.state === 'preflight') rt.move('running', 'preflight passed');
+    },
+    shouldStop: rt.shouldStop.bind(rt),
+  };
+  let last = 0;
+  const onStep = (s: StepRecord) => {
+    if (Date.now() - last < 500) return;
+    last = Date.now();
+    updateTask(id, (t) => void (t.progress = { phase: 'loop', step: s.step, at: new Date().toISOString(), summary: /^blocked/.test(s.result) ? `已拦截（未执行）：${s.action}` : s.action }));
+  };
+  const { openPools } = await import('../platform/pools');
+  const { runAgent } = await import('../engine/agent/run');
+  const { pool, devices } = await openPools();
+  const runDir = resolve('midscene_run/explore', `${env.surface}-${id}`);
+  updateTask(id, (t) => void (t.runDir = runDir));
+  const r = await runAgent({ goal: x.goal, mode: x.mode, surface: env.surface as Surface, env: env.serviceEnv, pool, devices, udid: env.udid, account: env.account, writable: x.writable, maxSteps: t0.options.maxSteps, maxMinutes: t0.options.maxMinutes, runDir, taskId: id, hooks, onStep });
+  const code = exploreCode(r);
+  const report = join(runDir, 'report.md');
+  writeResult(id, { schemaVersion: 1, taskId: id, planId: t0.planId, code, agent: r, report, runDir });
+  const state: TaskState = code === 'CANCELLED' ? 'cancelled' : r.status === 'env-unfit' ? 'env-unfit' : 'done';
+  const found = r.findings.filter((f) => f.counted).length;
+  const patch = (t: Parameters<Parameters<typeof updateTask>[1]>[0]) => {
+    t.outcome = { code, summary: code === 'CANCELLED' ? `已取消（${r.usage.steps} 步，${found} 个发现）` : found ? `${found} 个发现` : r.summary || r.status };
+    t.endedBy = code === 'CANCELLED' ? 'cancel' : 'normal';
+    t.endedAt = rt.position;
+    t.report = report;
+  };
+  if (state === 'done') advance(id, [...(getTask(id)!.state === 'preflight' ? (['running'] as TaskState[]) : []), 'finishing'], 'run ended');
+  moveTask(id, state, 'task', `run ended: ${code}`, patch);
+  return 0;
+}
+
 export async function execTask(id: string): Promise<number> {
   const t0 = getTask(id);
   if (!t0) throw new Error(`no task ${id}`);
   const rt = new TaskRuntime(id);
   rt.start();
+  if (t0.kind === 'explore') return execExplore(id, rt);
   const env = getEnv(t0.envId)!;
   const plan: TestPlan = TestPlanZ.parse(readJson(join(taskDir(id), 'plan.json')));
   const draft = readJson<Draft>(join(taskDir(id), 'draft.json'))!;

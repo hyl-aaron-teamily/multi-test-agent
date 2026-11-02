@@ -25,9 +25,10 @@ export const ACCOUNTS_FILE = resolve(process.env.ACCOUNTS_FILE ?? 'platform/acco
 /** Pure: YAML text → env config + records (with password; only the backend keeps them). */
 export function parseAccountsYaml(text: string): { envs: Record<Env, EnvConfig>; records: (AccountRecord & { password: string })[] } {
   const raw = (yaml.load(text) ?? {}) as Record<string, any>;
+  const own = (e: Env) => (Array.isArray(raw.environments?.[e]?.ownContent) ? raw.environments[e].ownContent.map(String).filter(Boolean) : []);
   const envs = {
-    test: { webUrl: String(raw.environments?.test?.webUrl ?? 'https://chat-test.teamily.ai/chat') },
-    prod: { webUrl: String(raw.environments?.prod?.webUrl ?? 'https://teamily.ai/chat') },
+    test: { webUrl: String(raw.environments?.test?.webUrl ?? 'https://chat-test.teamily.ai/chat'), ownContent: own('test') },
+    prod: { webUrl: String(raw.environments?.prod?.webUrl ?? 'https://teamily.ai/chat'), ownContent: own('prod') },
   };
   const records = (Array.isArray(raw.accounts) ? raw.accounts : [])
     .filter((a: any) => a?.id && (a.env === 'test' || a.env === 'prod') && a.email)

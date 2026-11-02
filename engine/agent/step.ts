@@ -27,6 +27,10 @@ export interface StepRecord {
   screen: string;
   action: string;
   result: string;
+  /** The model's reasoning for this step (shortened). */
+  thought?: string;
+  /** Thumbnail of the screen the step acted on, relative to the run dir (steps/<n>.png). */
+  thumb?: string;
 }
 
 /** Elements shown to the model: labelled or clickable, at most `max`, numbered from 1. */
@@ -61,7 +65,20 @@ export function historyText(steps: StepRecord[]): string {
   return [...chunks.map((c) => `(summary) ${c}`), ...recent.map((s) => `#${s.step} [screen ${s.screen}] ${s.action} → ${s.result}`)].join('\n');
 }
 
-export const SYSTEM = (writable: boolean) => `You test the Teamily app like a careful human tester, one action per turn, on a real ${'device or browser'}.
+/** Pure: the last steps repeat one (screen, action) pair, or alternate two of them → a hint for the model
+ *  (a 2026-11-03 desktop run spent 11 steps opening and closing the same side panel). */
+export function loopHint(steps: StepRecord[]): string | undefined {
+  const k = (s: StepRecord) => `${s.screen} ${s.action}`;
+  const t = steps.slice(-4);
+  if (t.length < 3) return undefined;
+  const same = t.slice(-3).every((s) => k(s) === k(t.at(-1)!));
+  const swap = t.length === 4 && k(t[0]) === k(t[2]) && k(t[1]) === k(t[3]) && k(t[0]) !== k(t[1]);
+  if (!same && !swap) return undefined;
+  const acts = [...new Set(t.map((s) => s.action))].join(' / ');
+  return `LOOP: the last ${same ? 3 : 4} steps repeated ${acts} and the screens went back and forth. Do not repeat it; choose another element or area, scroll, go back, or end with done(failed) if the goal cannot be reached.`;
+}
+
+export const SYSTEM = (writable: boolean, ownContent: string[] = []) => `You test the Teamily app like a careful human tester, one action per turn, on a real ${'device or browser'}.
 Each turn you get: the goal, your current plan, the history, the screenshot and the numbered visible elements.
 Answer ONE JSON object: {"thought": "<short>", "plan": "<markdown checklist: - [ ] todo / - [/] doing / - [x] done / - [!] failed>", "action": {...}}.
 Actions:
@@ -75,6 +92,7 @@ Actions:
 - {"type":"done","status":"completed|failed","summary":"..."}  (goal reached, or impossible)
 Rules: look before you act; do not assume where a tap leads; describe visible facts, never guess causes.
 ${writable ? 'Writable run: you may type and send, but never delete or recall anything.' : 'READ-ONLY run: never send, delete, change settings, pay, log out, invite or share, or edit a profile; typing is allowed only into a search box. Such actions are blocked and reported back to you.'}
+Likes, follows, favourites and subscriptions change what real users see: do them only on the test accounts' own profiles and content (${ownContent.length ? ownContent.map((n) => `"${n}"`).join(', ') : 'none configured'}); elsewhere they are blocked. Tabs with those names on other people's pages are blocked too — check them on the own profiles.
 When exploring, prefer entries you have not tried on this screen yet.`;
 
 export function userPrompt(o: { goal: string; mode: 'task' | 'explore'; plan?: string; history: string; screen: string; els: ScreenNode[]; tried: string[]; feedback?: string; size: { width: number; height: number } }): string {

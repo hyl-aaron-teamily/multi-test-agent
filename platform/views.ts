@@ -5,6 +5,7 @@
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { RunResult } from '../engine/plan/run';
+import type { AgentResult } from '../engine/agent/run';
 import { attemptsText } from '../engine/stats';
 import { nodeSpec } from '../skills/teamily/node-specs';
 import { ELEMENTS, REGIONS } from '../skills/teamily/vocab';
@@ -324,6 +325,26 @@ export interface ResultView {
   series?: { runs: number; reachedLoop: number; reproducedRuns: number; validRuns: number; valid: number; hits: number };
   ended?: { by?: string; at?: string };
   evidence: { report?: string; runDir?: string; incidents: string[] };
+  /** Quick tier (task kind explore). */
+  explore?: ExploreSummary;
+}
+
+export interface ExploreSummary {
+  goal: string;
+  mode: 'task' | 'explore';
+  status: string;
+  summary: string;
+  findings: { n: number; counted: boolean; source: string; kind: string; description: string; incident: string; review?: string }[];
+  coverage: { screens: number; actions: number };
+  blocked: number;
+  usage: { steps: number; seconds: number; modelCalls: number };
+}
+
+/** Pure: the conclusion sentence of a quick-tier run. */
+export function exploreSentence(e: ExploreSummary): string {
+  const found = e.findings.filter((f) => f.counted).length;
+  const st: Record<string, string> = { completed: '完成', failed: '未能完成目标', limit: '到达上限', cancelled: '已取消（不完整）', 'env-unfit': '环境不合格', error: '执行出错' };
+  return `${e.mode === 'explore' ? '探索' : '任务'}${st[e.status] ?? e.status}：${found ? `${found} 个发现` : `未发现问题（覆盖 ${e.coverage.screens} 个界面、${e.coverage.actions} 个动作，拦截 ${e.blocked} 次）`}；${e.usage.steps} 步，模型调用 ${e.usage.modelCalls} 次`;
 }
 
 const SUGGEST: Record<'env' | 'tool', string> = { env: '环境问题：按环境页的建议处理（解锁 / 重连 / 重新检查），然后只重跑这一项', tool: '工具问题：查看报告里的错误与截图，修代码或重新标定 SKILL 后只重跑这一项' };
@@ -356,11 +377,16 @@ export function resultRun(r: RunResult): ResultRun {
   };
 }
 
-export function resultView(t: TaskRecord, runs: RunResult[], code: Code, extra: { series?: ResultView['series']; report?: string; runDir?: string } = {}): ResultView {
+/** Pure: what the views keep of a quick-tier result. */
+export function exploreSummary(a: AgentResult): ExploreSummary {
+  return { goal: a.goal, mode: a.mode, status: a.status, summary: a.summary, findings: a.findings.map((f) => ({ n: f.n, counted: f.counted, source: f.source, kind: f.kind, description: f.description, incident: f.incident, review: f.review })), coverage: { screens: a.coverage.screens, actions: a.coverage.actions }, blocked: a.blocked.length, usage: a.usage };
+}
+
+export function resultView(t: TaskRecord, runs: RunResult[], code: Code, extra: { series?: ResultView['series']; report?: string; runDir?: string; explore?: ExploreSummary } = {}): ResultView {
   const rr = runs.map(resultRun);
   const complete = !!t.endedBy ? t.endedBy === 'normal' : t.state === 'done';
   const where = t.endedAt?.phase ? `停在${PHASE_TEXT[t.endedAt.phase] ?? t.endedAt.phase}${t.endedAt.round !== undefined ? ` 第 ${t.endedAt.round} 轮` : ''}${t.endedAt.step !== undefined ? ` 第 ${t.endedAt.step} 步` : ''}` : '';
-  const sentence = !complete ? `${STATUS[code].text}：不完整，不给结论${where ? `（${where}）` : ''}` : extra.series ? `系列 ${extra.series.runs} 次：复现 ${extra.series.reproducedRuns}/${extra.series.validRuns} 次；有效尝试 ${extra.series.valid}、命中 ${extra.series.hits}` : rr.map((r) => r.sentence).join('；') || STATUS[code].text;
+  const sentence = extra.explore ? exploreSentence(extra.explore) : !complete ? `${STATUS[code].text}：不完整，不给结论${where ? `（${where}）` : ''}` : extra.series ? `系列 ${extra.series.runs} 次：复现 ${extra.series.reproducedRuns}/${extra.series.validRuns} 次；有效尝试 ${extra.series.valid}、命中 ${extra.series.hits}` : rr.map((r) => r.sentence).join('；') || STATUS[code].text;
   return {
     schemaVersion: VIEW_SCHEMA_VERSION,
     kind: 'ResultView',
@@ -372,7 +398,8 @@ export function resultView(t: TaskRecord, runs: RunResult[], code: Code, extra: 
     runs: rr,
     series: extra.series,
     ended: { by: t.endedBy, at: where || undefined },
-    evidence: { report: extra.report ?? t.report, runDir: extra.runDir ?? t.runDir, incidents: runs.flatMap((r) => r.incidents) },
+    evidence: { report: extra.report ?? t.report, runDir: extra.runDir ?? t.runDir, incidents: extra.explore ? extra.explore.findings.map((f) => f.incident) : runs.flatMap((r) => r.incidents) },
+    explore: extra.explore,
   };
 }
 
@@ -386,6 +413,8 @@ export interface TaskView {
   stateText: string;
   summary: string;
   planId: string;
+  /** Quick tier: the goal in plain words. */
+  explore?: TaskRecord['explore'];
   envId: string;
   createdAt: string;
   startedAt?: string;
@@ -407,7 +436,8 @@ export function taskView(t: TaskRecord, events: { at: string; type: string; stat
   const ph = pos.phase ? PHASE_TEXT[pos.phase] : undefined;
   const where = ph ? `${ph}${pos.round !== undefined ? ` 第 ${pos.round} 轮` : ''}${pos.step !== undefined ? ` 第 ${pos.step} 步` : ''}` : '';
   const endedAt = t.endedAt?.phase ? `${PHASE_TEXT[t.endedAt.phase]}${t.endedAt.round !== undefined ? ` 第 ${t.endedAt.round} 轮` : ''}${t.endedAt.step !== undefined ? ` 第 ${t.endedAt.step} 步` : ''}` : undefined;
-  const summary = `任务 ${t.id}（${t.planId} @ ${t.envId}）：${TASK_STATE_TEXT[t.state]}${where && !t.finishedAt ? `，${where}` : ''}${t.outcome ? ` — ${t.outcome.summary}` : ''}`;
+  const what = t.explore ? `${t.explore.mode === 'explore' ? '探索' : '任务'}「${t.explore.goal.slice(0, 40)}」` : t.planId;
+  const summary = `任务 ${t.id}（${what} @ ${t.envId}）：${TASK_STATE_TEXT[t.state]}${where && !t.finishedAt ? `，${where}` : ''}${t.outcome ? ` — ${t.outcome.summary}` : ''}`;
   const uniq = (xs: (string | undefined)[]) => [...new Set(xs.filter((x): x is string => !!x))];
   return {
     schemaVersion: VIEW_SCHEMA_VERSION,
@@ -417,6 +447,7 @@ export function taskView(t: TaskRecord, events: { at: string; type: string; stat
     stateText: TASK_STATE_TEXT[t.state],
     summary,
     planId: t.planId,
+    explore: t.explore,
     envId: t.envId,
     createdAt: t.createdAt,
     startedAt: t.startedAt,
@@ -454,6 +485,10 @@ export function resultText(v: ResultView): string {
     for (const b of r.basis) out.push(`  依据：${b}`);
     out.push(`  标识：${r.flags.evidenceReview}；${r.flags.substituted}；${r.flags.selfCheck}`);
     if (r.failure) out.push(`  失败归类：${r.failure.kindText}（${r.failure.rule}）— ${r.failure.reason}`, `  建议：${r.failure.suggestion}`);
+  }
+  if (v.explore) {
+    out.push(`目标：${v.explore.goal}`, `说明：${v.explore.summary || '-'}`);
+    for (const f of v.explore.findings) out.push(`- 发现 #${f.n} ${f.counted ? '' : '（未计入）'}${f.source === 'hard' ? '硬异常' : '模型报告'} ${f.kind}：${f.description.slice(0, 160)}${f.review ? `；复核 ${f.review}` : ''}；现场包 ${f.incident}`);
   }
   if (v.ended?.at) out.push(`结束：${v.ended.by ?? '-'}，${v.ended.at}`);
   if (v.evidence.report) out.push(`报告：${v.evidence.report}`);

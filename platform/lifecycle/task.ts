@@ -30,7 +30,9 @@ export interface Position {
 export interface TaskRecord {
   schemaVersion: 1;
   id: string;
-  kind: 'issue' | 'series';
+  kind: 'issue' | 'series' | 'explore';
+  /** kind explore: the quick tier's goal (capability ①). */
+  explore?: { goal: string; mode: 'task' | 'explore'; writable: boolean };
   issue: string;
   /** Plan ids `<Issue>/<sub>:<surface>@<version>`, and the approval they run under. */
   planId: string;
