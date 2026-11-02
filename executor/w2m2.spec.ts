@@ -1,5 +1,5 @@
 // W2-2 pure pieces: attempts + Wilson / 3/n, failure classification, preflight parsing, run-marker
-// templates, newest-message scope, and the 2010 / 1903 plans passing the validator.
+// templates, newest-message scope, and the composer-rewrite / mention-render plans passing the validator.
 import { describe, expect, it } from 'vitest';
 import type { UiNode } from '../core/ui-tree';
 import { validatePlan } from '../issue/validate';
@@ -82,7 +82,7 @@ describe('run marker templates (W2-2 §4.3)', () => {
   it('fresh marker r + 6 hex; {token} / {round} expanded in text, node input, requires and checks', () => {
     expect(newRunToken()).toMatch(/^r[0-9a-f]{6}$/);
     const v = { token: 'r3fa9c1', round: 2 };
-    expect(expand('autotest-2010 {token} {round}', v)).toBe('autotest-2010 r3fa9c1 2');
+    expect(expand('autotest-rewrite {token} {round}', v)).toBe('autotest-rewrite r3fa9c1 2');
     const a = expandAction({ type: 'require', requires: { composerHas: 'x {token}' }, delayAfterMs: 0 }, v);
     expect(a.requires).toEqual({ composerHas: 'x r3fa9c1' });
     expect(expandAction({ type: 'node', node: { name: 'teamily.sendMessage', input: { text: 'q {token}' } }, delayAfterMs: 0 }, v).node?.input).toEqual({ text: 'q r3fa9c1' });
@@ -111,12 +111,12 @@ describe('newest message / composer scope', () => {
   });
   it('composer scope is the input; text matching is exact / contains', () => {
     expect(scopeNodes(nodes, { kind: 'text', scope: 'composer', expect: '', want: 'present' }, {}, 1080)).toHaveLength(1);
-    expect(textMatches('autotest-2010 r1 1', { exact: 'autotest-2010 r1 1' })).toBe(true);
-    expect(textMatches('Treat "autotest-2010 r1 1" as a label', { exact: 'autotest-2010 r1 1' })).toBe(false);
+    expect(textMatches('autotest-rewrite r1 1', { exact: 'autotest-rewrite r1 1' })).toBe(true);
+    expect(textMatches('Treat "autotest-rewrite r1 1" as a label', { exact: 'autotest-rewrite r1 1' })).toBe(false);
   });
 });
 
-describe('2010 / 1903 plans', () => {
+describe('pattern plans (composer-rewrite / mention-render)', () => {
   const plan = (id: string, params: Record<string, unknown> = {}) => {
     const f = patternById(id)!.build('android-app', params);
     const { maxRounds, ...frag } = f;
@@ -154,7 +154,7 @@ describe('series (W2-2 §3.4)', () => {
     expect(s.pooled).toMatchObject({ valid: 7, hits: 6 });
     expect(s.failures.map((f) => `${f.kind}:${f.rule}:${f.n}`).sort()).toEqual(['env:preflight:1', 'tool:default:1']);
     expect(s.phaseMedians.preflight).toBe(800);
-    const md = seriesMarkdown({ issue: '2010', sub: 'main', surface: 'android-app', env: 'prod', runs, dir: 'd', startedAt: 'a', finishedAt: 'b' });
+    const md = seriesMarkdown({ issue: '1903', sub: 'main', surface: 'android-app', env: 'prod', runs, dir: 'd', startedAt: 'a', finishedAt: 'b' });
     expect(md).toMatch(/走到循环 2 \/ 3（67%，目标 ≥ 90%：\*\*未达标\*\*）；环境不合格 1 次/);
     expect(md).toMatch(/\[报告\]\(run-01\/report\.md\)/);
   });

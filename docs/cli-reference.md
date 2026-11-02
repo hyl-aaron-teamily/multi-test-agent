@@ -73,7 +73,7 @@ Before running: steps, impact, uncertainty, model calls, duration, approval clas
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| <planId> | string | 是 | <Issue>/<sub>:<surface>@v<draft version>, e.g. 2010/main:android-app@v1 |
+| <planId> | string | 是 | <Issue>/<sub>:<surface>@v<draft version>, e.g. 1903/main:android-app@v1 |
 | --series | integer |  | series size the approval would be for |
 | --max-rounds | integer |  | valid attempts per run |
 | --json | boolean |  | stdout = one JSON envelope { status, code, exit, summary, data, error } |
@@ -86,7 +86,7 @@ Approve a default-class plan by its hash (sensitive plans: Web only → 30)
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| <planId> | string | 是 | <Issue>/<sub>:<surface>@v<draft version>, e.g. 2010/main:android-app@v1 |
+| <planId> | string | 是 | <Issue>/<sub>:<surface>@v<draft version>, e.g. 1903/main:android-app@v1 |
 | --hash | string | 是 | hash from plan explain |
 | --runs | integer |  | runs allowed (default 1) |
 | --series | integer |  | series size allowed |
@@ -100,7 +100,7 @@ Reject a plan (note required)
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| <planId> | string | 是 | <Issue>/<sub>:<surface>@v<draft version>, e.g. 2010/main:android-app@v1 |
+| <planId> | string | 是 | <Issue>/<sub>:<surface>@v<draft version>, e.g. 1903/main:android-app@v1 |
 | --note | string | 是 | why |
 | --json | boolean |  | stdout = one JSON envelope { status, code, exit, summary, data, error } |
 
@@ -144,7 +144,7 @@ Submit a plan; returns the task id at once (20). Default-class plans are approve
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| <planId> | string | 是 | <Issue>/<sub>:<surface>@v<draft version>, e.g. 2010/main:android-app@v1 |
+| <planId> | string | 是 | <Issue>/<sub>:<surface>@v<draft version>, e.g. 1903/main:android-app@v1 |
 | --env | string |  | environment id (default: the plan surface’s ready one) |
 | --series | integer |  | N independent runs |
 | --max-rounds | integer |  | valid attempts per run |

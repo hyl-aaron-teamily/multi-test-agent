@@ -10,7 +10,7 @@ Teamily 客户端测试台：在 **Android App、手机自带浏览器里的 Web
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
-| Issue 分类与计划 | ✅ 可用 | 12 份样例 Issue 全部分类（W2-2 新增 1426、1903、1918、2010，删除 1919、2230）；可执行的生成计划，服务端 / 空文档出拒绝报告，多账号 / 需新能力的出暂缓报告 |
+| Issue 分类与计划 | ✅ 可用 | 11 份样例 Issue 全部分类（W2-2 新增 1426、1903、1918；2026-11-02 移除 2010）；可执行的生成计划，服务端 / 空文档出拒绝报告，多账号 / 需新能力的出暂缓报告 |
 | 黑盒执行（四个执行端） | ✅ 可用 | 按 SKILL 标定的坐标操作，动作间隔 ≤ 1 秒，一份 Issue 只启动一次 App；`android-web` = 手机自带浏览器，`desktop-web` 在 Windows 上用 Edge 最大化窗口 |
 | 退出 / 杀进程 / 重新加载 | ✅ 可用 | 计划动作 `exitApp`（Home）、`idle`（后台等待，≤10 分钟）、`killApp`（杀进程并核实）、`launch`（冷/热启动）、`reload`；App 与手机浏览器都可用，计划内的退出不算闪退 |
 | 动态目标 | ✅ 可用 | 用哪个群、哪条消息由模型在准备阶段看屏幕选定，冻结为坐标后进入循环 |
@@ -43,7 +43,6 @@ Teamily 客户端测试台：在 **Android App、手机自带浏览器里的 Web
 | 2122 免打扰群 @ 我（单账号部分） | desktop-web | 未实现：无「@我 / Mentions」聚合，免打扰群无显著角标；需第二账号的部分暂缓 |
 | 1329 点赞 / 定位链接 / 键盘（iOS） | android-app（替代） | 三项均未复现，各跑满 30 分钟。**更正**：开发期记为「已复现」的 s2（如 `1329-2026-10-21T16-43-05-544Z`）是误报——跳到的就是被引用消息，只是窄屏下被引用气泡换成两行、跳转后短暂高亮，基线像素比对没对上；现由证据复核排除，并固化为预置用例 |
 | 2044 引用块预览显示 Markdown 源码（iOS） | android-app（替代） | **已复现**（W2-1）：构造「Markdown 链接消息 + 引用回复」后，Android 引用块同样显示 `[url](url)`，连续 3 轮，证据复核 3/3 |
-| 2010 AI 改写误触覆盖草稿（iOS） | android-app（替代） | **W2-2 系列 10 次**：已复现 4/10 次运行；单轮 52 次有效尝试命中 25 次（48.1%，Wilson 35.1%–61.3%）——点「强化 prompt」后约一半概率直接覆盖草稿，无确认、无撤销；工具可靠性 10/10 |
 | 1903 气泡内 @ 不渲染（iOS） | android-app（替代） | **W2-2 系列 10 次**：未复现（60 次有效尝试，单次复现概率 95% 上界 ≈ 5%）；气泡与列表预览都显示 @；工具可靠性 10/10 |
 | 1614 / 1922 | — | 拒绝执行（服务端问题 / 按文档约定） |
 | 2235 | — | 暂缓（多账号） |
@@ -73,8 +72,8 @@ pnpm autotest plan issues/1594.md                      # 预判类别 + 子用�
 pnpm autotest run --issue 1594 --yes                   # 无替代项时确认执行
 pnpm autotest run --issue 1329 --approve s1,s3:mobile-web   # 有替代项：勾选子用例并选执行端
 pnpm autotest replay <incident>/replay.json --variant all   # 重放：原节奏 / 加速 / 减速 / 冷启动
-pnpm autotest run --issue 2010 --approve main:android-app [--max-rounds 6]          # W2-2：有效尝试上限
-pnpm autotest series --issue 2010 --approve main:android-app --runs 10              # W2-2：10 次独立运行 + series-report.md
+pnpm autotest run --issue 1903 --approve main:android-app [--max-rounds 6]          # W2-2：有效尝试上限
+pnpm autotest series --issue 1903 --approve main:android-app --runs 10              # W2-2：10 次独立运行 + series-report.md
 pnpm autotest rerender midscene_run/issues/<run>                                    # 旧 result.json 按新口径重出 report.v2.md
 pnpm code-gate                                                                      # 代码门（每次改动后）
 ```
@@ -144,9 +143,9 @@ pnpm autotest sync --roles desktop-web,android-app --rounds 4 --timeout 60
 
 ```bash
 npx tsx bin/autotest.ts help --json                       # 全部命令、参数 schema、状态码表（可直接当工具定义）
-npx tsx bin/autotest.ts draft create 2010 --no-model --json   # → 计划 id，如 2010/main:android-app@v1
-npx tsx bin/autotest.ts plan explain "2010/main:android-app@v1" --json   # 步骤、影响、不确定点、预计耗时、审批类别、哈希
-npx tsx bin/autotest.ts task run "2010/main:android-app@v1" --hash <h> --json   # 退出码 20，立即返回任务 id
+npx tsx bin/autotest.ts draft create 1903 --no-model --json   # → 计划 id，如 1903/main:android-app@v1
+npx tsx bin/autotest.ts plan explain "1903/main:android-app@v1" --json   # 步骤、影响、不确定点、预计耗时、审批类别、哈希
+npx tsx bin/autotest.ts task run "1903/main:android-app@v1" --hash <h> --json   # 退出码 20，立即返回任务 id
 npx tsx bin/autotest.ts task wait <taskId> --timeout 1200 --json   # 退出码 = 结论（10 未复现 / 11 已复现 …），21 = 仍在运行
 npx tsx bin/autotest.ts result show <taskId> --json
 npx tsx bin/autotest.ts env list | env show <envId> | env check <envId>

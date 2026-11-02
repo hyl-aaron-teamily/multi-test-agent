@@ -150,7 +150,7 @@ export function estimate(p: TestPlan, h: (number | PastRun)[], maxRounds?: numbe
 
 export const fmtSec = (s: number) => (s < 90 ? `${s} 秒` : `${Math.round(s / 60)} 分钟`);
 
-/** Durations of earlier runs of a plan (TestPlan id, e.g. 2010-android-app-v1): new task results and old
+/** Durations of earlier runs of a plan (TestPlan id, e.g. 1903-android-app-v1): new task results and old
  *  Issue run dirs. Runs that never reached the app (环境不合格) are left out. */
 export function planHistory(testPlanId: string, roots = [resolve('platform/state/tasks'), resolve('midscene_run/issues')], before?: string): PastRun[] {
   const out: PastRun[] = [];

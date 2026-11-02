@@ -18,8 +18,8 @@ describe('core/ui-tree', () => {
     expect(parseNodes(xml, '')).toHaveLength(5);
   });
   it('reads values uiautomator quotes with \' (text containing ")', () => {
-    const n = parseNodes(`<node index="0" text='Treat "autotest-2010 r1" as a label' class="android.widget.EditText" package="p" clickable="true" bounds="[58,1715][1024,2210]" hint="输入消息..." />`, 'p');
-    expect(n[0].text).toBe('Treat "autotest-2010 r1" as a label');
+    const n = parseNodes(`<node index="0" text='Treat "autotest-rewrite r1" as a label' class="android.widget.EditText" package="p" clickable="true" bounds="[58,1715][1024,2210]" hint="输入消息..." />`, 'p');
+    expect(n[0].text).toBe('Treat "autotest-rewrite r1" as a label');
     expect(n[0].hint).toBe('输入消息...');
   });
   it('matches text or desc: exact / contains / regex', () => {

@@ -19,7 +19,7 @@ export interface CommandSpec {
 }
 
 const J: ArgSpec = { name: 'json', type: 'boolean', doc: 'stdout = one JSON envelope { status, code, exit, summary, data, error }' };
-const PLAN: ArgSpec = { name: 'planId', type: 'string', required: true, positional: true, doc: '<Issue>/<sub>:<surface>@v<draft version>, e.g. 2010/main:android-app@v1' };
+const PLAN: ArgSpec = { name: 'planId', type: 'string', required: true, positional: true, doc: '<Issue>/<sub>:<surface>@v<draft version>, e.g. 1903/main:android-app@v1' };
 const ENV: ArgSpec = { name: 'envId', type: 'string', required: true, positional: true, doc: '<surface>:<device>@<service env>, e.g. android-app:4f2ebdf2@prod' };
 const TASK: ArgSpec = { name: 'taskId', type: 'string', required: true, positional: true, doc: 'task id from task run' };
 

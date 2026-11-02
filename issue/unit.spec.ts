@@ -34,7 +34,6 @@ describe('classification of the sample issues', () => {
     '1903': 'bug-always',
     '1918': 'deferred', // platform/issue-overrides.yaml (W2-2: Agent reply content cannot be constructed)
     '1922': 'not-executable', // platform/issue-overrides.yaml (user decision, see file)
-    '2010': 'bug-always',
     '2044': 'bug-always',
     '2122': 'feature',
     '2235': 'multi-account',

@@ -20,7 +20,7 @@ describe('platform/mcp (W2-4 §5)', () => {
     expect(s.series.safeParse(1.5).success).toBe(false);
   });
   it('arguments → the same argv the CLI parses; task wait capped at 25 s', () => {
-    expect(argvOf(cmd('task run'), { planId: '2010/main:android-app@v1', series: 3, 'dry-run': true })).toEqual(['2010/main:android-app@v1', '--series', '3', '--dry-run', '--json']);
+    expect(argvOf(cmd('task run'), { planId: '1903/main:android-app@v1', series: 3, 'dry-run': true })).toEqual(['1903/main:android-app@v1', '--series', '3', '--dry-run', '--json']);
     expect(argvOf(cmd('task wait'), { taskId: 't1', timeout: 600 })).toEqual(['t1', '--timeout', String(WAIT_MAX_S), '--json']);
     expect(argvOf(cmd('task wait'), { taskId: 't1' })).toEqual(['t1', '--timeout', String(WAIT_MAX_S), '--json']);
   });
@@ -78,7 +78,7 @@ describe('MCP: sensitive plans stay Web-only (§7.6, full access off)', () => {
       moveEnv(ENV, 'checking', { by: 't', basis: 'x' });
       moveEnv(ENV, 'ready', { by: 't', basis: 'x' });
       consentConfig(ENV, 'taplus', 'aaron');
-      const id = `2010/main:android-app@v${(await import('./plans-v1')).savedDraft('2010')?.version ?? 1}`;
+      const id = `1903/main:android-app@v${(await import('./plans-v1')).savedDraft('1903')?.version ?? 1}`;
       const call = (method: string, path: string, body: any = {}) => apiV1({ method, path: `/api/v1${path}`, query: new URLSearchParams(), body, web: false }, {});
       const run = toolResult((await call('POST', '/tasks', { planId: id, series: 21 })) as any);
       expect(run.isError).toBe(true);

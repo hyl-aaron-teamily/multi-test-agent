@@ -1,5 +1,5 @@
 // W2-3 T5–T7 (device-free): approval policy and binding (31 / 32 / 33 / 30), view models (PlanView
-// snapshots of 2010 / 1903 / 2044 / 1329, ResultView consistency), the v1 API envelope and `help --json`.
+// snapshots of 1903 / 2044 / 1329, ResultView consistency), the v1 API envelope and `help --json`.
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -43,24 +43,24 @@ const code = (fn: () => unknown) => {
 
 describe('W2-3 T5 approval policy', () => {
   it('classifies: in-app plans default, big series / many messages sensitive, hard rules refused', () => {
-    const p2010 = plan('2010-android-app-v1');
+    const p1329 = plan('1329-s1-android-app-v1');
     const p1903 = plan('1903-android-app-v1');
-    expect(classifyPlan(p2010, { allow: ALLOW }).category).toBe('default');
-    expect(classifyPlan(p2010, { allow: ALLOW }).messages).toBe(0);
+    expect(classifyPlan(p1329, { allow: ALLOW }).category).toBe('default');
+    expect(classifyPlan(p1329, { allow: ALLOW }).messages).toBe(0);
     expect(classifyPlan(p1903, { allow: ALLOW })).toMatchObject({ category: 'default', messages: 18 }); // 1 send × (6 + 11 drift + 1 warm-up)
-    expect(classifyPlan(p2010, { series: 21 }).category).toBe('sensitive');
+    expect(classifyPlan(p1329, { series: 21 }).category).toBe('sensitive');
     expect(classifyPlan(p1903, { maxRounds: 60, allow: ALLOW })).toMatchObject({ category: 'sensitive' });
     expect(messageBound(p1903, 60)).toBeGreaterThan(50);
-    const del = { ...p2010, actions: [...p2010.actions, { type: 'node' as const, node: { name: 'teamily.deleteMessage', input: {} }, delayAfterMs: 0 }] };
+    const del = { ...p1329, actions: [...p1329.actions, { type: 'node' as const, node: { name: 'teamily.deleteMessage', input: {} }, delayAfterMs: 0 }] };
     expect(classifyPlan(del).category).toBe('refused');
     const out = { ...p1903, targets: [{ id: 'conv', kind: 'group-conversation', guidance: 'the conversation titled "Some customer group"' }] };
     expect(classifyPlan(out, { allow: ALLOW }).category).toBe('refused');
-    const home = { ...p2010, actions: [...p2010.actions, { type: 'key' as const, value: 'home', delayAfterMs: 0 }] };
+    const home = { ...p1329, actions: [...p1329.actions, { type: 'key' as const, value: 'home', delayAfterMs: 0 }] };
     expect(classifyPlan(home).category).toBe('sensitive');
   });
 
   it('approve: default by policy; sensitive needs the Web (30) unless full access; refused never; hash must match (31)', () => {
-    const p = plan('2010-android-app-v1');
+    const p = plan('1329-s1-android-app-v1');
     const h = planHash(p);
     const def = classifyPlan(p);
     expect(approve({ planId: 'x/main:android-app@v1', planHash: h, confirmedHash: h, facts: FACTS, classified: def, via: 'cli' }).by).toBe('cli');
@@ -76,7 +76,7 @@ describe('W2-3 T5 approval policy', () => {
   });
 
   it('use: hash mismatch 31, changed versions 32, run count 33, rejected / missing 30', () => {
-    const p = plan('2010-android-app-v1');
+    const p = plan('1329-s1-android-app-v1');
     const h = planHash(p);
     expect(code(() => useApproval('a', h, FACTS, 1))).toBe('APPROVAL_REQUIRED');
     approve({ planId: 'a', planHash: h, confirmedHash: h, facts: FACTS, classified: classifyPlan(p), runs: 2, via: 'cli' });
@@ -95,7 +95,7 @@ describe('W2-3 T5 approval policy', () => {
 });
 
 describe('W2-3 T6 view models', () => {
-  for (const f of ['2010-android-app-v1', '1903-android-app-v1', '2044-android-app-v1', '1329-s1-android-app-v1', '1329-s2-mobile-web-v1']) {
+  for (const f of ['1903-android-app-v1', '2044-android-app-v1', '1329-s1-android-app-v1', '1329-s2-mobile-web-v1']) {
     it(`PlanView snapshot: ${f}`, () => {
       const p = plan(f);
       const v = planView({ id: f, hash: planHash(p), plan: p, classified: classifyPlan(p, { allow: ALLOW }), envConfig: ['Taplus 黑名单（已同意）'], history: [] });
@@ -106,8 +106,8 @@ describe('W2-3 T6 view models', () => {
     });
   }
 
-  it('PlanView answers the six questions for 2010 and 1903', () => {
-    for (const f of ['2010-android-app-v1', '1903-android-app-v1']) {
+  it('PlanView answers the six questions for 1329 s1 and 1903', () => {
+    for (const f of ['1329-s1-android-app-v1', '1903-android-app-v1']) {
       const p = plan(f);
       const v = planView({ id: f, hash: planHash(p), plan: p, classified: classifyPlan(p, { allow: ALLOW }), history: [] });
       expect(typeof v.impact.messagesMax).toBe('number'); // how many messages (upper bound)
@@ -122,7 +122,7 @@ describe('W2-3 T6 view models', () => {
   });
 
   it('estimate: history → median ~ max; first estimate labelled', () => {
-    const p = plan('2010-android-app-v1');
+    const p = plan('1329-s1-android-app-v1');
     const v = planView({ id: 'x', hash: 'h', plan: p, classified: classifyPlan(p), history: [200, 240, 300] });
     expect(v.estimate).toMatchObject({ basis: 'history', samples: 3, minSec: 170, maxSec: 384 });
     expect(planView({ id: 'x', hash: 'h', plan: p, classified: classifyPlan(p), history: [] }).estimate.text).toMatch(/首次估算/);
@@ -130,14 +130,14 @@ describe('W2-3 T6 view models', () => {
 
   it('report lead reuses the plan-view step rendering (leadOf)', async () => {
     const { leadOf } = await import('../executor/run');
-    const p = plan('2010-android-app-v1');
+    const p = plan('1903-android-app-v1');
     const lead = leadOf(p, { hits: [], runTag: 'r1', attempts: attemptsOf(6, 0, 0) });
     expect(lead.trigger).toBe(p.actions.map((a) => stepText(a, p, true).text.replace(/\{token\}/g, 'r1').replace(/\{round\}/g, '<轮号>')).join(' → '));
     expect(lead.trigger).toContain('r1');
   });
 
   it('ResultView: one sentence and the same numbers in text and JSON', () => {
-    const r = { planId: '2010-android-app-v1', issue: '2010', title: 't', category: 'bug-always', surface: 'android-app', env: 'prod', substitution: { from: 'ios', to: 'android-app', reason: '' }, conclusion: '未复现', conclusionDetail: 'd', startedAt: '', finishedAt: '', stats: { durationSec: 200 } as RunResult['stats'], hits: [], incidents: [], targets: [], roundLog: [], attempts: attemptsOf(6, 1, 0), runTag: 'rabc' } as unknown as RunResult;
+    const r = { planId: '1903-android-app-v1', issue: '1903', title: 't', category: 'bug-always', surface: 'android-app', env: 'prod', substitution: { from: 'ios', to: 'android-app', reason: '' }, conclusion: '未复现', conclusionDetail: 'd', startedAt: '', finishedAt: '', stats: { durationSec: 200 } as RunResult['stats'], hits: [], incidents: [], targets: [], roundLog: [], attempts: attemptsOf(6, 1, 0), runTag: 'rabc' } as unknown as RunResult;
     const t = { id: 't1', state: 'done', endedBy: 'normal' } as any;
     const v = resultView(t, [r], 'NOT_REPRODUCED');
     expect(v.sentence).toBe(v.runs[0].sentence);
@@ -161,11 +161,11 @@ describe('W2-3 T7 API envelope and CLI help', () => {
     moveEnv(ENV, 'checking', { by: 't', basis: 'x' });
     moveEnv(ENV, 'ready', { by: 't', basis: 'x' });
   };
-  const pid2010 = () => `2010/main:android-app@v${savedDraft('2010')?.version ?? 1}`;
+  const pid1903 = () => `1903/main:android-app@v${savedDraft('1903')?.version ?? 1}`;
 
   it('every answer is a valid envelope whose exit matches its code', async () => {
     ready();
-    const answers = [await call('GET', '/issues'), await call('GET', '/issues/2010'), await call('GET', '/issues/nope'), await call('GET', `/plans/${encodeURIComponent(pid2010())}`), await call('GET', '/plans/bad-id'), await call('GET', '/envs'), await call('GET', `/envs/${encodeURIComponent(ENV)}`), await call('GET', '/tasks'), await call('GET', '/tasks/none'), await call('GET', '/nothing')];
+    const answers = [await call('GET', '/issues'), await call('GET', '/issues/1903'), await call('GET', '/issues/nope'), await call('GET', `/plans/${encodeURIComponent(pid1903())}`), await call('GET', '/plans/bad-id'), await call('GET', '/envs'), await call('GET', `/envs/${encodeURIComponent(ENV)}`), await call('GET', '/tasks'), await call('GET', '/tasks/none'), await call('GET', '/nothing')];
     for (const a of answers) {
       expect(EnvelopeZ.safeParse(a).success).toBe(true);
       expect(a.exit).toBe(STATUS[a.code].exit);
@@ -176,7 +176,7 @@ describe('W2-3 T7 API envelope and CLI help', () => {
 
   it('task run: consent first (30), then accepted (20) with the plan frozen; hash 31; series > 20 → 30 until the Web agrees', async () => {
     ready();
-    const id = pid2010();
+    const id = pid1903();
     expect((await call('POST', '/tasks', { planId: id })).code).toBe('APPROVAL_REQUIRED'); // env config item not consented
     consentConfig(ENV, 'taplus', 'aaron');
     expect((await call('POST', '/tasks', { planId: id, hash: 'deadbeefdeadbeef' })).code).toBe('PLAN_HASH_MISMATCH');
@@ -200,7 +200,7 @@ describe('W2-3 T7 API envelope and CLI help', () => {
     const { writeFileSync } = await import('node:fs');
     writeFileSync(process.env.AUTOTEST_POLICY_FILE!, 'fullAccessDefault: true\n');
     ready();
-    const id = pid2010();
+    const id = pid1903();
     const s = await call('POST', '/tasks', { planId: id, series: 21 });
     expect(s.code).toBe('ACCEPTED');
     expect(getApproval(id)!.by).toMatch(/^full-access/);
@@ -213,7 +213,7 @@ describe('W2-3 T7 API envelope and CLI help', () => {
     ready();
     consentConfig(ENV, 'taplus', 'aaron');
     updateEnv(ENV, (e) => void (e.appVersion = '2.0.15'));
-    const id = pid2010();
+    const id = pid1903();
     const h = resolvePlan(id).hash;
     expect((await call('POST', `/plans/${encodeURIComponent(id)}/approve`, { hash: h, runs: 3 }, true)).code).toBe('OK'); // a person, 3 runs
     expect(getApproval(id)!.facts.appVersion).toBe('2.0.15');
@@ -232,18 +232,18 @@ describe('W2-3 T7 API envelope and CLI help', () => {
     ready();
     consentConfig(ENV, 'taplus', 'aaron');
     moveEnv(ENV, 'unfit', { by: 't', basis: 'x', reason: 'screen: 锁屏（有 PIN，需人工解锁）' });
-    expect((await call('POST', '/tasks', { planId: pid2010() })).code).toBe('ENV_LOCKED');
+    expect((await call('POST', '/tasks', { planId: pid1903() })).code).toBe('ENV_LOCKED');
     moveEnv(ENV, 'checking', { by: 't', basis: 'x' });
     moveEnv(ENV, 'unfit', { by: 't', basis: 'x', reason: 'online: 设备不在线（adb 不可达）' });
-    expect((await call('POST', '/tasks', { planId: pid2010() })).code).toBe('ENV_OFFLINE');
+    expect((await call('POST', '/tasks', { planId: pid1903() })).code).toBe('ENV_OFFLINE');
     moveEnv(ENV, 'checking', { by: 't', basis: 'x' });
     moveEnv(ENV, 'unfit', { by: 't', basis: 'x', reason: 'session: 没有登录态' });
-    expect((await call('POST', '/tasks', { planId: pid2010() })).code).toBe('ENV_UNFIT');
+    expect((await call('POST', '/tasks', { planId: pid1903() })).code).toBe('ENV_UNFIT');
   });
 
   it('results: running → 21, finished → the outcome code', async () => {
     ready();
-    createTask({ id: 'tt', kind: 'issue', issue: '2010', planId: 'p', planHash: 'h', envId: ENV, options: {} });
+    createTask({ id: 'tt', kind: 'issue', issue: '1903', planId: 'p', planHash: 'h', envId: ENV, options: {} });
     expect((await call('GET', '/results/tt')).code).toBe('STILL_RUNNING');
     for (const s of ['waiting-env', 'preflight', 'running', 'finishing'] as const) moveTask('tt', s, 't', 'x');
     moveTask('tt', 'done', 't', 'x', (t) => void Object.assign(t, { outcome: { code: 'NOT_REPRODUCED', summary: '未复现' }, endedBy: 'normal' }));
