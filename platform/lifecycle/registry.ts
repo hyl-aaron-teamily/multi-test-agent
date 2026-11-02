@@ -7,10 +7,9 @@ import { sha } from '../../issue/drafts';
 import { profilePath } from '../../skills/profile';
 import type { AccountPool } from '../accounts/account-pool';
 import type { PoolConfig } from '../device-pool';
-import { adbBaselineDriver, androidConfigItems, hostDriver } from './android-ops';
+import { adbPhoneDriver, androidConfigItems } from './android-ops';
+import type { DriverFactory } from './check';
 import { type EnvRecord, type EnvSurface, registerEnv } from './env';
-import type { DriverFactory } from './recover';
-import { getTask } from './task';
 
 export interface EnvDecl {
   id: string;
@@ -57,9 +56,8 @@ export function syncEnvs(cfg: PoolConfig, pool: AccountPool): EnvRecord[] {
   });
 }
 
-/** Production drivers: adb for the phone, the last task's process for the host, session file for web. */
+/** Production check drivers: adb for the phone, the session file for web. */
 export const prodDrivers: DriverFactory = (env) => {
-  const proc = env.lastTask ? getTask(env.lastTask)?.proc : env.lease ? getTask(env.lease.taskId)?.proc : undefined;
   const web = env.surface === 'desktop-web' || env.surface === 'mobile-web';
   const sessionOk = web
     ? async () => {
@@ -82,5 +80,5 @@ export const prodDrivers: DriverFactory = (env) => {
       }
     : undefined;
   const phone = (env.surface === 'android-app' || env.surface === 'android-web') && env.udid;
-  return { android: phone ? adbBaselineDriver(env.udid!, env.package ?? (env.surface === 'android-web' ? BROWSER_PACKAGE : TEAMILY_PACKAGE)) : undefined, host: hostDriver(proc, sessionOk) };
+  return { phone: phone ? adbPhoneDriver(env.udid!, env.package ?? (env.surface === 'android-web' ? BROWSER_PACKAGE : TEAMILY_PACKAGE)) : undefined, sessionOk };
 };

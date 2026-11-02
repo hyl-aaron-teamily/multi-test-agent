@@ -138,16 +138,16 @@ describe('W2-3 T6 view models', () => {
 
   it('ResultView: one sentence and the same numbers in text and JSON', () => {
     const r = { planId: '2010-android-app-v1', issue: '2010', title: 't', category: 'bug-always', surface: 'android-app', env: 'prod', substitution: { from: 'ios', to: 'android-app', reason: '' }, conclusion: '未复现', conclusionDetail: 'd', startedAt: '', finishedAt: '', stats: { durationSec: 200 } as RunResult['stats'], hits: [], incidents: [], targets: [], roundLog: [], attempts: attemptsOf(6, 1, 0), runTag: 'rabc' } as unknown as RunResult;
-    const t = { id: 't1', state: 'done', endedBy: 'normal', recovery: { result: 'recovered', at: '' } } as any;
+    const t = { id: 't1', state: 'done', endedBy: 'normal' } as any;
     const v = resultView(t, [r], 'NOT_REPRODUCED');
     expect(v.sentence).toBe(v.runs[0].sentence);
     expect(v.sentence).toMatch(/^未复现：6 次有效尝试未复现/);
     const txt = resultText(v);
     expect(txt).toContain(v.sentence);
     expect(txt).toContain(`有效尝试 ${v.runs[0].attempts!.valid}，命中 ${v.runs[0].attempts!.hits}`);
-    const cut = resultView({ ...t, state: 'interrupted', endedBy: 'stuck', endedAt: { phase: 'loop', round: 3, step: 17 } }, [{ ...r, cancelled: true }], 'TASK_STUCK');
+    const cut = resultView({ ...t, state: 'interrupted', endedBy: 'crash', endedAt: { phase: 'loop', round: 3, step: 17 } }, [{ ...r, cancelled: true }], 'TASK_CRASHED');
     expect(cut.complete).toBe(false);
-    expect(cut.sentence).toMatch(/不完整，不给结论（停在循环 第 3 轮 第 17 步）；环境已恢复/);
+    expect(cut.sentence).toMatch(/不完整，不给结论（停在循环 第 3 轮 第 17 步）$/);
   });
 });
 
@@ -228,14 +228,17 @@ describe('W2-3 T7 API envelope and CLI help', () => {
     expect(getApproval(id)!.facts.appVersion).toBe('2.0.17');
   });
 
-  it('environment states map to 50–53', async () => {
+  it('environment states map to 50–52', async () => {
     ready();
     consentConfig(ENV, 'taplus', 'aaron');
     moveEnv(ENV, 'unfit', { by: 't', basis: 'x', reason: 'screen: 锁屏（有 PIN，需人工解锁）' });
     expect((await call('POST', '/tasks', { planId: pid2010() })).code).toBe('ENV_LOCKED');
     moveEnv(ENV, 'checking', { by: 't', basis: 'x' });
-    moveEnv(ENV, 'quarantined', { by: 't', basis: 'x', reason: 'composer' });
-    expect((await call('POST', '/tasks', { planId: pid2010() })).code).toBe('ENV_QUARANTINED');
+    moveEnv(ENV, 'unfit', { by: 't', basis: 'x', reason: 'online: 设备不在线（adb 不可达）' });
+    expect((await call('POST', '/tasks', { planId: pid2010() })).code).toBe('ENV_OFFLINE');
+    moveEnv(ENV, 'checking', { by: 't', basis: 'x' });
+    moveEnv(ENV, 'unfit', { by: 't', basis: 'x', reason: 'session: 没有登录态' });
+    expect((await call('POST', '/tasks', { planId: pid2010() })).code).toBe('ENV_UNFIT');
   });
 
   it('results: running → 21, finished → the outcome code', async () => {
@@ -257,7 +260,8 @@ describe('W2-3 T7 API envelope and CLI help', () => {
 
   it('help --json lists every command with an argument schema and the full status table', () => {
     const h = helpDoc();
-    expect(h.commands.map((c) => c.command)).toEqual(expect.arrayContaining(['issue list', 'draft create', 'plan explain', 'plan approve', 'env recover', 'task run', 'task wait', 'result show', 'help']));
+    expect(h.commands.map((c) => c.command)).not.toContain('env recover');
+    expect(h.commands.map((c) => c.command)).toEqual(expect.arrayContaining(['issue list', 'draft create', 'plan explain', 'plan approve', 'env check', 'task run', 'task wait', 'result show', 'help']));
     for (const c of COMMANDS) for (const code of c.codes) expect(STATUS[code]).toBeDefined();
     expect(h.statusCodes.length).toBe(Object.keys(STATUS).length);
     expect(h.commands.find((c) => c.command === 'plan approve')!.args.find((a) => a.name === 'hash')!.required).toBe(true);

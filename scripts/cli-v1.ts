@@ -1,7 +1,6 @@
 // W2-3 CLI for agents (§5.3): `autotest <object> <action> [--json]`. A thin client of the platform service
 // (/api/v1): it prints the service's envelope — with --json, stdout is exactly one JSON object (anything
 // else goes to stderr) — and exits with the envelope's status code (§5.2). Never asks a question.
-// `env recover` runs locally: it is the independent recovery process the platform starts (§4.3 L3).
 import { type Code, STATUS } from '../platform/lifecycle/status';
 
 export interface ArgSpec {
@@ -34,24 +33,22 @@ export const COMMANDS: CommandSpec[] = [
   { command: 'plan approve', doc: 'Approve a default-class plan by its hash (sensitive plans: Web only → 30)', args: [PLAN, { name: 'hash', type: 'string', required: true, doc: 'hash from plan explain' }, { name: 'runs', type: 'integer', doc: 'runs allowed (default 1)' }, { name: 'series', type: 'integer', doc: 'series size allowed' }, J], codes: ['OK', 'APPROVAL_REQUIRED', 'PLAN_HASH_MISMATCH', 'PLAN_NOT_EXECUTABLE'] },
   { command: 'plan reject', doc: 'Reject a plan (note required)', args: [PLAN, { name: 'note', type: 'string', required: true, doc: 'why' }, J], codes: ['OK'] },
   { command: 'env list', doc: 'Environments and their state (EnvView)', args: [J], codes: ['OK'] },
-  { command: 'env show', doc: 'One environment: baseline items, lease, dirty mark, configuration items', args: [ENV, J], codes: ['OK', 'NOT_FOUND'] },
-  { command: 'env check', doc: 'Baseline check (recovers what it can); quarantined → checking needs this from a person', args: [ENV, J], codes: ['OK', 'ENV_UNFIT', 'ENV_LOCKED', 'ENV_OFFLINE', 'ENV_QUARANTINED'] },
-  { command: 'env recover', doc: 'Recover an environment from its declaration and the last task ledger (local process)', args: [ENV, J], codes: ['OK', 'ENV_UNFIT', 'ENV_LOCKED', 'ENV_OFFLINE', 'ENV_QUARANTINED'] },
-  { command: 'env offline', doc: 'Take an environment offline (stops its task gracefully, recovers)', args: [ENV, J], codes: ['OK'] },
-  { command: 'task run', doc: 'Submit a plan; returns the task id at once (20). Default-class plans are approved by policy', args: [PLAN, { name: 'env', type: 'string', doc: 'environment id (default: the plan surface’s ready one)' }, { name: 'series', type: 'integer', doc: 'N independent runs' }, { name: 'max-rounds', type: 'integer', doc: 'valid attempts per run' }, { name: 'hash', type: 'string', doc: 'expected plan hash (31 on mismatch)' }, { name: 'dry-run', type: 'boolean', doc: 'check everything, start nothing' }, { name: 'idempotency-key', type: 'string', doc: 'same key → the same task' }, J], codes: ['ACCEPTED', 'OK', 'APPROVAL_REQUIRED', 'PLAN_HASH_MISMATCH', 'PLAN_STALE', 'APPROVAL_EXHAUSTED', 'NOT_FOUND', 'PLAN_NOT_EXECUTABLE', 'ENV_UNFIT', 'ENV_LOCKED', 'ENV_OFFLINE', 'ENV_QUARANTINED'] },
-  { command: 'task status', doc: 'TaskView: state, phase / round / step, how and where it ended, ledger summary, recovery', args: [TASK, J], codes: ['OK', 'NOT_FOUND'] },
-  { command: 'task wait', doc: 'Wait until the task ends; exit = its outcome code, 21 when --timeout passes first', args: [TASK, { name: 'timeout', type: 'integer', doc: 'seconds (default 600)' }, J], codes: ['STILL_RUNNING', 'NOT_REPRODUCED', 'REPRODUCED', 'PARTIAL', 'IMPLEMENTED', 'NOT_IMPLEMENTED', 'SUSPECTED_MISOP', 'TURNED_BUG', 'SERIES_DONE', 'PLAN_NOT_EXECUTABLE', 'ENV_UNFIT', 'ENV_LOCKED', 'ENV_OFFLINE', 'TOOL_FAILED', 'SKILL_STALE', 'TASK_STUCK', 'TASK_CRASHED', 'CANCELLED', 'TIMED_OUT', 'INTERRUPTED'] },
-  { command: 'task cancel', doc: 'Cancel: queued → cancelled; running → stops at the next step boundary, then teardown + recovery', args: [TASK, J], codes: ['OK', 'NOT_FOUND', 'BAD_INPUT'] },
+  { command: 'env show', doc: 'One environment: last check items, lease, configuration items', args: [ENV, J], codes: ['OK', 'NOT_FOUND'] },
+  { command: 'env check', doc: 'Check the environment now (online, unlocked, app version, configuration items) → ready / unfit', args: [ENV, J], codes: ['OK', 'ENV_UNFIT', 'ENV_LOCKED', 'ENV_OFFLINE'] },
+  { command: 'task run', doc: 'Submit a plan; returns the task id at once (20). Default-class plans are approved by policy', args: [PLAN, { name: 'env', type: 'string', doc: 'environment id (default: the plan surface’s ready one)' }, { name: 'series', type: 'integer', doc: 'N independent runs' }, { name: 'max-rounds', type: 'integer', doc: 'valid attempts per run' }, { name: 'hash', type: 'string', doc: 'expected plan hash (31 on mismatch)' }, { name: 'dry-run', type: 'boolean', doc: 'check everything, start nothing' }, { name: 'idempotency-key', type: 'string', doc: 'same key → the same task' }, J], codes: ['ACCEPTED', 'OK', 'APPROVAL_REQUIRED', 'PLAN_HASH_MISMATCH', 'PLAN_STALE', 'APPROVAL_EXHAUSTED', 'NOT_FOUND', 'PLAN_NOT_EXECUTABLE', 'ENV_UNFIT', 'ENV_LOCKED', 'ENV_OFFLINE'] },
+  { command: 'task status', doc: 'TaskView: state, phase / round / step, how and where it ended, side-effect summary', args: [TASK, J], codes: ['OK', 'NOT_FOUND'] },
+  { command: 'task wait', doc: 'Wait until the task ends; exit = its outcome code, 21 when --timeout passes first', args: [TASK, { name: 'timeout', type: 'integer', doc: 'seconds (default 600)' }, J], codes: ['STILL_RUNNING', 'NOT_REPRODUCED', 'REPRODUCED', 'PARTIAL', 'IMPLEMENTED', 'NOT_IMPLEMENTED', 'SUSPECTED_MISOP', 'TURNED_BUG', 'SERIES_DONE', 'PLAN_NOT_EXECUTABLE', 'ENV_UNFIT', 'ENV_LOCKED', 'ENV_OFFLINE', 'TOOL_FAILED', 'SKILL_STALE', 'TASK_CRASHED', 'CANCELLED', 'INTERRUPTED'] },
+  { command: 'task cancel', doc: 'Cancel: queued → cancelled; running → stops at the next step boundary (killed if not stopped within 60 s)', args: [TASK, J], codes: ['OK', 'NOT_FOUND', 'BAD_INPUT'] },
   { command: 'task list', doc: 'Recent tasks', args: [{ name: 'limit', type: 'integer', doc: 'default 50' }, J], codes: ['OK'] },
   { command: 'doctor', doc: 'Can runs start, what is missing, what to do next (ready / degraded / blocked; next steps split into commands and things only a person can do). Works with the platform down', args: [{ name: 'fix', type: 'boolean', doc: 'safe local cleanup: stale locks, stale tree-service forwards, leases of dead tasks (never touches the device, never restarts adb)' }, { name: 'probe', type: 'boolean', doc: 'one screenshot + tree read per phone, both backends timed' }, J], codes: ['OK', 'PLATFORM_DOWN', 'ENV_LOCKED', 'ENV_OFFLINE', 'ENV_UNFIT'] },
-  { command: 'result show', doc: 'ResultView of a finished task: conclusion sentence, basis, attempts, flags, failure kind, evidence', args: [TASK, J], codes: ['STILL_RUNNING', 'NOT_REPRODUCED', 'REPRODUCED', 'PARTIAL', 'IMPLEMENTED', 'NOT_IMPLEMENTED', 'SERIES_DONE', 'TOOL_FAILED', 'ENV_UNFIT', 'CANCELLED', 'INTERRUPTED', 'TASK_CRASHED', 'TASK_STUCK'] },
+  { command: 'result show', doc: 'ResultView of a finished task: conclusion sentence, basis, attempts, flags, failure kind, evidence', args: [TASK, J], codes: ['STILL_RUNNING', 'NOT_REPRODUCED', 'REPRODUCED', 'PARTIAL', 'IMPLEMENTED', 'NOT_IMPLEMENTED', 'SERIES_DONE', 'TOOL_FAILED', 'ENV_UNFIT', 'CANCELLED', 'INTERRUPTED', 'TASK_CRASHED'] },
 ];
 
 export function helpDoc() {
   return {
     schemaVersion: 1,
     usage: 'autotest <object> <action> [args] [--json]',
-    notes: ['--json: stdout is exactly one JSON object; logs go to stderr', 'never interactive', 'exit code = envelope.exit (two digits, tens = class); 1 = uncaught tool exception', 'every command except help and env recover needs the platform service (pnpm platform) → else 54', 'sensitive plans / full access / environment configuration items are approved on the Web only'],
+    notes: ['--json: stdout is exactly one JSON object; logs go to stderr', 'never interactive', 'exit code = envelope.exit (two digits, tens = class); 1 = uncaught tool exception', 'every command except help and doctor needs the platform service (pnpm platform) → else 54', 'sensitive plans / full access / environment configuration items are approved on the Web only'],
     commands: COMMANDS,
     statusCodes: Object.entries(STATUS).map(([code, v]) => ({ exit: v.exit, status: v.status, code, meaning: v.text })),
   };
@@ -128,10 +125,6 @@ export async function dispatch(obj: string, act: string | undefined, a: string[]
         return call('GET', `/envs/${enc(need(0, 'envId'))}`);
       case 'env check':
         return call('POST', `/envs/${enc(need(0, 'envId'))}/check`);
-      case 'env offline':
-        return call('POST', `/envs/${enc(need(0, 'envId'))}/offline`);
-      case 'env recover':
-        return recoverLocal(need(0, 'envId'));
       case 'task run':
         return call('POST', '/tasks', { planId: need(0, 'planId'), envId: flag(a, 'env'), series: int(flag(a, 'series')), maxRounds: int(flag(a, 'max-rounds')), hash: flag(a, 'hash'), dryRun: has(a, 'dry-run'), idempotencyKey: flag(a, 'idempotency-key') });
       case 'task status':
@@ -176,19 +169,6 @@ export async function doctorLocal(fix: boolean, probe: boolean): Promise<Env> {
 
 --fix：${did.length ? did.join('；') : '没有需要清理的残留'}` : ''}`;
   return { status: STATUS[code].status, code, exit: STATUS[code].exit, summary: `${d.conclusion}：${d.summary}`, data: { ...d, ...(fix ? { fixed: did } : {}) }, text };
-}
-
-/** `env recover <envId>` in this process (the platform starts it as its own process). */
-async function recoverLocal(envId: string): Promise<Env> {
-  const { recoverEnv } = await import('../platform/lifecycle/recover');
-  const { prodDrivers } = await import('../platform/lifecycle/registry');
-  const { getEnv } = await import('../platform/lifecycle/env');
-  const { envView } = await import('../platform/views');
-  if (!getEnv(envId)) return { status: 404, code: 'NOT_FOUND', exit: 41, summary: `没有环境 ${envId}` };
-  const r = await recoverEnv(envId, prodDrivers, 'recover');
-  const v = envView(r.env);
-  const code: Code = r.error && r.env.state === 'quarantined' ? 'ENV_QUARANTINED' : v.state === 'quarantined' ? 'ENV_QUARANTINED' : v.state === 'unfit' ? (/锁屏/.test(v.reason ?? '') ? 'ENV_LOCKED' : /不在线|adb/.test(v.reason ?? '') ? 'ENV_OFFLINE' : 'ENV_UNFIT') : 'OK';
-  return { status: STATUS[code].status, code, exit: STATUS[code].exit, summary: `${v.summary}${r.did.length ? `；恢复动作：${r.did.join('；')}` : ''}${r.error ? `；${r.error}` : ''}`, data: { env: v, did: r.did, error: r.error } };
 }
 
 export async function cliV1(obj: string, rest: string[]): Promise<number> {

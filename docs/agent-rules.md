@@ -49,8 +49,8 @@
 | `plan_approve` | `plan approve` | 否 | 默认类计划按哈希批准；敏感计划返回 30 + 链接 |
 | `plan_reject` | `plan reject` | 否 | 拒绝计划（需写原因） |
 | `env_list` | `env list` | 是 | 环境与状态 |
-| `env_show` | `env show` | 是 | 单个环境：基线项、租约、配置项 |
-| `env_check` | `env check` | 否 | 基线检查（能恢复的会恢复） |
+| `env_show` | `env show` | 是 | 单个环境：上次检查、租约、配置项 |
+| `env_check` | `env check` | 否 | 立即检查环境（在线、未锁屏、配置项）→ 就绪 / 不合格 |
 | `task_run` | `task run` | 否 | 提交任务，立即返回任务 id（20） |
 | `task_status` | `task status` | 是 | 任务进度与状态 |
 | `task_wait` | `task wait` | 是 | 单次最多等 25 s；返回 21 表示仍在运行，再调一次 |
@@ -59,7 +59,7 @@
 | `doctor` | `doctor` | 否（`fix` 只清本机残留） | 能不能跑、缺什么、下一步 |
 | `device_snapshot` | — | 是 | 当前屏幕截图 + 规范化节点（只读） |
 
-不提供：`env recover` / `env offline`（由人或平台执行）、任何"同意"类操作（只能在 Web）。
+不提供：任何"同意"类操作（只能在 Web）。
 
 资源（只读）：`autotest://results/{taskId}`、`autotest://plans/{planId}`、`autotest://reports/{taskId}`、`autotest://files/{path}`（仅 `midscene_run/` 与 `skills/teamily/refs/` 内的文件）。
 

@@ -1,7 +1,7 @@
 // Native MCP service (W2-4 §5, K4): the same commands as `autotest <object> <action> --json`, as MCP tools
 // over stdio. Tools are generated from the CLI command table (scripts/cli-v1.ts#COMMANDS — names, argument
 // types, docs) and call the CLI's own dispatch(), so a tool result carries exactly the envelope `--json`
-// prints. Not exposed: env recover / env offline (people only), help (tools/list is the help). Approvals stay
+// prints. Not exposed: help (tools/list is the help). Approvals stay
 // on the Web (sensitive plans → 30 + review link). Platform down → 54 with the start command; never auto-starts.
 // Added: device_snapshot (read-only screen + nodes) and doctor.
 import { existsSync, readFileSync } from 'node:fs';

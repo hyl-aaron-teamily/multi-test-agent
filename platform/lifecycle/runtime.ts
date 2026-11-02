@@ -1,7 +1,6 @@
-// Task-process side of the lifecycle (W2-3 §4.1, §4.3 L1/L2, G6): registers the process in the task and
-// the lease, writes a heartbeat every 5 s from its own timer, reports progress (phase / round / step),
-// writes the side-effect ledger BEFORE each effect, and turns a cancel request (file flag, SIGINT, SIGTERM)
-// into a stop at the next step boundary.
+// Task-process side of the lifecycle (W2-3 §4.1, F6): registers the process (pid + start time) in the task and
+// the lease, reports progress (phase / round / step), records side effects for the task view, and turns a
+// cancel request (file flag, SIGINT, SIGTERM) into a stop at the next step boundary.
 import type { PlannedAction } from '../schema/test-plan';
 import { bindLeaseProc } from './env';
 import { selfId } from './proc';
@@ -18,7 +17,7 @@ export class CancelledError extends Error {
 /** Hooks the executor calls (executor/run.ts RunOptions.hooks). All optional for the executor. */
 export interface RunHooks {
   phase(p: Phase): void;
-  /** Before every planned action (step boundary): may throw CancelledError; writes ledger + progress. */
+  /** Before every planned action (step boundary): may throw CancelledError; records progress + side effect. */
   beforeAction(a: PlannedAction, info: { round: number; step: number; label?: string; target: (id: string) => string | undefined; budgetMs?: number }): void;
   /** Before a preflight / setting change the executor itself makes. */
   effect(e: Omit<LedgerEntry, 'at' | 'seq' | 'state' | 'phase' | 'round'>): void;
@@ -35,7 +34,6 @@ export function effectOf(a: PlannedAction, conv: string | undefined, target: (id
   const inp = (a.node?.input ?? {}) as Record<string, unknown>;
   if (n && ENTER_NODES.has(n)) {
     const id = String(inp.target ?? inp.from ?? '');
-    // Unknown title (target located by vision): recorded without a name — recovery cannot open it by name.
     const name = target(id);
     return { kind: 'enter-conversation', target: name, value: name ? undefined : `目标 ${id}（标题未知）` };
   }
@@ -46,8 +44,9 @@ export function effectOf(a: PlannedAction, conv: string | undefined, target: (id
   return undefined;
 }
 
+const CANCEL_POINTS = new Set<Phase>(['launch', 'prepare', 'warmup', 'loop']);
+
 export class TaskRuntime implements RunHooks {
-  private timer?: NodeJS.Timeout;
   private seq = 0;
   private cancelled = false;
   private lastPoll = 0;
@@ -55,20 +54,13 @@ export class TaskRuntime implements RunHooks {
   private conv?: string;
   private lastWrite = 0;
 
-  constructor(
-    public taskId: string,
-    private heartbeatMs = 5000,
-  ) {}
+  constructor(public taskId: string) {}
 
-  /** Register this process, start the heartbeat, listen for SIGINT / SIGTERM. */
+  /** Register this process, listen for SIGINT / SIGTERM. */
   start(): void {
     const me = selfId();
-    const t = updateTask(this.taskId, (t) => {
-      t.proc = me;
-      t.heartbeatAt = new Date().toISOString();
-    });
+    const t = updateTask(this.taskId, (t) => void (t.proc = me));
     bindLeaseProc(t.envId, t.id, me);
-    this.timer = setInterval(() => this.beat(), this.heartbeatMs);
     const onSig = () => {
       this.cancelled = true;
       event(this.taskId, { type: 'note', note: 'signal: stop at the next step boundary' });
@@ -77,23 +69,14 @@ export class TaskRuntime implements RunHooks {
     process.once('SIGTERM', onSig);
   }
 
-  beat(): void {
-    try {
-      updateTask(this.taskId, (t) => void (t.heartbeatAt = new Date().toISOString()));
-    } catch {
-      /* next beat */
-    }
-  }
-
-  stop(): void {
-    clearInterval(this.timer);
-  }
-
   move(to: TaskState, basis: string, patch?: Parameters<typeof moveTask>[4]): void {
     moveTask(this.taskId, to, 'task', basis, patch);
   }
 
+  /** Phase boundary: also a cancel point for the phases that run inside the executor's error handling
+   *  (a cancel during launch / prepare / warm-up takes effect when that phase ends, not only at the loop). */
   phase(p: Phase): void {
+    if (CANCEL_POINTS.has(p) && this.shouldStop()) throw new CancelledError();
     this.cur = { phase: p };
     updateTask(this.taskId, (t) => void (t.progress = { phase: p, at: new Date().toISOString() }));
     event(this.taskId, { type: 'progress', phase: p });

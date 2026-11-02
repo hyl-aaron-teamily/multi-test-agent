@@ -7,7 +7,6 @@ const GLOSSARY = {
   '3/n 上界': '0 次命中时，单次复现概率的 95% 上界约为 3 ÷ 有效尝试数。',
   替代执行: 'Issue 所在的端（如 iOS）没有执行端时，换一个相近的端（如 Android App）执行；结论不能直接代表原端。',
   环境不合格: '开跑前检查发现环境不能用（锁屏、离线、未登录…）：不操作 App，不给产品结论。',
-  隔离: '环境恢复失败，已停止接新任务；需要人工处理后点“我已处理，重新检查”。',
 };
 
 function term(t) {
@@ -36,7 +35,7 @@ function fileLink(p, label) {
   return i < 0 ? esc(p) : `<a href="/files/${p.replace(/\\/g, '/').slice(i + 'midscene_run/'.length)}" target="_blank">${esc(label ?? p.split(/[\\/]/).pop())}</a>`;
 }
 
-const ENV_CLASS = { ready: 'ok', leased: 'busy', checking: 'busy', recovering: 'busy', draining: 'busy', unfit: 'bad', quarantined: 'bad', offline: 'off' };
+const ENV_CLASS = { ready: 'ok', leased: 'busy', checking: 'busy', unfit: 'bad', offline: 'off' };
 
 async function header(active) {
   const fa = (await api('GET', '/full-access')).data;
@@ -44,7 +43,7 @@ async function header(active) {
   const bar = envs
     .map((e) => {
       const locked = e.state === 'unfit' && /锁屏/.test(e.reason ?? '');
-      return `<a class="env ${ENV_CLASS[e.state] ?? ''}" href="/env.html?id=${enc(e.id)}" title="${esc(e.summary)}">${esc(e.id)}：${esc(e.stateText)}${locked ? ' — <b>需人工解锁</b>' : e.state === 'quarantined' ? ` — ${esc((e.reason ?? '').slice(0, 40))}` : ''}</a>`;
+      return `<a class="env ${ENV_CLASS[e.state] ?? ''}" href="/env.html?id=${enc(e.id)}" title="${esc(e.summary)}">${esc(e.id)}：${esc(e.stateText)}${locked ? ' — <b>需人工解锁</b>' : e.state === 'unfit' ? ` — ${esc((e.reason ?? '').slice(0, 40))}` : ''}</a>`;
     })
     .join('');
   document.getElementById('top').innerHTML = `

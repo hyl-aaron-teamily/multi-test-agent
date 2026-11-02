@@ -162,7 +162,7 @@ export async function activateA11y(udid: string): Promise<{ ok: boolean; reason?
   }
 }
 
-// ---- configuration item `a11y-service` (consented once; applied by env check / recovery, never by preflight)
+// ---- configuration item `a11y-service` (consented once; applied by the environment check, never by preflight)
 
 export async function installA11y(udid: string, apk = A11Y_APK): Promise<void> {
   if (!existsSync(apk)) throw new Error(`没有构建好的 APK：${apk}（sh android/a11y-service/build.sh）`);

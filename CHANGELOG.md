@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased] — 重构 P2：生命周期瘦身（`docs/refactor-plan.md`）
+
+规则 F2–F5 删除（`docs/rules-audit.md`）：不再有环境恢复、隔离、心跳、看门狗、交叉检测；保留 F1（任务 / 环境状态机、一个环境一个租约，租约记录任务进程 pid + 启动时间）与 F6（步骤边界取消、结构化输出、JSON 状态）。
+
+### Changed
+- 环境状态机：`offline / checking / ready / leased / unfit`。租约结束 → `checking` → 环境检查（`platform/lifecycle/check.ts`，替代 `baseline` 与 `recover`）：手机在线、未锁屏（熄屏会唤醒）、App 版本、已同意的配置项（读树服务、Taplus、常亮）；Web 看登录态文件。不再清输入框、回首页、杀残留进程——每次运行自己回到干净起点（`executor/isolation.ts`）。旧记录里的 `recovering / quarantined / draining` 在登记时映射为 `checking / unfit`。
+- 任务状态去掉 `recovering`、`timed-out`；`closeTask` 移到 `task.ts`（中断的任务照旧带停止位置与「不完整，不给结论」的部分结果）。
+- 调度（`supervisor.ts`）：任务进程退出而记录未结束 → 中断（63）；平台启动时按租约里的进程判断（活着 → 接管，不在 → 中断 72，从未启动 → 回队列；`reconcile()` 可单测）。取消在步骤边界与阶段边界（启动 / 准备 / 预热 / 循环之前）生效，请求后 60 s 仍未停止则强制结束进程（`AUTOTEST_CANCEL_KILL_MS`）。
+- 视图 `schemaVersion` 1 → 2：EnvView `baseline`、`dirty` → `check`；TaskView 去掉 `heartbeatAt`、`recovery`；ResultView `ended.envRecovery` 去掉。
+- Web 环境页只剩「重新检查」；任务页去掉心跳与环境恢复；「副作用台账」改称「副作用记录」。
+- `.gitattributes`：`*.snap` 固定 LF，跑测试不再让快照文件显示改动。
+
+### Removed
+- `platform/lifecycle/{baseline,recover,crosscheck}.ts`，`android-ops.ts` 中读树与清理相关的驱动；命令 `env recover`、`env offline`（CLI / API / Web）。
+- 状态码 53 `ENV_QUARANTINED`、71 `TIMED_OUT`；62 `TASK_STUCK` 只保留给 P2 之前的记录。
+
 ## [Unreleased] — 重构 P1：删除旧路径（`docs/refactor-plan.md`）
 
 范围收窄为两项能力（自然语言自主测试 / 探索；Issue 驱动的确定性测试 + 现场包），规则见 `docs/rules-audit.md`。本阶段只删除，主链路（`/api/v1`、CLI、MCP、Issue 执行与系列、现场包、重放、`autotest sync`）行为不变。
