@@ -5,8 +5,8 @@
 // after this exits.
 import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import type { RunResult } from '../executor/run';
-import { summarizeSeries, type SeriesRun } from '../executor/series';
+import type { RunResult } from '../engine/plan/run';
+import { summarizeSeries, type SeriesRun } from '../engine/plan/series';
 import type { Draft } from '../issue/planner';
 import { getEnv, updateEnv } from '../platform/lifecycle/env';
 import { recordWarmupFailures } from '../issue/drafts';
@@ -59,7 +59,7 @@ export async function execTask(id: string): Promise<number> {
     shouldStop: rt.shouldStop.bind(rt),
   };
   const { openPools } = await import('../platform/pools');
-  const { runPlan } = await import('../executor/run');
+  const { runPlan } = await import('../engine/plan/run');
   const { writeIssueReport } = await import('../issue/report');
   const { pool, devices } = await openPools();
   const n = t0.series?.runs ?? 1;
@@ -84,8 +84,8 @@ export async function execTask(id: string): Promise<number> {
     } catch (e) {
       // runPlan returns on its own errors; one escaping it is classified like any failure (env or tool).
       const msg = (e as Error).message.split('\n')[0];
-      const { classifyFailure } = await import('../executor/failure');
-      const { envSnapshot } = await import('../executor/preflight');
+      const { classifyFailure } = await import('../engine/failure');
+      const { envSnapshot } = await import('../engine/preflight');
       const snap = env.udid ? await envSnapshot(env.udid, env.package ?? '').catch(() => undefined) : undefined;
       const f = classifyFailure('执行失败', msg, snap);
       r = { planId: plan.id, issue: plan.issueRef, title: plan.title, category: plan.category, surface: plan.surface, env: plan.env, conclusion: '执行失败', conclusionDetail: msg, startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), stats: {} as RunResult['stats'], hits: [], incidents: [], targets: [], roundLog: [], error: msg, failure: f.rule === 'default' ? { ...f, rule: 'uncaught-in-run' } : f };

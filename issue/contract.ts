@@ -4,7 +4,7 @@
 // suspectedMechanism is a guess: shown in the confirmation, never executed or judged.
 import { chatJson, modelConfigured, visionConfigured, visionJson } from '../core/model/llm';
 import { issueImages } from './images';
-import { observationOf, OBSERVATIONS } from '../executor/observe';
+import { observationOf, OBSERVATIONS } from '../engine/observe';
 import { loadConversations } from '../platform/conversations';
 import { type IssueContract, IssueContractZ } from '../platform/schema/contract';
 import type { Category, Surface, TestPlan } from '../platform/schema/test-plan';

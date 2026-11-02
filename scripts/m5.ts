@@ -26,7 +26,7 @@ async function accounts(args: string[]): Promise<number> {
   await pool.reload();
   const env = flag(args, 'env') as Env | undefined;
   if (args[0] === 'check') {
-    const { checkAccounts } = await import('../executor/login/health');
+    const { checkAccounts } = await import('../engine/login/health');
     const res = await checkAccounts(pool, { env, force: has(args, 'force'), ids: flag(args, 'id')?.split(',') });
     for (const r of res) console.log(`${r.id.padEnd(22)} ${r.env.padEnd(5)} ${r.result.ok ? (r.result.reused ? 'OK (session reused)' : 'OK (logged in, session cached)') : `FAIL ${r.result.error}`}`);
     const byEnv = (e: Env) => res.filter((r) => r.env === e && r.result.ok).length;
@@ -39,7 +39,7 @@ async function accounts(args: string[]): Promise<number> {
 
 /** T2 smoke: by coordinates only, open a conversation (picked at preparation) and send one message. */
 async function sync(args: string[]): Promise<number> {
-  const { runSync } = await import('../executor/sync');
+  const { runSync } = await import('../engine/plan/sync');
   const { resolve } = await import('node:path');
   const env = (flag(args, 'env') ?? 'prod') as Env;
   const { pool, devices } = await openPools();
@@ -71,8 +71,8 @@ const table: Record<string, (a: string[]) => Promise<number>> = {
   run: async (a) => (await import('./issue-cli')).runCmd(a),
   series: async (a) => (await import('./issue-cli')).seriesCmd(a),
   rerender: async (a) => (await import('./issue-cli')).rerenderCmd(a),
-  replay: async (a) => (await import('../executor/replay')).replayCmd(a),
-  evidence: async (a) => (await import('../incident/evidence-cases')).evidenceCmd(a),
+  replay: async (a) => (await import('../engine/recorder/replay')).replayCmd(a),
+  evidence: async (a) => (await import('../engine/recorder/evidence-cases')).evidenceCmd(a),
   sync,
 };
 if (!cmd || !table[cmd]) {

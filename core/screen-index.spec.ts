@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { fuzzyRanker } from '../executor/observe';
+import { fuzzyRanker } from '../engine/observe';
 import { clickableOf, editDistance, hitTest, normalizeNodes, search, similarity } from './screen-index';
 import { parseNodes } from './ui-tree';
 

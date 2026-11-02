@@ -1,7 +1,7 @@
 // SKILL profile = runtime locate cache (refactor P3, replaces offline calibration). Plans reference element ids
 // only; the executor resolves ids → points through the profile of its surface. Elements and reference regions
 // are located on the live screen the first time they are needed outside the loop (SkillResolver,
-// executor/skill-resolver.ts) and cached per surface@env@appVersion@resolution under
+// engine/skill-resolver.ts) and cached per surface@env@appVersion@resolution under
 // platform/state/skill-cache/ — an app update or another screen size starts a fresh cache by itself.
 import { existsSync, readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
@@ -45,7 +45,7 @@ export interface Profile {
   resolver?: SkillResolverLike;
 }
 
-/** What checks / nodes / surfaces need from the resolver (implemented in executor/skill-resolver.ts). */
+/** What checks / nodes / surfaces need from the resolver (implemented in engine/skill-resolver.ts). */
 export interface SkillResolverLike {
   /** True inside the loop: nothing is located there, a missing element is an error. */
   inLoop: boolean;

@@ -2,10 +2,10 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, join, relative } from 'node:path';
-import { FAILURE_TEXT } from '../executor/failure';
-import { manifestMarkdown } from '../executor/manifest';
-import type { RunResult } from '../executor/run';
-import { attemptsOf, attemptsText } from '../executor/stats';
+import { FAILURE_TEXT } from '../engine/failure';
+import { manifestMarkdown } from '../engine/manifest';
+import type { RunResult } from '../engine/plan/run';
+import { attemptsOf, attemptsText } from '../engine/stats';
 import type { Draft } from './planner';
 
 const REVIEW_TEXT: Record<string, string> = { consistent: '符合 Issue 描述', inconsistent: '不符', unverified: '未能复核（视觉模型不可用），结论仅依据自动检查' };

@@ -4,8 +4,8 @@
 // written by hand. `schemaVersion` changes only on breaking changes (snapshot tests guard it).
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import type { RunResult } from '../executor/run';
-import { attemptsText } from '../executor/stats';
+import type { RunResult } from '../engine/plan/run';
+import { attemptsText } from '../engine/stats';
 import { nodeSpec } from '../skills/teamily/node-specs';
 import { ELEMENTS, REGIONS } from '../skills/teamily/vocab';
 import { type Approval, type Classified, getApproval, roundBound } from './approval';

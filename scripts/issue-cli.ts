@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
 import { createInterface } from 'node:readline/promises';
-import { runDirFor, runPlan, type RunResult } from '../executor/run';
+import { runDirFor, runPlan, type RunResult } from '../engine/plan/run';
 import { openPools } from '../platform/pools';
 import { type Surface, type TestPlan, TestPlanZ } from '../platform/schema/test-plan';
 import { parseIssue } from '../issue/parse';
@@ -13,7 +13,7 @@ import { loadSavedDraft, PLANS_DIR, recordWarmupFailures, saveDraft } from '../i
 import { applyApproval, type Draft, draftIssue } from '../issue/planner';
 import { normalizeResult, runMarkdown, writeIssueReport } from '../issue/report';
 import { classifyRules } from '../issue/classify';
-import { seriesMarkdown, type SeriesRun, summarizeSeries } from '../executor/series';
+import { seriesMarkdown, type SeriesRun, summarizeSeries } from '../engine/plan/series';
 import { resolve } from 'node:path';
 
 export { PLANS_DIR };

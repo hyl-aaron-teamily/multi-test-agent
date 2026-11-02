@@ -1,0 +1,142 @@
+// Execution session: one implementation of "web session → driver → launch → SKILL cache → sign in → back
+// to the home list", shared by the Issue executor, the multi-client sync, coordinate replay and smoke.
+// Surface-specific behaviour (how a phone browser gets back to the list, which dialogs appear, how long a
+// page takes to load) lives in the surface adapters (./surfaces), not in the callers.
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
+import { BROWSER_PACKAGE, createDriver, TEAMILY_PACKAGE } from '../drivers/factory';
+import type { Driver } from '../drivers/types';
+import { WebDriver } from '../drivers/web';
+import { RecordingDriver } from './recorder/recording-driver';
+import type { AccountPool } from '../platform/accounts/account-pool';
+import { ensureWebSession, type PlaywrightSurface } from './login/sessions';
+import { type Env, onPlaywright, type Surface } from '../platform/accounts/types';
+import { type Profile, SkillStaleError } from '../skills/profile';
+import { SKILL_VERSION } from '../skills/teamily/vocab';
+import { skillProfile } from './skill-resolver';
+import { assertSkillFresh } from './checks';
+import { adapterFor, type SurfaceAdapter } from './surfaces';
+import { a11yBackend, activateA11y } from '../core/a11y-service';
+import { setTreeBackend, treeStats } from '../core/tree-backend';
+import { declaredTreeBackend } from '../platform/device-pool';
+
+export interface SessionOptions {
+  surface: Surface;
+  env: Env;
+  account: string;
+  udid?: string;
+  pool: AccountPool;
+  headed?: boolean;
+  /** Use this profile instead of the SKILL cache (tests). */
+  profile?: Profile;
+  url?: string;
+  onLog?: (at: number, line: string) => void;
+  onConsole?: Parameters<typeof createDriver>[0]['onConsole'];
+  log?: (s: string) => void;
+}
+
+export interface Session {
+  surface: Surface;
+  profile: Profile;
+  url: string;
+  inner: Driver;
+  d: RecordingDriver;
+  web?: WebDriver;
+  adapter: SurfaceAdapter;
+  account: string;
+  udid?: string;
+  pool: AccountPool;
+  log: (s: string) => void;
+}
+
+/** Phones: use the declared hierarchy read backend; when it cannot be used, uiautomator — and the reason
+ *  is counted as a fallback (report: 读树后端). */
+export async function selectTreeBackend(udid: string, log: (s: string) => void): Promise<void> {
+  if (declaredTreeBackend(udid) !== 'a11y-service') return setTreeBackend(udid, undefined);
+  const r = await activateA11y(udid);
+  if (r.ok) {
+    setTreeBackend(udid, a11yBackend());
+    log(`tree backend: a11y-service (${r.health.detail})`);
+    return;
+  }
+  setTreeBackend(udid, undefined);
+  treeStats.fallbacks.push({ at: new Date().toISOString(), udid, reason: `a11y-service: ${r.reason}` });
+  log(`tree backend: a11y-service unusable (${r.reason}) — falling back to uiautomator`);
+}
+
+/** Package of the app under test on a phone surface (the browser for android-web). */
+export const packageOf = (surface: Surface): string | undefined => (surface === 'android-app' ? TEAMILY_PACKAGE : surface === 'android-web' ? BROWSER_PACKAGE : undefined);
+
+/** (Web) signed-in session + driver + an empty SKILL profile (filled from the cache once the app runs:
+ *  attachSkillCache). Nothing is launched yet. */
+export async function openSession(o: SessionOptions): Promise<Session> {
+  const profile: Profile = o.profile ?? { surface: o.surface, name: '', skillVersion: SKILL_VERSION, env: o.env, viewport: { width: 0, height: 0 }, packageName: packageOf(o.surface), elements: {}, refs: {} };
+  const url = o.url ?? o.pool.webUrl(o.env);
+  let storageState: string | undefined;
+  if (onPlaywright(o.surface)) {
+    const s = await ensureWebSession(o.pool, o.account, o.surface as PlaywrightSurface);
+    if (!s.ok) throw new Error(`login failed for ${o.account}: ${s.error}`);
+    storageState = s.file;
+  }
+  if ((o.surface === 'android-app' || o.surface === 'android-web') && !o.udid) throw new Error(`${o.surface} session without a device`);
+  if (o.udid) await selectTreeBackend(o.udid, o.log ?? ((s) => console.log(`[session] ${s}`)));
+  const inner = createDriver({ surface: o.surface, packageName: profile.packageName, url, udid: o.udid, storageState, headless: !o.headed, onLog: o.onLog, onConsole: o.onConsole });
+  return { surface: o.surface, profile, url, inner, d: new RecordingDriver(inner), web: inner instanceof WebDriver ? inner : undefined, adapter: adapterFor(o.surface), account: o.account, udid: o.udid, pool: o.pool, log: o.log ?? ((s) => console.log(`[session] ${s}`)) };
+}
+
+export interface EnterOptions {
+  /** After the first launch, before waiting (web flight recorder start). */
+  afterLaunch?: () => Promise<void>;
+  /** Tap the chat tab at the end (phones: the bottom bar looks the same on every tab). */
+  chatTab?: boolean;
+  /** Where to save the screen when the SKILL is stale. */
+  staleShot?: string;
+  /** Phase durations (run manifest / report): launch (to the first screen), login (sign-in + home list). */
+  onPhase?: (name: 'launch' | 'login', ms: number) => void;
+}
+
+/** The SKILL cache of this surface@env@appVersion@screen size, loaded into the session's profile (same object:
+ *  callers holding it see the elements), with a resolver that locates what the cache lacks. */
+export async function attachSkillCache(s: Session): Promise<void> {
+  const p = s.profile;
+  if (p.resolver || p.name) return; // a given profile (tests) or already attached
+  await skillProfile(s.inner, { surface: s.surface, env: p.env, udid: s.udid, packageName: p.packageName, log: s.log, into: p });
+}
+
+/** Launch once, wait for the first screen, dismiss known dialogs, sign in if needed, get back to the
+ *  home list and check the SKILL still recognises it (SkillStaleError otherwise). */
+export async function enterApp(s: Session, o: EnterOptions = {}): Promise<void> {
+  const { d, profile, adapter } = s;
+  const t0 = Date.now();
+  await adapter.beforeLaunch?.(s);
+  d.label = 'launch';
+  await d.launch();
+  await attachSkillCache(s);
+  await o.afterLaunch?.();
+  await adapter.waitFirstScreen(s);
+  await adapter.dismissDialogs(s);
+  const t1 = Date.now();
+  o.onPhase?.('launch', t1 - t0);
+  await adapter.ensureLogin(s);
+  for (let i = 0; ; i++) {
+    try {
+      await assertSkillFresh(d, profile);
+      break;
+    } catch (e) {
+      if (!(e instanceof SkillStaleError) || !(await adapter.recoverHome(s, i))) {
+        if (e instanceof SkillStaleError && o.staleShot) await writeFile(o.staleShot, await d.screenshot()).catch(() => {});
+        throw e;
+      }
+    }
+  }
+  if (o.chatTab) await adapter.showChatTab(s);
+  o.onPhase?.('login', Date.now() - t1);
+  d.drainAnomalies(); // page-load noise before the test starts
+}
+
+/** Close the driver (and its browser). */
+export async function closeSession(s: Session | undefined): Promise<void> {
+  await s?.inner.close().catch(() => {});
+}
+
+export const staleShotPath = (runDir: string) => join(runDir, 'skill-stale.png');

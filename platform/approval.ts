@@ -26,7 +26,7 @@ export interface Classified {
 
 const SEND = new Set(['teamily.sendMessage', 'teamily.quoteReply', 'teamily.tapSend']);
 const sends = (xs: PlannedAction[] | undefined) => (xs ?? []).filter((a) => a.node && SEND.has(a.node.name)).length;
-/** Operation drifts stop a run after 10 (executor/loop.ts) — the 11th ends it. */
+/** Operation drifts stop a run after 10 (engine/plan/loop.ts) — the 11th ends it. */
 export const MAX_DRIFT_ROUNDS = 11;
 
 /** Pure: upper bound of loop rounds (valid attempts + drift rounds, capped by the step limit). */

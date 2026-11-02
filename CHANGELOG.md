@@ -1,5 +1,10 @@
 # Changelog
 
+## [Unreleased] — W2-4.1 P5 / T2：统一引擎（行为不变）
+
+### Changed
+- `executor/` 与 `incident/` 合并为 `engine/`：两档共用的会话、端适配、登录、SKILL 现场定位、屏幕快照、定位、点击前检查、观察与检查、判定、失败归类、运行清单、统计、预检在 `engine/`；飞行记录器、现场包、离线查看器、重放、证据复核在 `engine/recorder/`；Issue 计划执行（Pro 档）在 `engine/plan/`。只移动文件、重写 import，行为不变（golden、快照未变；真机 1903、2336 结论与移动前一致）。
+
 ## [Unreleased] — W2-4.1 P4：规则语义（`docs/dev-week2-milestone4.1.md` §4）
 
 ### Changed

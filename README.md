@@ -199,9 +199,9 @@ npx tsx scripts/mcp.ts --print-config claude                # 打印接入 Claud
 ```
 issues/            样例 Issue
 issue/             解析、分类、计划生成、校验、报告、CLI
-executor/          执行器：循环、判定、检查点、准备阶段选目标；sync.ts 多端同步
+engine/            统一引擎（两档共用）：会话、端适配、登录、SKILL 现场定位、屏幕快照、点击前检查、检查、判定、预检；plan/ = Pro 档（Issue 计划：准备、预热、循环、系列、多端同步）
 drivers/           黑盒驱动：web.ts（光标 / 触屏 / 键盘；Windows 上 Edge 最大化）、android.ts（常驻 adb shell + logcat 异常门；App 与浏览器）、factory.ts
-incident/          飞行记录器（Android / Web）、现场包、离线查看器、坐标重放、证据复核（evidence-review / evidence-cases）
+engine/recorder/   飞行记录器（Android / Web）、现场包、离线查看器、坐标重放、证据复核
 fixtures/evidence/ 证据复核预置用例（截取的录屏 + 元数据 + 期望结论）
 skills/teamily/    Teamily SKILL：页面地图、profile、参考截图、Node、计划模板
 skills/            SKILL 缓存（profile.ts）与 Teamily SKILL（teamily/：词表、识别规则 finders.ts、Node、模式库）

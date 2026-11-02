@@ -1,0 +1,127 @@
+// Records every primitive driver operation (coordinates, timing) — the source of replay.json and ops.srt.
+import { type Anomaly, type Driver, type LifecycleOp, lifecycle, type Point, sleep } from '../../drivers/types';
+
+export interface CoordOp {
+  /** Global step number (1-based) the op belongs to. */
+  step: number;
+  round: number;
+  /** Host time the op started (ms). */
+  at: number;
+  durationMs: number;
+  /** observe: a ① read inside a round (round precondition), not an input — replay skips it. */
+  op: 'tap' | 'longPress' | 'type' | 'key' | 'swipe' | 'scroll' | 'back' | 'launch' | 'wait' | 'idle' | 'focus' | 'observe' | LifecycleOp;
+  point?: Point;
+  to?: Point;
+  value?: string;
+  ms?: number;
+  /** Plan-level label: element id / node name. */
+  label?: string;
+}
+
+export class RecordingDriver implements Driver {
+  readonly ops: CoordOp[] = [];
+  step = 0;
+  round = 0;
+  label = '';
+  /** Values never written to ops (credentials). */
+  private secret = false;
+
+  constructor(readonly inner: Driver) {}
+
+  get surface() {
+    return this.inner.surface;
+  }
+
+  /** Run `fn` with typed text redacted from the op log. */
+  async redacted<T>(fn: () => Promise<T>): Promise<T> {
+    this.secret = true;
+    try {
+      return await fn();
+    } finally {
+      this.secret = false;
+    }
+  }
+
+  private async rec<T>(op: CoordOp['op'], extra: Partial<CoordOp>, fn: () => Promise<T>): Promise<T> {
+    const at = Date.now();
+    try {
+      return await fn();
+    } finally {
+      this.ops.push({ step: this.step, round: this.round, at, durationMs: Date.now() - at, op, label: this.label, ...extra });
+      if (this.ops.length > 20_000) this.ops.splice(0, 5_000);
+    }
+  }
+
+  launch() {
+    return this.rec('launch', {}, () => this.inner.launch());
+  }
+  /** Pre-tap check (engine/pretap.ts): may move the point or throw; unset = taps go straight through. */
+  beforeTap?: (p: Point) => Promise<Point>;
+
+  async tap(p: Point) {
+    const q = this.beforeTap ? await this.beforeTap(p) : p;
+    return this.rec('tap', { point: q }, () => this.inner.tap(q));
+  }
+  async longPress(p: Point, ms?: number) {
+    const q = this.beforeTap ? await this.beforeTap(p) : p;
+    return this.rec('longPress', { point: q, ms }, () => this.inner.longPress(q, ms));
+  }
+  type(text: string) {
+    return this.rec('type', { value: this.secret ? '<redacted>' : text }, () => this.inner.type(text));
+  }
+  key(name: string) {
+    return this.rec('key', { value: name }, () => this.inner.key(name));
+  }
+  swipe(from: Point, to: Point, ms?: number) {
+    return this.rec('swipe', { point: from, to, ms }, () => this.inner.swipe(from, to, ms));
+  }
+  scroll(at: Point, dy: number) {
+    return this.rec('scroll', { point: at, ms: dy }, () => this.inner.scroll(at, dy));
+  }
+  back() {
+    return this.rec('back', {}, () => this.inner.back());
+  }
+  exitApp() {
+    return this.rec('exitApp', {}, () => lifecycle(this.inner, 'exitApp'));
+  }
+  killApp() {
+    return this.rec('killApp', {}, () => lifecycle(this.inner, 'killApp'));
+  }
+  reload() {
+    return this.rec('reload', {}, () => lifecycle(this.inner, 'reload'));
+  }
+  focus() {
+    return this.rec('focus', {}, async () => this.inner.focus?.());
+  }
+  keyboardShown() {
+    return this.inner.keyboardShown ? this.inner.keyboardShown() : Promise.resolve(null);
+  }
+  dismissSystemOverlay() {
+    return this.inner.dismissSystemOverlay ? this.inner.dismissSystemOverlay() : Promise.resolve(false);
+  }
+
+  yieldFocus() {
+    this.inner.yieldFocus?.();
+  }
+  /** No input for `ms` (app in the background, waiting for a reload). Not an action interval. */
+  idle(ms: number) {
+    return this.rec('idle', { ms }, () => sleep(ms));
+  }
+  /** A note in the op log (e.g. what a Node reports it did); not an input. */
+  note(text: string): void {
+    this.ops.push({ step: this.step, round: this.round, at: Date.now(), durationMs: 0, op: 'observe', value: text.slice(0, 300), label: this.label });
+  }
+  /** A ① read inside a round (not an input, not an action interval). */
+  observe<T>(what: string, fn: () => Promise<T>): Promise<T> {
+    return this.rec('observe', { value: what }, fn);
+  }
+  screenshot() {
+    return this.inner.screenshot();
+  }
+  drainAnomalies(): Anomaly[] {
+    return this.inner.drainAnomalies();
+  }
+  close() {
+    return this.inner.close();
+  }
+}

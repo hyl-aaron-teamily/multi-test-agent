@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ScreenNode } from '../../core/screen-index';
 import { finderFor, regionSpec, REGION_SPECS } from './finders';
 import { ELEMENTS } from './vocab';
-import { labelsOf } from '../../executor/skill-resolver';
+import { labelsOf } from '../../engine/skill-resolver';
 
 const n = (o: Partial<ScreenNode> & { box: ScreenNode['box'] }): ScreenNode => ({ text: '', desc: '', rid: '', cls: 'android.widget.TextView', clickable: false, center: { x: o.box[0] + o.box[2] / 2, y: o.box[1] + o.box[3] / 2 }, ...o });
 const vp = { width: 1080, height: 2400 };

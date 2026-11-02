@@ -1,6 +1,6 @@
 // Rule validation of a TestPlan against the SKILL vocabulary and platform limits (milestone 5 §A.5).
 import { APP_SURFACES, HARD_LIMITS, MAX_IDLE_MS, type PlannedAction, type TestPlan, TestPlanZ } from '../platform/schema/test-plan';
-import { observationOf, OBSERVATIONS } from '../executor/observe';
+import { observationOf, OBSERVATIONS } from '../engine/observe';
 import { ELEMENTS, NODES, REGIONS } from '../skills/teamily/vocab';
 
 export interface Validation {

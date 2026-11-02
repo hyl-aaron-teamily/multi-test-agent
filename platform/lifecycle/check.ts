@@ -2,7 +2,7 @@
 // Phones: online, screen on and unlocked (wakes it when it is only dark), the installed app version (approvals
 // bind it), and the consented configuration items applied. Web: a usable signed-in session file. Pass → ready;
 // otherwise unfit with what a person should do. Cleaning the app between runs is not the environment's job:
-// every run starts from a clean point itself (executor/isolation.ts).
+// every run starts from a clean point itself (engine/plan/isolation.ts).
 import { type CheckItem, type ConfigItem, type EnvRecord, getEnv, moveEnv, updateEnv } from './env';
 
 /** What the check needs from an Android phone (adb in production, a fake in tests). */

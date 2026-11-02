@@ -96,8 +96,8 @@ export async function deviceSnapshot(args: { udid?: string; pkg?: string; maxNod
   const busy = Array.isArray((envs.data as any)?.envs ?? envs.data) ? (((envs.data as any)?.envs ?? envs.data) as { id: string; state: string; lease?: unknown }[]).find((e) => e.id.includes(`:${udid}@`) && (e.state === 'leased' || e.lease)) : undefined;
   if (busy) return { env: envelope('BAD_INPUT', `手机 ${udid} 正被任务占用（${busy.id}），任务结束后再取快照`, undefined, 'task status / task wait') };
   const { AndroidDriver } = await import('../drivers/android');
-  const { snapshot } = await import('../executor/snapshot');
-  const { selectTreeBackend } = await import('../executor/session');
+  const { snapshot } = await import('../engine/snapshot');
+  const { selectTreeBackend } = await import('../engine/session');
   await selectTreeBackend(udid, (s) => console.error(`[mcp] ${s}`));
   const d = new AndroidDriver({ udid, packageName: args.pkg ?? '' });
   const s = await snapshot(d, { keepPng: true, pkg: args.pkg ?? '' });

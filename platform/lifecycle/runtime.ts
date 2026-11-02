@@ -14,7 +14,7 @@ export class CancelledError extends Error {
   }
 }
 
-/** Hooks the executor calls (executor/run.ts RunOptions.hooks). All optional for the executor. */
+/** Hooks the executor calls (engine/plan/run.ts RunOptions.hooks). All optional for the executor. */
 export interface RunHooks {
   phase(p: Phase): void;
   /** Before every planned action (step boundary): may throw CancelledError; records progress + side effect. */

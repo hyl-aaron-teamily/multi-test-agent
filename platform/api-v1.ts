@@ -7,7 +7,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, normalize, resolve, sep } from 'node:path';
 import { classifyRules } from '../issue/classify';
 import { parseIssue } from '../issue/parse';
-import type { RunResult } from '../executor/run';
+import type { RunResult } from '../engine/plan/run';
 import { allowList, approve, classifyPlan, getApproval, getFullAccess, reject, reviewerName, setFullAccess, useApproval, webUrl } from './approval';
 import { consentConfig, type EnvRecord, getEnv, listEnvs, unconsented } from './lifecycle/env';
 import { STATUS, type Code, CodedError, apiError, outcome } from './lifecycle/status';
