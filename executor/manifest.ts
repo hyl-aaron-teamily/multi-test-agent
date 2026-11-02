@@ -52,7 +52,7 @@ export function buildManifest(o: { plan: TestPlan; runId: string; startedAt: str
       mode: p.provenance.pattern ?? p.category,
       env: p.env,
       budget: { maxSteps: p.limits.maxSteps, maxMinutes: p.limits.maxMinutes, maxRounds: p.limits.maxRounds },
-      stopRule: 'anyHit' in p.verdictRule ? '命中 1 次' : '连续 3 次命中',
+      stopRule: '命中 1 次',
       // The run's only random input is its marker.
       seed: o.runTag,
     },

@@ -69,7 +69,5 @@ export function validatePlan(raw: unknown): Validation {
   if (plan.category !== 'feature' && !plan.actions.length) errors.push('actions: empty loop');
   if (plan.category === 'feature' && !plan.acceptance?.length) errors.push('feature plan needs acceptance items');
   if (plan.limits.maxSteps > HARD_LIMITS.maxSteps || plan.limits.maxMinutes > HARD_LIMITS.maxMinutes) errors.push('limits above platform hard cap');
-  const wantRule = plan.category === 'bug-always' ? 'consecutiveHits' : 'anyHit';
-  if (!(wantRule in plan.verdictRule)) errors.push(`verdictRule must be ${wantRule} for ${plan.category}`);
   return { ok: !errors.length, errors, plan };
 }

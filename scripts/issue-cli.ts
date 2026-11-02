@@ -37,9 +37,9 @@ export async function loadDraft(ref: string, env: 'test' | 'prod', useModel = tr
 /** Human-readable confirmation sheet. */
 export function confirmationSheet(d: Draft): string {
   const out = [`Issue ${d.issue.id}: ${d.issue.title.slice(0, 120)}${d.hash ? `  [草稿 ${d.hash}]` : ''}`, `预判类别: ${d.classification.category}（${d.classification.by}）— ${d.reason}`];
-  if (d.status !== 'plannable') out.push(`处理: ${d.status === 'refused' ? '拒绝执行' : '暂缓'}`);
+  if (d.status !== 'plannable') out.push('处理: 无法生成计划（出一页报告写明原因）');
   for (const k of d.contracts ?? []) out.push(`  契约：前置条件 ${k.preconditions.map((p) => `${p.text}[${p.establish}]`).join('；')}`);
-  if (d.deferredPart) out.push(`暂缓部分: ${d.deferredPart}`);
+  if (d.deferredPart) out.push(`未覆盖部分: ${d.deferredPart}`);
   for (const w of d.warmupFailures ?? []) out.push(`⚠ 上次预热失败 ${w.planId}（${w.at}）：${w.detail}`);
   for (const s of d.subcases) {
     out.push(`  [${s.substitution ? ' ' : 'x'}] ${s.sub}: ${s.plan.title} — ${s.title}`);

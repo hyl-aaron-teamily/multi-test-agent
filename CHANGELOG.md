@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased] — W2-4.1 P4：规则语义（`docs/dev-week2-milestone4.1.md` §4）
+
+### Changed
+- **E1**：必现类也是命中 1 次即「已复现」。`VerdictRuleZ` 把旧计划里的 `{ consecutiveHits: 3 }` 读作 `{ anyHit: true }`，已保存的计划 / 草稿无需改写；判定、校验、视图、运行清单、重放的「连续 3 次」分支删除。计划视图快照随之更新（判定说明、计划哈希）。
+- **E2**：命中 = 硬异常，或检查不通过且经证据复核符合 Issue 描述（能力②）；能力①的口径在 P5 落地。
+- **A3 / E18**：不拒绝任何 Issue。草稿状态只有 `plannable` / `unplannable`；服务端类 Issue 按偶现类执行，只观察用户可见的一侧；空文档、黑盒构造不了的前置条件、需多端协同的 Issue 出一页「无法生成计划」报告，写明原因与怎样才能执行。删除 1922 的「拒绝」覆盖项，1922 按规则分为偶现类（golden 增加 4 条）。
+- **E12**：去掉「结论以生产环境为准」的限制与文字；生产与测试各是一组账号池。
+- **J3**：完全授权开启时 Agent 在 `plan_explain` 后直接 `task_run`，不等用户确认（`docs/agent-rules.md`、MCP 服务说明）。
+- **B7**：Issue 里的截图链接（`NormalizedIssue.images`）在契约阶段与文字一起交给视觉模型（最多 3 张，`issue/images.ts`；GitHub 链接在设置 `GITHUB_TOKEN` 时带授权，取不到就只用文字）。`visionJson` 支持 jpg / webp。
+- 单测改用夹具 `issue/__fixtures__/conversations.yaml`（`vitest.config.ts` 设置 `CONVERSATIONS_FILE`），不再读本机的 `platform/conversations.local.yaml`。
+
 ## [Unreleased] — 重构 P3：即时定位 + 缓存，替代离线标定（`docs/refactor-plan.md`）
 
 规则 C1–C4 改为：不再离线标定；循环外第一次用到时现场定位，结果按 `端@环境@App 版本@分辨率` 缓存（`docs/rules-audit.md`）。

@@ -3,6 +3,7 @@
 // P1 keyboard checks on phones use system state; P2 2044 selects quote-preview-text (was the generic browse).
 // W2-2 (2026-10-28): entries for 1903 (mention-render) and 2010 (composer-rewrite, Issue removed 2026-11-02) added from the new patterns;
 // constructed messages of 1329 s2 (quote-jump) and 2044 carry the run marker {token}.
+// W2-4.1 (2026-11-03): 1922 entries added — it is no longer refused (rule A3).
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { classifyRules } from './classify';
@@ -25,7 +26,7 @@ describe('pattern library = pre-W2-1 templates', () => {
           expect(JSON.parse(JSON.stringify(templateFor(`${sc.text} ${c.category === 'feature' ? i.featureArea : ''}`, c.category as any, s)))).toEqual(golden[`${id}/${sc.sub}/${s}`]);
         });
   }
-  it('covers every golden entry', () => expect(Object.keys(golden).length).toBe(32));
+  it('covers every golden entry', () => expect(Object.keys(golden).length).toBe(36));
   it('1903 reads the newest bubble of the round', () => {
     expect((golden['1903/main/android-app'] as any).checks[0]).toMatchObject({ kind: 'text', scope: { message: 'autotest-1903 {token} {round}' } });
   });

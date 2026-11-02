@@ -232,7 +232,7 @@ exports[`W2-3 T6 view models > PlanView snapshot: 1903-android-app-v1 1`] = `
     "samples": 0,
     "text": "约 3 分钟 – 11 分钟（首次估算：步数 × 步骤预算）",
   },
-  "hash": "92e416afb9e9bc01",
+  "hash": "79519cf024a4544a",
   "id": "1903-android-app-v1",
   "impact": {
     "conversations": [
@@ -335,7 +335,7 @@ exports[`W2-3 T6 view models > PlanView snapshot: 1903-android-app-v1 1`] = `
   ],
   "verdict": [
     "每轮执行上面的循环步骤，然后检查：「已发送气泡里显示 @aaron+test2（独立的 @ 提及）」；检查不成立 = 本轮命中",
-    "连续 3 轮命中才算「已复现」；最多 6 次有效尝试，或 15 分钟",
+    "任意 1 轮命中即算「已复现」；最多 6 次有效尝试，或 15 分钟",
     "本轮自身的前提（如输入框里确有刚键入的文字）不成立 = 操作偏离：不计入有效尝试，也不算命中；偏离超过 10 次即停止",
     "开始循环前先跑 1 轮预热（逐步核对），不计入结果",
   ],
@@ -362,7 +362,7 @@ exports[`W2-3 T6 view models > PlanView snapshot: 2044-android-app-v1 1`] = `
     "samples": 0,
     "text": "约 4 分钟 – 18 分钟（首次估算：步数 × 步骤预算）",
   },
-  "hash": "f1cfdbfcd36a2fee",
+  "hash": "e578f0df8a8f4f71",
   "id": "2044-android-app-v1",
   "impact": {
     "conversations": [
@@ -437,7 +437,7 @@ exports[`W2-3 T6 view models > PlanView snapshot: 2044-android-app-v1 1`] = `
   ],
   "verdict": [
     "每轮执行上面的循环步骤，然后检查：「引用块预览不出现 Markdown 链接语法 [..](..)（链接只显示一次）」；检查不成立 = 本轮命中",
-    "连续 3 轮命中才算「已复现」；最多 1000 步，或 15 分钟",
+    "任意 1 轮命中即算「已复现」；最多 1000 步，或 15 分钟",
     "本轮自身的前提（如输入框里确有刚键入的文字）不成立 = 操作偏离：不计入有效尝试，也不算命中；偏离超过 10 次即停止",
     "开始循环前先跑 1 轮预热（逐步核对），不计入结果",
   ],

@@ -178,7 +178,7 @@ export async function runLoop(c: RunCtx, lo: LoopOptions = {}): Promise<void> {
       if (roundHitReason) dismissedRun = 0;
       if (roundHitReason) res.hits.push({ round, step: stats.steps, at: new Date().toISOString(), reason: roundHitReason, review: review?.verdict, reviewNote: review?.note });
       res.roundLog.push({ round, step: stats.steps, results: results.map((r) => ({ kind: r.check.kind, pass: r.pass, detail: r.detail })) });
-      if (tracker.record(!!roundHitReason, round)) stop = `判定规则满足（${'anyHit' in plan.verdictRule ? '命中 1 次' : '连续 3 次命中'}）`;
+      if (tracker.record(!!roundHitReason, round)) stop = '判定规则满足（命中 1 次）';
     }
     if (res.roundLog.length > 200) res.roundLog.splice(0, 50);
     stats.rounds = round;

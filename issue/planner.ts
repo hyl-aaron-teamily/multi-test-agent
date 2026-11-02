@@ -28,10 +28,11 @@ export interface SubCase {
 export interface Draft {
   issue: NormalizedIssue;
   classification: Classification;
-  status: 'plannable' | 'refused' | 'deferred';
+  /** Every Issue is taken (rule A3); `unplannable` = no plan could be built, the one-page report says why (E18). */
+  status: 'plannable' | 'unplannable';
   reason: string;
   subcases: SubCase[];
-  /** Part deferred inside a plannable issue (2122: second-account part). */
+  /** Part of a plannable Issue that needs another capability (2122: the second-account part). */
   deferredPart?: string;
   /** Content hash (issue/drafts.ts) — what the user confirms. */
   hash?: string;
@@ -40,7 +41,7 @@ export interface Draft {
   /** Draft version (W2-3 §6.1): +1 whenever a new draft's hash differs from the saved one's. */
   version?: number;
   env?: string;
-  /** Contracts of a deferred Issue (which precondition cannot be established). */
+  /** Contracts of an unplannable Issue (which precondition cannot be established). */
   contracts?: IssueContract[];
   /** Warm-up failures fed back from runs (plan not executable on the current UI). */
   warmupFailures?: { planId: string; at: string; detail: string }[];
@@ -126,9 +127,13 @@ async function modelTemplate(i: NormalizedIssue, c: Classification, text: string
 
 export async function draftIssue(i: NormalizedIssue, opts: { env?: 'test' | 'prod'; useModel?: boolean } = {}): Promise<Draft> {
   const env = opts.env ?? 'prod';
-  const c = await classify(i);
-  if (c.category === 'server-side' || c.category === 'not-executable') return { issue: i, classification: c, status: 'refused', reason: c.reason, subcases: [] };
-  if (c.category === 'multi-account' || c.category === 'deferred') return { issue: i, classification: c, status: 'deferred', reason: c.reason, subcases: [], contracts: [deferredContract(i, c.category, c.blockedBy)] };
+  const pre = await classify(i);
+  // No Issue is refused (A3). Nothing to read at all, or a precondition the black box cannot build: no plan,
+  // and the one-page report says why (E18). A server-side Issue runs like an intermittent bug on what the user
+  // can see (its report says so).
+  if (pre.category === 'not-executable') return { issue: i, classification: pre, status: 'unplannable', reason: pre.reason, subcases: [] };
+  if (pre.category === 'multi-account' || pre.category === 'deferred') return { issue: i, classification: pre, status: 'unplannable', reason: pre.reason, subcases: [], contracts: [deferredContract(i, pre.category, pre.blockedBy)] };
+  const c = pre.category === 'server-side' ? { ...pre, category: 'bug-intermittent' as const, reason: `${pre.reason}；仍执行：只观察用户可见的一侧（通用模板）` } : pre;
   const subst = substitutionOptions(i.platforms);
   const surface: Surface = c.surfaces.find((s) => AVAILABLE.includes(s) && s === 'desktop-web') ?? c.surfaces[0] ?? 'android-app';
   const subcases: SubCase[] = [];
@@ -171,8 +176,8 @@ export async function draftIssue(i: NormalizedIssue, opts: { env?: 'test' | 'pro
   }
   const blocked = subcases.filter((s) => s.contract?.preconditions.some((p) => p.establish === 'unconstructible'));
   if (subcases.length && blocked.length === subcases.length)
-    return { issue: i, classification: c, status: 'deferred', reason: `前置条件黑盒无法构造：${[...new Set(blocked.flatMap((s) => s.contract!.preconditions.filter((p) => p.establish === 'unconstructible').map((p) => p.text)))].join('；')}`, subcases: [] };
-  return { issue: i, classification: c, status: 'plannable', reason: c.reason, subcases, deferredPart: c.partialMultiAccount ? '需要第二账号 @ 我才能产生的角标/推送部分：暂缓（账号池多账号调度后执行）' : undefined };
+    return { issue: i, classification: c, status: 'unplannable', reason: `前置条件黑盒无法构造：${[...new Set(blocked.flatMap((s) => s.contract!.preconditions.filter((p) => p.establish === 'unconstructible').map((p) => p.text)))].join('；')}`, subcases: [] };
+  return { issue: i, classification: c, status: 'plannable', reason: c.reason, subcases, deferredPart: c.partialMultiAccount ? '需要第二账号 @ 我才能产生的角标 / 推送部分：要用多端协同计划执行' : undefined };
 }
 
 /** Apply the one-time confirmation: chosen sub-cases (and their surfaces) become fixed plans. */

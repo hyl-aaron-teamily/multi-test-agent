@@ -124,7 +124,7 @@ export function safeResourcePath(rel: string, roots = FILE_ROOTS()): string | un
 const MIME: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.md': 'text/markdown', '.json': 'application/json', '.html': 'text/html', '.txt': 'text/plain', '.ndjson': 'application/x-ndjson' };
 
 export function createMcpServer(): McpServer {
-  const server = new McpServer({ name: 'autotest', version: '1.0.0' }, { instructions: 'Black-box test platform (Issue reproduction on a real phone / browser). Read docs/agent-rules.md first: doctor before guessing; plan_explain before task_run and tell the user what will be sent where; never approve sensitive plans for the user (30 = a person approves on the Web); 未复现 is not 已修复; one phone, one task; never adb kill-server.' });
+  const server = new McpServer({ name: 'autotest', version: '1.0.0' }, { instructions: 'Black-box test platform (Issue reproduction on a real phone / browser). Read docs/agent-rules.md first: doctor before guessing; plan_explain before task_run and tell the user what will be sent where (with full access on, run without waiting for a confirmation); never approve sensitive plans for the user (30 = a person approves on the Web); 未复现 is not 已修复; one phone, one task; never adb kill-server.' });
 
   for (const command of EXPOSED) {
     const c = COMMANDS.find((x) => x.command === command)!;

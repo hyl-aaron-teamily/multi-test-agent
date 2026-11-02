@@ -1,5 +1,5 @@
 // Coordinate replay of an incident (milestone 5 §D.4):
-//   - same verdict rule as the original plan (1 hit / 3 consecutive hits), not "n/N"
+//   - same verdict rule as the run (1 hit reproduces), not "n/N"
 //   - deviation: round-end screenshot hash vs the original round-end hash → "from round k the path differs",
 //     separating "not reproduced" from "never reached the spot"
 //   - variants: original pace / fast (×0.5) / slow (×2) / cold (force-stop + launch first); --variants all
@@ -101,8 +101,7 @@ export async function replayIncident(file: string, variant: Variant, log = (s: s
       }
     };
     await play(r.setupOps);
-    // Up to 3 passes for the consecutive rule; one pass otherwise.
-    const passes = 'anyHit' in r.verdictRule ? 1 : 3;
+    const passes = 1;
     const orig = r.rounds.map((x) => x.endHash);
     for (let pass = 0; pass < passes && !tracker.reproduced(); pass++) {
       const now: (string | undefined)[] = [];
@@ -149,7 +148,7 @@ export async function replayCmd(args: string[]): Promise<number> {
   const md = [
     `# 重放报告 — ${dirname(file)}`,
     '',
-    `判定规则：${'anyHit' in rep.verdictRule ? '命中 1 次即可复现' : '连续 3 次命中'}；原现场出事轮：${rep.incidentRound}`,
+    `判定规则：命中 1 次即可复现；原现场出事轮：${rep.incidentRound}`,
     '',
     '| 变体 | 结论 | 命中/轮 | 偏离点 |',
     '|---|---|---|---|',

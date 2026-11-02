@@ -1,5 +1,6 @@
 // issues/*.md → NormalizedIssue. English sections first; the Chinese mirror (## 摘要 …) is kept as context.
-// Unknown sections are skipped. Screenshots are never handed to the model.
+// Unknown sections are skipped. Screenshot links are collected: the contract stage may show them to the vision
+// model (rule B7).
 
 export interface NormalizedIssue {
   id: string;
@@ -16,6 +17,8 @@ export interface NormalizedIssue {
   context: string;
   environment: string;
   empty: boolean;
+  /** Image links in the Issue (markdown images and bare .png / .jpg URLs), in order, de-duplicated. */
+  images: string[];
 }
 
 const sectionRe = /^##\s+(.+?)\s*$/gm;
@@ -81,5 +84,13 @@ export function parseIssue(id: string, md: string): NormalizedIssue {
     context: ctx.slice(0, 4000),
     environment: env,
     empty: !summary.trim() && !steps.length,
+    images: imagesOf(md),
   };
+}
+
+/** Pure: image links of an Issue (markdown images first, then bare .png / .jpg / .jpeg / .webp URLs), de-duplicated. */
+export function imagesOf(md: string): string[] {
+  const out = [...md.matchAll(/!\[[^\]]*\]\((\S+?)\)/g)].map((m) => m[1]);
+  for (const m of md.matchAll(/https?:\/\/[^\s)"'>]+\.(?:png|jpe?g|webp)(?:\?[^\s)"'>]*)?/gi)) out.push(m[0]);
+  return [...new Set(out)];
 }

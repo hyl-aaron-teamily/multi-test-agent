@@ -1,5 +1,5 @@
-// Verdict rule (milestone 5 §A.1): intermittent → one hit within the limits reproduces; always → 3
-// consecutive hits reproduce. W2-2 §3.2: conclusions state what was observed — a bug run that did not
+// Verdict rule (rule E1, 2026-11-03): one hit within the limits reproduces, for intermittent and always bugs
+// alike. A hit is a hard anomaly or a check failure the evidence review confirmed (E2/E7). W2-2 §3.2: conclusions state what was observed — a bug run that did not
 // reproduce is "未复现" with its denominator (attempts), never "fixed"; drift rounds are not attempts.
 import type { TestPlan } from '../platform/schema/test-plan';
 
@@ -7,26 +7,24 @@ export type Conclusion = '已复现' | '未复现' | '未实现' | '部分实现
 
 export class VerdictTracker {
   hits = 0;
-  consecutive = 0;
   /** Valid attempts recorded (drift rounds are never recorded). */
   rounds = 0;
   readonly hitRounds: number[] = [];
 
-  constructor(private readonly rule: TestPlan['verdictRule']) {}
+  constructor(_rule?: TestPlan['verdictRule']) {}
 
   /** Record one valid attempt (`round` = its round number); returns true when the rule is satisfied (stop). */
   record(hit: boolean, round = this.rounds + 1): boolean {
     this.rounds++;
     if (hit) {
       this.hits++;
-      this.consecutive++;
       this.hitRounds.push(round);
-    } else this.consecutive = 0;
+    }
     return this.reproduced();
   }
 
   reproduced(): boolean {
-    return 'anyHit' in this.rule ? this.hits >= 1 : this.consecutive >= this.rule.consecutiveHits;
+    return this.hits >= 1;
   }
 
   conclusion(): Conclusion {

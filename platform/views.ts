@@ -196,7 +196,7 @@ export function planView(o: { id: string; hash: string; plan: TestPlan; classifi
   }
   const tagText = tagTextDefault;
   const rounds = o.maxRounds ?? p.limits.maxRounds;
-  const rule = 'consecutiveHits' in p.verdictRule ? '连续 3 轮命中才算「已复现」' : '任意 1 轮命中即算「已复现」';
+  const rule = '任意 1 轮命中即算「已复现」';
   const verdict =
     p.category === 'feature'
       ? ['逐项执行验收项：全部通过 = 已实现；部分通过 = 部分实现；全部不通过 = 未实现', '读不出的项记「未验证」，不算通过']

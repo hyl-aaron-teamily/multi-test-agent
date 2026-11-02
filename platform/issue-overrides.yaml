@@ -1,10 +1,6 @@
 # Manual pre-classification overrides (applied before rules / LLM). Each entry records who decided and why.
-# 1922: milestone 5 doc §A.2/T4 treats it as an empty document to be refused; the file actually describes an
-#       iOS "second line of a sent text message is clipped" bug. Confirmed by the user on 2026-10-21: refuse per the doc.
-"1922":
-  category: not-executable
-  reason: 按里程碑 5 文档 §A.2 / T4 约定拒绝执行（用户 2026-10-21 确认）。注：文件实际描述 iOS 自己发送的文本消息第二行被截断（偶现），并非空文档；如需执行请删除此覆盖项。
-# 1426 / 1918: W2-2 §1 (user decision 2026-10-28) — classify + contract only, not executed this milestone.
+# 1426 / 1918: W2-2 §1 (user decision 2026-10-28) — a precondition the black box cannot build: no plan, a one-page
+#             report says why (rule E18). 1922's "refuse" override was removed 2026-11-03 (rule A3: no Issue is refused).
 "1426":
   category: deferred
   precondition: partial-selection-clipboard
