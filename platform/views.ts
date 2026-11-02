@@ -21,7 +21,7 @@ export const VIEW_SCHEMA_VERSION = 2;
 export interface PlanStep {
   stage: 'setup' | 'prepare' | 'warmup' | 'loop' | 'check' | 'after' | 'epilogue' | 'acceptance';
   text: string;
-  /** Element id (fixed, calibrated) or target id (picked by the model at preparation). */
+  /** Element id (fixed, SKILL) or target id (picked by the model at preparation). */
   element?: string;
   byModel?: boolean;
   sends?: boolean;
@@ -150,7 +150,7 @@ export function estimate(p: TestPlan, h: (number | PastRun)[], maxRounds?: numbe
 
 export const fmtSec = (s: number) => (s < 90 ? `${s} 秒` : `${Math.round(s / 60)} 分钟`);
 
-/** Durations of earlier runs of a plan (TestPlan id, e.g. 2010-android-app-v1): new task results and old
+/** Durations of earlier runs of a plan (TestPlan id, e.g. 1903-android-app-v1): new task results and old
  *  Issue run dirs. Runs that never reached the app (环境不合格) are left out. */
 export function planHistory(testPlanId: string, roots = [resolve('platform/state/tasks'), resolve('midscene_run/issues')], before?: string): PastRun[] {
   const out: PastRun[] = [];
@@ -460,37 +460,3 @@ export function resultText(v: ResultView): string {
   return out.join('\n');
 }
 
-// ---------------------------------------------------------------- calibration screenshot marks (plan page)
-
-/** Node → the fixed element it acts on (for marking it on the calibration screenshot). */
-const NODE_ELEMENT: Record<string, string> = { 'teamily.sendMessage': 'chat.send', 'teamily.tapSend': 'chat.send', 'teamily.clearComposer': 'chat.composer', 'teamily.typeMention': 'chat.composer', 'teamily.tapRewrite': 'chat.rewrite', 'teamily.freezeMention': 'chat.composer', 'teamily.quoteReply': 'chat.composer', 'teamily.openPage': 'nav.me' };
-
-export interface StepMark {
-  step: number;
-  element: string;
-  page: string;
-  /** /api/v1/refs/<path> of the calibration screenshot. */
-  image: string;
-  box: [number, number, number, number];
-  viewport: { width: number; height: number };
-}
-
-/** Pure: marks for the plan page — each step's element on its page's calibration screenshot. Target steps
- *  (picked by the model at run time) get no mark. */
-export function stepMarks(v: PlanView, plan: TestPlan, profile: { viewport: { width: number; height: number }; elements: Record<string, { page: string; box?: number[] }>; refs: Record<string, { image: string }> } | undefined): StepMark[] {
-  if (!profile) return [];
-  const out: StepMark[] = [];
-  const actions = [...plan.setup, ...plan.prepare, ...(plan.category === 'feature' ? [] : plan.actions)];
-  v.steps.forEach((s, i) => {
-    let el = s.element && !s.element.startsWith('target.') ? s.element : undefined;
-    if (!el) {
-      const a = actions.find((x) => x.node && stepText(x, plan).text === s.text);
-      el = a?.node ? NODE_ELEMENT[a.node.name] : undefined;
-    }
-    if (!el && /输入框/.test(s.text) && s.stage !== 'check') el = 'chat.composer';
-    const e = el ? profile.elements[el] : undefined;
-    const ref = e ? profile.refs[e.page] : undefined;
-    if (e?.box && ref) out.push({ step: i + 1, element: el!, page: e.page, image: ref.image, box: e.box.slice(0, 4) as StepMark['box'], viewport: profile.viewport });
-  });
-  return out;
-}

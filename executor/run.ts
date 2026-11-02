@@ -7,7 +7,7 @@ import { join, resolve } from 'node:path';
 import { modelCallListeners, modelCalls, setModelPurpose, visionConfigured } from '../core/model/llm';
 import { isoMs, openTrajectory, type Trajectory } from '../core/trajectory';
 import type { CoordOp } from '../incident/recording-driver';
-import { profileKey, TEAMILY_PACKAGE } from '../drivers/factory';
+import { TEAMILY_PACKAGE } from '../drivers/factory';
 import { sleep } from '../drivers/types';
 import { AndroidFlightRecorder } from '../incident/android-recorder';
 import type { EvidenceVerdict } from '../incident/evidence-review';
@@ -17,7 +17,7 @@ import type { AccountPool, Lease } from '../platform/accounts/account-pool';
 import { onAndroid, onPlaywright } from '../platform/accounts/types';
 import type { DevicePool } from '../platform/device-pool';
 import type { PlannedAction, TestPlan } from '../platform/schema/test-plan';
-import { center, loadProfile, SkillStaleError } from '../skills/profile';
+import { SkillStaleError } from '../skills/profile';
 import { percentiles, treeStats } from '../core/tree-backend';
 import { PreTapGuard } from './pretap';
 import type { NodeContext } from '../skills/teamily/nodes';
@@ -30,7 +30,7 @@ import { runLoop } from './loop';
 import { runAcceptance, runCorrectPath } from './phases';
 import { prepare } from './prepare';
 import { runWarmup, WarmupError } from './warmup';
-import { closeSession, enterApp, openSession, type Session, staleShotPath } from './session';
+import { closeSession, enterApp, openSession, packageOf, type Session, staleShotPath } from './session';
 import { newStats, type Stats } from './stats';
 import { type FrozenTarget, visionLocator } from './targets';
 import { type Conclusion, NO_VERDICT } from './verdict';
@@ -64,7 +64,7 @@ export interface RunOptions {
   evidenceReview?: boolean;
   /** Warm-up round with per-step verification before the loop (default on). */
   warmup?: boolean;
-  /** Use this profile instead of the calibrated one (acceptance tests with a modified copy). */
+  /** Use this profile instead of the SKILL cache (tests). */
   profile?: import('../skills/profile').Profile;
   /** Stop after this many valid attempts (overrides the plan's limits.maxRounds). */
   maxRounds?: number;
@@ -90,8 +90,8 @@ export interface RunResult {
   phenomenon?: string;
   /** Warm-up round: per-step verification and its (recorded only) checkpoint. */
   warmup?: { steps: import('./warmup').WarmupStep[]; checks: { kind: string; pass: boolean | null; detail: string }[] };
-  /** Fixed elements re-resolved by fingerprint this run (calibrated profile unchanged). */
-  healed?: import('./heal').Healed[];
+  /** SKILL elements / reference regions located on the live screen this run (refactor P3). */
+  located?: import('./skill-resolver').LocateRecord[];
   account?: string;
   device?: string;
   conclusion: Conclusion;
@@ -150,8 +150,8 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   const head = (account?: string, udid?: string) => {
     if (headDone) return;
     headDone = true;
-    const prof = o.profile ?? loadProfile(profileKey(plan.surface, plan.env, udid));
-    res.manifest = buildManifest({ plan, runId: `${plan.id}-${t0}`, startedAt: res.startedAt, runTag, profile: prof?.name, account, device: preflight?.device ?? (udid ? { udid, app: prof?.packageName ? { package: prof.packageName } : undefined } : undefined), preflight });
+    const pkg = packageOf(plan.surface);
+    res.manifest = buildManifest({ plan, runId: `${plan.id}-${t0}`, startedAt: res.startedAt, runTag, profile: o.profile?.name, account, device: preflight?.device ?? (udid ? { udid, app: pkg ? { package: pkg } : undefined } : undefined), preflight });
     traj.emit('manifest', res.manifest as unknown as Record<string, unknown>);
     traj.emit('plan', { planId: plan.id, issue: plan.issueRef, category: plan.category, surface: plan.surface, env: plan.env, draftHash: plan.provenance.draftHash, pattern: plan.provenance.pattern, coverage: plan.coverage });
     if (plan.contract) traj.emit('contract', plan.contract as unknown as Record<string, unknown>);
@@ -171,6 +171,8 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   const done = async () => {
     modelCallListeners.delete(onCall);
     head(res.account, res.device);
+    const located = (sess?.profile.resolver as import('./skill-resolver').SkillResolver | undefined)?.located;
+    if (located?.length) res.located = [...located];
     // The conversation the run constructs in / reads (names only).
     if (res.manifest?.account) res.manifest.account.conversation = res.targets.find((t) => /conversation/.test(t.kind))?.chosen;
     if (NO_VERDICT.includes(res.conclusion)) res.failure = classifyFailure(res.conclusion, res.error ?? res.conclusionDetail, envAtFailure);
@@ -223,7 +225,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       preflight = await preflightWeb({ sessionOk: w.ok, sessionDetail: w.ok ? `signed-in session ${w.reused ? 'valid (reused)' : 'renewed (logged in)'}` : `login failed: ${w.error}` });
     }
     if (udid && onAndroid(plan.surface)) {
-      const pkg = loadProfile(profileKey(plan.surface, plan.env, udid))?.packageName ?? TEAMILY_PACKAGE;
+      const pkg = packageOf(plan.surface) ?? TEAMILY_PACKAGE;
       // An adb failure inside the preflight is the environment (device gone / unauthorized), not the tool.
       preflight = await preflightAndroid(udid, pkg, plan.surface).catch(async (e) => {
         const snap = await envSnapshot(udid, pkg).catch(() => ({ online: false }) as EnvSnapshot);
@@ -252,7 +254,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   try {
     // ---- session: profile + driver + flight recorder, launch once, sign in, home list, SKILL check
     if (onPlaywright(plan.surface)) wfr = new WebFlightRecorder(flightDir);
-    if (onAndroid(plan.surface) && udid) afr = new AndroidFlightRecorder(udid, loadProfile(profileKey(plan.surface, plan.env, udid))?.packageName ?? TEAMILY_PACKAGE, flightDir);
+    if (onAndroid(plan.surface) && udid) afr = new AndroidFlightRecorder(udid, packageOf(plan.surface) ?? TEAMILY_PACKAGE, flightDir);
     o.hooks?.phase('launch');
     sess = await openSession({ surface: plan.surface, env: plan.env, account: account.id, udid, pool: o.pool, headed: o.headed, profile: o.profile, onLog: afr?.onLog, onConsole: wfr?.onConsole, log });
     const s = sess;
@@ -269,15 +271,6 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       // Phones: the bottom bar looks the same on every tab — make sure the chat tab is the one showing.
       chatTab: plan.setup.some((a) => a.node?.name === 'teamily.openConversation'),
       staleShot: staleShotPath(o.runDir),
-      healDir: o.runDir,
-      onHeal: (h) => {
-        (res.healed ??= []).push(...h);
-        // The first tap on a healed element is checked against its fingerprint.
-        for (const x of h) {
-          const fp = s.profile.elements[x.element]?.fingerprint;
-          void g.remember(center(x.to), { purpose: `healed ${x.element}`, text: fp?.text || fp?.desc, box: x.to, once: true });
-        }
-      },
       onPhase: (name, ms) => (res.phases![name] = ms),
     }));
     stats.launches++;
@@ -360,7 +353,13 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     const reviewIssue = issue && plan.contract ? { ...issue, actual: plan.contract.observable.phenomenon } : issue;
     const tLoop = Date.now();
     o.hooks?.phase('loop');
-    await runLoop(c, { reviewIssue, correctPathOk });
+    // Inside the loop nothing is located: the SKILL cache only (D2).
+    if (s.profile.resolver) s.profile.resolver.inLoop = true;
+    try {
+      await runLoop(c, { reviewIssue, correctPathOk });
+    } finally {
+      if (s.profile.resolver) s.profile.resolver.inLoop = false;
+    }
     o.hooks?.phase('finishing');
     await runEpilogue(c).catch((e) => log(`epilogue failed: ${(e as Error).message.split('\n')[0]}`));
     phase('loop', tLoop);
@@ -441,7 +440,7 @@ function writeTrajectory(traj: Trajectory, r: RunResult, ops: CoordOp[]): void {
   if (r.account) traj.emit('lease', { account: r.account, device: r.device, surface: r.surface });
   for (const t of r.targets) traj.emit('prep.target', { id: t.id, targetKind: t.kind, chosen: t.chosen, point: t.point, by: t.by, reason: t.reason });
   for (const w of r.warmup?.steps ?? []) traj.emit('warmup.step', { ...w });
-  for (const h of r.healed ?? []) traj.emit('healed', { ...h });
+  for (const l of r.located ?? []) traj.emit('located', { ...l });
   for (const op of ops) traj.emit('op', { ...op });
   for (const l of r.roundLog) traj.emit('observe', { round: l.round, step: l.step, results: l.results });
   for (const [tier, v] of Object.entries(r.stats.locateTiers ?? {})) traj.emit('locate', { tier, ...v });

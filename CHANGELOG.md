@@ -1,5 +1,21 @@
 # Changelog
 
+## [Unreleased] — 重构 P3：即时定位 + 缓存，替代离线标定（`docs/refactor-plan.md`）
+
+规则 C1–C4 改为：不再离线标定；循环外第一次用到时现场定位，结果按 `端@环境@App 版本@分辨率` 缓存（`docs/rules-audit.md`）。
+
+### Changed
+- `skills/profile.ts` 由「标定文件」变为运行时缓存（`platform/state/skill-cache/<key>/`，本机、不进仓库），结构不变：元素点位 + 参考区域。会话启动 App 后按当前 App 版本与分辨率载入缓存（`attachSkillCache` / `skillProfile`），并挂上 `SkillResolver`（`executor/skill-resolver.ts`）：缺什么、循环外第一次用到时在当前屏幕上找——规则优先（`skills/teamily/finders.ts`：文字 / 无障碍描述（忽略 Teamily 拼在描述后的「, 11」「, 有新更新」状态）、几何规则、Web 只读选择器），只有真要点它且规则找不到时才用视觉；缓存里有的直接用，预热轮核验失败或首页对不上时重新定位。参考区域在锚点第一次出现时从实时截图截取。循环内只读缓存（`inLoop`），缺失即报错。
+- 旧标定器里的识别经验搬进 `finders.ts`：App 发送按钮（输入框工具行最右的无标签按钮）、改写确认框（同时含「取消」「强化」的最小节点）、导航带、输入框工具带等；按 2026-11-02 的新界面补了规则：App 2.1.1 会话行跳过头像上的字母（`executor/targets.ts`）、Web 新侧栏、Artifacts 卡片（只剩标题按钮带名称）、手机浏览器登录框。
+- SKILL 失效：首页参考对不上时先重新定位锚点，锚点（「聊天」入口）都找不到才报 `SKILL 失效`，提示更新 `finders.ts`。
+- 预热轮某步核验失败时，先重新定位该元素再重做（替代指纹自愈）。报告新增「SKILL 现场定位（本次运行）」一节；轨迹事件 `healed` → `located`。
+- 区域检查：从没见过、当前也找不到锚点的元素，不再当作「不存在」——交给视觉，没有视觉则「未验证」（之前在新版 Web 上会把没进到个人主页误判为「已实现」）。视觉复核按 `want` 取向判定（`want: absent` 时模型说「描述不成立」才通过；旧的区域比对不一致分支同样修正）。验收项在这种情况下可用视觉。
+- 审批与运行清单不再绑定 profile 哈希（App 版本已绑定）；环境记录去掉 `profile` 字段；计划页去掉「标定截图上的步骤标注」与 `/refs/` 路由；MCP 文件资源只剩 `midscene_run/`。
+- 驱动工厂不再接收 profile，只接收包名。
+
+### Removed
+- `skills/calibrate-{web,android,android-web,common}.ts`、`executor/heal.ts`、`skills/teamily/profiles/`、`skills/teamily/refs/`（17 MB 参考图）、命令 `skill calibrate` / `skill smoke`。
+
 ## [Unreleased] — 重构 P2：生命周期瘦身（`docs/refactor-plan.md`）
 
 规则 F2–F5 删除（`docs/rules-audit.md`）：不再有环境恢复、隔离、心跳、看门狗、交叉检测；保留 F1（任务 / 环境状态机、一个环境一个租约，租约记录任务进程 pid + 启动时间）与 F6（步骤边界取消、结构化输出、JSON 状态）。

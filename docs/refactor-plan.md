@@ -141,6 +141,8 @@ send-button: { page: chat, role: button, desc: ["发送", "Send"], near: compose
 
 ## 6. 迁移顺序
 
+> 2026-11-03：P0–P3 已完成；**P4–P8 改由 `docs/dev-week2-milestone4.1.md`（W2-4.1）承接**，并在那里定了重构的完成标准（DoD）与封闭范围。下表保留作记录。
+
 每个阶段在独立的 `feat/refactor-*` 分支上做，用 `--no-ff` 合并，合并需要用户同意（I10）。每个阶段结束都跑代码门（I8）。
 
 | 阶段 | 内容 | 验证 |
@@ -148,7 +150,7 @@ send-button: { page: chat, role: button, desc: ["发送", "Send"], near: compose
 | P0 基线 | 代码门全绿；保存 2010、1903 的草稿和计划 golden；真机各跑 1 次作为对照 | 产物存档 |
 | P1 删旧 | imui、monkey、mission、explore、replay/、report/、W1 用例、fixtures（保留 evidence）、W1 脚本、里程碑门脚本、`platform/tasks.ts`、`core/logcat-monitor.ts` 等，约 5.3k 行（详见附录）；删除依赖 allure×3 和 @playwright/test；精简 package.json 脚本 | 代码门；真机 `task run` 2010 ×1，结论与 P0 一致 |
 | P2 生命周期瘦身 | 删除 F2–F5 部分（baseline、recover、crosscheck、android-ops、心跳、台账、watchdog）；租约改为看 pid 是否存活 | 单测；手工杀任务进程，确认租约释放、任务记为中断 |
-| P3 即时定位 | `locate/` + 缓存替换标定；SKILL 改为语义描述；去掉区域检查、自愈和参考图 | 2010、1903 android-app 各 10 次，工具可靠性 ≥9/10（E5）；desktop-web、mobile-web 准备期定位冒烟；记录准备耗时和视觉调用次数 |
+| P3 即时定位 | 缓存替换标定（profile 结构保留，运行时填充）；识别规则在 `skills/teamily/finders.ts`；参考区域运行时截取；去掉标定器、自愈和仓库里的参考图 | 1903 android-app 10 次，工具可靠性 ≥9/10（E5；2010 已移除）；desktop-web、mobile-web 冒烟；记录视觉调用次数 |
 | P4 规则语义 | E1、E2、A3、E12、J3、B7 | 单测和 golden 更新，在 CHANGELOG 写明行为变化（I16） |
 | P5 引擎 + 能力① | 建 `engine/`（session、recorder、verdict 两种模式共用）；把 `plan/` 搬进来；实现 `agent/` 模式 B；接入 v1 任务、CLI、MCP | 真机上对 Teamily 下达自然语言任务，正常完成；探索 50 步（只读），报告覆盖范围；运行中人为让 App 退出，确认产出完整现场包，且能在离线 index.html 里打开 |
 | P6 多端协同 | `sync.ts` 接入 v1 任务，多角色计划（不同端、不同账号）；multi-account 类 Issue 可以执行 | android-app + desktop-web 两个账号互发消息，同步判定正确；租约隔离（同一设备不会被两个任务同时占用） |

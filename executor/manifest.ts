@@ -2,12 +2,9 @@
 // and 执行失败) as <runDir>/manifest.json, as the first trajectory event and as the report header.
 // Names only: account id and conversation title, never credentials.
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { TestPlan } from '../platform/schema/test-plan';
-import { profilePath } from '../skills/profile';
 import { SKILL_VERSION } from '../skills/teamily/vocab';
 import type { DeviceInfo, PreflightResult } from './preflight';
 
@@ -15,7 +12,7 @@ export interface Manifest {
   schema: 'manifest-v1';
   runId: string;
   startedAt: string;
-  tool: { gitCommit: string; gitDirty: boolean; skillVersion: string; profile?: string; profileHash?: string; draftHash?: string; pattern?: string };
+  tool: { gitCommit: string; gitDirty: boolean; skillVersion: string; profile?: string; draftHash?: string; pattern?: string };
   target: { issue: string; planId: string; sub: string; surface: string; mode: string; env: string; budget: { maxSteps: number; maxMinutes: number; maxRounds?: number }; stopRule: string; seed: string };
   device?: DeviceInfo;
   account?: { id: string; conversation?: string };
@@ -38,12 +35,6 @@ export function gitState(): { commit: string; dirty: boolean } {
   return git;
 }
 
-/** Content hash of a profile file (16 hex). */
-export function profileHash(name: string): string | undefined {
-  const f = profilePath(name);
-  return existsSync(f) ? createHash('sha256').update(readFileSync(f)).digest('hex').slice(0, 16) : undefined;
-}
-
 /** Pure (apart from git / profile reads): the manifest of one run. */
 export function buildManifest(o: { plan: TestPlan; runId: string; startedAt: string; runTag: string; profile?: string; account?: string; conversation?: string; device?: DeviceInfo; preflight?: PreflightResult }): Manifest {
   const p = o.plan;
@@ -52,7 +43,7 @@ export function buildManifest(o: { plan: TestPlan; runId: string; startedAt: str
     schema: 'manifest-v1',
     runId: o.runId,
     startedAt: o.startedAt,
-    tool: { gitCommit: g.commit, gitDirty: g.dirty, skillVersion: SKILL_VERSION, profile: o.profile, profileHash: o.profile ? profileHash(o.profile) : undefined, draftHash: p.provenance.draftHash, pattern: p.provenance.pattern },
+    tool: { gitCommit: g.commit, gitDirty: g.dirty, skillVersion: SKILL_VERSION, profile: o.profile, draftHash: p.provenance.draftHash, pattern: p.provenance.pattern },
     target: {
       issue: p.issueRef,
       planId: p.id,
@@ -81,7 +72,7 @@ export function manifestMarkdown(m: Manifest): string[] {
   const d = m.device;
   const out = [
     `- 运行：\`${m.runId}\`；运行标记 \`${m.runTag}\`；开始 ${m.startedAt}`,
-    `- 工具：commit \`${m.tool.gitCommit}\`${m.tool.gitDirty ? '（有未提交改动）' : ''}；SKILL ${m.tool.skillVersion}；profile ${m.tool.profile ?? '-'}${m.tool.profileHash ? `（${m.tool.profileHash}）` : ''}；草稿 ${m.tool.draftHash ?? '-'}；模式 ${m.tool.pattern ?? '-'}`,
+    `- 工具：commit \`${m.tool.gitCommit}\`${m.tool.gitDirty ? '（有未提交改动）' : ''}；SKILL ${m.tool.skillVersion}；SKILL 缓存 ${m.tool.profile ?? '-'}；草稿 ${m.tool.draftHash ?? '-'}；模式 ${m.tool.pattern ?? '-'}`,
     `- 目标：Issue ${m.target.issue} / ${m.target.sub}；${m.target.surface}；${m.target.mode}；${m.target.env}；预算 ${m.target.budget.maxRounds ? `${m.target.budget.maxRounds} 轮 / ` : ''}${m.target.budget.maxSteps} 步 / ${m.target.budget.maxMinutes} 分钟；停止条件 ${m.target.stopRule}`,
   ];
   if (d) out.push(`- 设备：${d.model ?? '?'}（${d.udid}）Android ${d.android ?? '?'} / ${d.hyperos ?? '-'}；App ${d.app?.package ?? '-'} ${d.app?.versionName ?? '?'}（${d.app?.versionCode ?? '?'}）；输入法 ${d.ime ?? '?'}；网络 ${d.network ?? '?'}；电量 ${d.battery ?? '?'}%`);

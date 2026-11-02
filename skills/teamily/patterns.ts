@@ -107,7 +107,7 @@ export const PATTERNS: Pattern[] = [
     },
   },
   {
-    // 2010: the AI rewrite control replaces the typed draft without confirmation / undo. Each round types a
+    // AI rewrite (first seen in Issue 2010, removed 2026-11-02): the rewrite control replaces the typed draft without confirmation / undo. Each round types a
     // draft carrying the run token and round, checks it really is in the input (round precondition), taps
     // rewrite and reads the input (①): still exactly the draft = normal; anything else = the draft was
     // replaced (a rewrite may quote the draft, so "contains" would miss it). Personal AI: nothing is sent.
@@ -121,7 +121,7 @@ export const PATTERNS: Pattern[] = [
     surfaces: ['android-app'],
     mechanism: '改写结果直接写回输入框（覆盖原文），没有确认步骤，也不保留原草稿供撤销；控件在打字时拇指落点附近（Issue 报告的推断）',
     build: () => {
-      const draft = 'autotest-2010 {token} {round}';
+      const draft = 'autotest-rewrite {token} {round}';
       return {
         title: '点 AI 改写后输入框草稿应保留（或先确认 / 可撤销）',
         targets: [{ id: 'conv', kind: 'other-conversation', guidance: "the user's own Personal AI conversation (nothing is sent; disturbs no one)" }],

@@ -47,7 +47,6 @@ export interface EnvRecord {
   package?: string;
   appVersion?: string;
   account?: string;
-  profile?: { name: string; hash?: string };
   state: EnvState;
   stateSince: string;
   /** Why it is unfit, and what a person should do. */

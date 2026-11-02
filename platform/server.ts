@@ -12,7 +12,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { extname, normalize, resolve, sep } from 'node:path';
 import { DevicePool } from './device-pool';
 import { AccountPool } from './accounts/account-pool';
-import { apiV1, refFile } from './api-v1';
+import { apiV1 } from './api-v1';
 import { Supervisor } from './lifecycle/supervisor';
 
 const PORT = Number(process.env.PLATFORM_PORT ?? 3210);
@@ -52,13 +52,6 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     const body = req.method === 'POST' ? await readBody(req).catch(() => ({})) : {};
     const env = await apiV1({ method: req.method ?? 'GET', path: p, query: url.searchParams, body, web: req.headers['x-autotest-client'] === 'web' }, { sup });
     return send(res, env.status, env);
-  }
-  if (req.method === 'GET' && p.startsWith('/refs/')) {
-    const f = refFile(p.slice('/refs/'.length));
-    if (!f) return send(res, 404, { error: 'not found' });
-    res.writeHead(200, { 'content-type': MIME[extname(f)] ?? 'application/octet-stream' });
-    createReadStream(f).pipe(res);
-    return;
   }
   const page = p === '/' ? 'index.html' : p.match(/^\/(index|env|plan|result|task)\.html$/)?.[0].slice(1);
   if (req.method === 'GET' && page) return send(res, 200, await readFile(resolve('platform/web', page)), 'text/html; charset=utf-8');

@@ -1,4 +1,4 @@
-// Tiered locate (W2-1 §4.2), outside the loop only (preparation, calibration, dialogs, re-resolve):
+// Tiered locate (W2-1 §4.2), outside the loop only (preparation, dialogs, re-resolve):
 //   ① literal text: Android accessibility tree / Playwright getByText (exact, then substring) — the centre of
 //     the clickable ancestor (Android) or of the element (web)
 //   ② deterministic ranker over the same texts (fuzzy edit-distance similarity, W2-4 §4.2) — catches

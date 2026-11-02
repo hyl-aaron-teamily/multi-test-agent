@@ -41,7 +41,10 @@ export async function conversationCandidates(driver: Driver, p: Profile): Promis
     const rows = nodes.filter((n) => n.clickable && n.x2 - n.x1 > p.viewport.width * 0.8 && n.y2 - n.y1 > 150 && n.y2 - n.y1 < 400 && n.y1 > 300 && n.y2 < p.viewport.height - 260);
     return rows
       .map((r) => {
-        const inner = nodes.filter((n) => !n.clickable && n.text && n.x1 >= r.x1 && n.x2 <= r.x2 && n.y1 >= r.y1 && n.y2 <= r.y2);
+        // Text drawn on the avatar (Teamily 2.1.1: a group's initial, e.g. "S") is not the title: skip the
+        // left avatar column.
+        const avatarX = r.x1 + (r.x2 - r.x1) * 0.15;
+        const inner = nodes.filter((n) => !n.clickable && n.text && n.x1 >= r.x1 && n.x2 <= r.x2 && n.y1 >= r.y1 && n.y2 <= r.y2 && n.x2 > avatarX);
         return { title: inner[0]?.text ?? '', preview: inner.slice(1).map((n) => n.text).join(' | '), box: [r.x1, r.y1, r.x2 - r.x1, r.y2 - r.y1] as Candidate['box'] };
       })
       .filter((c) => c.title);

@@ -5,6 +5,7 @@
 import { RoundDrift, sleep } from '../drivers/types';
 import type { PlannedAction } from '../platform/schema/test-plan';
 import { actionLabel } from './actions';
+import { hasElement } from '../skills/profile';
 import { waitForRegion } from './checks';
 import type { RunCtx } from './context';
 import { composerText, observeText } from './observe';
@@ -87,13 +88,13 @@ export async function teardown(c: RunCtx): Promise<string[]> {
       did.push('清空输入框');
     }
     if (await keyboardDown(c)) did.push('收起键盘');
-    if (profile.elements['chat.back']) {
+    if (await hasElement(profile, 'chat.back')) {
       d.label = 'teardown:back';
       await c.exec({ type: 'tap', element: 'chat.back', delayAfterMs: 800 });
       did.push('回到首页');
     }
   }
-  if (profile.refs.home && !(await waitForRegion(d, profile, ['home/nav'], 4000, 800))) did.push('（首页未确认）');
+  if (!(await waitForRegion(d, profile, ['home/nav'], 4000, 800))) did.push('（首页未确认）');
   c.log(`teardown: ${did.join('；') || 'nothing to reset'}`);
   return did;
 }

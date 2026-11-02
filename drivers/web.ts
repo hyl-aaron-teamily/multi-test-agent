@@ -1,7 +1,7 @@
 // Web driver (desktop-web / mobile-web) on Playwright, black-box:
 //   desktop-web : page.mouse with interpolated cursor movement, wheel, keyboard. On Windows: Microsoft Edge,
 //                 a real maximized window (the viewport is whatever the maximized window gives, recorded in
-//                 the profile at calibration); elsewhere / AUTOTEST_DESKTOP_BROWSER=chromium: headless 1440×900
+//                 the SKILL cache key); elsewhere / AUTOTEST_DESKTOP_BROWSER=chromium: headless 1440×900
 //   mobile-web  : device emulation (Pixel 7: touch + mobile viewport), page.touchscreen.tap, CDP touch swipes
 // Observation is event-only: pageerror, console error, page crash, unexpected navigation. Emulating the
 // environment (viewport, device, offline) is allowed; nothing is evaluated inside the page.

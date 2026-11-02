@@ -1,6 +1,6 @@
 // Teamily SKILL vocabulary: fixed element ids, reference regions and Node names.
-// One source for calibration (what to find), the plan validator (what a plan may reference) and the
-// planner prompt (what the LLM may use). Coordinates live in profiles/, never here.
+// One source for the runtime locate (what to find; how: finders.ts), the plan validator (what a plan may
+// reference) and the planner prompt (what the LLM may use). Coordinates live in the SKILL cache, never here.
 import type { Surface } from '../../platform/accounts/types';
 import { NODE_SPECS } from './node-specs';
 

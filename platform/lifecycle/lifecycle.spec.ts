@@ -34,7 +34,7 @@ const env = (state: EnvRecord['state'] = 'ready', configItems: ConfigItem[] = [{
   if (state === 'leased') leaseEnv(ENV, 'holder');
   return getEnv(ENV)!;
 };
-const task = (id = 't1', parent?: string) => createTask({ id, kind: 'issue', issue: '2010', planId: '2010/main:android-app@v1', planHash: 'h', envId: ENV, options: {}, ...(parent ? { parent } : {}) });
+const task = (id = 't1', parent?: string) => createTask({ id, kind: 'issue', issue: '1903', planId: '1903/main:android-app@v1', planHash: 'h', envId: ENV, options: {}, ...(parent ? { parent } : {}) });
 const toRunning = (id: string) => {
   for (const s of ['waiting-env', 'preflight', 'running'] as const) moveTask(id, s, 'test', 'setup');
 };
@@ -247,7 +247,7 @@ describe('task process: side effects, cancel, close', () => {
       moveTask(id, 'done', 't', 'x', (t) => void Object.assign(t, { outcome: { code: 'NOT_REPRODUCED', summary: '未复现' }, endedBy: 'normal' }));
     }
     const lines = readFileSync(notificationsFile(), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
-    expect(lines).toEqual([expect.objectContaining({ task: 'p1', issue: '2010', state: 'done', code: 'NOT_REPRODUCED', summary: '未复现', endedBy: 'normal' })]);
+    expect(lines).toEqual([expect.objectContaining({ task: 'p1', issue: '1903', state: 'done', code: 'NOT_REPRODUCED', summary: '未复现', endedBy: 'normal' })]);
   });
 });
 
@@ -259,7 +259,7 @@ describe('platform start: leases decided by the task process alone', () => {
   it('alive → adopted (lease kept); gone → interrupted (72), lease released, environment to checking', () => {
     env('leased');
     // the lease holder is task 'holder'
-    createTask({ id: 'holder', kind: 'issue', issue: '2010', planId: 'x', planHash: 'h', envId: ENV, options: {} });
+    createTask({ id: 'holder', kind: 'issue', issue: '1903', planId: 'x', planHash: 'h', envId: ENV, options: {} });
     toRunning('holder');
     updateTask('holder', (t) => void (t.proc = me));
     expect(reconcile(isAlive, () => {})).toEqual([{ task: 'holder', env: ENV, action: 'adopted' }]);
@@ -273,7 +273,7 @@ describe('platform start: leases decided by the task process alone', () => {
 
   it('a lease whose task never started is released and the task stays queued', () => {
     env('leased');
-    createTask({ id: 'holder', kind: 'issue', issue: '2010', planId: 'x', planHash: 'h', envId: ENV, options: {} });
+    createTask({ id: 'holder', kind: 'issue', issue: '1903', planId: 'x', planHash: 'h', envId: ENV, options: {} });
     moveTask('holder', 'waiting-env', 'test', 'x');
     expect(reconcile(isAlive, () => {})).toEqual([{ task: 'holder', env: ENV, action: 'requeued' }]);
     expect(getTask('holder')!.state).toBe('waiting-env');

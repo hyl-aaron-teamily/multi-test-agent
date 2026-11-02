@@ -4,7 +4,8 @@ import { existsSync } from 'node:fs';
 import { mkdir } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 import { WebDriver } from '../../drivers/web';
-import { loadProfile, pointOf } from '../../skills/profile';
+import { pointFor } from '../../skills/profile';
+import { skillProfile } from '../skill-resolver';
 import { runNode } from '../../skills/teamily/nodes';
 import type { AccountPool } from '../../platform/accounts/account-pool';
 import type { Surface } from '../../platform/accounts/types';
@@ -37,7 +38,7 @@ async function sessionValid(url: string, file: string, surface: PlaywrightSurfac
   }
 }
 
-/** Reuse or create the web session of an account by cursor/keyboard login with the calibrated profile. */
+/** Reuse or create the web session of an account by cursor/keyboard login (SKILL elements located live). */
 export async function ensureWebSession(pool: AccountPool, accountId: string, surface: PlaywrightSurface = 'desktop-web', force = false): Promise<SessionResult> {
   const acc = pool.get(accountId);
   if (!acc) return { ok: false, file: '', reused: false, error: `no account ${accountId}` };
@@ -47,19 +48,18 @@ export async function ensureWebSession(pool: AccountPool, accountId: string, sur
     await pool.markLogin(accountId, true);
     return { ok: true, file, reused: true };
   }
-  const profile = loadProfile(`${surface}@${acc.env}`) ?? loadProfile(`desktop-web@${acc.env}`);
-  if (!profile) return { ok: false, file, reused: false, error: `no calibrated profile ${surface}@${acc.env} — run \`pnpm autotest skill calibrate --surface ${surface} --env ${acc.env}\`` };
-  const d = new WebDriver({ surface: profile.surface as 'desktop-web', url });
+  const d = new WebDriver({ surface, url });
   try {
     await d.launch();
     await d.p.waitForTimeout(5000);
+    const profile = await skillProfile(d, { surface, env: acc.env });
     const ctx = { driver: d, profile, targets: {}, credentials: () => pool.backend.get(accountId) };
     await runNode('teamily.login', {}, ctx);
     let reached = await d.p.waitForURL(/\/(chat|onboarding)/, { timeout: 30_000 }).then(() => true, () => false);
-    if (reached && /\/onboarding/.test(d.p.url()) && profile.elements['onboarding.skip']) {
-      // A fresh browser's first sign-in shows the onboarding page: skip it (calibrated button).
+    if (reached && /\/onboarding/.test(d.p.url())) {
+      // A fresh browser's first sign-in shows the onboarding page: skip it (its button, located live).
       await d.p.waitForTimeout(3000);
-      await d.tap(pointOf(profile, 'onboarding.skip'));
+      await d.tap(await pointFor(profile, 'onboarding.skip'));
       reached = await d.p.waitForURL(/\/chat/, { timeout: 30_000 }).then(() => true, () => false);
     }
     if (!reached) {

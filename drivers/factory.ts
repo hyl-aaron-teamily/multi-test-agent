@@ -1,13 +1,13 @@
-// One place that turns (surface, profile, device / account) into a black-box Driver.
+// One place that turns (surface, device / account) into a black-box Driver.
 import type { Surface } from '../platform/accounts/types';
-import type { Profile } from '../skills/profile';
 import { AndroidDriver } from './android';
 import type { Driver } from './types';
 import { WebDriver } from './web';
 
 export interface DriverSpec {
   surface: Surface;
-  profile: Profile;
+  /** Android surfaces: package of the app under test (default: Teamily / the phone browser). */
+  packageName?: string;
   /** Web app URL of the environment (web surfaces). */
   url: string;
   /** Android surfaces: the phone. */
@@ -25,13 +25,6 @@ export const CONSOLE_IGNORE = /favicon|Download the React DevTools|sentry|analyt
 export const TEAMILY_PACKAGE = process.env.TEAMILY_PACKAGE ?? 'ai.teamily.mobile';
 export const BROWSER_PACKAGE = process.env.ANDROID_BROWSER_PACKAGE ?? 'com.android.browser';
 
-/** Profile key of a surface: per phone for Android surfaces, per environment otherwise. */
-export function profileKey(surface: Surface, env: string, udid?: string): string {
-  if (surface === 'android-app') return `android-${udid}@${env}`;
-  if (surface === 'android-web') return `android-web-${udid}@${env}`;
-  return `${surface}@${env}`;
-}
-
 export function createDriver(s: DriverSpec): Driver {
   switch (s.surface) {
     case 'android-app':
@@ -40,7 +33,7 @@ export function createDriver(s: DriverSpec): Driver {
       return new AndroidDriver({
         udid: s.udid,
         surface: s.surface,
-        packageName: s.profile.packageName ?? (s.surface === 'android-web' ? BROWSER_PACKAGE : TEAMILY_PACKAGE),
+        packageName: s.packageName ?? (s.surface === 'android-web' ? BROWSER_PACKAGE : TEAMILY_PACKAGE),
         url: s.surface === 'android-web' ? s.url : undefined,
         onLog: s.onLog,
         appErrorRe: s.surface === 'android-app' ? APP_ERROR_RE : undefined,

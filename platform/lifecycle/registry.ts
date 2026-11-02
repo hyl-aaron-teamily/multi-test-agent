@@ -1,10 +1,8 @@
 // Environment registry: platform/devices.yaml (phones × surfaces, this computer's browsers) × the account
 // pool's service envs → environment declarations (§3.1). Also the production driver factory.
 import { existsSync, readFileSync } from 'node:fs';
-import { BROWSER_PACKAGE, profileKey, TEAMILY_PACKAGE } from '../../drivers/factory';
+import { BROWSER_PACKAGE, TEAMILY_PACKAGE } from '../../drivers/factory';
 import { sessionFile } from '../../executor/login/sessions';
-import { sha } from '../../issue/drafts';
-import { profilePath } from '../../skills/profile';
 import type { AccountPool } from '../accounts/account-pool';
 import type { PoolConfig } from '../device-pool';
 import { adbPhoneDriver, androidConfigItems } from './android-ops';
@@ -50,9 +48,8 @@ export function declareEnvs(cfg: PoolConfig, accounts: { id: string; env: 'test'
 export function syncEnvs(cfg: PoolConfig, pool: AccountPool): EnvRecord[] {
   const accounts = pool.list().map((a) => ({ id: a.id, env: a.env }));
   return declareEnvs(cfg, accounts).map((d) => {
-    const pf = profilePath(profileKey(d.surface, d.serviceEnv, d.udid));
     // Both phone surfaces: the preflight writes the same items (Taplus for the app under test, stay-on).
-    return registerEnv({ ...d, profile: { name: profileKey(d.surface, d.serviceEnv, d.udid), hash: existsSync(pf) ? sha(readFileSync(pf, 'utf8')) : undefined }, configItems: (d.surface === 'android-app' || d.surface === 'android-web') && d.package ? androidConfigItems(d.package, d.treeBackend) : [] });
+    return registerEnv({ ...d, configItems: (d.surface === 'android-app' || d.surface === 'android-web') && d.package ? androidConfigItems(d.package, d.treeBackend) : [] });
   });
 }
 

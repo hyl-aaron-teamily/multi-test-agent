@@ -10,8 +10,8 @@ Teamily 客户端测试台：在 **Android App、手机自带浏览器里的 Web
 
 | 能力 | 状态 | 说明 |
 |---|---|---|
-| Issue 分类与计划 | ✅ 可用 | 12 份样例 Issue 全部分类（W2-2 新增 1426、1903、1918、2010，删除 1919、2230）；可执行的生成计划，服务端 / 空文档出拒绝报告，多账号 / 需新能力的出暂缓报告 |
-| 黑盒执行（四个执行端） | ✅ 可用 | 按 SKILL 标定的坐标操作，动作间隔 ≤ 1 秒，一份 Issue 只启动一次 App；`android-web` = 手机自带浏览器，`desktop-web` 在 Windows 上用 Edge 最大化窗口 |
+| Issue 分类与计划 | ✅ 可用 | 11 份样例 Issue 全部分类（W2-2 新增 1426、1903、1918；2026-11-02 移除 2010）；可执行的生成计划，服务端 / 空文档出拒绝报告，多账号 / 需新能力的出暂缓报告 |
+| 黑盒执行（四个执行端） | ✅ 可用 | 按 SKILL 现场定位并缓存的坐标操作，动作间隔 ≤ 1 秒，一份 Issue 只启动一次 App；`android-web` = 手机自带浏览器，`desktop-web` 在 Windows 上用 Edge 最大化窗口 |
 | 退出 / 杀进程 / 重新加载 | ✅ 可用 | 计划动作 `exitApp`（Home）、`idle`（后台等待，≤10 分钟）、`killApp`（杀进程并核实）、`launch`（冷/热启动）、`reload`；App 与手机浏览器都可用，计划内的退出不算闪退 |
 | 动态目标 | ✅ 可用 | 用哪个群、哪条消息由模型在准备阶段看屏幕选定，冻结为坐标后进入循环 |
 | 判定 | ✅ 可用 | 偶现：上限内命中 1 次即复现；必现：连续 3 次；需求：逐条验收出「已实现 / 部分实现 / 未实现」 |
@@ -24,8 +24,8 @@ Teamily 客户端测试台：在 **Android App、手机自带浏览器里的 Web
 | 账号池 | ✅ 可用 | 测试 / 生产账号分开租用，光标登录并缓存会话；凭据只在本地私有文件 |
 | 端点池 + 多端同步 | ✅ 可用 | `platform/devices.yaml`：手机与本机都是端点，按「端点 × 执行端」分槽租用；同一台手机可同时跑 App 和浏览器（轮流占前台），手机上登录的是哪个账号写在配置里；`pnpm autotest sync` 让各端用不同账号进同一会话互发互收 |
 | 意图契约（W2-1） | ✅ 可用 | Issue → 契约（前置条件及建立方式 / 触发语义 / 可观察后置条件与现象 / 推测）→ 模式确定性编译；确认单显示契约与覆盖标注；确认的草稿（哈希）就是执行的计划 |
-| 分层判定 / 定位（W2-1） | ✅ 可用 | ① 日志 / 进程 / 系统状态 / 无障碍或页面文字 / 区域 → ③ 视觉兜底，只在检查点、准备、预热、标定；循环每步仍只按坐标；报告「判定分层统计」 |
-| 预热闸门 + 自愈（W2-1） | ✅ 可用 | 循环前逐步核验，失败 →「计划不可执行」；坐标按标定指纹自愈（不改标定文件） |
+| 分层判定 / 定位（W2-1） | ✅ 可用 | ① 日志 / 进程 / 系统状态 / 无障碍或页面文字 / 区域 → ③ 视觉兜底，只在检查点、准备、预热、现场定位；循环每步仍只按坐标；报告「判定分层统计」 |
+| 预热闸门 + 自愈（W2-1） | ✅ 可用 | 循环前逐步核验，失败 →「计划不可执行」；预热轮某步核验失败时先重新定位该元素再重做（不改件） |
 | 轨迹（W2-1） | ✅ 可用 | 每次运行 `trajectory.jsonl`；可选转发 TencentDB Agent Memory（standalone，`TRAJECTORY_TDAI_URL`） |
 | 任务与环境（W2-3，重构 P2 精简） | ✅ 可用 | 环境、任务各有状态机与落盘记录；一个环境一个租约，租约记录任务进程（pid + 启动时间），进程在就算在跑；步骤边界取消（60 s 未停则强制结束）；任务结束后重新检查环境（在线、未锁屏、配置项）；副作用记录列在任务页 |
 | 审批与状态码（W2-3） | ✅ 可用 | 被测软件内操作默认允许；敏感计划只在 Web 同意；完全授权开关（红色横幅）；硬约束永远拒绝；批准绑定哈希 / 版本 / 次数（31 / 32 / 33）；两位退出码 = 状态码 |
@@ -43,7 +43,6 @@ Teamily 客户端测试台：在 **Android App、手机自带浏览器里的 Web
 | 2122 免打扰群 @ 我（单账号部分） | desktop-web | 未实现：无「@我 / Mentions」聚合，免打扰群无显著角标；需第二账号的部分暂缓 |
 | 1329 点赞 / 定位链接 / 键盘（iOS） | android-app（替代） | 三项均未复现，各跑满 30 分钟。**更正**：开发期记为「已复现」的 s2（如 `1329-2026-10-21T16-43-05-544Z`）是误报——跳到的就是被引用消息，只是窄屏下被引用气泡换成两行、跳转后短暂高亮，基线像素比对没对上；现由证据复核排除，并固化为预置用例 |
 | 2044 引用块预览显示 Markdown 源码（iOS） | android-app（替代） | **已复现**（W2-1）：构造「Markdown 链接消息 + 引用回复」后，Android 引用块同样显示 `[url](url)`，连续 3 轮，证据复核 3/3 |
-| 2010 AI 改写误触覆盖草稿（iOS） | android-app（替代） | **W2-2 系列 10 次**：已复现 4/10 次运行；单轮 52 次有效尝试命中 25 次（48.1%，Wilson 35.1%–61.3%）——点「强化 prompt」后约一半概率直接覆盖草稿，无确认、无撤销；工具可靠性 10/10 |
 | 1903 气泡内 @ 不渲染（iOS） | android-app（替代） | **W2-2 系列 10 次**：未复现（60 次有效尝试，单次复现概率 95% 上界 ≈ 5%）；气泡与列表预览都显示 @；工具可靠性 10/10 |
 | 1614 / 1922 | — | 拒绝执行（服务端问题 / 按文档约定） |
 | 2235 | — | 暂缓（多账号） |
@@ -59,8 +58,6 @@ pnpm exec playwright install chromium
 cp .env.example .env                       # 填 MIDSCENE_MODEL_*；可选 SCRCPY_PATH、MIDSCENE_ADB_PATH
 # 账号：platform/accounts.local.yaml（gitignored），格式见 platform/accounts/secret-backend.ts
 pnpm autotest accounts check --env prod    # 光标登录并缓存会话
-pnpm autotest skill calibrate --surface desktop-web --env prod   # 标定（每个执行端各一次，App 或 Web 改版后重做）
-pnpm autotest skill calibrate --surface android-web --env prod   # 手机浏览器：用 devices.yaml 里登在浏览器上的账号
 pnpm autotest skill smoke --surface android-app --lifecycle cold # 退出 → 后台等待 → 杀进程 → 冷启动
 pnpm platform                              # 控制台 http://localhost:3210
 ```
@@ -73,8 +70,8 @@ pnpm autotest plan issues/1594.md                      # 预判类别 + 子用�
 pnpm autotest run --issue 1594 --yes                   # 无替代项时确认执行
 pnpm autotest run --issue 1329 --approve s1,s3:mobile-web   # 有替代项：勾选子用例并选执行端
 pnpm autotest replay <incident>/replay.json --variant all   # 重放：原节奏 / 加速 / 减速 / 冷启动
-pnpm autotest run --issue 2010 --approve main:android-app [--max-rounds 6]          # W2-2：有效尝试上限
-pnpm autotest series --issue 2010 --approve main:android-app --runs 10              # W2-2：10 次独立运行 + series-report.md
+pnpm autotest run --issue 1903 --approve main:android-app [--max-rounds 6]          # W2-2：有效尝试上限
+pnpm autotest series --issue 1903 --approve main:android-app --runs 10              # W2-2：10 次独立运行 + series-report.md
 pnpm autotest rerender midscene_run/issues/<run>                                    # 旧 result.json 按新口径重出 report.v2.md
 pnpm code-gate                                                                      # 代码门（每次改动后）
 ```
@@ -123,8 +120,7 @@ pnpm autotest sync --roles desktop-web,android-app --rounds 4 --timeout 60
 ## Teamily SKILL（`skills/teamily/`）
 
 - `SKILL.md`、`pages/*.md`：页面地图与元素清单；`vocab.ts`：元素 id / 参考区域 / Node / 动态目标指引的唯一来源。
-- `profiles/<端>@<环境>.json`：标定坐标与自检结果。测试环境和生产环境前端布局不同，分别标定。Android 两端按手机区分：`android-<序列号>@env`（App）、`android-web-<序列号>@env`（浏览器）；`desktop-web@env` 记录标定时 Edge 最大化窗口的实际视口（本机 2040×1148 CSS px，缩放 1.25）。
-- `refs/<profile>/`：参考截图；自检失败时生成标注图，只有失败项需要人工复核。
+- `finders.ts`：每个元素怎么认（文字 / 无障碍描述 / 几何规则 / Web 只读选择器 / 视觉描述）与参考区域的锚点。运行时循环外第一次用到时现场定位，缓存在 `platform/state/skill-cache/<端>@<环境>@<App 版本>@<分辨率>/`（本机、不进仓库）；App 升级自动换新缓存，不需要标定。
 - `nodes.ts`：`teamily.login / openConversation / sendMessage / typeMention / clearComposer / switchConversation / openPage`（`pnpm autotest nodes` 列出）。
 - `plan-template.md`：类别 → 计划骨架，以及 @ 选择器、点赞、键盘、引用定位、通知入口、@我 聚合等通用模板。
 
@@ -144,9 +140,9 @@ pnpm autotest sync --roles desktop-web,android-app --rounds 4 --timeout 60
 
 ```bash
 npx tsx bin/autotest.ts help --json                       # 全部命令、参数 schema、状态码表（可直接当工具定义）
-npx tsx bin/autotest.ts draft create 2010 --no-model --json   # → 计划 id，如 2010/main:android-app@v1
-npx tsx bin/autotest.ts plan explain "2010/main:android-app@v1" --json   # 步骤、影响、不确定点、预计耗时、审批类别、哈希
-npx tsx bin/autotest.ts task run "2010/main:android-app@v1" --hash <h> --json   # 退出码 20，立即返回任务 id
+npx tsx bin/autotest.ts draft create 1903 --no-model --json   # → 计划 id，如 1903/main:android-app@v1
+npx tsx bin/autotest.ts plan explain "1903/main:android-app@v1" --json   # 步骤、影响、不确定点、预计耗时、审批类别、哈希
+npx tsx bin/autotest.ts task run "1903/main:android-app@v1" --hash <h> --json   # 退出码 20，立即返回任务 id
 npx tsx bin/autotest.ts task wait <taskId> --timeout 1200 --json   # 退出码 = 结论（10 未复现 / 11 已复现 …），21 = 仍在运行
 npx tsx bin/autotest.ts result show <taskId> --json
 npx tsx bin/autotest.ts env list | env show <envId> | env check <envId>
@@ -155,7 +151,7 @@ npx tsx bin/autotest.ts env list | env show <envId> | env check <envId>
 - `--json` 时 stdout 只有一个 JSON 对象（日志走 stderr）；从不提问；退出码两位、十位 = 类别（0 成功 / 1x 结论 / 2x 已受理 / 3x 审批 / 4x 输入 / 5x 环境 / 6x 工具 / 7x 取消与中断），全表见 `docs/cli-reference.md`。用 `pnpm autotest …` 也可以（pnpm 的回显在 stderr）。
 - **审批**：只操作被测软件的计划默认允许，`task run` 时由 `policy` 自动批准；敏感计划（操作被测软件之外、单次发送 > 50 条、系列 > 20 次）返回 30 和计划页链接，只能在 Web 同意；Web 首页可开「完全授权」（红色横幅常显，可随时关）。默认值在 `platform/policy.yaml`。删除 / 撤回消息、允许清单外会话、锁屏 PIN 任何情况都拒绝。本机无登录：这是流程约束，不是安全边界。
 - **环境**：`platform/devices.yaml` × 账号池自动登记环境（如 `android-app:4f2ebdf2@prod`）。平台启动时、任务结束后检查环境：手机在线、未锁屏（熄屏会唤醒）、App 版本、已同意的配置项（读树服务、Taplus、常亮）；Web 看登录态文件。通过 → 就绪，否则「不合格」并写明下一步，每 30 秒自动重检（如解锁后）。每次运行开跑前自己回到干净起点（运行标记 + 冷启动），环境不做「恢复」。任务进程意外退出 → 任务记为中断（63），部分结果标「不完整」；平台重启时任务进程已不在 → 中断（72）。
-- **Web 页面**：`/` 首页（任务、Issue、环境状态条）、`/plan.html?id=…` 计划审核（白话步骤并在标定截图上标出元素、怎样算复现、会影响什么、哪些不确定、大约多久、同意 / 驳回）、`/env.html`、`/task.html`、`/result.html`；术语悬停有解释。审核人名字写在 `platform/reviewer.local.yaml`（`name: …`）。
+- **Web 页面**：`/` 首页（任务、Issue、环境状态条）、`/plan.html?id=…` 计划审核（白话步骤、怎样算复现、会影响什么、哪些不确定、大约多久、同意 / 驳回）、`/env.html`、`/task.html`、`/result.html`；术语悬停有解释。审核人名字写在 `platform/reviewer.local.yaml`（`name: …`）。
 
 ## 诊断、MCP 与感知层（W2-4）
 
@@ -166,7 +162,7 @@ npx tsx scripts/mcp.ts --print-config claude                # 打印接入 Claud
 
 - **MCP**：stdio 服务，工具 = 命令行命令（`issue_list`、`draft_create`、`plan_explain`、`task_run`、`task_wait` …）+ `device_snapshot` + `doctor`，结果就是 `--json` 信封；同意类操作只在 Web；平台未启动返回 54。Agent 先读 `docs/agent-rules.md`。
 - **读树后端**：默认 uiautomator（每次 2.5–3.7 s）；在 `platform/devices.yaml` 的设备项写 `treeBackend: a11y-service` 改用手机上的只读读树服务（`android/a11y-service/`：`sh android/a11y-service/fetch-sdk.sh && sh android/a11y-service/build.sh` 构建到 `tools/a11y/`，`env check` 时按环境配置项安装启用）；服务不可用时自动退回 uiautomator，报告「读树后端」一节写明原因。
-- **执行前校验**：循环外的点击（准备期、偏离后重进、自愈后首次点击、标定自检）先核对目标还在原处——小漂移就地修正，偏移 / 遮挡 / 消失则不点并记录（报告「执行前校验」一节）。循环每步照旧只按坐标。
+- **执行前校验**：循环外的点击（准备期、偏离后重进）先核对目标还在原处——小漂移就地修正，偏移 / 遮挡 / 消失则不点并记录（报告「执行前校验」一节）。循环每步照旧只按坐标。
 - 任务结束写 `platform/state/notifications.ndjson`；`AUTOTEST_DESKTOP_NOTIFY=1` 时弹 Windows 通知。
 
 ## 平台服务（`pnpm platform`）
@@ -175,8 +171,8 @@ npx tsx scripts/mcp.ts --print-config claude                # 打印接入 Claud
 
 ## 原则与安全
 
-- **黑盒**：不读源码、不装调试版、不向页面注入代码，也不连调试端口（手机浏览器只用 adb 输入和截屏）。读取页面结构 / 无障碍层只发生在标定和准备阶段，用于找元素和候选目标；检查点上 App 可读无障碍文本核对（引用定位、同步收发），Web 只看截图。
-- **生产环境**：结论以生产环境为准，测试环境只用于标定和调试。账号池里的生产账号都是测试账号，同步测试发出的消息留在测试群里，不撤回；循环中仍不做会打扰他人的操作。
+- **黑盒**：不读源码、不装调试版、不向页面注入代码，也不连调试端口（手机浏览器只用 adb 输入和截屏）。读取页面结构 / 无障碍层只发生在循环外（现场定位、准备阶段），用于找元素和候选目标；检查点上 App 可读无障碍文本核对（引用定位、同步收发），Web 只看截图。
+- **生产环境**：结论以生产环境为准，测试环境是另一组账号池。账号池里的生产账号都是测试账号，同步测试发出的消息留在测试群里，不撤回；循环中仍不做会打扰他人的操作。
 - **凭据**：只存在于 `platform/accounts.local.yaml` 和 `platform/secrets/`（均 gitignored），不进日志、报告、提交。
 - **硬拦截**：支付类操作始终禁止。
 
@@ -184,7 +180,7 @@ npx tsx scripts/mcp.ts --print-config claude                # 打印接入 Claud
 
 - W2-1：手机浏览器偶发长时间「连接中…」，需冷启动浏览器恢复；检查可声明前提（如选择器检查要求输入框里确有「@」），前提不成立记为操作偏离。
 
-- 手机浏览器（`android-web`）：浏览器只在页面加载时建立无障碍树，页面内跳转后不更新，标定时用浏览器自带刷新重新加载后再读，临时出现的元素（密码页、@ 选择器、输入时的发送键）由视觉模型定位；软键盘会盖住表单按钮，登录用键盘回车提交；系统返回键会关闭标签页，执行中只用页面里的返回。
+- 手机浏览器（`android-web`）：浏览器只在页面加载时建立无障碍树，页面内跳转后不更新，现场定位时用浏览器自带刷新重新加载后再读，临时出现的元素（密码页、@ 选择器、输入时的发送键）由视觉模型定位；软键盘会盖住表单按钮，登录用键盘回车提交；系统返回键会关闭标签页，执行中只用页面里的返回。
 - Teamily Web（产品侧现象，已记录）：页面重新加载后会自动打开上次的会话，而这时会话左上角的返回按钮无效（它做的是浏览器历史后退，历史为空）；用户只能经 Artifacts → 聊天 → 返回回到列表，执行器就按这条路径恢复。
 - Edge 下新登录的账号会被要求完成 5 步新手引导（`/onboarding?required=1`，Chromium 无头模式下不出现）；测试账号已各走过一次。
 - 多端同步的耗时含切换手机前台与核对（视觉约 5 秒）的时间，只作上界参考，不是消息时延。
@@ -208,7 +204,7 @@ drivers/           黑盒驱动：web.ts（光标 / 触屏 / 键盘；Windows �
 incident/          飞行记录器（Android / Web）、现场包、离线查看器、坐标重放、证据复核（evidence-review / evidence-cases）
 fixtures/evidence/ 证据复核预置用例（截取的录屏 + 元数据 + 期望结论）
 skills/teamily/    Teamily SKILL：页面地图、profile、参考截图、Node、计划模板
-skills/            标定工具（calibrate-web.ts、calibrate-android.ts、calibrate-android-web.ts）、profile 读写
+skills/            SKILL 缓存（profile.ts）与 Teamily SKILL（teamily/：词表、识别规则 finders.ts、Node、模式库）
 platform/          控制台、任务调度、设备池、账号池（accounts/）、TestPlan schema（schema/）、计划（plans/）
 platform/lifecycle/ 环境 / 任务对象、状态码、环境检查（check.ts）、调度与租约（supervisor）
 platform/web/      W2-3 页面（首页、环境、计划审核、任务、结果）；api-v1.ts、views.ts、approval.ts 为其服务与视图模型

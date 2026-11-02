@@ -5,11 +5,9 @@
 // never does. Local use without login — a process rule, not a security boundary (§5.1).
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, normalize, resolve, sep } from 'node:path';
-import { profileKey } from '../drivers/factory';
 import { classifyRules } from '../issue/classify';
 import { parseIssue } from '../issue/parse';
 import type { RunResult } from '../executor/run';
-import { loadProfile } from '../skills/profile';
 import { allowList, approve, classifyPlan, getApproval, getFullAccess, reject, reviewerName, setFullAccess, useApproval, webUrl } from './approval';
 import { consentConfig, type EnvRecord, getEnv, listEnvs, unconsented } from './lifecycle/env';
 import { STATUS, type Code, CodedError, apiError, outcome } from './lifecycle/status';
@@ -17,7 +15,7 @@ import { readAudit, writeJsonAtomic } from './lifecycle/store';
 import type { Supervisor } from './lifecycle/supervisor';
 import { createTask, getTask, isTerminal, listTasks, newTaskId, readEvents, readLedger, readResult, taskDir, type TaskRecord } from './lifecycle/task';
 import { parsePlanId, planIdOf, planIdsOf, resolvePlan, savedDraft, staleFacts, versionFacts } from './plans-v1';
-import { envView, planText, planView, resultText, resultView, stepMarks, taskView, type ResultView } from './views';
+import { envView, planText, planView, resultText, resultView, taskView, type ResultView } from './views';
 
 export interface Envelope {
   status: number;
@@ -76,8 +74,7 @@ function explain(planId: string, o: { series?: number; maxRounds?: number } = {}
   const classified = classifyPlan(r.plan, { series: o.series, maxRounds: o.maxRounds, allow: allowList() });
   const v = planView({ id: planId, hash: r.hash, plan: r.plan, classified, envConfig: (env?.configItems ?? []).map((c) => `${c.what}${c.consentedAt ? '（已同意）' : '（待同意）'}`), maxRounds: o.maxRounds, warmupFailures: r.draft.warmupFailures?.filter((w) => w.planId === r.plan.id) });
   if (classified.category === 'default' && v.approval.state === 'pending') v.approval.reasons = [...v.approval.reasons, '执行时自动批准（操作者 policy）'];
-  const prof = loadProfile(profileKey(r.plan.surface, r.plan.env, env?.udid));
-  return { r, env, classified, view: v, marks: stepMarks(v, r.plan, prof as any) };
+  return { r, env, classified, view: v };
 }
 
 function resultOf(t: TaskRecord): ResultView {
@@ -184,7 +181,7 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
       const planId = seg[1];
       if (M === 'GET' && !seg[2]) {
         const e = explain(planId, { series: q.query.get('series') ? Number(q.query.get('series')) : undefined, maxRounds: q.query.get('maxRounds') ? Number(q.query.get('maxRounds')) : undefined });
-        return ok('OK', e.view.summary, { ...e.view, marks: e.marks, env: e.env ? envView(e.env) : undefined }, planText(e.view));
+        return ok('OK', e.view.summary, { ...e.view, env: e.env ? envView(e.env) : undefined }, planText(e.view));
       }
       if (M === 'POST' && seg[2] === 'approve') {
         const series = q.body.series !== undefined ? Number(q.body.series) : undefined;
@@ -284,13 +281,6 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
 
 export function taskText(v: ReturnType<typeof taskView>): string {
   return [v.summary, v.progress.phaseText ? `  进度：${v.progress.phaseText}${v.progress.round !== undefined ? ` 第 ${v.progress.round} 轮` : ''}${v.progress.step !== undefined ? ` 第 ${v.progress.step} 步` : ''}（${v.progress.at ?? '-'}）` : '', v.endedBy ? `  结束方式：${v.endedBy}${v.endedAt ? `，停在 ${v.endedAt}` : ''}` : '', v.partial ? `  部分结果：有效尝试 ${v.partial.valid}，命中 ${v.partial.hits}（${v.partial.note}）` : '', `  副作用：进入 ${v.ledger.entered.join('、') || '-'}；键入 ${v.ledger.typedInto.join('、') || '-'}；发送 ${v.ledger.sent} 条`].filter(Boolean).join('\n');
-}
-
-/** /api/v1/refs/<profile dir>/<file>: calibration screenshots (read-only, inside skills/teamily/refs). */
-export function refFile(rel: string): string | undefined {
-  const root = resolve('skills/teamily/refs');
-  const full = normalize(resolve(root, decodeURIComponent(rel).replace(/^refs\//, '')));
-  return full.startsWith(root + sep) && existsSync(full) ? full : undefined;
 }
 
 export { STATUS, planIdOf };
