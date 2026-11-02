@@ -1,0 +1,142 @@
+// Quick tier: what the model sees each step and what it may answer (after ref/artemis Flash: screenshot +
+// numbered visible elements, tap by index first, coordinates only with a target description; Apache-2.0,
+// rewritten). Pure: prompt building, answer parsing, history compression, screen fingerprints.
+import { createHash } from 'node:crypto';
+import { label, type ScreenNode } from '../../core/screen-index';
+
+export type AgentAction =
+  | { type: 'tap'; target?: number; x?: number; y?: number; description?: string }
+  | { type: 'longPress'; target?: number; x?: number; y?: number; description?: string }
+  | { type: 'type'; target?: number; text: string }
+  | { type: 'swipe'; direction: 'up' | 'down' | 'left' | 'right' }
+  | { type: 'back' }
+  | { type: 'launch' }
+  | { type: 'wait'; ms: number }
+  | { type: 'done'; status: 'completed' | 'failed'; summary: string }
+  | { type: 'report_issue'; description: string };
+
+export interface AgentAnswer {
+  thought: string;
+  /** Markdown checklist ([ ] / [/] / [x] / [!]); the model keeps it current. */
+  plan?: string;
+  action: AgentAction;
+}
+
+export interface StepRecord {
+  step: number;
+  screen: string;
+  action: string;
+  result: string;
+}
+
+/** Elements shown to the model: labelled or clickable, at most `max`, numbered from 1. */
+export function visibleElements(nodes: ScreenNode[], max = 80): ScreenNode[] {
+  return nodes.filter((n) => label(n) || n.clickable).slice(0, max);
+}
+
+export function elementList(els: ScreenNode[]): string {
+  return els.map((n, i) => `[${i + 1}] ${n.clickable ? 'button' : n.cls.replace(/^android\.widget\./, '')} "${label(n).slice(0, 60)}" @(${n.center.x},${n.center.y})`).join('\n');
+}
+
+/** Pure: a screen's fingerprint — its labels, ignoring counts and times that change while it stays the same screen. */
+export function fingerprint(nodes: ScreenNode[]): string {
+  const ls = [...new Set(nodes.map((n) => label(n).replace(/\d+/g, '#').slice(0, 30)).filter(Boolean))].sort().slice(0, 60);
+  return createHash('sha1').update(ls.join('|')).digest('hex').slice(0, 10);
+}
+
+export const KEEP_STEPS = 12;
+
+/** Pure: history for the prompt — the last KEEP_STEPS steps verbatim, older ones as one line per chunk of 12. */
+export function historyText(steps: StepRecord[]): string {
+  if (!steps.length) return '(none yet)';
+  const recent = steps.slice(-KEEP_STEPS);
+  const old = steps.slice(0, -KEEP_STEPS);
+  const chunks: string[] = [];
+  for (let i = 0; i < old.length; i += KEEP_STEPS) {
+    const c = old.slice(i, i + KEEP_STEPS);
+    const screens = new Set(c.map((s) => s.screen)).size;
+    const issues = c.filter((s) => /issue|blocked|error/i.test(s.result)).map((s) => `#${s.step} ${s.result.slice(0, 60)}`);
+    chunks.push(`steps ${c[0].step}–${c.at(-1)!.step}: ${screens} screen(s); ${c.map((s) => s.action.split(' ')[0]).join(', ')}${issues.length ? `; notable: ${issues.join('; ')}` : ''}`);
+  }
+  return [...chunks.map((c) => `(summary) ${c}`), ...recent.map((s) => `#${s.step} [screen ${s.screen}] ${s.action} → ${s.result}`)].join('\n');
+}
+
+export const SYSTEM = (writable: boolean) => `You test the Teamily app like a careful human tester, one action per turn, on a real ${'device or browser'}.
+Each turn you get: the goal, your current plan, the history, the screenshot and the numbered visible elements.
+Answer ONE JSON object: {"thought": "<short>", "plan": "<markdown checklist: - [ ] todo / - [/] doing / - [x] done / - [!] failed>", "action": {...}}.
+Actions:
+- {"type":"tap","target":<element number>}  (preferred)
+- {"type":"tap","x":<px>,"y":<px>,"description":"<what is there>"}  (only for something not in the list; coordinates in the element list's space)
+- {"type":"longPress","target":<n>}
+- {"type":"type","target":<n>,"text":"..."}
+- {"type":"swipe","direction":"up|down|left|right"}
+- {"type":"back"} | {"type":"launch"} | {"type":"wait","ms":<=3000}
+- {"type":"report_issue","description":"<what you see that is wrong, as visible facts>"}  (an error, a crash dialog, a blank or stuck page, broken text — something that stops normal use)
+- {"type":"done","status":"completed|failed","summary":"..."}  (goal reached, or impossible)
+Rules: look before you act; do not assume where a tap leads; describe visible facts, never guess causes.
+${writable ? 'Writable run: you may type and send, but never delete or recall anything.' : 'READ-ONLY run: never send, delete, change settings, pay, log out, invite or share, or edit a profile; typing is allowed only into a search box. Such actions are blocked and reported back to you.'}
+When exploring, prefer entries you have not tried on this screen yet.`;
+
+export function userPrompt(o: { goal: string; mode: 'task' | 'explore'; plan?: string; history: string; screen: string; els: ScreenNode[]; tried: string[]; feedback?: string; size: { width: number; height: number } }): string {
+  return [
+    `Goal (${o.mode === 'explore' ? 'explore and find problems' : 'task'}): ${o.goal}`,
+    `Current plan:\n${o.plan ?? '(write one)'}`,
+    `History:\n${o.history}`,
+    o.feedback ? `Result of your last action: ${o.feedback}` : '',
+    `Screen ${o.screen} (${o.size.width}×${o.size.height}); already tried here: ${o.tried.length ? o.tried.slice(0, 20).join(', ') : 'nothing'}`,
+    `Visible elements:\n${elementList(o.els) || '(none read — use coordinates from the screenshot)'}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
+/** Pure: validate the model's answer; undefined = unusable (the turn is retried once, then ends as failed). */
+export function parseAnswer(raw: unknown): AgentAnswer | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as { thought?: unknown; plan?: unknown; action?: Record<string, unknown> };
+  const a = r.action;
+  if (!a || typeof a.type !== 'string') return undefined;
+  const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : undefined);
+  let action: AgentAction | undefined;
+  switch (a.type) {
+    case 'tap':
+    case 'longPress': {
+      const target = num(a.target);
+      const x = num(a.x);
+      const y = num(a.y);
+      if (target === undefined && (x === undefined || y === undefined)) return undefined;
+      action = { type: a.type, target, x, y, description: typeof a.description === 'string' ? a.description : undefined };
+      break;
+    }
+    case 'type':
+      if (typeof a.text !== 'string') return undefined;
+      action = { type: 'type', target: num(a.target), text: a.text };
+      break;
+    case 'swipe':
+      action = { type: 'swipe', direction: (['up', 'down', 'left', 'right'] as const).find((d) => d === a.direction) ?? 'up' };
+      break;
+    case 'back':
+    case 'launch':
+      action = { type: a.type };
+      break;
+    case 'wait':
+      action = { type: 'wait', ms: Math.min(3000, num(a.ms) ?? 1000) };
+      break;
+    case 'done':
+      action = { type: 'done', status: a.status === 'failed' ? 'failed' : 'completed', summary: String(a.summary ?? '') };
+      break;
+    case 'report_issue':
+      if (typeof a.description !== 'string' || !a.description.trim()) return undefined;
+      action = { type: 'report_issue', description: a.description };
+      break;
+    default:
+      return undefined;
+  }
+  return { thought: String(r.thought ?? ''), plan: typeof r.plan === 'string' ? r.plan : undefined, action: action! };
+}
+
+/** Pure: checklist state of a plan. */
+export function planState(plan: string | undefined): { todo: number; done: number; failed: number } {
+  const items = [...(plan ?? '').matchAll(/^\s*[-*]\s*\[( |\/|x|X|!)\]/gm)].map((m) => m[1]);
+  return { todo: items.filter((x) => x === ' ' || x === '/').length, done: items.filter((x) => x.toLowerCase() === 'x').length, failed: items.filter((x) => x === '!').length };
+}

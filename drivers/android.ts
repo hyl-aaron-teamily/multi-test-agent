@@ -40,6 +40,9 @@ export function classifyLogLine(line: string, pkg: string, pid?: number, appErro
   if (/\bam_crash\b/.test(line) && new RegExp(p).test(line)) return { kind: 'crash', at, detail: line.trim() };
   if (new RegExp(`ANR in ${p}`).test(line) || (/\bam_anr\b/.test(line) && new RegExp(p).test(line))) return { kind: 'anr', at, detail: line.trim() };
   if ((/\bam_proc_died\b/.test(line) && new RegExp(`,${p}(,|\\])`).test(line)) || new RegExp(`Process ${p} \\(pid \\d+\\) has died`).test(line)) return { kind: 'app-exit', at, detail: line.trim() };
+  // Killed and stopped from outside (force-stop: "am_kill : [0,pid,pkg,0,stop pkg due to …]"): to the user the app
+  // vanished. The driver's own killApp is a planned exit (`away`), background kills are not counted (foreground).
+  if (/\bam_kill\b/.test(line) && new RegExp(`,${p},\\d+,stop ${p}\\b`).test(line)) return { kind: 'app-exit', at, detail: line.trim() };
   const resumed = line.match(/\b(?:wm_set_resumed_activity|am_focused_activity|am_focused_root_task|wm_focused_root_task)\b.*?\b([a-zA-Z][\w.]+)\/[\w.$]+/);
   if (resumed && resumed[1] !== pkg && !/^(com\.android\.systemui|android)$/.test(resumed[1])) return { kind: 'left-app', at, detail: `foreground ${resumed[1]}: ${line.trim()}` };
   if (pid && appErrorRe && new RegExp(`\\b${pid}\\b`).test(line) && /\sE[/\s]/.test(line) && appErrorRe.test(line)) return { kind: 'app-error', at, detail: line.trim(), suspect: true };

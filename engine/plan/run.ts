@@ -37,8 +37,8 @@ import { type Conclusion, NO_VERDICT } from '../verdict';
 import { classifyFailure, type EnvSnapshot, type Failure } from '../failure';
 import { cleanStart, requireNow, runEpilogue, teardown } from './isolation';
 import { buildManifest, type Manifest, writeManifest } from '../manifest';
-import { envSnapshot, preflightAndroid, preflightWeb, type PreflightResult } from '../preflight';
-import { ensureWebSession, type PlaywrightSurface } from '../login/sessions';
+import { envSnapshot, type PreflightResult } from '../preflight';
+import { leaseFor, preflightFor } from '../lease';
 import type { Attempts } from '../stats';
 import { expandAction, newRunToken } from './template';
 import { AndroidDriver } from '../../drivers/android';
@@ -198,49 +198,25 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   // ---- lease: account + slot of an endpoint (a phone for Android surfaces, this computer otherwise)
   const taskId = o.taskId ?? `run-${plan.id}-${t0}`;
   const tLease = Date.now();
-  let lease: Lease | null = null;
-  for (let i = 0; i < 30 && !lease; i++) {
-    lease = o.pool.lease(taskId, { env: plan.env, surface: plan.surface, accountId: plan.account, devices: o.devices, device: onAndroid(plan.surface) ? o.udid : undefined });
-    if (!lease) await sleep(2000);
-  }
-  if (!lease) {
-    res.error = `no free ${plan.env} account${o.devices ? ' / endpoint slot' : ''} for ${plan.surface}`;
+  const leased = await leaseFor({ pool: o.pool, devices: o.devices, env: plan.env, surface: plan.surface, accountId: plan.account, udid: o.udid, taskId, preflight: o.preflight, hooks: o.hooks, log });
+  if (leased.error !== undefined) {
+    res.error = leased.error;
     return done();
   }
-  const account = lease.accounts[0];
+  const { lease, account, udid } = leased;
   res.account = account.id;
-  const udid = lease.device?.kind === 'android' ? lease.device.udid : (o.udid ?? (onAndroid(plan.surface) ? account.boundDevice : undefined));
   res.device = onAndroid(plan.surface) ? udid : undefined;
   phase('lease', tLease);
 
-  // ---- preflight (W2-2 §4.2): an unfit phone is 环境不合格 — nothing is launched or tapped. Web surfaces:
-  // the minimal check — a browser starts and the account's signed-in session is valid.
+  // ---- preflight (W2-2 §4.2): an unfit endpoint is 环境不合格 — nothing is launched or tapped.
   o.hooks?.phase('preflight');
-  if (o.preflight !== false && ((onAndroid(plan.surface) && udid) || onPlaywright(plan.surface))) {
-    const tPf = Date.now();
-    // Ledger first (G6): the preflight may wake the screen and apply the environment's configuration items.
-    if (udid && onAndroid(plan.surface)) o.hooks?.effect({ kind: 'setting', target: 'preflight', value: 'wake / stayon / taplus / keyboard (environment configuration items)' });
-    if (onPlaywright(plan.surface)) {
-      const w = await ensureWebSession(o.pool, account.id, plan.surface as PlaywrightSurface).catch((e) => ({ ok: false, error: (e as Error).message.split('\n')[0], reused: false, file: '' }));
-      preflight = await preflightWeb({ sessionOk: w.ok, sessionDetail: w.ok ? `signed-in session ${w.reused ? 'valid (reused)' : 'renewed (logged in)'}` : `login failed: ${w.error}` });
-    }
-    if (udid && onAndroid(plan.surface)) {
-      const pkg = packageOf(plan.surface) ?? TEAMILY_PACKAGE;
-      // An adb failure inside the preflight is the environment (device gone / unauthorized), not the tool.
-      preflight = await preflightAndroid(udid, pkg, plan.surface).catch(async (e) => {
-        const snap = await envSnapshot(udid, pkg).catch(() => ({ online: false }) as EnvSnapshot);
-        const msg = (e as Error).message.split('\n')[0];
-        const id = snap.online === false ? 'online' : 'adb';
-        return { ok: false, ms: 0, items: [{ id, ok: false, detail: msg }], changes: [], reason: `${id}: ${snap.online === false ? `设备不在线（${msg.slice(0, 120)}）` : msg}` } satisfies PreflightResult;
-      });
-    }
+  const tPf = Date.now();
+  preflight = await preflightFor({ pool: o.pool, surface: plan.surface, preflight: o.preflight, hooks: o.hooks, log }, account.id, udid);
+  if (preflight) {
     phase('preflight', tPf);
-    const pf = preflight!;
-    pf.ms = Date.now() - tPf;
-    log(`preflight: ${pf.ok ? 'ok' : `NOT fit — ${pf.reason}`} (${pf.ms} ms${pf.changes.length ? `; changed: ${pf.changes.join('; ')}` : ''})`);
-    if (!pf.ok) {
+    if (!preflight.ok) {
       res.conclusion = '环境不合格';
-      res.conclusionDetail = `预检不合格：${pf.reason}`;
+      res.conclusionDetail = `预检不合格：${preflight.reason}`;
       o.pool.release(lease, o.devices);
       return done();
     }

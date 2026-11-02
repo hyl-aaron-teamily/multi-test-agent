@@ -83,6 +83,9 @@ describe('android anomaly gate (logcat only)', () => {
     expect(classifyLogLine('10-26 18:31:00.052 28649 28660 E AndroidRuntime: FATAL EXCEPTION: main', pkg, 4321)).toBeUndefined();
     expect(classifyLogLine('10-26 18:31:00.052 4321 4330 E AndroidRuntime: FATAL EXCEPTION: main', pkg, 4321)?.kind).toBe('crash');
     expect(classifyLogLine('I am_crash: [123,0,ai.teamily.mobile,1,java.lang.RuntimeException]', pkg)?.kind).toBe('crash');
+    // force-stopped from outside: the app vanished (2026-11-03, HyperOS logs am_kill, not am_proc_died)
+    expect(classifyLogLine('11-03 01:13:45.878  2923  7047 I am_kill : [0,27607,ai.teamily.mobile,0,stop ai.teamily.mobile due to from process:1800,919836]', pkg)?.kind).toBe('app-exit');
+    expect(classifyLogLine('I am_kill : [0,27607,com.other.app,0,stop com.other.app due to x]', pkg)).toBeUndefined();
     expect(classifyLogLine('E ActivityManager: ANR in ai.teamily.mobile (ai.teamily.mobile/.MainActivity)', pkg)?.kind).toBe('anr');
     expect(classifyLogLine('I am_proc_died: [0,4321,ai.teamily.mobile,0,17]', pkg)?.kind).toBe('app-exit');
     expect(classifyLogLine('I wm_set_resumed_activity: [0,com.miui.home/.launcher.Launcher,startHomeActivity]', pkg)?.kind).toBe('left-app');

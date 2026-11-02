@@ -3,6 +3,7 @@
 //   pnpm autotest doctor | mcp [--print-config claude|cursor|codex|vscode]      (W2-4)
 //   pnpm autotest accounts|nodes|plan|run|series|rerender|evidence|sync ... (scripts/m5.ts)
 //   pnpm autotest replay <incident>/replay.json [--times 3]                     (coordinate replay)
+//   pnpm autotest explore run "<goal>" [--mode task|explore] [--surface …]   (quick tier, capability ①)
 //   pnpm autotest devices [--json]
 import 'dotenv/config';
 import { spawn } from 'node:child_process';
@@ -38,6 +39,8 @@ async function main(): Promise<number> {
   }
   // MCP over stdio: start it with node + tsx directly (pnpm prints a banner on stdout); see --print-config.
   if (cmd === 'mcp') return run(tsx, ['scripts/mcp.ts', ...rest]);
+  // Quick tier (capability ①) from the command line: explore run "<goal>".
+  if (cmd === 'explore') return run(tsx, ['scripts/explore.ts', ...rest]);
   if (cmd && M5.includes(cmd)) return run(tsx, ['scripts/m5.ts', cmd, ...rest]);
   if (cmd === 'replay') return run(tsx, ['scripts/m5.ts', 'replay', ...rest]);
   if (cmd === 'devices') {
@@ -47,7 +50,7 @@ async function main(): Promise<number> {
     else for (const d of devices) console.log(`${d.udid.padEnd(20)} ${d.state.padEnd(13)} ${d.model ?? ''}`);
     return 0;
   }
-  console.error('Usage: pnpm autotest help | <issue|draft|plan|env|task|result> <action> [--json] | <doctor|mcp|accounts|nodes|plan|run|series|rerender|evidence|sync|replay|devices> [...args]');
+  console.error('Usage: pnpm autotest help | <issue|draft|plan|env|task|result> <action> [--json] | <doctor|mcp|explore|accounts|nodes|plan|run|series|rerender|evidence|sync|replay|devices> [...args]');
   return 2;
 }
 
