@@ -9,8 +9,10 @@
 - 状态码 54 = 平台服务没启动：告诉用户运行 `pnpm platform`（MCP 不会自动拉起平台）。
 
 ## 2. 用哪条路
-- 有 Issue 要复现 / 验收：`issue_list` → `draft_create`（或 `draft_show`）→ `plan_explain` → `task_run` → `task_wait`（反复调用）→ `result_show`。
-- 想找未知问题：用探索模块（W2-5），不要拿探索代替复现。
+- **有 Issue 要复现 / 验收**（要一个能被复核的结论）：Issue 主线（Pro 档）——`issue_list` → `draft_create`（或 `draft_show`）→ `plan_explain` → `task_run` → `task_wait`（反复调用）→ `result_show`。
+- **没有 Issue，只有一句话的目标或想找未知问题**：快速档——`explore_run`（`mode: task` 完成目标 / `explore` 找问题；默认只读）→ `task_wait` → `result_show`。用户说「看看 X 能不能用」「帮我点一下 Y」「随便逛逛找问题」时用它。
+- **探索有了发现，要确认是不是问题**：`explore_issue` 把发现写成 Issue 草稿，再走 Issue 主线复现。
+- **多端消息同步**：`task_run`，参数 `sync: "desktop-web,android-app"`（命令行 `task run --sync …`）。
 - 只想看手机现在是什么样：`device_snapshot`（只读，不点）。
 
 ## 3. 先说明再执行
@@ -23,6 +25,8 @@
 - 替代执行（例如 iOS 报告在 Android 上复现）只说明替代端的情况，不代表原端。
 - 「环境不合格」「工具失败」「SKILL 失效」不是产品结论，不要据此说产品有没有问题；先 `doctor`，修好后重跑。
 - 命中要看证据复核结果；被复核排除的命中不算。
+- **探索的结论不是复现结论**：探索「有发现」（18）只说明 agent 一次走到过那个现象，附现场包；要说「这是个可复现的问题」，先 `explore_issue` 转成 Issue，再由 Issue 主线给出带分母的结论。探索「未发现问题」（19）也只说明覆盖到的那些界面没看到问题，要连同覆盖数（界面、动作）一起转告。
+- 探索时 agent 被拦截的动作（发送、删除、点赞真实用户的内容等）会列在结果里：这是规则在起作用，不是故障；不要为了绕过拦截去开可写模式，可写需要用户开启完全授权。
 
 ## 5. 设备
 - 一台手机同一时间只跑一个任务；`device_snapshot` 在手机被任务占用时会拒绝。

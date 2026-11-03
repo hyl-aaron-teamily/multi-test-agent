@@ -15,7 +15,7 @@ version: 2026.11.02-1
 | desktop-web | Playwright 光标（插值移动）+ 键盘；Windows 上为 Microsoft Edge 最大化窗口（视口运行时实测），其他系统为无头 Chromium 1440×900 |
 | mobile-web | Playwright 设备模拟 Pixel 7（触屏，412×839，DPR 2.625） |
 | android-app | 常驻 `adb shell` 的 `input tap/swipe/keyevent`，文本 yadb |
-| android-web | 同一台手机的自带浏览器（`com.android.browser`，可用 `ANDROID_BROWSER_PACKAGE` 改），与 android-app 相同的 adb 输入；以 `VIEW` intent + `application_id` 在固定标签页打开网址，不连调试端口 |
+| android-web | 同一台手机的自带浏览器（`com.android.browser`，可用 `ANDROID_BROWSER_PACKAGE` 改），与 android-app 相同的 adb 输入；以 `VIEW` intent + `application_id` 在固定标签页打开网址 |
 
 - **元素**：`finders.ts` 写明每个元素怎么认（文字 / 无障碍描述、几何规则、Web 只读选择器；纯图标写视觉描述）。循环外第一次用到时在当前屏幕上现场定位（规则优先；只有要点它且规则找不到时才用视觉），结果写进缓存。缓存里有的直接用；预热轮某步核验失败、首页参考对不上时重新定位，App 升级或换分辨率自动换新缓存。
 - **参考区域**（检查点、是否在首页 / 聊天页、确认框等）：`finders.ts` 的 `REGION_SPECS` 写明由哪些锚点元素取框；锚点第一次出现在屏幕上时，从实时截图截取存进缓存。循环里只做像素比对。

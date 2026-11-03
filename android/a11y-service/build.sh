@@ -12,7 +12,7 @@ OUT=tools/a11y
 B=$OUT/build
 PLATFORM=$(ls -d "$SDK"/platforms/android-* 2>/dev/null | sort -V | tail -1)
 BT=$(ls -d "$SDK"/build-tools/* 2>/dev/null | sort -V | tail -1)
-[ -f "$PLATFORM/android.jar" ] || { echo "no android.jar under $SDK/platforms (see docs/w2m4-acceptance.md: SDK setup)"; exit 2; }
+[ -f "$PLATFORM/android.jar" ] || { echo "no android.jar under $SDK/platforms (see docs/history/w2m4-acceptance.md: SDK setup)"; exit 2; }
 [ -d "$BT" ] || { echo "no build-tools under $SDK/build-tools"; exit 2; }
 EXE=; [ -f "$BT/aapt2.exe" ] && EXE=.exe
 # JDK tools: from JAVA_HOME when set (Windows often has only the java/javac shims on PATH).

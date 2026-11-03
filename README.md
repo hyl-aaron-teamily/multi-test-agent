@@ -1,218 +1,124 @@
 # multi-test-agent
 
-> 项目介绍页：[docs/intro.html](docs/intro.html)（浏览器直接打开）· 验收证据：[docs/w2m3-acceptance.md](docs/w2m3-acceptance.md)（本轮，W2-3）/ [docs/w2m2-acceptance.md](docs/w2m2-acceptance.md) / [docs/w2m1-acceptance.md](docs/w2m1-acceptance.md) / [docs/m6-acceptance.md](docs/m6-acceptance.md) / [docs/m5-acceptance.md](docs/m5-acceptance.md) · 命令行参考：[docs/cli-reference.md](docs/cli-reference.md) · 历史变更：[CHANGELOG.md](CHANGELOG.md)
+> 介绍页：[docs/intro.html](docs/intro.html) · 规则（生效版，带代码落点）：[docs/rules.md](docs/rules.md) · 命令行参考：[docs/cli-reference.md](docs/cli-reference.md) · Agent 使用规则：[docs/agent-rules.md](docs/agent-rules.md) · 本期验收：[docs/w2m4.1-acceptance.md](docs/w2m4.1-acceptance.md) · 变更：[CHANGELOG.md](CHANGELOG.md) · 历史文档：[docs/history/](docs/history/)
 
-Teamily 客户端测试台：在 **Android App、手机自带浏览器里的 Web、手机视口 Web、桌面 Web（Windows 上为 Edge 最大化窗口）** 四个执行端上，以**黑盒**方式（只做用户能做的操作、只看用户能看到的现象）复现和验收问题，并留下可回放的证据；多个端可各登录一个账号，在同一会话里做同步测试。
+Teamily 客户端的真机黑盒测试台。只做用户能做的操作（触控、光标、键盘），只看用户能看到的现象（屏幕、无障碍文本、系统日志），在四个执行端上运行：**Android App**、**手机自带浏览器里的 Web**（android-web）、**手机视口 Web**（mobile-web，Playwright）、**桌面 Web**（desktop-web，Windows 上是最大化的 Edge）。
 
-主线是 **Issue 驱动**：把一份 Issue 文档交给测试台，它会判断这是什么类型的问题、生成测试计划，经你确认一次后在生产环境执行，最后给出结论、证据包和报告。另有自然语言任务、AI 探索、Monkey、IM 界面层收发测试等入口，都在同一个控制台里。
+两项能力：
 
-## 现状一览（2026-10-28）
-
-| 能力 | 状态 | 说明 |
+| | 能力 ① 快速档：自然语言任务 / AI 探索 | 能力 ② Pro 档：Issue → 计划 → 复现 |
 |---|---|---|
-| Issue 分类与计划 | ✅ 可用 | 11 份样例 Issue 全部分类（W2-2 新增 1426、1903、1918；2026-11-02 移除 2010）；可执行的生成计划，服务端 / 空文档出拒绝报告，多账号 / 需新能力的出暂缓报告 |
-| 黑盒执行（四个执行端） | ✅ 可用 | 按 SKILL 现场定位并缓存的坐标操作，动作间隔 ≤ 1 秒，一份 Issue 只启动一次 App；`android-web` = 手机自带浏览器，`desktop-web` 在 Windows 上用 Edge 最大化窗口 |
-| 退出 / 杀进程 / 重新加载 | ✅ 可用 | 计划动作 `exitApp`（Home）、`idle`（后台等待，≤10 分钟）、`killApp`（杀进程并核实）、`launch`（冷/热启动）、`reload`；App 与手机浏览器都可用，计划内的退出不算闪退 |
-| 动态目标 | ✅ 可用 | 用哪个群、哪条消息由模型在准备阶段看屏幕选定，冻结为坐标后进入循环 |
-| 判定 | ✅ 可用 | 偶现：上限内命中 1 次即复现；必现：连续 3 次；需求：逐条验收出「已实现 / 部分实现 / 未实现」 |
-| 可信结论（W2-2） | ✅ 可用 | 只陈述观察到的事实：「已复现」或「未复现（n 次有效尝试）」+ 单轮命中率与 Wilson 95% 区间 / 0 命中时 3/n 上界；偏离轮单独计数；失败分「环境 / 工具」两类；报告首段写触发路径、出现位置、推测机制（各带依据） |
-| 运行清单 + 预检 + 隔离（W2-2） | ✅ 可用 | 每次运行 `manifest.json`（工具 / 目标 / 设备 / App 版本 / 输入法 / 网络 / 账号与会话名 / 预检）；手机预检 < 1 s，锁屏 / 断网 / 低电量 / 浮层 → 「环境不合格」不开跑；运行标记写进所有构造的文字；App 冷启动、清旧草稿、结束复位 |
-| 系列运行 + 代码门（W2-2） | ✅ 可用 | `pnpm autotest series`：同一子用例 N 次独立运行，汇总工具可靠性、复现率、各阶段耗时中位数；`pnpm code-gate`：typecheck + 单测 + golden + 证据复核用例，约 2.5 分钟 |
-| 证据复核 | ✅ 可用 | 检查类命中先把录屏（出事轮与前一轮的画面条 + 被判定的截图）交给视觉模型对照 Issue 的「实际结果」，不符合即排除、不计命中；预置用例 `fixtures/evidence/` 回归复核本身 |
-| 事故现场包 | ✅ 可用 | Android：录屏环形缓冲（最多 6×30 秒）+ 时间窗日志 + 崩溃缓冲 + dropbox；Web：Playwright trace + console + 网络记录；单文件离线查看器 |
-| 重放 | ✅ 可用 | 按同一判定规则给出能否复现，并指出从第几轮起偏离原路径 |
-| 账号池 | ✅ 可用 | 测试 / 生产账号分开租用，光标登录并缓存会话；凭据只在本地私有文件 |
-| 端点池 + 多端同步 | ✅ 可用 | `platform/devices.yaml`：手机与本机都是端点，按「端点 × 执行端」分槽租用；同一台手机可同时跑 App 和浏览器（轮流占前台），手机上登录的是哪个账号写在配置里；`pnpm autotest sync` 让各端用不同账号进同一会话互发互收 |
-| 意图契约（W2-1） | ✅ 可用 | Issue → 契约（前置条件及建立方式 / 触发语义 / 可观察后置条件与现象 / 推测）→ 模式确定性编译；确认单显示契约与覆盖标注；确认的草稿（哈希）就是执行的计划 |
-| 分层判定 / 定位（W2-1） | ✅ 可用 | ① 日志 / 进程 / 系统状态 / 无障碍或页面文字 / 区域 → ③ 视觉兜底，只在检查点、准备、预热、现场定位；循环每步仍只按坐标；报告「判定分层统计」 |
-| 预热闸门 + 自愈（W2-1） | ✅ 可用 | 循环前逐步核验，失败 →「计划不可执行」；预热轮某步核验失败时先重新定位该元素再重做（不改件） |
-| 轨迹（W2-1） | ✅ 可用 | 每次运行 `trajectory.jsonl`；可选转发 TencentDB Agent Memory（standalone，`TRAJECTORY_TDAI_URL`） |
-| 任务与环境（W2-3，重构 P2 精简） | ✅ 可用 | 环境、任务各有状态机与落盘记录；一个环境一个租约，租约记录任务进程（pid + 启动时间），进程在就算在跑；步骤边界取消（60 s 未停则强制结束）；任务结束后重新检查环境（在线、未锁屏、配置项）；副作用记录列在任务页 |
-| 审批与状态码（W2-3） | ✅ 可用 | 被测软件内操作默认允许；敏感计划只在 Web 同意；完全授权开关（红色横幅）；硬约束永远拒绝；批准绑定哈希 / 版本 / 次数（31 / 32 / 33）；两位退出码 = 状态码 |
-| 命令行给 Agent、Web 给人（W2-3） | ✅ 可用 | `autotest <对象> <动作> [--json]`（`help --json` 即工具定义）；Web 首页 / 环境 / 计划审核 / 任务 / 结果页；两者读同一份视图模型 |
-| 自然语言任务 / AI 探索 | 🚧 重做中 | W1 的 mission / explore 已删除，按 `docs/refactor-plan.md` P5 在统一引擎里重做 |
-| iOS、WebView、小程序 | ❌ 未接入 | iOS 问题只能经确认后在 Android 或手机 Web 上替代执行 |
-| 多角色 Issue 计划 | ⏸ 暂缓 | 同步底座已可用；2235 这类 Issue 还未生成多角色计划 |
+| 输入 | 一句话目标，例如「打开通知铃铛，看看有哪些分类」 | 一份 Issue 文档（`issues/*.md`） |
+| 怎么做 | 每一步看截图和可点元素，视觉模型决定一个动作；默认只读 | 规则 + 模型生成高确定性的计划，确认一次后按坐标循环执行（每步 ≤ 1 s，循环内不读屏、不调视觉） |
+| 结论 | 发现清单（每条带现场包）、覆盖了哪些界面、拦截了哪些动作、用量 | 已复现 / 未复现（带有效尝试数和区间）、已实现 / 未实现；命中时有完整现场包 |
+| 两者关系 | 探索的发现可以一键转成 Issue 草稿 → | 由 Pro 档复现，给出带分母的结论 |
 
-**生产环境样例结论**（详见 [docs/m5-acceptance.md](docs/m5-acceptance.md)）：
-
-| Issue | 执行端 | 结论 |
-|---|---|---|
-| 1594 @ 选择器偶发不弹出 | desktop-web | 未复现（1000 步，最大间隔 918 ms，视觉模型调用 0） |
-| 2336 三个独立通知铃铛 | desktop-web | 未实现：个人主页、Artifacts、CloudDoc 仍各有独立 🔔，无统一入口 |
-| 2122 免打扰群 @ 我（单账号部分） | desktop-web | 未实现：无「@我 / Mentions」聚合，免打扰群无显著角标；需第二账号的部分暂缓 |
-| 1329 点赞 / 定位链接 / 键盘（iOS） | android-app（替代） | 三项均未复现，各跑满 30 分钟。**更正**：开发期记为「已复现」的 s2（如 `1329-2026-10-21T16-43-05-544Z`）是误报——跳到的就是被引用消息，只是窄屏下被引用气泡换成两行、跳转后短暂高亮，基线像素比对没对上；现由证据复核排除，并固化为预置用例 |
-| 2044 引用块预览显示 Markdown 源码（iOS） | android-app（替代） | **已复现**（W2-1）：构造「Markdown 链接消息 + 引用回复」后，Android 引用块同样显示 `[url](url)`，连续 3 轮，证据复核 3/3 |
-| 1903 气泡内 @ 不渲染（iOS） | android-app（替代） | **W2-2 系列 10 次**：未复现（60 次有效尝试，单次复现概率 95% 上界 ≈ 5%）；气泡与列表预览都显示 @；工具可靠性 10/10 |
-| 1614 / 1922 | — | 拒绝执行（服务端问题 / 按文档约定） |
-| 2235 | — | 暂缓（多账号） |
-| 1426 部分选中复制整条 / 1918 LaTeX 未渲染 | — | W2-2 只分类 + 契约：暂缓（需要拖选 / 右键 / 剪贴板；Agent 回复内容不可构造） |
+多设备、多账号的协同（多端同步、一个任务同时租多个环境、每端不同账号）是这两项能力的执行底座。
 
 ## 快速开始
 
-环境：Node.js ≥ 18（已在 22 验证）、pnpm 12；一台开启 USB 调试的 Android 手机 + adb；OpenAI 兼容的模型接口；可选 scrcpy（录屏）、ffmpeg（合并视频、抽帧）。
+环境：Node.js ≥ 18（已在 22 验证）、pnpm、一台开启 USB 调试的 Android 手机 + adb、OpenAI 兼容的模型接口（视觉 + 文本）；可选 scrcpy（录屏）、ffmpeg（合并视频）。
 
 ```bash
 pnpm install
 pnpm exec playwright install chromium
-cp .env.example .env                       # 填 MIDSCENE_MODEL_*；可选 SCRCPY_PATH、MIDSCENE_ADB_PATH
+cp .env.example .env                 # 填 MIDSCENE_MODEL_*；可选 SCRCPY_PATH、MIDSCENE_ADB_PATH
 # 账号：platform/accounts.local.yaml（gitignored），格式见 platform/accounts/secret-backend.ts
-pnpm autotest accounts check --env prod    # 光标登录并缓存会话
-pnpm autotest skill smoke --surface android-app --lifecycle cold # 退出 → 后台等待 → 杀进程 → 冷启动
-pnpm platform                              # 控制台 http://localhost:3210
+pnpm platform                        # 平台服务 + Web 控制台 http://localhost:3210（约 1 分钟后开始监听）
+npx tsx bin/autotest.ts doctor       # 能不能跑、缺什么、下一步（平台没启动也能答）
 ```
 
-## Issue 驱动的黑盒复现
+## 能力 ①：自然语言任务与 AI 探索
 
 ```bash
-TRAJECTORY_TDAI_URL=http://127.0.0.1:8420   # 可选：轨迹转发到 TDAI 网关（tools/tdai，见 docs/w2m1-acceptance.md P4）
-pnpm autotest plan issues/1594.md                      # 预判类别 + 子用例 + 替代项，草稿写入 platform/plans/drafts/
-pnpm autotest run --issue 1594 --yes                   # 无替代项时确认执行
-pnpm autotest run --issue 1329 --approve s1,s3:mobile-web   # 有替代项：勾选子用例并选执行端
-pnpm autotest replay <incident>/replay.json --variant all   # 重放：原节奏 / 加速 / 减速 / 冷启动
-pnpm autotest run --issue 1903 --approve main:android-app [--max-rounds 6]          # W2-2：有效尝试上限
-pnpm autotest series --issue 1903 --approve main:android-app --runs 10              # W2-2：10 次独立运行 + series-report.md
-pnpm autotest rerender midscene_run/issues/<run>                                    # 旧 result.json 按新口径重出 report.v2.md
-pnpm code-gate                                                                      # 代码门（每次改动后）
+npx tsx bin/autotest.ts explore run "打开通知铃铛，看看里面有哪些通知分类，然后关掉它" --mode task --surface desktop-web
+npx tsx bin/autotest.ts explore run "浏览发现页和个人主页，找找界面错乱、报错或卡住的地方"   # 默认 explore、android-app
+npx tsx bin/autotest.ts task wait <taskId> --json      # 18 = 有发现，19 = 未发现问题
+npx tsx bin/autotest.ts result show <taskId>           # 发现、覆盖、拦截、用量
+npx tsx bin/autotest.ts explore issue <taskId> <序号>  # 发现 → issues/explore/<id>.md，交给能力 ②
 ```
 
-流程：
+- 每一步：截图（缩到 720 px）+ 编号元素表 → 视觉模型给一个 JSON 动作（点、长按、输入、滑动、返回、重开、等待、报告问题、结束）。同一动作反复出现或两个动作来回切换时，提示模型换路。
+- **只读**是默认：发送、删除、改设置、支付、退出登录、邀请分享、改资料、在搜索框以外键入，都在执行前拦截并告诉模型。`--writable` 需要完全授权；删除 / 撤回、锁屏、密码任何模式都拦。**点赞、关注、收藏、订阅只对测试账号自己的主页和内容做**（名单写在 `accounts.local.yaml` 的 `environments.<env>.ownContent`），真实用户的内容在可写模式下也拦。
+- 崩溃、ANR、App 退出、页面崩溃立即保存现场包，计为发现，然后重开 App；模型报告的问题先做证据复核，结论一致才计入。
+- 上限参考 Artemis Flash：默认不限步数，每 12 步压缩一次历史，单次模型调用最长 180 s；平台硬上限 3000 步 / 120 分钟（`--max-steps`、`--max-minutes` 可收紧）。
+- 不经平台、在本进程直接跑（开发用）：`npx tsx bin/autotest.ts explore local "<目标>"`。
 
-1. **解析与分类**：读 `issues/*.md` 的各段落，规则优先、模型兜底，分为必现 / 偶现 / 需求 / 疑似误操作 / 服务端 / 多账号 / 未来计划 / 不可执行。人工决定可写入 `platform/issue-overrides.yaml`。
-2. **计划**：输出 `TestPlan`（zod 定义，`platform/schema/test-plan.ts`），只引用 SKILL 的元素 id 和 Node，不写坐标。已在设备上验证过的 SKILL 模板优先，其余情况由模型生成，统一经规则校验。
-3. **一次性确认**：控制台或命令行展示类别、子用例和替代理由；只执行勾选项，执行中不再打断。
-4. **执行**：租用账号（Android 同时租用设备）→ **预检**（不合格 = 「环境不合格」，不启动不点击）→ 写运行清单 → 启动一次（App 冷启动） → 比对首页参考区域（不一致即报「SKILL 失效」并停止）→ 选定动态目标 → 前置操作 → 循环。
-   - 每步不截图、不发额外 adb 命令。异常门只看事件流：Android 读 logcat（崩溃、ANR、进程死亡、离开 App），Web 读页面事件。
-   - 每轮末尾截一次图，与参考区域比对笔画；对不上才调视觉模型核对。不在预期页面时记为操作偏离，重新进入，不计命中。
-   - 一轮的判定前提（如「输入框里确实有草稿」）用 `require` 在轮内读一次；不成立、输入没落下或本轮消息不在屏幕上 = 偏离，不计有效尝试。
-5. **报告**：`midscene_run/issues/<id>-<时间>/` 下的 `report.md`、`result.json`、`manifest.json`、`trajectory.jsonl`，以及每次命中的现场包。结论带分母（有效尝试数）与区间 / 上界，执行失败归为环境或工具；Web 运行没有结论时保留 `trace.zip`。
-
-现场包结构见 [skills/teamily/report-spec.md](skills/teamily/report-spec.md)。
-
-## 证据复核与预置用例
+## 能力 ②：Issue → 计划 → 复现
 
 ```bash
-pnpm autotest evidence review <incident 目录>          # 对一个现场包做复核，写 review/review.md
-pnpm autotest evidence snapshot <incident 目录> --id <用例> --expect consistent|inconsistent --note "…"
-pnpm autotest evidence cases                           # 跑 fixtures/evidence/ 下全部预置用例，结论不符即失败
+npx tsx bin/autotest.ts draft create 1903 --json                       # 分类 + 契约 + 计划 → 计划 id，如 1903/main:android-app@v1
+npx tsx bin/autotest.ts plan explain "1903/main:android-app@v1"        # 步骤、影响、不确定处、预计耗时、审批类别、哈希
+npx tsx bin/autotest.ts task run "1903/main:android-app@v1" --max-rounds 6
+npx tsx bin/autotest.ts task wait <taskId>                             # 10 未复现 / 11 已复现 / 13 已实现 / 14 未实现 …
+npx tsx bin/autotest.ts result show <taskId>
 ```
 
-- 执行中：检查类命中（基线 / 参考区域 / ai 检查失败）写完现场包后立即复核。画面条取出事轮和前一轮（参考）：动作前 2.5 秒到动作后 4 秒、每 0.75 秒一帧，外加被判定的那张截图；视觉模型按 Issue 的「实际结果」回答是否出现该现象，3 票多数。
-- 「不符」→ 排除（报告「证据复核排除」一节，附画面所见与复核页），不计命中；连续 3 次被排除视为检查本身失效，停止并记「执行失败」。崩溃 / ANR / 进程死亡不经复核。
-- 视觉模型不可用时命中照常计数，但标注「未能复核」。
-- 预置用例：`1329-s2-quote-wrap`（真实误报，期望「不符」）与 `1329-s2-synthetic-old-jump`（阳性对照：同一录屏截到点击前，接上真机同群聊 30 屏前的历史截图，期望「符合」），防止复核退化成一律「不符」。
-- 录屏对齐：分段起点改取 scrcpy 打印「Recording started」的时刻（此前取进程启动时刻，忙时晚约 2 秒），多段合并后按各段实际时长换算时间轴；ops.srt、查看器跳转、复核取帧都用同一换算。
+1. **分类**：规则优先、模型兜底，分为必现 / 偶现 / 需求 / 疑似误操作 / 服务端 / 多账号 / 前置条件构造不了 / 不可执行。**不拒绝任何 Issue**：服务端问题按偶现执行，只看用户可见的一侧；计划生成不了的子用例出一页「无法生成计划」报告，写明原因和怎样才能执行。Issue 里的截图链接（最多 3 张）与文字一起交给模型。
+2. **契约与计划**：Issue → 意图契约（前置条件、触发、可观察的现象）→ 设备上验证过的模式确定性编译，没有模式时由模型从动作库组合，统一过规则校验（含 Node 参数 schema）。计划只引用 SKILL 元素 id 和 Node，不写坐标；用哪个群、哪条消息由模型在准备阶段看屏幕选定，冻结为坐标。多账号 Issue 规划成多角色计划（各端 + 轮数）。
+3. **审批**：只操作被测软件的计划默认允许；敏感计划（离开被测软件、单次发送 > 50 条、系列 > 20 次）在 Web 上由人同意；完全授权开启时不再等确认。删除 / 撤回消息、允许清单外的会话、锁屏 PIN、凭据落盘任何情况都拒绝。批准绑定计划哈希、SKILL / App / Issue 版本和次数。
+4. **执行**：租环境（多端任务一次租齐，租不齐就都不租）→ 预检（锁屏、离线等 → 环境不合格，不点击）→ 冷启动 → 首页核对 → 准备 → **预热**（逐步核对，不通过 = 计划不可执行，不给结论）→ 循环。循环里每步只按坐标，不读屏、不调视觉；异常门只看事件流（logcat / 页面事件）；每轮检查一次。
+5. **判定**：任何类别命中一次即「已复现」；命中 = 硬异常，或检查不通过且证据复核与 Issue 描述一致。轮自身前提不成立（例如输入框里没有刚键入的文字）记为偏离，不计尝试。结论带分母：单轮命中率与 Wilson 95% 区间，0 命中时给 3/n 上界。未复现不等于已修复。
+6. **证据**：每次运行 `manifest.json`、`trajectory.jsonl`、`report.md`；命中时的现场包——Android 录屏（环形缓冲合并成 `merged.mp4` + `ops.srt`）、logcat 窗口、崩溃缓冲、dropbox、设备状态；Web 的 Playwright trace、console、网络；`replay.json` 可坐标重放；`index.html` 离线打开。
 
-## 多端同步测试（端点池 × 账号池）
+## 多端协同
 
 ```bash
-pnpm autotest sync                                       # 默认 desktop-web + android-web + android-app，各一个账号
-pnpm autotest sync --roles desktop-web,android-app --rounds 4 --timeout 60
+npx tsx bin/autotest.ts task run --sync desktop-web,android-app --rounds 4   # 13 全部同步（已实现）/ 14 有端没看到
 ```
 
-- 端点：手机（adb 序列号）提供 `android-app`、`android-web` 两个槽；本机 `host:local` 提供 `desktop-web`（Edge）、`mobile-web`。一个任务可同时持有多个槽，`maxConcurrent` 按任务计。
-- 账号：手机上的登录跟着手机走，`devices.yaml` 的 `accounts` 写明 App / 浏览器上各登的是哪个池账号，租用时只给这个账号；本机端从剩下的空闲账号里取，保证各端账号不同。
-- 同一台手机的 App 与浏览器轮流占前台：对某端操作前先把它切到前台，另一端被告知「前台是主动让出的」，不会被记成离开 App。
-- 每端准备：启动 → 登录（浏览器按需光标登录）→ 回到会话列表 → 模型按指引选同一个群（后面的端按第一端选中的标题找）→ 打开并滚到最新。
-- 每轮一端发送一条唯一文本，其余端轮询直到看到或超时；App 端读无障碍文本核对，Web 端用视觉模型看截图（不读页面 DOM）。报告：每轮每端是否可见、从发送到看到的时间（含切换前台与核对耗时，是上界）、截图。
-- 控制台「新建任务」里也有「多端同步」。
+每个端用账号池里不同的测试账号（手机上登录的账号跟着手机），进入允许清单里的同一个群；每轮一端发一条带标记的消息，其余端都要看到。App 端读无障碍文本，桌面 Web 读页面文字，其余用视觉。同一台手机的 App 和浏览器可以归同一个任务，轮流占前台。
+
+## 平台、命令行、MCP、Web
+
+- **平台服务**（`pnpm platform`，`platform/server.ts`）：`/api/v1` 一个服务，状态落盘在 `platform/state/`（JSON，没有数据库）。环境 = 端 × 设备 × 服务环境（如 `android-app:4f2ebdf2@prod`），开机、任务结束后自动检查；任务进程是否存活按 pid + 启动时间判断；取消在步骤边界生效，60 s 不停则强制结束。
+- **命令行**（`bin/autotest.ts`，面向 Agent）：`autotest <对象> <动作> [--json]`，`--json` 时 stdout 只有一个 JSON 信封；从不提问；退出码两位、十位是类别（1x 结论 / 2x 已受理 / 3x 审批 / 4x 输入 / 5x 环境 / 6x 工具 / 7x 取消与中断），全表见 [docs/cli-reference.md](docs/cli-reference.md)。
+- **MCP**（`npx tsx scripts/mcp.ts`，`--print-config claude` 打印接入配置）：工具由命令表生成（19 个，含 `explore_run`、`explore_issue`、`device_snapshot`），结果就是 `--json` 信封；同意类操作只在 Web。
+- **Web**（面向人）：`index.html` + `style.css` + `app.js` 单页，hash 路由：总览、新建任务（自然语言·探索 / Issue / 多端协同）、任务详情（实时推送；快速档每步的截图、动作和思路）、结果（转成 Issue）、计划（步骤标在最近一次运行的截图上）、环境、审批（完全授权开关常显红色横幅）。每页回答五问：要做什么 / 正在做什么 / 结果 / 可信吗 / 下一步。CLI、MCP、Web 读同一份视图模型（`platform/views.ts`）。
+- **读树后端**：默认 uiautomator；设备项写 `treeBackend: a11y-service` 改用手机上的只读读树服务（`android/a11y-service/`，`env check` 时按配置项安装启用），不可用时自动退回。
 
 ## Teamily SKILL（`skills/teamily/`）
 
-- `SKILL.md`、`pages/*.md`：页面地图与元素清单；`vocab.ts`：元素 id / 参考区域 / Node / 动态目标指引的唯一来源。
-- `finders.ts`：每个元素怎么认（文字 / 无障碍描述 / 几何规则 / Web 只读选择器 / 视觉描述）与参考区域的锚点。运行时循环外第一次用到时现场定位，缓存在 `platform/state/skill-cache/<端>@<环境>@<App 版本>@<分辨率>/`（本机、不进仓库）；App 升级自动换新缓存，不需要标定。
-- `nodes.ts`：`teamily.login / openConversation / sendMessage / typeMention / clearComposer / switchConversation / openPage`（`pnpm autotest nodes` 列出）。
-- `plan-template.md`：类别 → 计划骨架，以及 @ 选择器、点赞、键盘、引用定位、通知入口、@我 聚合等通用模板。
+`vocab.ts` 是元素 id、参考区域、Node、动态目标指引的唯一来源；`finders.ts` 写每个元素怎么认（文字 / 无障碍描述 / 几何规则 / Web 只读选择器 / 视觉描述）和参考区域的锚点；`nodes.ts` 是登录、打开会话、发消息、@ 成员等操作。**不做离线标定**：循环外第一次用到时现场定位，缓存在 `platform/state/skill-cache/<端>@<环境>@<App 版本>@<分辨率>/`，App 升级自动换新缓存；参考区域对不上（例如手机切到了浅色主题）时在锚点处重新截取。循环内只读缓存。
 
-## 其他入口
-
-| 命令 | 用途 |
-|---|---|
-| `pnpm autotest skill smoke --surface <端>` | 冒烟：按坐标打开会话并发一条消息（发到自己的 Personal AI）；`--lifecycle warm` / `cold` 为退出 / 杀进程 / 重开 |
-| `pnpm autotest sync …` | 多端同步测试（见上） |
-| `pnpm autotest evidence …` | 证据复核与预置用例（见上） |
-| `pnpm autotest accounts list` / `pnpm autotest devices` | 账号池 / 设备池状态 |
-| `pnpm test:unit` / `pnpm typecheck` | 单测 / 类型检查 |
-
-## Agent 命令行与 Web（W2-3）
-
-先启动平台服务 `pnpm platform`（http://localhost:3210）。命令行是它的客户端，面向 Agent；Web 面向人。两者读同一份视图模型，结论句和数字一致。
+## 开发
 
 ```bash
-npx tsx bin/autotest.ts help --json                       # 全部命令、参数 schema、状态码表（可直接当工具定义）
-npx tsx bin/autotest.ts draft create 1903 --no-model --json   # → 计划 id，如 1903/main:android-app@v1
-npx tsx bin/autotest.ts plan explain "1903/main:android-app@v1" --json   # 步骤、影响、不确定点、预计耗时、审批类别、哈希
-npx tsx bin/autotest.ts task run "1903/main:android-app@v1" --hash <h> --json   # 退出码 20，立即返回任务 id
-npx tsx bin/autotest.ts task wait <taskId> --timeout 1200 --json   # 退出码 = 结论（10 未复现 / 11 已复现 …），21 = 仍在运行
-npx tsx bin/autotest.ts result show <taskId> --json
-npx tsx bin/autotest.ts env list | env show <envId> | env check <envId>
+pnpm code-gate          # typecheck + 单测 + 证据复核用例（每次改动后）
+npx tsx scripts/cli-ref.ts            # 重新生成 docs/cli-reference.md
+npx tsx scripts/web-shots.ts          # Web 各页截图（平台需在运行）
 ```
-
-- `--json` 时 stdout 只有一个 JSON 对象（日志走 stderr）；从不提问；退出码两位、十位 = 类别（0 成功 / 1x 结论 / 2x 已受理 / 3x 审批 / 4x 输入 / 5x 环境 / 6x 工具 / 7x 取消与中断），全表见 `docs/cli-reference.md`。用 `pnpm autotest …` 也可以（pnpm 的回显在 stderr）。
-- **审批**：只操作被测软件的计划默认允许，`task run` 时由 `policy` 自动批准；敏感计划（操作被测软件之外、单次发送 > 50 条、系列 > 20 次）返回 30 和计划页链接，只能在 Web 同意；Web 首页可开「完全授权」（红色横幅常显，可随时关）。默认值在 `platform/policy.yaml`。删除 / 撤回消息、允许清单外会话、锁屏 PIN 任何情况都拒绝。本机无登录：这是流程约束，不是安全边界。
-- **环境**：`platform/devices.yaml` × 账号池自动登记环境（如 `android-app:4f2ebdf2@prod`）。平台启动时、任务结束后检查环境：手机在线、未锁屏（熄屏会唤醒）、App 版本、已同意的配置项（读树服务、Taplus、常亮）；Web 看登录态文件。通过 → 就绪，否则「不合格」并写明下一步，每 30 秒自动重检（如解锁后）。每次运行开跑前自己回到干净起点（运行标记 + 冷启动），环境不做「恢复」。任务进程意外退出 → 任务记为中断（63），部分结果标「不完整」；平台重启时任务进程已不在 → 中断（72）。
-- **Web 页面**：`/` 首页（任务、Issue、环境状态条）、`/plan.html?id=…` 计划审核（白话步骤、怎样算复现、会影响什么、哪些不确定、大约多久、同意 / 驳回）、`/env.html`、`/task.html`、`/result.html`；术语悬停有解释。审核人名字写在 `platform/reviewer.local.yaml`（`name: …`）。
-
-## 诊断、MCP 与感知层（W2-4）
-
-```bash
-npx tsx bin/autotest.ts doctor [--fix] [--probe] [--json]   # 能不能跑、缺什么、下一步（平台未启动也能答）
-npx tsx scripts/mcp.ts --print-config claude                # 打印接入 Claude Code / Cursor / Codex / VS Code 的配置，人来粘贴
-```
-
-- **MCP**：stdio 服务，工具 = 命令行命令（`issue_list`、`draft_create`、`plan_explain`、`task_run`、`task_wait` …）+ `device_snapshot` + `doctor`，结果就是 `--json` 信封；同意类操作只在 Web；平台未启动返回 54。Agent 先读 `docs/agent-rules.md`。
-- **读树后端**：默认 uiautomator（每次 2.5–3.7 s）；在 `platform/devices.yaml` 的设备项写 `treeBackend: a11y-service` 改用手机上的只读读树服务（`android/a11y-service/`：`sh android/a11y-service/fetch-sdk.sh && sh android/a11y-service/build.sh` 构建到 `tools/a11y/`，`env check` 时按环境配置项安装启用）；服务不可用时自动退回 uiautomator，报告「读树后端」一节写明原因。
-- **执行前校验**：循环外的点击（准备期、偏离后重进）先核对目标还在原处——小漂移就地修正，偏移 / 遮挡 / 消失则不点并记录（报告「执行前校验」一节）。循环每步照旧只按坐标。
-- 任务结束写 `platform/state/notifications.ndjson`；`AUTOTEST_DESKTOP_NOTIFY=1` 时弹 Windows 通知。
-
-## 平台服务（`pnpm platform`）
-
-单个 `node:http` 服务（`/api/v1` + `platform/web/` 页面），没有前端构建链。设备来自 `platform/devices.yaml` 与 `adb devices`；状态落盘在 `platform/state/`，没有数据库。
-
-## 原则与安全
-
-- **黑盒**：不读源码、不装调试版、不向页面注入代码，也不连调试端口（手机浏览器只用 adb 输入和截屏）。读取页面结构 / 无障碍层只发生在循环外（现场定位、准备阶段），用于找元素和候选目标；检查点上 App 可读无障碍文本核对（引用定位、同步收发），Web 只看截图。
-- **环境**：生产与测试各有一组账号池，任一环境的运行都给结论。账号池里的生产账号都是测试账号，同步测试发出的消息留在测试群里，不撤回；循环中仍不做会打扰他人的操作。
-- **凭据**：只存在于 `platform/accounts.local.yaml` 和 `platform/secrets/`（均 gitignored），不进日志、报告、提交。
-- **硬拦截**：支付类操作始终禁止。
 
 ## 已知限制
 
-- W2-1：手机浏览器偶发长时间「连接中…」，需冷启动浏览器恢复；检查可声明前提（如选择器检查要求输入框里确有「@」），前提不成立记为操作偏离。
+- **android-web 的 Issue 主线不稳定**：手机浏览器的无障碍树里读不到会话行，只能靠视觉选会话；「下载 App」弹窗的判断会误触发（[docs/backlog.md](docs/backlog.md)）。多端同步在 android-web 上可用。
+- 能力 ① 本期在 android-app 与 desktop-web 上验收；探索的发现是线索，不是复现结论。
+- 循环内（Pro 档）不重新截取参考区域：运行中途手机切换深 / 浅色主题时，区域检查会失败。
+- 浏览器只在页面加载时建立无障碍树；临时出现的元素（密码页、@ 选择器）由视觉定位；系统返回键会关掉标签页，执行中只用页面里的返回。
+- Teamily Web 重新加载后会自动打开上次的会话，而那时会话的返回按钮无效；执行器经 Artifacts → 聊天 → 返回回到列表。
+- iOS、WebView、小程序没有接入：iOS 的 Issue 经确认后在 Android App 或手机 Web 上替代执行，结论标明「替代执行」。
+- 本机没有登录，「CLI 不能同意敏感计划」是流程约束，不是安全边界。
 
-- 手机浏览器（`android-web`）：浏览器只在页面加载时建立无障碍树，页面内跳转后不更新，现场定位时用浏览器自带刷新重新加载后再读，临时出现的元素（密码页、@ 选择器、输入时的发送键）由视觉模型定位；软键盘会盖住表单按钮，登录用键盘回车提交；系统返回键会关闭标签页，执行中只用页面里的返回。
-- Teamily Web（产品侧现象，已记录）：页面重新加载后会自动打开上次的会话，而这时会话左上角的返回按钮无效（它做的是浏览器历史后退，历史为空）；用户只能经 Artifacts → 聊天 → 返回回到列表，执行器就按这条路径恢复。
-- Edge 下新登录的账号会被要求完成 5 步新手引导（`/onboarding?required=1`，Chromium 无头模式下不出现）；测试账号已各走过一次。
-- 多端同步的耗时含切换手机前台与核对（视觉约 5 秒）的时间，只作上界参考，不是消息时延。
-- 同步测试检出的产品现象：App 进后台期间收到的消息，回到前台 60 秒内不显示，App 自己发一条后才补到，且排在自己那条之后（顺序错乱）；手机单机两端 7 次中 5 次复现、1 次 18 秒才显示（等 40 秒再发也一样）；App 在前台时 3 秒内正常收到。见 `docs/m6-acceptance.md`。
-- 槽位租用记在各自进程里：旧入口（`pnpm autotest run / series`）与平台同时对同一台手机下任务会冲突；W2-3 的 `task run` 经平台排队，不冲突。
-- 任务默认时限 15 分钟（计划 `limits.maxMinutes`、控制台硬上限）。
-
-- 视觉模型适合准备阶段挑目标，不适合直接下结论；判定优先用参考区域比对和无障碍层核对，视觉判断只作补充。
-- 需要前置数据的用例（如引用定位）依赖会话中已有的数据；测试台还不能自行可靠地构造前置条件。
-- 判定为「未复现」不等于没有问题，报告会写明执行了多少步、因何停止。
-- 多账号、多端联动的 Issue（2235、2122 的一部分）：同步底座已具备，但 Issue 计划还不会生成多角色步骤，仍为暂缓。
-- CI 工作流（`.github/workflows/ai-test.yml`）只做过语法检查，未在真实 runner 上跑过。
-
-## 目录结构
+## 目录
 
 ```
-issues/            样例 Issue
-issue/             解析、分类、计划生成、校验、报告、CLI
-engine/            统一引擎（两档共用）：会话、端适配、登录、SKILL 现场定位、屏幕快照、点击前检查、检查、判定、预检；plan/ = Pro 档（Issue 计划：准备、预热、循环、系列、多端同步）
-drivers/           黑盒驱动：web.ts（光标 / 触屏 / 键盘；Windows 上 Edge 最大化）、android.ts（常驻 adb shell + logcat 异常门；App 与浏览器）、factory.ts
-engine/recorder/   飞行记录器（Android / Web）、现场包、离线查看器、坐标重放、证据复核
-fixtures/evidence/ 证据复核预置用例（截取的录屏 + 元数据 + 期望结论）
-skills/teamily/    Teamily SKILL：页面地图、profile、参考截图、Node、计划模板
-skills/            SKILL 缓存（profile.ts）与 Teamily SKILL（teamily/：词表、识别规则 finders.ts、Node、模式库）
-platform/          控制台、任务调度、设备池、账号池（accounts/）、TestPlan schema（schema/）、计划（plans/）
-platform/lifecycle/ 环境 / 任务对象、状态码、环境检查（check.ts）、调度与租约（supervisor）
-platform/web/      W2-3 页面（首页、环境、计划审核、任务、结果）；api-v1.ts、views.ts、approval.ts 为其服务与视图模型
-core/              adb 封装、logcat 监控、PNG 解码与区域比对
-bin/autotest.ts    统一命令入口；scripts/ 各命令实现
-docs/              介绍页、验收证据、规则表（rules-audit.md）与重构方案（refactor-plan.md）
+issues/            样例 Issue；issues/explore/ = 探索发现转成的 Issue（运行产物）
+issue/             解析、分类、契约、计划生成、校验、报告
+engine/            统一引擎（两档共用）：会话、端适配、登录、SKILL 现场定位、快照、点击前检查、检查、判定、预检、租约
+engine/agent/      能力 ① 快速档：循环、风险规则、提示词与动作解析、发现 → Issue
+engine/plan/       能力 ② Pro 档：计划执行、准备、预热、循环、系列、多端同步
+engine/recorder/   飞行记录器（Android / Web）、现场包、离线查看器、重放、证据复核
+drivers/           黑盒驱动：android.ts（常驻 adb shell + logcat 异常门）、web.ts（Playwright）
+skills/            SKILL 缓存（profile.ts）与 Teamily SKILL（teamily/）
+platform/          服务（server.ts、api-v1.ts、views.ts、approval.ts、mcp.ts）、账号池、设备池、计划、Web（web/）
+platform/lifecycle/ 环境 / 任务状态机、状态码、环境检查、调度与租约
+core/              adb、截图与区域比对、模型调用、轨迹
+bin/、scripts/     命令入口与实现
+docs/              介绍页、规则、命令行参考、Agent 规则、本期计划与验收、backlog、history/
 ```
 
-## 依赖
+## 原则
 
-`@midscene/web`、`@midscene/android`、`@midscene/core`（Node 定义）、`playwright`、`vitest`、`zod`、`js-yaml`、`dotenv`；adb、scrcpy、ffmpeg 通过子进程调用。
+- **黑盒**：不读源码、不装调试版、不向页面注入代码、不用 App 钩子。快速档每一步都看屏幕；Pro 档的循环内只按坐标，读页面结构 / 无障碍层只在循环外（现场定位、准备、预热）和检查点。
+- **账号**：生产与测试各是一组账号池，账号池里的生产账号都是测试账号；凭据只在 `platform/accounts.local.yaml` 和 `platform/secrets/`（gitignored），不进日志、报告、提交。
+- **结论如实**：环境不合格、计划不可执行、执行失败都不给产品结论；取消或中断的运行标「不完整」。

@@ -126,7 +126,7 @@ async function main() {
   const stop = async (sig: string) => {
     if (stopping) return;
     stopping = true;
-    console.log(`[platform] ${sig}: draining environments (tasks stop at a step boundary, ≤ 60 s) …`);
+    console.log(`[platform] ${sig}: scheduling stopped — running task processes keep their leases and are adopted on the next start`);
     await sup?.shutdown().catch((e) => console.error(e));
     process.exit(0);
   };
