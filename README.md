@@ -1,6 +1,6 @@
 # multi-test-agent
 
-> 介绍页：[docs/intro.html](docs/intro.html) · 规则（生效版，带代码落点）：[docs/rules.md](docs/rules.md) · 命令行参考：[docs/cli-reference.md](docs/cli-reference.md) · Agent 使用规则：[docs/agent-rules.md](docs/agent-rules.md) · 本期验收：[docs/w2m4.1-acceptance.md](docs/w2m4.1-acceptance.md) · 变更：[CHANGELOG.md](CHANGELOG.md) · 历史文档：[docs/history/](docs/history/)
+> 介绍页：[docs/intro.html](docs/intro.html) · 规则（生效版，带代码落点）：[docs/rules.md](docs/rules.md) · 命令行参考：[docs/cli-reference.md](docs/cli-reference.md) · Agent 使用规则：[docs/agent-rules.md](docs/agent-rules.md) · 本期验收：[docs/w2m4.1-acceptance.md](docs/w2m4.1-acceptance.md) · 变更：[CHANGELOG.md](CHANGELOG.md) · 旧版文档、验收记录与证据：git 历史
 
 Teamily 客户端的真机黑盒测试台。只做用户能做的操作（触控、光标、键盘），只看用户能看到的现象（屏幕、无障碍文本、系统日志），在四个执行端上运行：**Android App**、**手机自带浏览器里的 Web**（android-web）、**手机视口 Web**（mobile-web，Playwright）、**桌面 Web**（desktop-web，Windows 上是最大化的 Edge）。
 
@@ -114,7 +114,7 @@ platform/          服务（server.ts、api-v1.ts、views.ts、approval.ts、mcp
 platform/lifecycle/ 环境 / 任务状态机、状态码、环境检查、调度与租约
 core/              adb、截图与区域比对、模型调用、轨迹
 bin/、scripts/     命令入口与实现
-docs/              介绍页、规则、命令行参考、Agent 规则、本期计划与验收、backlog、history/
+docs/              介绍页、规则、命令行参考、Agent 规则、各里程碑需求文档、本期验收、backlog
 ```
 
 ## 原则

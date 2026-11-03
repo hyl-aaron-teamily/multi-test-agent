@@ -27,11 +27,11 @@ Teamily 客户端测试台。交给它一份 Issue，它判断问题类型、生
 | W3 | `dev-week1-milestone3.md`（正文称「第三周」） | 10-19 | AI 探索 + Monkey + 统一问题报告 | `87c01e3` |
 | W4 | `dev-week1-milestone4.md`（正文称「第四周」） | 10-20 | 统一 CLI、控制台、设备池、CI；文档外另做了自然语言任务（mission）、计划缓存、即时重放、imui | `f363f4a`（经 `feat/imui-ui-loadtest` 合并） |
 | M5 | `dev-week1-milestone5.md`（合并了原计划的 M5 / M6 / M7） | 10-21 — 22 | Issue 分类驱动的黑盒复现、Teamily SKILL、事故现场包、坐标重放 | 直接提交在 main |
-| M6 | **无独立需求文档**（与原计划的 M6 不是一回事） | 10-22 | 证据复核、退出 / 杀进程 / 重新加载、手机浏览器端、Edge 端、端点池与多端同步 | `626f1ca`；证据 `docs/history/m6-acceptance.md` |
+| M6 | **无独立需求文档**（与原计划的 M6 不是一回事） | 10-22 | 证据复核、退出 / 杀进程 / 重新加载、手机浏览器端、Edge 端、端点池与多端同步 | `626f1ca`；证据 `5d84362:docs/history/m6-acceptance.md` |
 | W2-1 | `dev-week2-milestone1.md` | 10-26 — 28 | 基座重构、意图契约、循环外分层观察 / 定位、预热闸门、指纹自愈、轨迹 | `3704bbd` |
 | W2-2 | `dev-week2-milestone2.md` | 10-28 | 可信结论、运行清单、预检、隔离、系列运行、Web trace、代码门；MVP 2010 / 1903 | `7e91873` |
 | W2-3 | `dev-week2-milestone3.md` | 10-28 — 30 | 任务与环境分离、收尾可恢复、审批与状态码、命令行给 Agent、Web 给人 | `7ef7425` |
-| W2-4 | `dev-week2-milestone4.md` | 10-30 | 感知层（读树后端可插拔 + 设备端只读读树服务、屏幕快照 / 索引、② 层模糊匹配、循环外执行前校验）、`doctor`、原生 MCP 服务（参考 Artemis，TypeScript 重写） | `ae5843e`；证据 `docs/history/w2m4-acceptance.md` |
+| W2-4 | `dev-week2-milestone4.md` | 10-30 | 感知层（读树后端可插拔 + 设备端只读读树服务、屏幕快照 / 索引、② 层模糊匹配、循环外执行前校验）、`doctor`、原生 MCP 服务（参考 Artemis，TypeScript 重写） | `ae5843e`；证据 `5d84362:docs/history/w2m4-acceptance.md` |
 
 方向的转折在 M5：W1–W4 的目标是通用的「AI 视觉驱动测试平台」（只给包名，视觉模型每步决定操作）；M5 起改为 Teamily 专属、Issue 驱动、循环内不用视觉。W1–W4 的入口（mission / explore / monkey / imui / 基线用例）保留不变，作为没有 Issue 时的旁路。WebView、小程序、iOS 至今未接入。
 
@@ -51,9 +51,9 @@ Teamily 客户端测试台。交给它一份 Issue，它判断问题类型、生
 | 2235 | 暂缓 | 多账号 |
 | 1426 / 1918 | 暂缓（只分类 + 契约） | 需拖选 + 剪贴板 / Agent 回复内容不可构造 |
 
-W2-3 验收（`docs/history/w2m3-acceptance.md`）：故障注入 20 格全部通过（预热断连一格 2026-10-30 改用 `adb reconnect` 补跑）；确定性、一致性、代码门、脚本化 Agent 闭环通过；同事验收、敏感计划 Web 同意后再执行、旧入口跑 2010 得出结论的一次未完成。
+W2-3 验收（`5d84362:docs/history/w2m3-acceptance.md`）：故障注入 20 格全部通过（预热断连一格 2026-10-30 改用 `adb reconnect` 补跑）；确定性、一致性、代码门、脚本化 Agent 闭环通过；同事验收、敏感计划 Web 同意后再执行、旧入口跑 2010 得出结论的一次未完成。
 
-W2-4 验收（`docs/history/w2m4-acceptance.md`）：执行前校验真机注入 4/4，循环内校验 0 次；`doctor` 四种情况正确；只用 MCP 工具跑通 2010 × 3、1903 × 3（Teamily 2.0.20 上均未复现，与之前口径一致），MCP 与 `--json` 逐字段一致；读树服务（v6）读树 p95 61 ms（uiautomator 约 3.2 s），节点一致率 100%，服务未安装 / 被停用时自动退回且报告写明原因。
+W2-4 验收（`5d84362:docs/history/w2m4-acceptance.md`）：执行前校验真机注入 4/4，循环内校验 0 次；`doctor` 四种情况正确；只用 MCP 工具跑通 2010 × 3、1903 × 3（Teamily 2.0.20 上均未复现，与之前口径一致），MCP 与 `--json` 逐字段一致；读树服务（v6）读树 p95 61 ms（uiautomator 约 3.2 s），节点一致率 100%，服务未安装 / 被停用时自动退回且报告写明原因。
 
 另检出的产品现象：App 进后台期间收到的消息，回前台 60 秒内不显示（M6 多端同步）；会话列表预览显示「[自定义消息]」占位（W4 自然语言任务，人工确认）。
 
