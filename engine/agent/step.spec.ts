@@ -4,7 +4,7 @@ import { fingerprint, historyText, KEEP_STEPS, loopHint, parseAnswer, planState,
 
 const n = (text: string, clickable = true, desc = ''): ScreenNode => ({ text, desc, rid: '', cls: 'android.widget.Button', clickable, box: [0, 0, 10, 10], center: { x: 5, y: 5 } });
 
-describe('quick tier step', () => {
+describe('exploration tier step', () => {
   it('parses the actions, tap by index first; rejects unusable answers', () => {
     expect(parseAnswer({ thought: 't', action: { type: 'tap', target: 3 } })?.action).toEqual({ type: 'tap', target: 3, x: undefined, y: undefined, description: undefined });
     expect(parseAnswer({ action: { type: 'tap', x: 10, y: '20', description: 'icon' } })?.action).toMatchObject({ x: 10, y: 20 });

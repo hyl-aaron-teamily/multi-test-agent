@@ -3,7 +3,7 @@
 //   pnpm autotest doctor | mcp [--print-config claude|cursor|codex|vscode]      (W2-4)
 //   pnpm autotest accounts|nodes|plan|run|series|rerender|evidence ... (scripts/m5.ts)
 //   pnpm autotest replay <incident>/replay.json [--times 3]                     (coordinate replay)
-//   pnpm autotest explore run "<goal>" [--mode task|explore] [--surface …]   (quick tier, capability ①; explore local = no platform)
+//   pnpm autotest explore run "<goal>" [--mode task|explore] [--surface …]   (exploration tier, capability ②; explore local = no platform)
 //   pnpm autotest bench aw [--pilot | --tasks A,B]                                (AndroidWorld bench, W2-5 P1)
 //   pnpm autotest devices [--json]
 import 'dotenv/config';
@@ -34,7 +34,7 @@ const V1 = ['issue', 'draft', 'env', 'task', 'result', 'explore', 'help', 'docto
 async function main(): Promise<number> {
   // `task exec <id>` is the platform's internal child; the rest of the v1 objects are thin service clients.
   if (cmd === 'task' && rest[0] === 'exec') return run(tsx, ['scripts/task-exec.ts', ...rest.slice(1)]);
-  // explore local "<goal>": the quick tier in this process, without the platform (development).
+  // explore local "<goal>": the exploration tier in this process, without the platform (development).
   if (cmd === 'explore' && rest[0] === 'local') return run(tsx, ['scripts/explore.ts', ...rest]);
   // bench aw: the exploration tier on AndroidWorld (emulator + bench/androidworld/server.py).
   if (cmd === 'bench') return run(tsx, ['scripts/bench-aw.ts', ...rest]);

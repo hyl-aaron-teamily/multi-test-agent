@@ -1,4 +1,4 @@
-// `autotest explore local "<goal>"` — the quick tier (capability ①) in this process, without the platform
+// `autotest explore local "<goal>"` — the exploration tier (capability ②) in this process, without the platform
 // (development). Through the platform: `autotest explore run "<goal>"` (= task run --explore), MCP explore_run.
 //   pnpm autotest explore local "看看个人主页的通知铃铛能不能打开" [--mode task|explore] [--surface android-app|desktop-web|…]
 //        [--env prod|test] [--device <udid>] [--writable] [--max-steps N] [--max-minutes M] [--headed]

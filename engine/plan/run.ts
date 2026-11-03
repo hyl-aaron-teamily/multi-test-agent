@@ -11,6 +11,7 @@ import { TEAMILY_PACKAGE } from '../../drivers/factory';
 import { sleep } from '../../drivers/types';
 import { AndroidFlightRecorder } from '../recorder/android-recorder';
 import type { EvidenceVerdict } from '../recorder/evidence-review';
+import type { DetectKind } from '../detect';
 import { WebFlightRecorder } from '../recorder/web-recorder';
 import { loadIssueOf } from '../../issue/paths';
 import type { AccountPool, Lease } from '../../platform/accounts/account-pool';
@@ -102,6 +103,8 @@ export interface RunResult {
   hits: { round: number; step: number; at: string; reason: string; review?: EvidenceVerdict; reviewNote?: string }[];
   /** Check-based hits the evidence review rejected (frames do not show the Issue's phenomenon): not counted. */
   dismissed?: { round: number; step: number; reason: string; observed: string; incident: string }[];
+  /** Problems the deterministic detectors saw at round ends (W2-5 §6); never part of the Issue verdict. */
+  incidental?: Incidental[];
   incidents: string[];
   targets: FrozenTarget[];
   acceptance?: { id: string; text: string; pass: boolean | null; detail: string; evidence?: string }[];
@@ -126,6 +129,18 @@ export interface RunResult {
   cancelled?: boolean;
   /** Report lead (W2-2 §3.2): trigger path / location / suspected mechanism, each with its basis. */
   lead?: { trigger: string; triggerBasis: string; location: string; locationBasis: string; mechanism: string };
+}
+
+export interface Incidental {
+  n: number;
+  round: number;
+  step: number;
+  kind: DetectKind;
+  description: string;
+  incident: string;
+  review?: EvidenceVerdict;
+  /** The evidence review agrees (a finding worth an Issue draft). */
+  counted: boolean;
 }
 
 export async function runPlan(o: RunOptions): Promise<RunResult> {

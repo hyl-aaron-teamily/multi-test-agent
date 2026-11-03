@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { isEmulator, openBenchSession } from '../session';
 import { type BenchTask, type BenchTaskResult, benchMarkdown, outcome, PILOT_TASKS, selectTasks, summarize } from './bench';
 import { classifyRisk } from './risk';
+import { agentLimits } from './run';
 import { parseAnswer } from './step';
 
 const task = (name: string, complexity = 1, apps = ['contacts']): BenchTask => ({ name, instances: 1, apps, complexity, maxSteps: Math.trunc(10 * complexity) });
@@ -63,5 +64,11 @@ describe('bench mode (AndroidWorld, W2-5 P1)', () => {
     expect(md).toMatch(/1 \/ 2（50\.0%）/);
     expect(md).toMatch(/\| C#0 \| ❌ .*\| a \/ b \|/);
     expect(summarize([]).rate).toBe(0);
+  });
+
+  it('exploration limits: 500 steps / 30 minutes by default and at most (W2-5 N2)', () => {
+    expect(agentLimits({})).toEqual({ maxSteps: 500, maxMinutes: 30 });
+    expect(agentLimits({ maxSteps: 12, maxMinutes: 5 })).toEqual({ maxSteps: 12, maxMinutes: 5 });
+    expect(agentLimits({ maxSteps: 3000, maxMinutes: 120 })).toEqual({ maxSteps: 500, maxMinutes: 30 });
   });
 });

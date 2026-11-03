@@ -3,7 +3,7 @@ import { classifyRisk, nearOwnContent } from './risk';
 
 const tap = (label: string, writable = false) => classifyRisk({ type: 'tap', label }, writable);
 
-describe('quick tier risk rules (read-only by default)', () => {
+describe('exploration tier risk rules (read-only by default)', () => {
   it('blocks the high-risk categories in Chinese and English', () => {
     for (const [l, c] of [['发送', 'send'], ['删除', 'delete'], ['设置', 'settings'], ['立即支付', 'payment'], ['退出登录', 'logout'], ['邀请成员', 'invite-share'], ['编辑资料', 'profile-edit'], ['Send', 'send'], ['Log out', 'logout'], ['Share', 'invite-share'], ['Upgrade', 'payment'], ['Settings', 'settings'], ['关注', 'social'], ['+ 关注', 'social'], ['点赞', 'social'], ['Follow', 'social']] as const)
       expect(tap(l), l).toMatchObject({ blocked: true, category: c });

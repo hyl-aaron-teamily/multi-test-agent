@@ -1,9 +1,10 @@
-// Exploration finding → Issue draft (§5.3, K2): the quick tier found it, the pro tier (capability ②) reproduces
+// Exploration finding → Issue draft (§5.3, K2): the exploration tier found it, the quick tier (capability ①) reproduces
 // it. The Issue uses the sample Issues' sections, so the usual classify → contract → plan path takes it; the
 // steps are the path the agent took, in plain words; the evidence is the incident bundle and its review.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { AgentResult, Finding } from './run';
+import type { Incidental, RunResult } from '../plan/run';
 
 const PLATFORM: Record<string, string> = { 'android-app': 'Android / Teamily mobile app', 'android-web': 'Android / phone browser (Teamily web)', 'mobile-web': 'Web / mobile browser', 'desktop-web': 'Web / desktop browser (Edge)' };
 
@@ -49,11 +50,57 @@ export function findingIssue(r: AgentResult, f: Finding): string {
     '',
     `## Additional context`,
     `- **Feature area**: 探索（${r.mode === 'explore' ? 'AI 探索' : '自然语言任务'}：${r.goal}）`,
-    `- Source: ${f.source === 'hard' ? `driver event (${f.kind})` : `agent report, evidence review ${f.review ?? 'unverified'}`}; seen once in exploration.`,
+    `- Source: ${f.source === 'hard' ? `driver event (${f.kind})` : f.source === 'detector' ? `deterministic detector ${f.detector}, evidence review ${f.review ?? 'unverified'}` : `agent report, evidence review ${f.review ?? 'unverified'}`}; seen once in exploration.`,
     `- Incident bundle: ${f.incident}`,
     `- Exploration run: ${r.runDir}`,
     '',
   ].join('\n');
+}
+
+/** Pure: the Issue markdown of an incidental finding of a quick-tier run (W2-5 §6): it was seen while running
+ *  another Issue's plan, at a round end. */
+export function incidentalIssue(r: RunResult, x: Incidental): string {
+  return [
+    `## Summary`,
+    `[附带发现] ${x.description}（${r.surface}，运行 ${r.planId} 第 ${x.round} 轮后）`,
+    '',
+    `## Steps to reproduce`,
+    `1. 打开 Teamily，登录后停在首页`,
+    `2. 按计划 ${r.planId} 的步骤操作（${r.title ?? r.planId}），重复 ${x.round} 轮`,
+    `3. 观察当前界面`,
+    '',
+    `## Expected result`,
+    '应用可以正常使用：没有报错、白屏、一直加载、未替换的占位文字或点了没反应。',
+    '',
+    `## Actual result`,
+    x.description,
+    '',
+    `## Severity`,
+    `- **Level**: Medium`,
+    `- **Frequency**: Intermittent`,
+    '',
+    `## Environment`,
+    `- **Platform / OS / Browser**: ${PLATFORM[r.surface] ?? r.surface}`,
+    '',
+    `## Additional context`,
+    `- **Feature area**: 快速档运行中的附带发现（计划 ${r.planId}）`,
+    `- Source: deterministic detector ${x.kind}, evidence review ${x.review ?? 'unverified'}; seen once, not part of that run's verdict.`,
+    `- Incident bundle: ${x.incident}`,
+    `- Run: ${r.runTag ?? r.planId}`,
+    '',
+  ].join('\n');
+}
+
+/** Write the Issue of incidental finding `n` to issues/explore/<id>.md; returns its id. */
+export async function writeIncidentalIssue(r: RunResult, n: number): Promise<{ id: string; file: string }> {
+  const x = r.incidental?.find((i) => i.n === n);
+  if (!x) throw new Error(`no incidental finding #${n} in run ${r.runTag ?? r.planId}`);
+  const id = `incidental-${(r.runTag ?? String(Date.now())).replace(/[^\w-]/g, '')}-${n}`;
+  const dir = resolve('issues', 'explore');
+  await mkdir(dir, { recursive: true });
+  const file = join(dir, `${id}.md`);
+  await writeFile(file, incidentalIssue(r, x));
+  return { id, file };
 }
 
 /** Write the Issue of finding `n` to issues/explore/<id>.md; returns its id. */

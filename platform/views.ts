@@ -312,6 +312,8 @@ export interface ResultRun {
   failure?: { kind: 'env' | 'tool'; kindText: string; rule: string; reason: string; suggestion: string };
   durationSec?: number;
   runTag?: string;
+  /** Quick tier: problems the deterministic detectors saw at round ends (W2-5 §6) — not part of the conclusion. */
+  incidental: { n: number; round: number; kind: string; description: string; incident: string; review?: string; counted: boolean }[];
 }
 
 export interface ResultView {
@@ -326,7 +328,7 @@ export interface ResultView {
   series?: { runs: number; reachedLoop: number; reproducedRuns: number; validRuns: number; valid: number; hits: number };
   ended?: { by?: string; at?: string };
   evidence: { report?: string; runDir?: string; incidents: string[] };
-  /** Quick tier (task kind explore). */
+  /** Exploration tier (task kind explore). */
   explore?: ExploreSummary;
   /** Multi-client sync (task kind sync). */
   sync?: SyncSummary;
@@ -358,7 +360,7 @@ export interface ExploreSummary {
   usage: { steps: number; seconds: number; modelCalls: number };
 }
 
-/** Pure: the conclusion sentence of a quick-tier run. */
+/** Pure: the conclusion sentence of a exploration-tier run. */
 export function exploreSentence(e: ExploreSummary): string {
   const found = e.findings.filter((f) => f.counted).length;
   const st: Record<string, string> = { completed: '完成', failed: '未能完成目标', limit: '到达上限', cancelled: '已取消（不完整）', 'env-unfit': '环境不合格', error: '执行出错' };
@@ -392,12 +394,13 @@ export function resultRun(r: RunResult): ResultRun {
     failure: r.failure && { kind: r.failure.kind, kindText: r.failure.kind === 'env' ? '环境' : '工具', rule: r.failure.rule, reason: r.failure.reason.slice(0, 300), suggestion: SUGGEST[r.failure.kind] },
     durationSec: r.stats?.durationSec,
     runTag: r.runTag,
+    incidental: (r.incidental ?? []).map((x) => ({ n: x.n, round: x.round, kind: x.kind, description: x.description, incident: x.incident, review: x.review, counted: x.counted })),
   };
 }
 
-/** Pure: what the views keep of a quick-tier result. */
+/** Pure: what the views keep of a exploration-tier result. */
 export function exploreSummary(a: AgentResult): ExploreSummary {
-  return { goal: a.goal, mode: a.mode, status: a.status, summary: a.summary, findings: a.findings.map((f) => ({ n: f.n, counted: f.counted, source: f.source, kind: f.kind, description: f.description, incident: f.incident, review: f.review })), coverage: { screens: a.coverage.screens, actions: a.coverage.actions }, blocked: a.blocked.length, usage: a.usage };
+  return { goal: a.goal, mode: a.mode, status: a.status, summary: a.summary, findings: a.findings.map((f) => ({ n: f.n, counted: f.counted, source: f.source, kind: f.detector ?? f.kind, description: f.description, incident: f.incident, review: f.review })), coverage: { screens: a.coverage.screens, actions: a.coverage.actions }, blocked: a.blocked.length, usage: a.usage };
 }
 
 export function resultView(t: TaskRecord, runs: RunResult[], code: Code, extra: { series?: ResultView['series']; report?: string; runDir?: string; explore?: ExploreSummary; sync?: SyncSummary } = {}): ResultView {
@@ -432,8 +435,10 @@ export interface TaskView {
   stateText: string;
   summary: string;
   planId: string;
-  /** Quick tier: the goal in plain words. */
+  /** Exploration tier: the goal in plain words. */
   explore?: TaskRecord['explore'];
+  /** Exploration tier: instructions added during the run (W2-5 §7.2). */
+  instructions?: { at: string; text: string }[];
   envId: string;
   /** Further leased environments (multi-client sync). */
   envIds?: string[];
@@ -452,7 +457,7 @@ export interface TaskView {
 
 export const TASK_STATE_TEXT: Record<TaskRecord['state'], string> = { queued: '排队', 'waiting-env': '等环境', preflight: '预检', running: '运行中', finishing: '收尾', done: '完成', 'env-unfit': '环境不合格', failed: '失败', interrupted: '中断', cancelled: '已取消' };
 
-export function taskView(t: TaskRecord, events: { at: string; type: string; state?: unknown; phase?: unknown }[], ledger: LedgerEntry[]): TaskView {
+export function taskView(t: TaskRecord, events: { at: string; type: string; state?: unknown; phase?: unknown }[], ledger: LedgerEntry[], instructions: { at: string; text: string }[] = []): TaskView {
   const pos = t.progress;
   const ph = pos.phase ? PHASE_TEXT[pos.phase] : undefined;
   const where = ph ? `${ph}${pos.round !== undefined ? ` 第 ${pos.round} 轮` : ''}${pos.step !== undefined ? ` 第 ${pos.step} 步` : ''}` : '';
@@ -469,6 +474,7 @@ export function taskView(t: TaskRecord, events: { at: string; type: string; stat
     summary,
     planId: t.planId,
     explore: t.explore,
+    ...(instructions.length ? { instructions } : {}),
     envId: t.envId,
     envIds: t.envIds,
     createdAt: t.createdAt,
@@ -507,11 +513,15 @@ export function resultText(v: ResultView): string {
     for (const b of r.basis) out.push(`  依据：${b}`);
     out.push(`  标识：${r.flags.evidenceReview}；${r.flags.substituted}；${r.flags.selfCheck}`);
     if (r.failure) out.push(`  失败归类：${r.failure.kindText}（${r.failure.rule}）— ${r.failure.reason}`, `  建议：${r.failure.suggestion}`);
+    if (!v.sync) {
+      out.push(`  附带发现（确定性判定，不计入结论）：${r.incidental.length ? `${r.incidental.length} 个` : '无'}`);
+      for (const x of r.incidental) out.push(`    #${x.n} 第 ${x.round} 轮 ${x.kind}：${x.description.slice(0, 120)}；复核 ${x.review ?? '未验证'}${x.counted ? '' : '（未计入）'}；现场包 ${x.incident}`);
+    }
   }
   if (v.sync) for (const r of v.sync.roles) out.push(`- ${r.id}：${r.endpoint} · ${r.account}${r.conversation ? ` · 「${r.conversation.slice(0, 30)}」` : ''}${r.ready ? '' : ` · 未就绪：${r.error ?? ''}`}`);
   if (v.explore) {
     out.push(`目标：${v.explore.goal}`, `说明：${v.explore.summary || '-'}`);
-    for (const f of v.explore.findings) out.push(`- 发现 #${f.n} ${f.counted ? '' : '（未计入）'}${f.source === 'hard' ? '硬异常' : '模型报告'} ${f.kind}：${f.description.slice(0, 160)}${f.review ? `；复核 ${f.review}` : ''}；现场包 ${f.incident}`);
+    for (const f of v.explore.findings) out.push(`- 发现 #${f.n} ${f.counted ? '' : '（未计入）'}${f.source === 'hard' ? '硬异常' : f.source === 'detector' ? '确定性判定' : '模型报告'} ${f.kind}：${f.description.slice(0, 160)}${f.review ? `；复核 ${f.review}` : ''}；现场包 ${f.incident}`);
   }
   if (v.ended?.at) out.push(`结束：${v.ended.by ?? '-'}，${v.ended.at}`);
   if (v.evidence.report) out.push(`报告：${v.evidence.report}`);

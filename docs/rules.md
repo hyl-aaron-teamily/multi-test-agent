@@ -1,7 +1,7 @@
 # 开发规定（生效版）
 
 由 `5d84362:docs/history/rules-audit.md`（2026-10-31 用户审核）和 W2-4.1 的决定（2026-11-03，`docs/dev-week2-milestone4.1.md` §4、§12）整理而来，只列现在生效的规定。
-「改」和「定」的条目写的是修改后的版本。能力① = 快速档（自然语言自主测试 / 探索），能力② = Pro 档（Issue → 确定性计划 → 复现）。落点写法：`路径#符号`；写「（未落地）」表示代码和现存文档里都没找到。
+「改」和「定」的条目写的是修改后的版本。能力① = 快速档（结构化文档：Issue → 确定性计划 → 重复执行、拦截问题），能力② = 探索档（自然语言任务 / 探索，用速度和 token 换新问题；W2-5 N1 起的叫法，与 4.1 文档互换）。落点写法：`路径#符号`；写「（未落地）」表示代码和现存文档里都没找到。
 
 ## A 范围
 
@@ -10,7 +10,7 @@
 | A1 | 优先保证 Teamily 的测试体验；力所能及地保留泛化能力（探索模式不绑定 Teamily 专有逻辑） | `skills/teamily/SKILL.md`；`engine/agent/run.ts#runAgent` |
 | A2 | Issue 里允许有不能复现或已修复的用例，用来检验系统能力；设最大步长，达到上限仍没复现就如实报告 | `platform/schema/test-plan.ts#HARD_LIMITS`；`engine/verdict.ts#VerdictTracker`；`engine/stats.ts#attemptsText` |
 | A3 | 不拒绝任何 Issue（2026-11-03）：服务端类按偶现执行，只看用户可见的一侧；多账号类生成多端协同计划 | `issue/planner.ts#draftIssue`；`issue/planner.ts#syncSubcase` |
-| A5 | 不拿探索代替复现：探索的发现只能转成 Issue 草稿，由能力②给结论 | `docs/agent-rules.md` §2、§4；`engine/agent/to-issue.ts#writeFindingIssue` |
+| A5 | 不拿探索代替复现：探索的发现只能转成 Issue 草稿，由能力①给结论 | `docs/agent-rules.md` §2、§4；`engine/agent/to-issue.ts#writeFindingIssue` |
 | A6 | 执行端有四种：android-app、android-web、mobile-web、desktop-web；Windows 上的 Web 用最大化的 Edge，不做桌面 App；iOS、WebView、小程序没有接入 | `platform/accounts/types.ts#SURFACES`；`drivers/factory.ts#createDriver`；`drivers/web.ts#launchOptions` |
 
 ## B 黑盒与观察边界
@@ -20,7 +20,7 @@
 | B1 | 不读源码，不装调试版，不向页面注入 JS（evaluate、addInitScript、exposeFunction），不用 App 钩子，不生成测试代码文件 | `drivers/web.ts#WebDriver`；`drivers/android.ts#AndroidDriver`；`engine/observe.ts#pageHasText` |
 | B3 | 只用用户级输入：触控、光标、键盘 | `drivers/types.ts#Driver` |
 | B4 | 允许环境模拟（断网、慢网、视口、设备模拟），不算注入 | `drivers/web.ts#contextOptions`（目前只实现了视口和设备模拟） |
-| B5 | 只读观察：只要不违反 B1 就允许，唯一的例外是能力②的循环内（D2）（定） | `engine/plan/loop.ts#runLoop`；`engine/snapshot.ts#snapshot`；`engine/observe.ts#observeText` |
+| B5 | 只读观察：只要不违反 B1 就允许，唯一的例外是能力①的循环内（D2）（定） | `engine/plan/loop.ts#runLoop`；`engine/snapshot.ts#snapshot`；`engine/observe.ts#observeText` |
 | B7 | Issue 里的截图交给视觉模型，在生成契约和计划时使用（2026-11-03） | `issue/images.ts#issueImages`；`issue/contract.ts#modelContract` |
 | B8 | 保留自建的无障碍 APK，作为快速读树后端；不再限制为只读，必要时可以加手势或剪贴板；令牌校验保留（定） | `core/a11y-service.ts#installA11y`；`core/a11y-service.ts#A11Y_TOKEN_ACTION`；`android/a11y-service/` |
 | B9 | 读树后端可以替换，失效时自动退回 uiautomator，并写明用了哪个后端、为什么退回；uiautomator 导出按设备串行执行 | `engine/session.ts#selectTreeBackend`；`core/tree-backend.ts#readTree`；`core/tree-backend.ts#uiautomatorBackend` |
@@ -42,16 +42,16 @@
 
 | # | 规定 | 落点 |
 |---|---|---|
-| D1 | 只约束能力②：动作间隔 ≤1 s（实现为两次输入的开始时间相隔 ≤950 ms）；delayAfterMs 默认 300，上限 1000 | `engine/plan/actions.ts#execAction`；`platform/schema/test-plan.ts#PlannedActionZ`；`issue/validate.ts#validatePlan` |
-| D2 | 能力②的循环里，每一步只按冻结坐标操作：不截图、不读树、不调视觉、不额外发 adb 命令 | `engine/plan/loop.ts#runLoop` |
-| D3 | 能力②的循环里，每步的异常门只看事件流：logcat 四个缓冲区和 page 事件 | `drivers/android.ts#classifyLogLine`；`drivers/types.ts#HARD_ANOMALIES`；`engine/plan/loop.ts#runLoop` |
-| D4 | 能力②：一份 Issue 只启动一次 App，每次运行都冷启动（启动类问题除外） | `engine/plan/run.ts#runPlan`；`engine/plan/isolation.ts#cleanStart` |
-| D5 | 能力②：视觉模型只在检查不一致或出现异常时调用，次数应接近 0；按用途计数，写进报告 | `core/model/llm.ts#countCall`；`core/model/llm.ts#setModelPurpose` |
-| D6 | 能力②：判定和定位分三层（① 确定性 → ② 屏幕索引排序 → ③ 视觉），记录由哪一层决定、耗时多少 | `engine/observe.ts#observeText`；`engine/locate.ts#locate`；`engine/stats.ts#addTier` |
-| D7 | 能力②：执行前校验只用于循环外的点击，循环内为 0 次；校验不通过就不点 | `engine/pretap.ts#PreTapGuard`；`engine/plan/prepare.ts#prepare` |
-| D8 | 能力②：进循环前过预热闸门，逐步核验，每步允许重做 1 次；失败就判「计划不可执行」 | `engine/plan/warmup.ts#runWarmup` |
-| D9 | 能力②的步数上限默认 1000 步 / 15 分钟；两档共用硬上限 3000 步 / 120 分钟（能力①见 M4） | `platform/schema/test-plan.ts#DEFAULT_LIMITS`；`platform/schema/test-plan.ts#HARD_LIMITS` |
-| D10 | 看门狗：能力②循环中单步预算 20 s，超时就写现场包并停止 | `engine/plan/loop.ts#runLoop`（`WATCHDOG_MS`） |
+| D1 | 只约束快速档：动作间隔 ≤1 s（实现为两次输入的开始时间相隔 ≤950 ms）；delayAfterMs 默认 300，上限 1000 | `engine/plan/actions.ts#execAction`；`platform/schema/test-plan.ts#PlannedActionZ`；`issue/validate.ts#validatePlan` |
+| D2 | 快速档的循环里，每一步只按冻结坐标操作：不截图、不读树、不调视觉、不额外发 adb 命令 | `engine/plan/loop.ts#runLoop` |
+| D3 | 快速档的循环里，每步的异常门只看事件流：logcat 四个缓冲区和 page 事件 | `drivers/android.ts#classifyLogLine`；`drivers/types.ts#HARD_ANOMALIES`；`engine/plan/loop.ts#runLoop` |
+| D4 | 快速档：一份 Issue 只启动一次 App，每次运行都冷启动（启动类问题除外） | `engine/plan/run.ts#runPlan`；`engine/plan/isolation.ts#cleanStart` |
+| D5 | 快速档：视觉模型只在检查不一致或出现异常时调用，次数应接近 0；按用途计数，写进报告 | `core/model/llm.ts#countCall`；`core/model/llm.ts#setModelPurpose` |
+| D6 | 快速档：判定和定位分三层（① 确定性 → ② 屏幕索引排序 → ③ 视觉），记录由哪一层决定、耗时多少 | `engine/observe.ts#observeText`；`engine/locate.ts#locate`；`engine/stats.ts#addTier` |
+| D7 | 快速档：执行前校验只用于循环外的点击，循环内为 0 次；校验不通过就不点 | `engine/pretap.ts#PreTapGuard`；`engine/plan/prepare.ts#prepare` |
+| D8 | 快速档：进循环前过预热闸门，逐步核验，每步允许重做 1 次；失败就判「计划不可执行」 | `engine/plan/warmup.ts#runWarmup` |
+| D9 | 快速档的步数上限默认 1000 步 / 15 分钟；两档共用硬上限 3000 步 / 120 分钟（能力②见 M4） | `platform/schema/test-plan.ts#DEFAULT_LIMITS`；`platform/schema/test-plan.ts#HARD_LIMITS` |
+| D10 | 看门狗：快速档循环中单步预算 20 s，超时就写现场包并停止 | `engine/plan/loop.ts#runLoop`（`WATCHDOG_MS`） |
 | D11 | 预检目标 ≤10 s；电量低于 15% 判为环境不合格 | `engine/preflight.ts#preflightAndroid`（`MIN_BATTERY`） |
 | D12 | 飞行记录器用环形窗口：视频 30 s × 6 段，logcat 保留 180 s，不得单调增长 | `engine/recorder/android-recorder.ts#AndroidFlightRecorder`；`engine/recorder/android-recorder.ts#WINDOW_MS`；`engine/recorder/web-recorder.ts#WebFlightRecorder` |
 | D13 | scrcpy 只能优雅停止（在设备端 pkill），不强杀本地进程 | `core/screen-recorder.ts#ScreenRecorder` |
@@ -62,7 +62,7 @@
 | # | 规定 | 落点 |
 |---|---|---|
 | E1 | 偶现类和必现类都是命中 1 次即「已复现」；feature 类分为已实现 / 部分实现 / 未实现 | `engine/verdict.ts#VerdictTracker`；`engine/verdict.ts#featureConclusion`；`platform/schema/test-plan.ts#verdictRuleFor` |
-| E2 | 命中的定义：能力②是硬异常，或检查不通过且证据复核认定与 Issue 描述相符；能力①是硬异常，或出现影响正常使用的报错（经证据复核） | `engine/plan/loop.ts#runLoop`；`engine/agent/run.ts#runAgent`；`engine/recorder/evidence-review.ts#reviewIncident` |
+| E2 | 命中的定义：能力①是硬异常，或检查不通过且证据复核认定与 Issue 描述相符；能力②是硬异常，或出现影响正常使用的报错（经证据复核） | `engine/plan/loop.ts#runLoop`；`engine/agent/run.ts#runAgent`；`engine/recorder/evidence-review.ts#reviewIncident` |
 | E3 | bug 类结论只有「已复现」和「未复现（n 次有效尝试）」，不写已修复或疑似已修复 | `engine/verdict.ts#VerdictTracker`；`docs/agent-rules.md` §4 |
 | E4 | 有效尝试 = require 成立且没有偏离；报告给出总轮数、有效、偏离、命中和 Wilson 95% 区间，0 命中时给出 3/n 上界 | `engine/stats.ts#attemptsOf`；`engine/stats.ts#wilson` |
 | E5 | 按比例验收：每个用例独立运行 10 次，工具可靠性 ≥9/10 | `engine/plan/series.ts#summarizeSeries`；`scripts/issue-cli.ts#seriesCmd` |
@@ -113,7 +113,7 @@
 | G8 | 禁止 `adb kill-server`，重连用 `adb -s <udid> reconnect` | `docs/agent-rules.md` §5；`platform/doctor.ts#fixStale` |
 | G9 | 测试机上只碰自己的包，不动其他 App 和设置 | `platform/approval.ts#classifyPlan`（非 SKILL 动作 / 系统键 = 敏感）；`engine/agent/risk.ts#classifyRisk`（settings） |
 | G10 | 探索默认只读，可写探索按敏感计划处理（需要完全授权） | `engine/agent/risk.ts#classifyRisk`；`platform/api-v1.ts#submitExplore` |
-| G11 | 快速档的点赞、关注、收藏、订阅只能作用于 agent（测试）账号自己的主页和内容，只读和可写运行都适用；名单取自 gitignored 的 `platform/accounts.local.yaml` 中的 `environments.<env>.ownContent`（2026-11-03） | `engine/agent/risk.ts#classifyRisk`；`engine/agent/risk.ts#nearOwnContent`；`platform/accounts/account-pool.ts#AccountPool`（ownContent） |
+| G11 | 探索档的点赞、关注、收藏、订阅只能作用于 agent（测试）账号自己的主页和内容，只读和可写运行都适用；名单取自 gitignored 的 `platform/accounts.local.yaml` 中的 `environments.<env>.ownContent`（2026-11-03） | `engine/agent/risk.ts#classifyRisk`；`engine/agent/risk.ts#nearOwnContent`；`platform/accounts/account-pool.ts#AccountPool`（ownContent） |
 
 ## H 接口契约（CLI / Web / MCP）
 
@@ -170,9 +170,9 @@
 | # | 规定 | 落点 |
 |---|---|---|
 | M1 | （原 K1）TS 源码 ≤12,000 行（不含测试）是目标，不是硬性标准；代码门不检查行数 | `docs/dev-week2-milestone4.1.md` §2 第 7 条、§12；`scripts/code-gate.sh`（无行数闸门） |
-| M2 | （原 K2）能力① = 快速档，能力② = Pro 档；探索发现转成 Issue 草稿，由能力②复现；不另做规划者 / 检查者 | `engine/agent/run.ts#runAgent`；`engine/plan/run.ts#runPlan`；`engine/agent/to-issue.ts#writeFindingIssue` |
-| M3 | （原 K3）能力①本期覆盖 android-app 和 desktop-web | `README.md`（能力①验收范围）；`docs/w2m4.1-acceptance.md` |
-| M4 | （原 K4）快速档的上限参照 Artemis Flash：默认不设步数上限；每 12 步把历史压缩成一段摘要；单次模型调用 180 s 超时；平台兜底为硬上限 3000 步 / 120 分钟，`--max-steps` / `--max-minutes` 可以收紧 | `engine/agent/run.ts#runAgent`（`MODEL_TIMEOUT_MS`）；`engine/agent/step.ts#historyText`（`KEEP_STEPS`）；`platform/api-v1.ts#submitExplore` |
+| M2 | （原 K2）能力② = 探索档，能力① = 快速档；探索发现转成 Issue 草稿，由能力①复现；不另做规划者 / 检查者 | `engine/agent/run.ts#runAgent`；`engine/plan/run.ts#runPlan`；`engine/agent/to-issue.ts#writeFindingIssue` |
+| M3 | （原 K3）能力②本期覆盖 android-app 和 desktop-web | `README.md`（能力②验收范围）；`docs/w2m4.1-acceptance.md` |
+| M4 | （原 K4）探索档的上限参照 Artemis Flash：默认不设步数上限；每 12 步把历史压缩成一段摘要；单次模型调用 180 s 超时；平台兜底为硬上限 3000 步 / 120 分钟，`--max-steps` / `--max-minutes` 可以收紧 | `engine/agent/run.ts#runAgent`（`MODEL_TIMEOUT_MS`）；`engine/agent/step.ts#historyText`（`KEEP_STEPS`）；`platform/api-v1.ts#submitExplore` |
 
 ## 删除规则的残留核对
 
@@ -181,7 +181,7 @@
 | A3 | `refus`、`server-side`、`not-executable`、`deferred`（issue/、platform/） | 行为上无残留：这几类不再被拒绝，`not-executable` / `deferred` 走 E18 的一页报告，`server-side` 按偶现执行。函数名 `refusalMarkdown` 已改为 `unplannableMarkdown`（2026-11-03）。`platform/approval.ts` 里的 `refused` 是 G3 硬约束，不属于 A3 |
 | A4 | `mission`、`monkey`、`imui`、`week-1`、`alias`（代码与 bin/） | 无残留：`bin/autotest.ts` 里没有这些入口，也没有别名。`core/adb.ts:84` 的 `monkey -p` 只是用来启动 App。M5 开发命令（`scripts/m5.ts`）不在 A4 范围内 |
 | B2 | `devtools`、`remote-debugging`、`CDP`、`调试端口` | 代码无残留（`drivers/web.ts` 的 CDP 是 Playwright 自己的会话，用于触控和读布局）。两处文字已删（2026-11-03） |
-| B6 | 「只在循环外」「never the hot loop」 | 代码无残留（能力②的限制由 D2 保留）。README 原则已改为区分两档（2026-11-03） |
+| B6 | 「只在循环外」「never the hot loop」 | 代码无残留（能力①的限制由 D2 保留）。README 原则已改为区分两档（2026-11-03） |
 | B10 | `ScreenSnapshot` 是否为唯一的读树入口 | 无残留：locate、observe、targets、warmup、sync 都各自读树，代码没有强制「唯一结构」 |
 | C9 | `healed-profile`、`healed` | 无残留：`engine/plan/warmup.ts:167` 的 `healed` 是循环外的重新定位，写入 SKILL 缓存 |
 | D14 | 旧 explore 的 50 步 / 每状态 5 次 / 重启 3 次、`DEFAULT_AVOID` | 无残留：`engine/agent/risk.ts:4` 只在注释里说明种子词的来源 |

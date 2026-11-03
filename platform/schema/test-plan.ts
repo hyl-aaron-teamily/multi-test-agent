@@ -117,6 +117,8 @@ export type AcceptanceItem = z.infer<typeof AcceptanceItemZ>;
 
 export const DEFAULT_LIMITS = { maxSteps: 1000, maxMinutes: 15, maxIntervalMs: 1000 as const };
 export const HARD_LIMITS = { maxSteps: 3000, maxMinutes: 120 };
+/** Exploration tier hard limits (W2-5 N2): --max-steps / --max-minutes can only tighten them. */
+export const EXPLORE_LIMITS = { maxSteps: 500, maxMinutes: 30 } as const;
 export const MAX_IDLE_MS = 600_000;
 /** Surfaces with an app process the user can leave / kill (exitApp, killApp). */
 export const APP_SURFACES: string[] = ['android-app', 'android-web'];

@@ -14,6 +14,8 @@ export interface Stats {
   anomalyGateTriggers: number;
   suspectSignals: number;
   checkpointScreenshots: number;
+  /** Round-end snapshots taken for the deterministic detectors (W2-5 §6; every INCIDENTAL_EVERY rounds). */
+  incidentalSnapshots?: number;
   visionCalls: number;
   textModelCalls: number;
   launches: number;

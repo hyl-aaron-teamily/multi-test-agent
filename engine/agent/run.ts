@@ -1,4 +1,4 @@
-// Quick tier (capability ①): one agent loop on a real phone / browser — after ref/artemis Flash (Apache-2.0,
+// Exploration tier (capability ②): one agent loop on a real phone / browser — after ref/artemis Flash (Apache-2.0,
 // rewritten). Each step: screen snapshot (screenshot + numbered elements) → the vision model picks one action →
 // risk rules (read-only by default) → pre-tap check → the action through the recording driver → the driver's
 // event stream. Hard anomalies are findings at once; a problem the model reports is written as an incident and
@@ -10,13 +10,13 @@ import { modelCalls, setModelPurpose, visionConfigured, visionJson } from '../..
 import { label, type ScreenNode } from '../../core/screen-index';
 import { isoMs, openTrajectory } from '../../core/trajectory';
 import { TEAMILY_PACKAGE } from '../../drivers/factory';
+import { EXPLORE_LIMITS } from '../../platform/schema/test-plan';
 import { type Anomaly, HARD_ANOMALIES, type Point, sleep } from '../../drivers/types';
 import type { AccountPool, Lease } from '../../platform/accounts/account-pool';
 import { type Env, onAndroid, onPlaywright, type Surface } from '../../platform/accounts/types';
 import type { DevicePool } from '../../platform/device-pool';
 import { CancelledError, type RunHooks } from '../../platform/lifecycle/runtime';
 import type { TestPlan } from '../../platform/schema/test-plan';
-import { HARD_LIMITS } from '../../platform/schema/test-plan';
 import { leaseFor, preflightFor } from '../lease';
 import { PreTapGuard } from '../pretap';
 import { AndroidFlightRecorder } from '../recorder/android-recorder';
@@ -25,6 +25,8 @@ import { type EvidenceVerdict, reviewIncident } from '../recorder/evidence-revie
 import { WebFlightRecorder } from '../recorder/web-recorder';
 import { closeSession, enterApp, openBenchSession, openSession, packageOf, type Session } from '../session';
 import { snapshot } from '../snapshot';
+import { deadTap, detect, DETECT, DETECT_EXPECTED, type DetectHit, type DetectKind, newDetectState, type Observation } from '../detect';
+import { type Box, decodePng } from '../../core/image';
 import { classifyRisk, nearOwnContent } from './risk';
 import { type AgentAction, type AgentAnswer, BENCH_SYSTEM, fingerprint, historyText, loopHint, parseAnswer, planState, type StepRecord, SYSTEM, userPrompt, visibleElements } from './step';
 import { scalePng } from '../recorder/evidence-review';
@@ -42,12 +44,14 @@ export interface AgentOptions {
   udid?: string;
   account?: string;
   writable?: boolean;
-  /** Defaults: no own cap (Artemis Flash) — the platform hard limits apply (D9). */
+  /** Default and ceiling: EXPLORE_LIMITS (500 steps / 30 minutes, W2-5 N2). */
   maxSteps?: number;
   maxMinutes?: number;
   runDir: string;
   taskId?: string;
   hooks?: Partial<RunHooks>;
+  /** Instructions the user added since the previous call (W2-5 §7.2); read at each step boundary. */
+  inbox?: () => string[];
   /** Called after every step (the platform writes task progress from it). */
   onStep?: (r: StepRecord) => void;
   headed?: boolean;
@@ -64,8 +68,11 @@ export interface BenchLink {
 
 export interface Finding {
   n: number;
-  /** hard = crash / ANR / app-exit / page-crash; reported = the agent's report_issue, after evidence review. */
-  source: 'hard' | 'reported';
+  /** hard = crash / ANR / app-exit / page-crash; reported = the agent's report_issue; detector = a deterministic
+   *  detector (engine/detect.ts). Reported and detector findings count after the evidence review agrees. */
+  source: 'hard' | 'reported' | 'detector';
+  /** source detector: which one. */
+  detector?: DetectKind;
   kind: IncidentKind;
   description: string;
   step: number;
@@ -98,17 +105,23 @@ export interface AgentResult {
   coverage: { screens: number; actions: number; byScreen: Record<string, number> };
   usage: { steps: number; seconds: number; modelCalls: number };
   steps: StepRecord[];
+  /** Instructions added during the run, with the step they arrived before. */
+  instructions?: { step: number; text: string }[];
   runDir: string;
   error?: string;
 }
 
 const MODEL_TIMEOUT_MS = 180_000;
+/** Pure: the limits of one run — the requested ones, never above EXPLORE_LIMITS. */
+export function agentLimits(o: { maxSteps?: number; maxMinutes?: number }): { maxSteps: number; maxMinutes: number } {
+  return { maxSteps: Math.min(o.maxSteps ?? EXPLORE_LIMITS.maxSteps, EXPLORE_LIMITS.maxSteps), maxMinutes: Math.min(o.maxMinutes ?? EXPLORE_LIMITS.maxMinutes, EXPLORE_LIMITS.maxMinutes) };
+}
 /** Screenshot width sent to the model (tokens); taps stay in the element coordinate space. */
 const SHOT_WIDTH = 720;
 /** Step thumbnails for the task page. */
 const THUMB_WIDTH = 240;
 
-/** The minimal plan an incident bundle carries for a quick-tier run (no Issue behind it). */
+/** The minimal plan an incident bundle carries for a exploration-tier run (no Issue behind it). */
 function planStub(o: AgentOptions, id: string): TestPlan {
   return {
     id,
@@ -125,7 +138,7 @@ function planStub(o: AgentOptions, id: string): TestPlan {
     actions: [],
     checks: [],
     afterCheck: [],
-    limits: { maxSteps: HARD_LIMITS.maxSteps, maxMinutes: HARD_LIMITS.maxMinutes, maxIntervalMs: 1000 },
+    limits: { maxSteps: EXPLORE_LIMITS.maxSteps, maxMinutes: EXPLORE_LIMITS.maxMinutes, maxIntervalMs: 1000 },
     verdictRule: { anyHit: true },
     provenance: { generatedBy: 'model', skillVersion: '-' },
   } as TestPlan;
@@ -139,8 +152,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
   const traj = openTrajectory(join(o.runDir, 'trajectory.jsonl'));
   const res: AgentResult = { schemaVersion: 1, kind: 'agent', goal: o.goal, mode: o.mode, surface: o.surface, env: o.env, writable: !!o.writable, startedAt: new Date(t0).toISOString(), finishedAt: '', status: 'error', summary: '', findings: [], blocked: [], coverage: { screens: 0, actions: 0, byScreen: {} }, usage: { steps: 0, seconds: 0, modelCalls: 0 }, steps: [], runDir: o.runDir };
   const calls0 = modelCalls.vision + modelCalls.text;
-  const maxSteps = Math.min(o.maxSteps ?? HARD_LIMITS.maxSteps, HARD_LIMITS.maxSteps);
-  const deadline = t0 + Math.min(o.maxMinutes ?? HARD_LIMITS.maxMinutes, HARD_LIMITS.maxMinutes) * 60_000;
+  const { maxSteps, maxMinutes } = agentLimits(o);
+  const deadline = t0 + maxMinutes * 60_000;
   const tried = new Map<string, Set<string>>();
   const ownNames = o.pool?.ownContent(o.env) ?? [];
   const finish = async (): Promise<AgentResult> => {
@@ -155,11 +168,11 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
   };
   if (!visionConfigured()) {
     res.error = 'vision model not configured (MIDSCENE_MODEL_*)';
-    res.summary = '没有视觉模型配置，快速档无法运行';
+    res.summary = '没有视觉模型配置，探索档无法运行';
     return finish();
   }
 
-  // ---- lease + preflight (shared with the pro tier); bench runs use their emulator as it is
+  // ---- lease + preflight (shared with the quick tier); bench runs use their emulator as it is
   const bench = o.bench;
   let lease: Lease | undefined;
   let accountId = 'bench';
@@ -217,6 +230,19 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       return dir;
     };
 
+    // Deterministic detectors (W2-5 §6): on the observation each step takes anyway; not in bench runs.
+    const dst = newDetectState();
+    const seenHits = new Set<string>();
+    let lastTap: { key: string; obs: Observation; target: { text: string; box: Box }; at: number } | undefined;
+    const detectorFinding = async (h: DetectHit, step: number, screen: string): Promise<string> => {
+      const dir = await incident('visual-anomaly', h.description, step);
+      const review = await reviewIncident(dir, { id: 'explore', summary: o.goal, expected: DETECT_EXPECTED[h.kind], actual: h.description }, { log }).catch(() => undefined);
+      const counted = review?.verdict === 'consistent';
+      res.findings.push({ n: res.findings.length + 1, source: 'detector', detector: h.kind, kind: 'visual-anomaly', description: h.description, step, screen, incident: dir, review: review?.verdict, counted, path: [...path] });
+      traj.emit('finding', { step, description: h.description, detector: h.kind, review: review?.verdict, counted });
+      return `detector ${h.kind}: ${h.description} (evidence review: ${review?.verdict ?? 'unverified'})`;
+    };
+
     for (let step = 1; ; step++) {
       if (o.hooks?.shouldStop?.()) throw new CancelledError();
       if (step > maxSteps || Date.now() > deadline) {
@@ -224,8 +250,15 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
         res.summary = step > maxSteps ? `到达步数上限 ${maxSteps}` : `到达时长上限 ${Math.round((deadline - t0) / 60_000)} 分钟`;
         break;
       }
+      for (const text of o.inbox?.() ?? []) {
+        (res.instructions ??= []).push({ step, text });
+        traj.emit('inject', { step, text });
+        log(`instruction before step ${step}: ${text}`);
+      }
       s.d.step = step;
       s.d.round = 1;
+      // A tap that may have done nothing is judged ≥ 3 s after it (no-response detector).
+      if (lastTap && Date.now() - lastTap.at < DETECT.deadTapMs) await sleep(DETECT.deadTapMs - (Date.now() - lastTap.at));
       // Bench: whatever app is in front (the driver is bound to the launcher); otherwise the app under test.
       const snap = await snapshot(s.inner, { keepPng: true, stableMaxMs: 1500, ...(bench ? { pkg: '' } : {}) }).catch(() => undefined);
       const nodes: ScreenNode[] = snap?.nodes ?? [];
@@ -236,7 +269,30 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       const png = snap?.png ?? (await s.inner.screenshot());
       const shot = scalePng(png, SHOT_WIDTH);
       const vp = s.profile.viewport.width ? s.profile.viewport : { width: snap?.width ?? 0, height: snap?.height ?? 0 };
-      const prompt = userPrompt({ goal: o.goal, mode: o.mode, plan, history: historyText(res.steps), screen, els, tried: [...triedHere], feedback, size: vp });
+      let obs: Observation | undefined;
+      if (!bench) {
+        const img = (() => {
+          try {
+            return decodePng(png);
+          } catch {
+            return undefined;
+          }
+        })();
+        obs = { at: Date.now(), img, nodes, width: snap?.width ?? img?.width ?? 0, height: snap?.height ?? img?.height ?? 0 };
+        const hits = detect(obs, dst);
+        const dead = lastTap && deadTap(lastTap.key, lastTap.obs, obs, dst, lastTap.target);
+        if (dead) hits.push(dead);
+        lastTap = undefined;
+        const notes: string[] = [];
+        for (const h of hits) {
+          const key = `${screen}:${h.kind}:${h.text ?? ''}`;
+          if (seenHits.has(key)) continue;
+          seenHits.add(key);
+          notes.push(await detectorFinding(h, step, screen));
+        }
+        if (notes.length) feedback = `${feedback ?? 'ok'}. ${notes.join('; ')}`;
+      }
+      const prompt = userPrompt({ goal: o.goal, mode: o.mode, plan, history: historyText(res.steps), screen, els, tried: [...triedHere], feedback, size: vp, instructions: res.instructions?.map((x) => x.text) });
       let ans: AgentAnswer | undefined;
       const system = bench ? BENCH_SYSTEM : SYSTEM(!!o.writable, ownNames);
       for (let k = 0; k < 2 && !ans; k++) ans = parseAnswer(await visionJson(system, [prompt, { label: 'Screenshot (scaled; use the element coordinates for taps)', png: shot }], MODEL_TIMEOUT_MS).catch(() => undefined), !!bench);
@@ -288,6 +344,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
         continue;
       }
       feedback = await perform(s, guard, a, el, vp, bench).catch((e) => `error: ${(e as Error).message.split('\n')[0].slice(0, 160)}`);
+      if (obs && el?.clickable && a.type === 'tap' && feedback === 'ok') lastTap = { key: actionKey(a, el), obs, target: { text: label(el), box: el.box }, at: Date.now() };
       triedHere.add(actionKey(a, el));
       path.push(act);
       await sleep(900);
@@ -302,6 +359,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
         feedback = `the app ${x.kind === 'page-crash' ? 'page crashed' : x.kind === 'app-exit' ? 'exited' : x.kind} — it was relaunched`;
         await s.d.launch().catch(() => {});
         await sleep(2500);
+        lastTap = undefined;
       }
       record(feedback ?? 'ok');
       const loop = loopHint(res.steps);
@@ -429,6 +487,9 @@ async function perform(s: Session, guard: PreTapGuard, a: AgentAction, el: Scree
   }
 }
 
+/** How a finding was found, for people. */
+export const FINDING_SOURCE: Record<Finding['source'], string> = { hard: '硬异常', reported: '模型报告', detector: '确定性判定' };
+
 export function agentMarkdown(r: AgentResult): string {
   const counted = r.findings.filter((f) => f.counted);
   const st: Record<AgentResult['status'], string> = { completed: '完成', failed: '未能完成', limit: '到达上限', cancelled: '已取消', 'env-unfit': '环境不合格', error: '执行出错' };
@@ -442,7 +503,7 @@ export function agentMarkdown(r: AgentResult): string {
     `- 用量：${r.usage.steps} 步，${r.usage.seconds} 秒，模型调用 ${r.usage.modelCalls} 次`,
     r.plan ? `- 计划：完成 ${ps.done}，未完成 ${ps.todo}，失败 ${ps.failed}` : '',
     '',
-    ...(r.findings.length ? ['## 发现', '', ...r.findings.map((f) => `- #${f.n} ${f.counted ? '✅' : '⚠ 未计入'} ${f.source === 'hard' ? '硬异常' : '模型报告'}（${f.kind}）：${f.description}${f.review ? `；证据复核：${f.review}` : ''} — 第 ${f.step} 步，现场包 \`${f.incident}\``), ''] : []),
+    ...(r.findings.length ? ['## 发现', '', ...r.findings.map((f) => `- #${f.n} ${f.counted ? '✅' : '⚠ 未计入'} ${FINDING_SOURCE[f.source]}（${f.detector ?? f.kind}）：${f.description}${f.review ? `；证据复核：${f.review}` : ''} — 第 ${f.step} 步，现场包 \`${f.incident}\``), ''] : []),
     ...(r.blocked.length ? ['## 拦截的动作', '', ...r.blocked.map((b) => `- 第 ${b.step} 步 ${b.action}：${b.reason}`), ''] : []),
     ...(r.plan ? ['## 计划（模型维护）', '', r.plan, ''] : []),
     '## 步骤',

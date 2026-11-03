@@ -1,4 +1,4 @@
-// Quick tier: what the model sees each step and what it may answer (after ref/artemis Flash: screenshot +
+// Exploration tier: what the model sees each step and what it may answer (after ref/artemis Flash: screenshot +
 // numbered visible elements, tap by index first, coordinates only with a target description; Apache-2.0,
 // rewritten). Pure: prompt building, answer parsing, history compression, screen fingerprints.
 import { createHash } from 'node:crypto';
@@ -116,9 +116,10 @@ Actions:
 - {"type":"done","status":"completed|failed","summary":"..."}  (the task is done, or it cannot be done)
 Rules: look before you act; do not assume where a tap leads; check on the screen that each step took effect before moving on; finish with done as soon as the task is complete.`;
 
-export function userPrompt(o: { goal: string; mode: 'task' | 'explore'; plan?: string; history: string; screen: string; els: ScreenNode[]; tried: string[]; feedback?: string; size: { width: number; height: number } }): string {
+export function userPrompt(o: { goal: string; mode: 'task' | 'explore'; plan?: string; history: string; screen: string; els: ScreenNode[]; tried: string[]; feedback?: string; size: { width: number; height: number }; instructions?: string[] }): string {
   return [
     `Goal (${o.mode === 'explore' ? 'explore and find problems' : 'task'}): ${o.goal}`,
+    o.instructions?.length ? `Instructions the user added during the run (follow them; the latest wins where they conflict; the safety rules still apply):\n${o.instructions.map((t) => `- ${t}`).join('\n')}` : '',
     `Current plan:\n${o.plan ?? '(write one)'}`,
     `History:\n${o.history}`,
     o.feedback ? `Result of your last action: ${o.feedback}` : '',

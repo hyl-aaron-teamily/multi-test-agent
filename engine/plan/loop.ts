@@ -20,6 +20,8 @@ import { composerText } from '../observe';
 import { onChat } from './prepare';
 import { applyIntervals, attemptsOf, attemptsText } from '../stats';
 import { VerdictTracker } from '../verdict';
+import { detect, DETECT_EXPECTED, newDetectState } from '../detect';
+import { snapshot } from '../snapshot';
 
 const WATCHDOG_MS = 20_000;
 
@@ -30,8 +32,40 @@ export interface LoopOptions {
   correctPathOk?: boolean;
 }
 
+/** Incidental findings (W2-5 §6): the deterministic detectors run at the round end every this many rounds. */
+export const INCIDENTAL_EVERY = 10;
+/** At most this many incidental findings per run (bundles + reviews cost time). */
+const MAX_INCIDENTAL = 5;
+
 export async function runLoop(c: RunCtx, lo: LoopOptions = {}): Promise<void> {
   const { plan, stats, res, log } = c;
+  res.incidental ??= [];
+  const dst = newDetectState();
+  const seenHits = new Set<string>();
+  // Round end only (the round's steps stay coordinate-only, D2): a snapshot of its own, judged by the
+  // deterministic detectors; a hit is reviewed against the detector's description and never touches the verdict.
+  const incidental = async (round: number) => {
+    if (res.incidental!.length >= MAX_INCIDENTAL) return;
+    const snap = await snapshot(c.sess.inner, { keepPng: true, skipStable: true }).catch(() => undefined);
+    if (!snap?.png) return;
+    stats.incidentalSnapshots = (stats.incidentalSnapshots ?? 0) + 1;
+    const img = (() => {
+      try {
+        return decodePng(snap.png!);
+      } catch {
+        return undefined;
+      }
+    })();
+    for (const h of detect({ at: Date.now(), img, nodes: snap.nodes, width: snap.width || img?.width || 0, height: snap.height || img?.height || 0 }, dst)) {
+      const key = `${h.kind}:${h.text ?? ''}`;
+      if (seenHits.has(key) || res.incidental!.length >= MAX_INCIDENTAL) continue;
+      seenHits.add(key);
+      const dir = await recordIncident(c, 'visual-anomaly', `incidental ${h.kind}: ${h.description}`, round);
+      const rv = await reviewIncident(dir, { id: plan.issueRef, summary: plan.title, expected: DETECT_EXPECTED[h.kind], actual: h.description } as NormalizedIssue, { subcase: plan.title, log }).catch(() => undefined);
+      res.incidental!.push({ n: res.incidental!.length + 1, round, step: stats.steps, kind: h.kind, description: h.description, incident: dir, review: rv?.verdict, counted: rv?.verdict === 'consistent' });
+      log(`round ${round}: incidental finding ${h.kind} — ${h.description} (review ${rv?.verdict ?? 'unverified'}; not part of the verdict)`);
+    }
+  };
   const { d, web } = c.sess;
   const maxSteps = Math.min(c.o.maxSteps ?? plan.limits.maxSteps, HARD_LIMITS.maxSteps);
   const maxMs = Math.min(c.o.maxMinutes ?? plan.limits.maxMinutes, HARD_LIMITS.maxMinutes) * 60_000;
@@ -181,6 +215,7 @@ export async function runLoop(c: RunCtx, lo: LoopOptions = {}): Promise<void> {
       if (tracker.record(!!roundHitReason, round)) stop = '判定规则满足（命中 1 次）';
     }
     if (res.roundLog.length > 200) res.roundLog.splice(0, 50);
+    if (!hardHit && (round === 1 || round % INCIDENTAL_EVERY === 0)) await incidental(round);
     stats.rounds = round;
     if (!stop && !hardHit)
       for (const a of plan.afterCheck) {

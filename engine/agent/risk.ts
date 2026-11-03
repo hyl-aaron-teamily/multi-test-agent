@@ -1,4 +1,4 @@
-// Quick tier safety (rule G10, W2-5 X2): read-only by default. An action is classified before it runs from the
+// Exploration tier safety (rule G10, W2-5 X2): read-only by default. An action is classified before it runs from the
 // label of what it acts on and, for typing, the typed text. Read-only blocks every high-risk category and all
 // typing except into a search box; writable (an approved sensitive plan) blocks only the hard constraints G3.
 // Seed words: the keyword lists of the W1 explorer / mission runner (git show 3d7dc46:explore/explore-loop.ts,

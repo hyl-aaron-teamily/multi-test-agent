@@ -216,7 +216,7 @@ Can runs start, what is missing, what to do next (ready / degraded / blocked; ne
 
 ### `autotest explore run`
 
-Quick tier (capability ①): a goal in plain words, run by the vision agent on a real phone / browser; returns the task id at once (20). Read-only unless --writable (needs full access). result show → findings (each with an incident bundle), coverage, blocked actions, usage
+Exploration tier (capability ②): a goal in plain words, run by the vision agent on a real phone / browser; returns the task id at once (20). Read-only unless --writable (needs full access). result show → findings (each with an incident bundle), coverage, blocked actions, usage
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
@@ -224,8 +224,8 @@ Quick tier (capability ①): a goal in plain words, run by the vision agent on a
 | --mode | string |  | explore (find problems, default) | task (reach the goal) |
 | --surface | string |  | android-app (default) | desktop-web | android-web | mobile-web |
 | --env | string |  | environment id (default: the surface’s ready prod one) |
-| --max-steps | integer |  | default: none (hard cap 3000) |
-| --max-minutes | integer |  | default: none (hard cap 120) |
+| --max-steps | integer |  | default and hard cap 500 |
+| --max-minutes | integer |  | default and hard cap 30 |
 | --writable | boolean |  | allow sending / editing (full access only; payment, logout, deleting stay blocked) |
 | --dry-run | boolean |  | check everything, start nothing |
 | --idempotency-key | string |  | same key → the same task |
@@ -235,12 +235,24 @@ Quick tier (capability ①): a goal in plain words, run by the vision agent on a
 
 ### `autotest explore issue`
 
-Exploration finding → Issue draft (issues/explore/<id>.md) for the pro tier: then draft create / plan explain / task run
+Exploration finding → Issue draft (issues/explore/<id>.md) for the quick tier: then draft create / plan explain / task run
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
 | <taskId> | string | 是 | exploration task id (or its run dir under midscene_run) |
 | <n> | integer | 是 | finding number from result show |
+| --json | boolean |  | stdout = one JSON envelope { status, code, exit, summary, data, error } |
+
+可能的状态码：`OK`、`NOT_FOUND`、`BAD_INPUT`（另有 1 / 40 / 54）
+
+### `autotest explore inject`
+
+Add an instruction to a running exploration task; the agent gets it at the next step boundary (refused once the task has ended)
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| <taskId> | string | 是 | running exploration task id |
+| <instruction> | string | 是 | what to do now, in plain words (1–500 characters) |
 | --json | boolean |  | stdout = one JSON envelope { status, code, exit, summary, data, error } |
 
 可能的状态码：`OK`、`NOT_FOUND`、`BAD_INPUT`（另有 1 / 40 / 54）

@@ -11,6 +11,8 @@ import { setFullAccess } from './approval';
 import { consentConfig, moveEnv, registerEnv } from './lifecycle/env';
 import { getTask, moveTask, updateTask, writeResult } from './lifecycle/task';
 import { exploreSentence, exploreSummary, resultText } from './views';
+import { inboxReader } from './lifecycle/inbox';
+import { userPrompt } from '../engine/agent/step';
 
 let dir: string;
 beforeEach(() => {
@@ -42,6 +44,9 @@ describe('W2-4.1 T6 explore task', () => {
     expect((await call('POST', '/tasks', { explore: '' })).code).toBe('BAD_INPUT');
     expect((await call('POST', '/tasks', { explore: 'x', surface: 'ios' })).code).toBe('BAD_INPUT');
     expect((await call('POST', '/tasks', { explore: 'x', surface: 'desktop-web', maxSteps: 5000 })).code).toBe('BAD_INPUT');
+    // Hard limits 500 steps / 30 minutes (W2-5 N2): only tighter values are accepted.
+    expect((await call('POST', '/tasks', { explore: 'x', surface: 'desktop-web', maxSteps: 501 })).code).toBe('BAD_INPUT');
+    expect((await call('POST', '/tasks', { explore: 'x', surface: 'desktop-web', maxMinutes: 31 })).code).toBe('BAD_INPUT');
     expect((await call('POST', '/tasks', { explore: 'x', surface: 'desktop-web', env: 'test' })).code).toBe('ENV_OFFLINE');
     expect((await call('POST', '/tasks', { explore: 'x', surface: 'desktop-web', dryRun: true })).code).toBe('OK');
     const a = await call('POST', '/tasks', { explore: '打开通知铃铛', mode: 'task', surface: 'desktop-web', maxSteps: 40 });
@@ -49,6 +54,23 @@ describe('W2-4.1 T6 explore task', () => {
     const t = getTask((a.data as any).id)!;
     expect(t).toMatchObject({ kind: 'explore', envId: ENV, explore: { goal: '打开通知铃铛', mode: 'task', writable: false }, options: { maxSteps: 40 } });
     expect((a.data as any).summary).toMatch(/任务「打开通知铃铛」/);
+  });
+
+  it('instructions reach a running exploration task at the next step; refused once it ended (W2-5 §7.2)', async () => {
+    ready();
+    const id = ((await call('POST', '/tasks', { explore: '浏览发现页', surface: 'desktop-web' })).data as any).id as string;
+    expect((await call('POST', '/explore/nope/inject', { text: 'x' })).code).toBe('NOT_FOUND');
+    expect((await call('POST', `/explore/${id}/inject`, { text: '  ' })).code).toBe('BAD_INPUT');
+    const read = inboxReader(id);
+    expect(read()).toEqual([]);
+    const r = await call('POST', `/explore/${id}/inject`, { text: '先看看设置页' });
+    expect(r).toMatchObject({ code: 'OK', data: { instructions: 1 } });
+    expect(read()).toEqual(['先看看设置页']);
+    expect(read()).toEqual([]);
+    expect(((await call('GET', `/tasks/${id}`)).data as any).instructions).toMatchObject([{ text: '先看看设置页' }]);
+    expect(userPrompt({ goal: 'g', mode: 'explore', history: '', screen: 's', els: [], tried: [], size: { width: 1, height: 1 }, instructions: ['先看看设置页'] })).toContain('- 先看看设置页');
+    for (const st of ['waiting-env', 'preflight', 'running', 'finishing', 'done'] as const) moveTask(id, st, 'task', 't');
+    expect((await call('POST', `/explore/${id}/inject`, { text: '再看看' })).code).toBe('BAD_INPUT');
   });
 
   it('writable needs full access; configuration items need consent', async () => {
