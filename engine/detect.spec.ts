@@ -92,4 +92,14 @@ describe('deterministic detectors (W2-5 §6)', () => {
     deadTap('更多', before, same, st4, { text: '更多', box: target.box });
     expect(deadTap('详情', before, same, st4, target)).toBeUndefined();
   });
+
+  it('web text lines (no role, no place) are read too; lines that are user content are not', () => {
+    const st = newDetectState();
+    const o = (at: number, texts: string[], nodes: ScreenNode[] = []): Observation => ({ ...obs(at, nodes), texts });
+    expect(detect(o(0, ['aaron+test1', '等待网络']), st)).toEqual([]);
+    expect(detect(o(16_000, ['aaron+test1', '等待网络']), st).map((h) => h.kind)).toEqual(['stuck-loading']);
+    expect(detect(o(0, ['[自定义消息]']), newDetectState()).map((h) => h.kind)).toEqual(['placeholder-text']);
+    const chat = [node('发送失败了吗', 300), node('', H - 90, 'textbox', 60)];
+    expect(detect(o(0, ['发送失败了吗'], chat), newDetectState())).toEqual([]);
+  });
 });

@@ -30,7 +30,7 @@ def _retry_without_restart(self, timeout=None):  # pylint: disable=unused-argume
   # retry (adb_controller.py, _restart_server). That server is shared with the test phone: never kill it —
   # wait a moment and let the retry go to the same server (failures seen: a settings call's "Broken pipe").
   print('[bench] adb command failed — retrying without restarting the adb server', flush=True)
-  time.sleep(1.5)
+  time.sleep(5)
 
 
 adb_controller.AdbController._restart_server = _retry_without_restart  # pylint: disable=protected-access

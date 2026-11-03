@@ -74,7 +74,7 @@ export async function benchCmd(args: string[]): Promise<number> {
         // A device call inside AndroidWorld's set-up can fail for a moment (settings service "Broken pipe"): once more.
         const init = await call<{ goal: string; maxSteps: number }>('POST', `/task/init?${q}`).catch(async (e) => {
           console.error(`[bench] init ${t.name}#${idx} failed (${(e as Error).message.slice(0, 120)}) — retrying once`);
-          await new Promise((r) => setTimeout(r, 3000));
+          await new Promise((r) => setTimeout(r, 10_000));
           return call<{ goal: string; maxSteps: number }>('POST', `/task/init?${q}`);
         });
         r.goal = init.goal;

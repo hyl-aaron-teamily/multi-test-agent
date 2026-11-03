@@ -18,6 +18,8 @@ export interface SnapshotOptions {
   stableMaxMs?: number;
   /** Package filter for Android nodes ('' = every window). */
   pkg?: string;
+  /** Web: also the page's visible text lines (deterministic detectors, W2-5 §6). */
+  texts?: boolean;
 }
 
 /** Pure: two frames count as the same screen when < 0.3% of pixels changed. */
@@ -90,7 +92,9 @@ export async function snapshot(d: Driver, o: SnapshotOptions = {}): Promise<Scre
     const ts = Date.now();
     const [nodes, png] = await Promise.all([webNodes(d).then((n) => ({ n, ms: Date.now() - ts })), (async () => ({ png: await d.screenshot().catch(() => undefined), ms: Date.now() - ts }))()]);
     const vp = d.page.viewportSize();
-    return { at, surface: d.surface, source: 'playwright', ms: { stable: st.ms, tree: nodes.ms, shot: png.ms, total: Date.now() - t0 }, width: vp?.width ?? 0, height: vp?.height ?? 0, nodes: nodes.n, ...(o.keepPng && png.png ? { png: png.png } : {}) };
+    // Visible text through Playwright (innerText of the page body: what a user can read; no code put into the page).
+    const texts = o.texts ? ((await d.page.locator('body').innerText({ timeout: 1500 }).catch(() => '')) as string).split('\n').map((t) => t.trim()).filter((t) => t && t.length <= 60).slice(0, 400) : undefined;
+    return { at, surface: d.surface, source: 'playwright', ms: { stable: st.ms, tree: nodes.ms, shot: png.ms, total: Date.now() - t0 }, width: vp?.width ?? 0, height: vp?.height ?? 0, nodes: nodes.n, ...(texts ? { texts } : {}), ...(o.keepPng && png.png ? { png: png.png } : {}) };
   }
   throw new Error(`snapshot: unsupported driver (${d.surface})`);
 }

@@ -47,7 +47,7 @@ export async function runLoop(c: RunCtx, lo: LoopOptions = {}): Promise<void> {
   // deterministic detectors; a hit is reviewed against the detector's description and never touches the verdict.
   const incidental = async (round: number) => {
     if (res.incidental!.length >= MAX_INCIDENTAL) return;
-    const snap = await snapshot(c.sess.inner, { keepPng: true, skipStable: true }).catch(() => undefined);
+    const snap = await snapshot(c.sess.inner, { keepPng: true, skipStable: true, texts: true }).catch(() => undefined);
     if (!snap?.png) return;
     stats.incidentalSnapshots = (stats.incidentalSnapshots ?? 0) + 1;
     const img = (() => {
@@ -57,7 +57,7 @@ export async function runLoop(c: RunCtx, lo: LoopOptions = {}): Promise<void> {
         return undefined;
       }
     })();
-    for (const h of detect({ at: Date.now(), img, nodes: snap.nodes, width: snap.width || img?.width || 0, height: snap.height || img?.height || 0 }, dst)) {
+    for (const h of detect({ at: Date.now(), img, nodes: snap.nodes, texts: snap.texts, width: snap.width || img?.width || 0, height: snap.height || img?.height || 0 }, dst)) {
       const key = `${h.kind}:${h.text ?? ''}`;
       if (seenHits.has(key) || res.incidental!.length >= MAX_INCIDENTAL) continue;
       seenHits.add(key);

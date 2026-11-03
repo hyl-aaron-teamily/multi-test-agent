@@ -23,7 +23,7 @@ import type { TestPlan } from '../../platform/schema/test-plan';
 import { leaseFor, preflightFor } from '../lease';
 import { PreTapGuard } from '../pretap';
 import { AndroidFlightRecorder } from '../recorder/android-recorder';
-import { incidentDir, incidentKind, type IncidentKind, type ReplayFile, writeIncident } from '../recorder/bundle';
+import { incidentDir, incidentKind, type IncidentKind, type ReplayFile, type RoundFrame, writeIncident } from '../recorder/bundle';
 import { type EvidenceVerdict, reviewIncident } from '../recorder/evidence-review';
 import { WebFlightRecorder } from '../recorder/web-recorder';
 import { closeSession, enterApp, openBenchSession, openSession, packageOf, type Session } from '../session';
@@ -239,11 +239,14 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       const at = Date.now();
       const cap = afr ? await afr.capture(dir, at) : wfr && s.web ? await wfr.capture(s.web.context!, dir, at) : undefined;
       const replay: ReplayFile = { format: 'coord-v1', skillVersion: s.profile.skillVersion, surface: o.surface, profile: s.profile.name, env: o.env, url: s.web ? o.pool?.webUrl(o.env) : undefined, packageName: s.profile.packageName, account: accountId, device: udid, launch: 'once', category: 'bug-intermittent', verdictRule: { anyHit: true }, checks: [], targets: [], setupOps: [], rounds: [{ round: 1, ops: s.d.ops.slice(-80) }], incidentRound: 1 };
-      await writeIncident({ runDir: o.runDir, n, kind, at, detail, plan: planStub(o, id), step, round: 1, action: s.d.label, env: { account: accountId, device: udid, ...(cap && 'state' in cap ? cap.state : {}) }, ops: s.d.ops, frames: [], replay, videos: cap && 'videos' in cap ? cap.videos : undefined, traces: cap && 'traces' in cap ? cap.traces : undefined, logFrom: cap?.logFrom ?? at - 180_000, logTo: cap?.logTo ?? at, clockOffsetMs: afr?.clockOffsetMs, dir });
+      await writeIncident({ runDir: o.runDir, n, kind, at, detail, plan: planStub(o, id), step, round: 1, action: s.d.label, env: { account: accountId, device: udid, ...(cap && 'state' in cap ? cap.state : {}) }, ops: s.d.ops, frames: recentFrames.slice(), replay, videos: cap && 'videos' in cap ? cap.videos : undefined, traces: cap && 'traces' in cap ? cap.traces : undefined, logFrom: cap?.logFrom ?? at - 180_000, logTo: cap?.logTo ?? at, clockOffsetMs: afr?.clockOffsetMs, dir });
       return dir;
     };
 
     const searchBoxes: Box[] = [];
+    // The last screens seen, full size: an incident bundle carries them, so the evidence review has frames where
+    // there is no recording (Web: a trace only).
+    const recentFrames: RoundFrame[] = [];
     // Deterministic detectors (W2-5 §6): on the observation each step takes anyway; not in bench runs.
     const dst = newDetectState();
     const seenHits = new Set<string>();
@@ -271,10 +274,16 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       }
       s.d.step = step;
       s.d.round = 1;
+      // Fault injection for acceptance runs (W2-5 DoD 2): the browser goes offline at this step — network level,
+      // the page's code is not touched (B1). Never set in normal use.
+      if (s.web?.context && Number(process.env.AUTOTEST_FAULT_OFFLINE_STEP) === step) {
+        await s.web.context.setOffline(true);
+        log(`fault injection: browser offline from step ${step}`);
+      }
       // A tap that may have done nothing is judged ≥ 3 s after it (no-response detector).
       if (lastTap && Date.now() - lastTap.at < DETECT.deadTapMs) await sleep(DETECT.deadTapMs - (Date.now() - lastTap.at));
       // Bench: whatever app is in front (the driver is bound to the launcher); otherwise the app under test.
-      const snap = await snapshot(s.inner, { keepPng: true, stableMaxMs: 1500, ...(bench ? { pkg: '' } : {}) }).catch(() => undefined);
+      const snap = await snapshot(s.inner, { keepPng: true, stableMaxMs: 1500, ...(bench ? { pkg: '' } : { texts: true }) }).catch(() => undefined);
       const nodes: ScreenNode[] = snap?.nodes ?? [];
       const els = visibleElements(nodes);
       const screen = fingerprint(nodes);
@@ -284,6 +293,10 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       const triedHere = tried.get(screen) ?? new Set<string>();
       tried.set(screen, triedHere);
       const png = snap?.png ?? (await s.inner.screenshot());
+      if (!bench) {
+        recentFrames.push({ round: 1, step, at: Date.now(), hash: '', png });
+        if (recentFrames.length > 3) recentFrames.shift();
+      }
       const shot = scalePng(png, SHOT_WIDTH);
       const vp = s.profile.viewport.width ? s.profile.viewport : { width: snap?.width ?? 0, height: snap?.height ?? 0 };
       let obs: Observation | undefined;
@@ -295,7 +308,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
             return undefined;
           }
         })();
-        obs = { at: Date.now(), img, nodes, width: snap?.width ?? img?.width ?? 0, height: snap?.height ?? img?.height ?? 0 };
+        obs = { at: Date.now(), img, nodes, texts: snap?.texts, width: snap?.width ?? img?.width ?? 0, height: snap?.height ?? img?.height ?? 0 };
         const hits = detect(obs, dst);
         const dead = lastTap && deadTap(lastTap.key, lastTap.obs, obs, dst, lastTap.target);
         if (dead) hits.push(dead);

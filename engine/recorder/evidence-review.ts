@@ -113,6 +113,13 @@ export function videoFrame(file: string, sec: number, width = FRAME_WIDTH): Buff
   return r.status === 0 && r.stdout?.length ? r.stdout : undefined;
 }
 
+/** Landscape screenshots (desktop web) keep more width: at FRAME_WIDTH their small status texts cannot be read. */
+export function frameWidthOf(png: Buffer): number {
+  const w = png.length > 24 ? png.readUInt32BE(16) : 0;
+  const h = png.length > 24 ? png.readUInt32BE(20) : 0;
+  return w > h ? 1280 : FRAME_WIDTH;
+}
+
 /** A PNG scaled to FRAME_WIDTH (screenshots are full device resolution). */
 export function scalePng(png: Buffer, width = FRAME_WIDTH): Buffer {
   const r = spawnSync(ff(), ['-loglevel', 'error', '-f', 'png_pipe', '-i', 'pipe:0', '-vf', `scale=${width}:-2`, '-f', 'image2pipe', '-vcodec', 'png', 'pipe:1'], { input: png, maxBuffer: 64 * 1024 * 1024, windowsHide: true });
@@ -126,8 +133,11 @@ function stepShots(dir: string): { round: number; png: Buffer }[] {
   return readdirSync(steps)
     .map((f) => ({ f, m: f.match(/^round-(\d+)-step-(\d+)\.png$/) }))
     .filter((x) => x.m)
-    .sort((a, b) => Number(a.m![1]) - Number(b.m![1]))
-    .map((x) => ({ round: Number(x.m![1]), png: scalePng(readFileSync(join(steps, x.f))) }));
+    .sort((a, b) => Number(a.m![1]) - Number(b.m![1]) || Number(a.m![2]) - Number(b.m![2]))
+    .map((x) => {
+      const png = readFileSync(join(steps, x.f));
+      return { round: Number(x.m![1]), png: scalePng(png, frameWidthOf(png)) };
+    });
 }
 
 /** Frames of an incident bundle: from the recording when there is one, else its round-end screenshots. */

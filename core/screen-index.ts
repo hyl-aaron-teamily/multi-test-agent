@@ -32,6 +32,8 @@ export interface ScreenSnapshot {
   width: number;
   height: number;
   nodes: ScreenNode[];
+  /** Web, on request: the page's visible text lines (plain text has no role, so it is not among the nodes). */
+  texts?: string[];
   png?: Buffer;
 }
 

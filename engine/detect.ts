@@ -20,6 +20,8 @@ export interface Observation {
   at: number;
   img?: Rgba;
   nodes: ScreenNode[];
+  /** Web: visible text lines without a place (plain text has no role); read by the text detectors too. */
+  texts?: string[];
   width: number;
   height: number;
 }
@@ -48,7 +50,7 @@ export const DETECT_EXPECTED: Record<DetectKind, string> = {
 
 const ERROR_ZH = /失败|出错|请重试|网络异常|网络错误|网络不可用|服务异常|服务器错误|发生错误|连接失败/;
 const ERROR_EN = /\b(something went wrong|an error (has )?occurred|network error|failed to (load|send|connect)|unable to (load|connect)|try again|request failed|server error|no (internet|network) connection)\b|^\s*error\s*$/i;
-const LOADING = /^(加载中|正在加载|连接中|正在连接|请稍候|loading|connecting|please wait)\s*[.…。]*$/i;
+const LOADING = /^(加载中|正在加载|连接中|正在连接|等待网络|正在重连|重新连接中|请稍候|loading|connecting|reconnecting|waiting for network|please wait)\s*[.…。]*$/i;
 /** Bracket tags the product shows on purpose (message previews: [图片], [Photo] …). */
 const KNOWN_TAGS = /^(图片|照片|语音|视频|文件|表情|动画表情|位置|链接|名片|红包|草稿|有人@我|@我|Image|Photo|Voice|Video|File|Sticker|Location|Link|Draft|GIF)$/i;
 const PLACEHOLDER = [
@@ -70,13 +72,18 @@ export function userContentBoxes(o: Pick<Observation, 'nodes' | 'width' | 'heigh
   return [[0, top, o.width, composer.box[1] - top]];
 }
 
-/** Pure: the nodes whose text the text detectors read — short texts, not inputs, not user content. */
+/** Pure: the nodes whose text the text detectors read — short texts, not inputs, not user content. Web text
+ *  lines have no place: they are read as well, but never those also found in the user content area. */
 function textNodes(o: Observation): { n: ScreenNode; t: string }[] {
   const ex = userContentBoxes(o);
-  return o.nodes
+  const own = o.nodes
     .filter((n) => !isInput(n) && !ex.some((b) => inside(n, b)))
     .map((n) => ({ n, t: label(n).trim() }))
     .filter((x) => x.t && x.t.length <= DETECT.maxTextLen);
+  const userText = new Set(o.nodes.filter((n) => isInput(n) || ex.some((b) => inside(n, b))).map((n) => label(n).trim()));
+  const seen = new Set(own.map((x) => x.t));
+  const lines = (o.texts ?? []).filter((t) => t.length <= DETECT.maxTextLen && !seen.has(t) && !userText.has(t));
+  return [...own, ...[...new Set(lines)].map((t) => ({ n: { text: t, desc: '', rid: '', cls: 'text', clickable: false, box: [0, 0, 0, 0] as Box, center: { x: 0, y: 0 } }, t }))];
 }
 
 /** Pure: luminance standard deviation of the page area (status bar and bottom edge left out), sampled. */
