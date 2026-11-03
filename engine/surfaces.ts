@@ -10,6 +10,7 @@ import type { Surface } from '../platform/accounts/types';
 import { hasElement, pointFor, type Profile } from '../skills/profile';
 import { visionAsk } from '../core/model/midscene';
 import { waitForRegion } from './checks';
+import { pageStd } from './detect';
 import type { Session } from './session';
 import { visionLocator } from './plan/targets';
 
@@ -150,6 +151,9 @@ async function dismissBanner(s: Session): Promise<void> {
 export async function toChatListAndroidWeb(d: Driver, a: AndroidDriver, profile: Profile, log: (s: string) => void): Promise<boolean> {
   log('android-web: not on the chat list (last conversation restored?) — Artifacts → 聊天 → back');
   await a.openUrl('/artifacts');
+  // The phone browser can show an empty page for many seconds while the app loads (2026-11-03 evening: >10 s);
+  // asking the screen before anything is painted only says "no".
+  if (!(await untilPainted(d, 45_000))) log('android-web: the page stayed empty for 45 s');
   if (!(await waitPastDialog(d, a, profile, ['artifacts/nav', 'home/nav'], 40_000, log))) return false;
   // The phone browser's page answers a tap seconds later, and its bottom bar looks the same on Artifacts and
   // on the chat list: after each tap wait until the page really changed, then let the screen (vision) say
@@ -171,6 +175,18 @@ export async function toChatListAndroidWeb(d: Driver, a: AndroidDriver, profile:
   if (!ok) log('android-web: the chat list did not show');
   return ok;
 }
+
+/** Wait until the page area shows something (not one flat colour), polled every second. */
+async function untilPainted(d: Driver, ms: number): Promise<boolean> {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    if (pageStd(decodePng(await d.screenshot())) >= PAINTED_STD) return true;
+    await sleep(1000);
+  }
+  return false;
+}
+/** Luminance spread above which a page has content (a flat loading page is ~1). */
+const PAINTED_STD = 8;
 
 /** Wait until the page area differs from `before` (≥ 3 % of its pixels) and then holds still for one poll. */
 async function untilChanged(d: Driver, before: Rgba, ms: number): Promise<boolean> {
