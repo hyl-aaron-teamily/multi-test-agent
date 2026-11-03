@@ -1,5 +1,12 @@
 # Changelog
 
+## W2-5（开发中）
+
+范围：`docs/dev-week2-milestone5.md`（重写版）。
+
+**Changed**
+- 删除 `docs/history/`：各里程碑需求文档放回 `docs/`；验收记录、证据目录、规则审核表、环境计划 / 报告、重构方案与验收只留在 git 里（最后一版在 `5d84362`），现行文档里的引用改为 `5d84362:<路径>`。
+
 ## 重构 P1–P3 + W2-4.1（2026-11-03 合并到 main）：两项能力——快速档（自然语言 / 探索）与 Pro 档（Issue → 计划 → 复现）
 
 范围：`docs/dev-week2-milestone4.1.md`；验收：`docs/w2m4.1-acceptance.md`；生效规则：`docs/rules.md`。各阶段按时间倒序。

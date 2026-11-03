@@ -1,6 +1,6 @@
 # 开发规定（生效版）
 
-由 `docs/history/rules-audit.md`（2026-10-31 用户审核）和 W2-4.1 的决定（2026-11-03，`docs/dev-week2-milestone4.1.md` §4、§12）整理而来，只列现在生效的规定（原表在 `docs/history/rules-audit.md`）。
+由 `5d84362:docs/history/rules-audit.md`（2026-10-31 用户审核）和 W2-4.1 的决定（2026-11-03，`docs/dev-week2-milestone4.1.md` §4、§12）整理而来，只列现在生效的规定。
 「改」和「定」的条目写的是修改后的版本。能力① = 快速档（自然语言自主测试 / 探索），能力② = Pro 档（Issue → 确定性计划 → 复现）。落点写法：`路径#符号`；写「（未落地）」表示代码和现存文档里都没找到。
 
 ## A 范围
@@ -95,7 +95,7 @@
 | F11 | Web 登录用光标和键盘，之后用 storageState 复用会话，失效时自动重新登录 | `engine/login/sessions.ts#ensureWebSession`；`engine/login/ui-login.ts#ensureUiLogin` |
 | F12 | 不硬编码设备序列号；多台设备在线时先问用户用哪台 | `platform/device-pool.ts#parsePoolConfig`；`platform/mcp.ts#deviceSnapshot`；`docs/agent-rules.md` §5 |
 | F13 | 不装 Android Studio、模拟器、Gradle；SDK 片段可以下载到 tools/android-sdk | `android/a11y-service/fetch-sdk.sh` |
-| F14 | 会修改系统的命令，先在 env-plan.md 记录原文，执行后补记结果 | `docs/history/env-plan.md` |
+| F14 | 会修改系统的命令，先在 env-plan.md 记录原文，执行后补记结果 | `docs/env-plan.md`（有这类命令时新建；之前的记录在 `5d84362:docs/history/env-plan.md`） |
 | F15 | CI 里的模型 Key 通过 Secrets 注入 | `.github/workflows/ai-test.yml` |
 | F16 | 多端任务要么租到全部环境，要么一个都不租；结束时全部释放，并各自检查（2026-11-03） | `platform/lifecycle/supervisor.ts#Supervisor`（`leaseAll`、`ended`） |
 
@@ -126,7 +126,7 @@
 | H5 | 视图模型带 schemaVersion，有破坏性改动时 +1，并同时更新快照 | `platform/views.ts#VIEW_SCHEMA_VERSION`；`platform/__snapshots__/w2m3.spec.ts.snap` |
 | H6 | 先说明再执行：PlanView 列出发送条数上界、目标会话、构造的数据、配置项、模型调用点、预计耗时和审批类别 | `platform/views.ts#planView`；`platform/views.ts#estimate` |
 | H7 | Web 用中文白话，每页回答五问（要做什么 / 正在做什么 / 结果 / 可信吗 / 下一步）；步骤由模板生成；不引入前端框架 | `platform/web/index.html`；`platform/web/app.js`；`platform/views.ts#stepText` |
-| H8 | 人工可读性由同事真人验收；LLM 只能润色说明文字 | `docs/w2m4.1-acceptance.md`；`docs/history/w2m3-colleague-check.md` |
+| H8 | 人工可读性由同事真人验收；LLM 只能润色说明文字 | `docs/w2m4.1-acceptance.md`；`docs/w2m4.1-colleague-check.md` |
 
 ## I 工程流程（用户审核时称 L 组）
 
