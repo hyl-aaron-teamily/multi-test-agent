@@ -15,6 +15,7 @@ import os
 import shutil
 import tempfile
 import threading
+import time
 
 import fastapi
 import uvicorn
@@ -24,13 +25,15 @@ from android_world import registry, suite_utils
 from android_world.env import env_launcher, json_action
 
 
-def _refuse_restart(self, timeout=None):  # pylint: disable=unused-argument
-  # android_env restarts the adb server (`adb kill-server`) whenever a device command fails before retrying
-  # (adb_controller.py, _restart_server). That server is shared with the test phone: fail instead.
-  raise RuntimeError('refused adb kill-server: the adb server is shared with the test phone')
+def _retry_without_restart(self, timeout=None):  # pylint: disable=unused-argument
+  # android_env restarts the adb server (`adb kill-server`) whenever a device command fails, before its one
+  # retry (adb_controller.py, _restart_server). That server is shared with the test phone: never kill it —
+  # wait a moment and let the retry go to the same server (failures seen: a settings call's "Broken pipe").
+  print('[bench] adb command failed — retrying without restarting the adb server', flush=True)
+  time.sleep(1.5)
 
 
-adb_controller.AdbController._restart_server = _refuse_restart  # pylint: disable=protected-access
+adb_controller.AdbController._restart_server = _retry_without_restart  # pylint: disable=protected-access
 
 _install_apk = adb_call_parser.AdbCallParser._install_apk  # pylint: disable=protected-access
 

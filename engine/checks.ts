@@ -2,12 +2,12 @@
 // (SKILL cache, refactor P3); only a mismatch (or an explicit ai check) goes to the vision model — and every
 // vision call is counted. A missing reference is captured outside the loop when its anchors are on screen.
 import { visionAsk, visionEnabled } from '../core/model/midscene';
-import { readFileSync, statSync } from 'node:fs';
+import { copyFileSync, readFileSync, statSync } from 'node:fs';
 import { type Box, decodePng, type Rgba, regionDiffFraction, scaleBox } from '../core/image';
 import type { Driver } from '../drivers/types';
 import { majority } from '../core/model/llm';
 import type { CheckPoint } from '../platform/schema/test-plan';
-import { type Profile, refImagePath, SkillStaleError } from '../skills/profile';
+import { type Profile, type RegionRef, refImagePath, saveCache, SkillStaleError, type Theme } from '../skills/profile';
 
 export const MATCH_DISTANCE = 12;
 /** Region counts as matching the reference when fewer than this fraction of its pixels differ. */
@@ -49,6 +49,51 @@ function refImage(p: Profile, image: string): Rgba | undefined {
     }
   }
   return refImages.get(key);
+}
+
+/** Pure: the theme of a region: dark when its mean luminance is low. */
+export function themeOf(img: Rgba, box: Box): Theme {
+  const [bx, by, bw, bh] = box.map(Math.round);
+  let n = 0;
+  let sum = 0;
+  for (let y = Math.max(0, by); y < Math.min(img.height, by + bh); y += 4) {
+    for (let x = Math.max(0, bx); x < Math.min(img.width, bx + bw); x += 4) {
+      const o = (y * img.width + x) * 4;
+      sum += 0.299 * img.data[o] + 0.587 * img.data[o + 1] + 0.114 * img.data[o + 2];
+      n++;
+    }
+  }
+  return n && sum / n < 110 ? 'dark' : 'light';
+}
+
+/** The reference and its other-theme variants, decoded (W2-5 §8.1). */
+function variants(p: Profile, r: RegionRef): { box: Box; img: Rgba; theme?: Theme }[] {
+  return [{ box: r.box, image: r.image, theme: r.theme }, ...(r.alts ?? [])].flatMap((v) => {
+    const img = refImage(p, v.image);
+    return img ? [{ box: v.box, img, theme: v.theme }] : [];
+  });
+}
+
+/** Best match of a region over its theme variants: the smallest difference and the theme it came from. */
+function bestMatch(img: Rgba, p: Profile, key: string, r: RegionRef): { fraction: number; theme?: Theme } {
+  let best: { fraction: number; theme?: Theme } = { fraction: 1 };
+  for (const v of variants(p, r)) {
+    const m = regionMatch(img, v.img, v.box, dprOf(p, img), SLIDING[key] ?? 0, SLIDING_X[key] ?? 0);
+    if (m.fraction < best.fraction) best = { fraction: m.fraction, theme: v.theme ?? themeOf(v.img, v.box) };
+  }
+  return best;
+}
+
+/** Pure: a capture that replaces `old` (outside the loop, after a theme switch): the old one is kept under its
+ *  own theme's name as a variant, one per theme. `rename` copies the old screenshot to its variant file name. */
+export function withThemeVariant(fresh: RegionRef, old: RegionRef, oldTheme: Theme, freshTheme: Theme, rename: (from: string, to: string) => void): RegionRef {
+  const alts = (old.alts ?? []).filter((a) => a.theme !== freshTheme && a.theme !== oldTheme);
+  if (oldTheme !== freshTheme) {
+    const image = old.image.replace(/\.png$/, `.${oldTheme}.png`);
+    rename(old.image, image);
+    alts.unshift({ box: old.box, image, theme: oldTheme });
+  } else alts.push(...(old.alts ?? []).filter((a) => a.theme === oldTheme && a.theme !== freshTheme));
+  return { ...fresh, theme: freshTheme, ...(alts.length ? { alts } : {}) };
 }
 
 /** Pure: smallest differing-pixel fraction of the reference region within a vertical search window. */
@@ -125,12 +170,11 @@ export async function evaluateVisual(driver: Driver, p: Profile, c: CheckPoint, 
   // Captured just now from this very screen: it shows.
   if (!had) return { check: c, pass: c.want !== 'absent', detail: `region ${key} captured now (present)` };
   const img = decodePng(shot ?? (await driver.screenshot()));
-  const refImg = ref.img;
-  const m = regionMatch(img, refImg, ref.box, dprOf(p, img), SLIDING[`${c.page}/${c.region}`] ?? 0, SLIDING_X[`${c.page}/${c.region}`] ?? 0);
+  const m = bestMatch(img, p, key, refFor(p, c.page ?? '', c.region ?? '')!);
   const dist = Math.round(m.fraction * 100);
   const present = m.fraction <= MATCH_FRACTION;
   const pass = c.want === 'absent' ? !present : present;
-  if (pass || !ask || c.onlyOnAnomaly === false) return { check: c, pass, detail: `region ${c.page}/${c.region} ${present ? 'matches' : 'differs'} (diff ${dist}%)`, distance: dist };
+  if (pass || !ask || c.onlyOnAnomaly === false) return { check: c, pass, detail: `region ${c.page}/${c.region} ${present ? `matches (${m.theme ?? '-'} theme)` : 'differs'} (diff ${dist}%)`, distance: dist };
   // Anomaly: ask the vision model once to tell real problem / transient / operation drift.
   const v = await ask(`${c.expect}. Answer true if this is the case on the screen now.`);
   if (v === null) return { check: c, pass, detail: `region differs (diff ${dist}%); vision unavailable → counted as observed`, distance: dist };
@@ -179,9 +223,8 @@ export async function visionAsker(driver: Driver & { page?: unknown; o?: any }):
 export function regionShows(img: Rgba, p: Profile, key: string, tolerance = MATCH_FRACTION): boolean {
   const [page, region] = key.split('/');
   const r = refFor(p, page, region);
-  const refImg = r && refImage(p, r.image);
-  if (!r || !refImg) return false;
-  return regionMatch(img, refImg, r.box, dprOf(p, img), SLIDING[key] ?? 0).fraction <= tolerance;
+  if (!r) return false;
+  return bestMatch(img, p, key, r).fraction <= tolerance;
 }
 
 /** Poll the screen until one of the reference regions shows on two polls in a row (a page that is still
@@ -204,8 +247,27 @@ export async function waitForRegion(driver: Driver, p: Profile, keys: string[], 
         const [page, region] = k.split('/');
         const old = p.refs[page]?.[region];
         if (!old) continue;
+        const oldImg = refImage(p, old.image);
+        const oldTheme = old.theme ?? (oldImg ? themeOf(oldImg, old.box) : 'light');
+        // Keep the old capture before the new one overwrites its file: it is the other theme's variant.
+        const keep = old.image.replace(/\.png$/, '.prev.png');
+        try {
+          copyFileSync(refImagePath(p, old.image), refImagePath(p, keep));
+        } catch {}
         delete p.refs[page][region];
-        if (!(await ensureRef(p, k))) p.refs[page][region] = old;
+        if (!(await ensureRef(p, k))) {
+          p.refs[page][region] = old;
+          continue;
+        }
+        const fresh = p.refs[page][region];
+        const freshImg = refImage(p, fresh.image);
+        const freshTheme = freshImg ? themeOf(freshImg, fresh.box) : 'light';
+        p.refs[page][region] = withThemeVariant(fresh, { ...old, image: keep }, oldTheme, freshTheme, (from, to) => {
+          try {
+            copyFileSync(refImagePath(p, from), refImagePath(p, to));
+          } catch {}
+        });
+        await saveCache(p).catch(() => {});
       }
       const again = decodePng(await driver.screenshot());
       hit = keys.find((k) => regionShows(again, p, k, tolerance));

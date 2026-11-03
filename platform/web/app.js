@@ -412,7 +412,15 @@ function exploreCards(v) {
     <p>${esc(e.summary || '-')}</p>
     <div class="stats">${stat(e.findings.filter((f) => f.counted).length, '发现（计入）')}${stat(e.coverage.screens, '覆盖界面')}${stat(e.coverage.actions, '执行的动作')}${stat(e.blocked, '拦截的动作')}${stat(e.usage.steps, '步')}${stat(e.usage.modelCalls, '模型调用')}${stat(`${Math.round(e.usage.seconds / 60)} 分`, '用时')}</div>
     <h3>发现</h3>${fs.join('') || '<p class="empty">没有发现。</p>'}
+    ${e.candidates !== undefined ? `<h3>SKILL 候选</h3><p class="muted">${e.candidates} 个反复出现、文字稳定的元素，人工审核后再进标定（不会自动写入 SKILL）。<button class="btn small" onclick="showCandidates('${esc(v.taskId)}', this)">查看</button></p><div id="cands"></div>` : ''}
     <p class="muted">探索的发现不是复现结论：转成 Issue 后由 Issue 主线（高确定性的计划）复现，给出带分母的结论。</p>`, 80);
+}
+
+async function showCandidates(taskId, btn) {
+  btn.disabled = true;
+  const r = await api('GET', `/explore/${enc(taskId)}/candidates`);
+  if (r.code !== 'OK') return ($('#cands').innerHTML = `<p class="bad">${esc(r.summary)}</p>`);
+  $('#cands').innerHTML = `<table><tr><th>界面</th><th>含义（文字）</th><th>可点</th><th>次数</th><th>位置</th><th>截图</th></tr>${r.data.candidates.slice(0, 60).map((c) => `<tr><td class="mono">${esc(c.page)}</td><td>${esc(c.meaning)}</td><td>${c.clickable ? '是' : ''}</td><td>${c.count}</td><td class="mono">${esc(c.box.join(','))}</td><td>${fileLink(c.shot, '看')}</td></tr>`).join('')}</table>`;
 }
 
 async function toIssue(taskId, n, btn) {

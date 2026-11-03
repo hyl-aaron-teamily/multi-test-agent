@@ -7,7 +7,8 @@ import { label, type ScreenNode } from '../../core/screen-index';
 export type AgentAction =
   | { type: 'tap'; target?: number; x?: number; y?: number; description?: string }
   | { type: 'longPress'; target?: number; x?: number; y?: number; description?: string }
-  | { type: 'type'; target?: number; text: string }
+  | { type: 'type'; target?: number; text: string; clear?: boolean }
+  | { type: 'drag'; x1: number; y1: number; x2: number; y2: number }
   | { type: 'swipe'; direction: 'up' | 'down' | 'left' | 'right' }
   | { type: 'back' }
   | { type: 'launch' }
@@ -25,7 +26,14 @@ export interface AgentAnswer {
   /** Markdown checklist ([ ] / [/] / [x] / [!]); the model keeps it current. */
   plan?: string;
   action: AgentAction;
+  /** A short burst on the same screen after `action` (Artemis Flash click_sequence): at most BURST_MAX - 1. */
+  then?: AgentAction[];
 }
+
+/** Actions per turn at most (the first plus the burst). */
+export const BURST_MAX = 4;
+/** Actions that may be part of a burst (the others end a turn on their own). */
+const BURSTABLE = new Set(['tap', 'longPress', 'type', 'swipe', 'drag', 'back', 'enter', 'wait']);
 
 export interface StepRecord {
   step: number;
@@ -43,8 +51,18 @@ export function visibleElements(nodes: ScreenNode[], max = 80): ScreenNode[] {
   return nodes.filter((n) => label(n) || n.clickable).slice(0, max);
 }
 
+const INPUT = /EditText|textbox|textarea|searchbox|combobox/i;
+
+/** Pure: the numbered element list. Inputs are called inputs (with their placeholder); an element without text
+ *  shows the tail of its resource id, so unlabelled fields and icons can still be told apart. */
 export function elementList(els: ScreenNode[]): string {
-  return els.map((n, i) => `[${i + 1}] ${n.clickable ? 'button' : n.cls.replace(/^android\.widget\./, '')} "${label(n).slice(0, 60)}" @(${n.center.x},${n.center.y})`).join('\n');
+  return els
+    .map((n, i) => {
+      const kind = INPUT.test(n.cls) ? 'input' : n.clickable ? 'button' : n.cls.replace(/^android\.widget\./, '');
+      const extra = [n.hint ? `hint "${n.hint.slice(0, 40)}"` : '', !label(n) && n.rid && !/^(button|link|textbox|listitem|img|generic)$/.test(n.rid) ? `id "${n.rid.split('/').pop()!.slice(0, 40)}"` : ''].filter(Boolean).join(' ');
+      return `[${i + 1}] ${kind} "${label(n).slice(0, 60)}"${extra ? ` ${extra}` : ''} @(${n.center.x},${n.center.y})`;
+    })
+    .join('\n');
 }
 
 /** Pure: a screen's fingerprint — its labels, ignoring counts and times that change while it stays the same screen. */
@@ -90,11 +108,12 @@ Actions:
 - {"type":"tap","target":<element number>}  (preferred)
 - {"type":"tap","x":<px>,"y":<px>,"description":"<what is there>"}  (only for something not in the list; coordinates in the element list's space)
 - {"type":"longPress","target":<n>}
-- {"type":"type","target":<n>,"text":"..."}
-- {"type":"swipe","direction":"up|down|left|right"}
+- {"type":"type","target":<n>,"text":"...","clear":true|false}  (focuses the field itself — no tap before it; clear = replace what is there)
+- {"type":"swipe","direction":"up|down|left|right"} | {"type":"drag","x1":..,"y1":..,"x2":..,"y2":..}  (drag: sliders, pickers)
 - {"type":"back"} | {"type":"launch"} | {"type":"wait","ms":<=3000}
 - {"type":"report_issue","description":"<what you see that is wrong, as visible facts>"}  (an error, a crash dialog, a blank or stuck page, broken text — something that stops normal use)
 - {"type":"done","status":"completed|failed","summary":"..."}  (goal reached, or impossible)
+Several steps on the same screen (fill a form, type then press Enter): add "then": [up to 3 more actions of the kinds tap / longPress / type / swipe / drag / back / enter / wait]; they run in order and stop at the first one that does not go through.
 Rules: look before you act; do not assume where a tap leads; describe visible facts, never guess causes.
 ${writable ? 'Writable run: you may type and send, but never delete or recall anything.' : 'READ-ONLY run: never send, delete, change settings, pay, log out, invite or share, or edit a profile; typing is allowed only into a search box. Such actions are blocked and reported back to you.'}
 Likes, follows, favourites and subscriptions change what real users see: do them only on the test accounts' own profiles and content (${ownContent.length ? ownContent.map((n) => `"${n}"`).join(', ') : 'none configured'}); elsewhere they are blocked. Tabs with those names on other people's pages are blocked too — check them on the own profiles.
@@ -108,12 +127,13 @@ Actions:
 - {"type":"tap","target":<element number>}  (preferred)
 - {"type":"tap","x":<px>,"y":<px>,"description":"<what is there>"}  (only for something not in the list; coordinates in the element list's space)
 - {"type":"longPress","target":<n>}
-- {"type":"type","target":<n>,"text":"..."}  (taps the field, then types; clear existing text first if it must be replaced)
-- {"type":"swipe","direction":"up|down|left|right"}
+- {"type":"type","target":<n>,"text":"...","clear":true|false}  (focuses the field itself — do not tap it first; clear = replace what is there)
+- {"type":"swipe","direction":"up|down|left|right"} | {"type":"drag","x1":..,"y1":..,"x2":..,"y2":..}  (drag: sliders, pickers, seek bars)
 - {"type":"open_app","app":"<app name, e.g. Contacts, Clock, Markor>"}
 - {"type":"back"} | {"type":"home"} | {"type":"enter"} | {"type":"wait","ms":<=3000}
 - {"type":"answer","text":"..."}  (the task asks a question: give the answer, then finish with done)
 - {"type":"done","status":"completed|failed","summary":"..."}  (the task is done, or it cannot be done)
+Several steps on the same screen (fill a form, type then press Enter, set a picker): add "then": [up to 3 more actions of the kinds tap / longPress / type / swipe / drag / back / enter / wait]; they run in order and stop at the first one that does not go through. Turns are limited: batch what you can see.
 Rules: look before you act; do not assume where a tap leads; check on the screen that each step took effect before moving on; finish with done as soon as the task is complete.`;
 
 export function userPrompt(o: { goal: string; mode: 'task' | 'explore'; plan?: string; history: string; screen: string; els: ScreenNode[]; tried: string[]; feedback?: string; size: { width: number; height: number }; instructions?: string[] }): string {
@@ -133,9 +153,22 @@ export function userPrompt(o: { goal: string; mode: 'task' | 'explore'; plan?: s
 /** Pure: validate the model's answer; undefined = unusable (the turn is retried once, then ends as failed). */
 export function parseAnswer(raw: unknown, bench = false): AgentAnswer | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
-  const r = raw as { thought?: unknown; plan?: unknown; action?: Record<string, unknown> };
-  const a = r.action;
-  if (!a || typeof a.type !== 'string') return undefined;
+  const r = raw as { thought?: unknown; plan?: unknown; action?: Record<string, unknown>; then?: unknown };
+  const action = r.action && parseAction(r.action, bench);
+  if (!action) return undefined;
+  const rest = Array.isArray(r.then) && BURSTABLE.has(action.type) ? r.then.slice(0, BURST_MAX - 1).map((x) => (x && typeof x === 'object' ? parseAction(x as Record<string, unknown>, bench) : undefined)) : [];
+  // A burst holds only burstable actions; anything else ends it.
+  const then: AgentAction[] = [];
+  for (const x of rest) {
+    if (!x || !BURSTABLE.has(x.type)) break;
+    then.push(x);
+  }
+  return { thought: String(r.thought ?? ''), plan: typeof r.plan === 'string' ? r.plan : undefined, action, ...(then.length ? { then } : {}) };
+}
+
+/** Pure: one action of the answer; undefined = unusable. */
+export function parseAction(a: Record<string, unknown>, bench = false): AgentAction | undefined {
+  if (typeof a.type !== 'string') return undefined;
   const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : typeof v === 'string' && /^\d+$/.test(v) ? Number(v) : undefined);
   let action: AgentAction | undefined;
   switch (a.type) {
@@ -150,8 +183,14 @@ export function parseAnswer(raw: unknown, bench = false): AgentAnswer | undefine
     }
     case 'type':
       if (typeof a.text !== 'string') return undefined;
-      action = { type: 'type', target: num(a.target), text: a.text };
+      action = { type: 'type', target: num(a.target), text: a.text, ...(a.clear === true ? { clear: true } : {}) };
       break;
+    case 'drag': {
+      const [x1, y1, x2, y2] = [num(a.x1), num(a.y1), num(a.x2), num(a.y2)];
+      if (x1 === undefined || y1 === undefined || x2 === undefined || y2 === undefined) return undefined;
+      action = { type: 'drag', x1, y1, x2, y2 };
+      break;
+    }
     case 'swipe':
       action = { type: 'swipe', direction: (['up', 'down', 'left', 'right'] as const).find((d) => d === a.direction) ?? 'up' };
       break;
@@ -189,7 +228,7 @@ export function parseAnswer(raw: unknown, bench = false): AgentAnswer | undefine
     default:
       return undefined;
   }
-  return { thought: String(r.thought ?? ''), plan: typeof r.plan === 'string' ? r.plan : undefined, action: action! };
+  return action;
 }
 
 /** Pure: checklist state of a plan. */

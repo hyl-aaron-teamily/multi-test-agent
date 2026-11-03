@@ -239,6 +239,18 @@ async function incidentalIssue(id: string, n: number, run = 0): Promise<Envelope
   return ok('OK', `Issue ${out.id} 已生成`, { issue: out.id, file: out.file }, `Issue ${out.id} → ${out.file}\n下一步：autotest draft create ${out.id}，再 plan explain / task run`);
 }
 
+/** SKILL candidates of an exploration task (W2-5 §7.3): a list for people to review, never written to a profile. */
+function exploreCandidates(ref: string): Envelope {
+  const dir = getTask(ref)?.runDir ?? resolve(ref);
+  if (!normalize(dir).startsWith(resolve('midscene_run') + sep)) return fail('BAD_INPUT', `${ref} 不是探索任务，也不是 midscene_run 下的探索目录`);
+  const f = join(dir, 'skill-candidates.json');
+  if (!existsSync(f)) return fail('NOT_FOUND', `${ref} 还没有 SKILL 候选清单（探索结束时生成）`);
+  const c = JSON.parse(readFileSync(f, 'utf8')) as { candidates: { page: string; meaning: string; count: number; clickable: boolean; box: number[]; shot: string }[] };
+  for (const x of c.candidates) x.shot = join(dir, x.shot);
+  const text = c.candidates.length ? c.candidates.slice(0, 40).map((x) => `- [${x.page}] 「${x.meaning}」${x.clickable ? '（可点）' : ''} × ${x.count} @ ${x.box.join(',')}`).join('\n') : '（没有出现 3 次以上、文字稳定的元素）';
+  return ok('OK', `${c.candidates.length} 个 SKILL 候选（人工审核后再标定）`, { file: f, url: fileUrl(f), candidates: c.candidates }, `${text}\n清单：${f}`);
+}
+
 /** Add an instruction to a running exploration task (W2-5 §7.2): it takes effect at the next step boundary. */
 function exploreInject(id: string, text: unknown): Envelope {
   const t = getTask(id);
@@ -468,6 +480,7 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
     }
     if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'issue') return exploreIssue(seg[1], Number(q.body.n));
     if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'inject') return exploreInject(seg[1], q.body.text);
+    if (M === 'GET' && seg[0] === 'explore' && seg[1] && seg[2] === 'candidates') return exploreCandidates(seg[1]);
     if (M === 'POST' && seg[0] === 'results' && seg[1] && seg[2] === 'incidental' && seg[3] && seg[4] === 'issue') return incidentalIssue(seg[1], Number(seg[3]), Number(q.body.run ?? 0));
     if (M === 'GET' && seg[0] === 'results' && seg[1]) {
       const t = getTask(seg[1]);

@@ -245,6 +245,17 @@ Exploration finding → Issue draft (issues/explore/<id>.md) for the quick tier:
 
 可能的状态码：`OK`、`NOT_FOUND`、`BAD_INPUT`（另有 1 / 40 / 54）
 
+### `autotest explore candidates`
+
+SKILL candidates of an exploration: elements seen again and again with the same text (page, meaning, box, count, screenshot) — for a person to review; never written to a profile
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| <taskId> | string | 是 | exploration task id (or its run dir under midscene_run) |
+| --json | boolean |  | stdout = one JSON envelope { status, code, exit, summary, data, error } |
+
+可能的状态码：`OK`、`NOT_FOUND`、`BAD_INPUT`（另有 1 / 40 / 54）
+
 ### `autotest explore inject`
 
 Add an instruction to a running exploration task; the agent gets it at the next step boundary (refused once the task has ended)

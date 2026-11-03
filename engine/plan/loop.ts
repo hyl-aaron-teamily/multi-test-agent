@@ -22,6 +22,7 @@ import { applyIntervals, attemptsOf, attemptsText } from '../stats';
 import { VerdictTracker } from '../verdict';
 import { detect, DETECT_EXPECTED, newDetectState } from '../detect';
 import { snapshot } from '../snapshot';
+import { visionAsk } from '../../core/model/midscene';
 
 const WATCHDOG_MS = 20_000;
 
@@ -164,8 +165,16 @@ export async function runLoop(c: RunCtx, lo: LoopOptions = {}): Promise<void> {
       }
       // The check's own precondition (e.g. "@" really in the composer): not met = the input did not land.
       if (failed && !hardHit && !drift && failed.check.requires?.composerHas) {
-        const t = await composerText(c.sess.inner);
-        if (t !== null && !t.includes(failed.check.requires.composerHas)) drift = `check precondition not met: composer is "${t.slice(0, 40)}", not containing "${failed.check.requires.composerHas}"`;
+        const want = failed.check.requires.composerHas;
+        if (plan.surface === 'android-web') {
+          // The phone browser's tree is stale after in-page navigation (W2-5 §8.2): ask the screen (round end,
+          // after a failed check — where D5 allows the vision model).
+          const has = await visionAsk(c.sess.inner as any, `The message input box at the bottom of the chat contains the text "${want}"`, 'checkpoint').catch(() => null);
+          if (has === false) drift = `check precondition not met: the composer does not show "${want}" (vision)`;
+        } else {
+          const t = await composerText(c.sess.inner);
+          if (t !== null && !t.includes(want)) drift = `check precondition not met: composer is "${t.slice(0, 40)}", not containing "${want}"`;
+        }
       }
       if (failed && !hardHit && !drift && png && !(await onChat(c, png))) drift = 'chat page not on screen';
     }

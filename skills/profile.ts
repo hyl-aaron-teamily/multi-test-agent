@@ -26,7 +26,13 @@ export interface RegionRef {
   /** Screenshot the region was captured from (file name in the cache dir). */
   image: string;
   at?: string;
+  /** Light or dark theme of this capture (W2-5 §8.1). */
+  theme?: Theme;
+  /** The same region captured in the other theme: a check passes when any variant matches. */
+  alts?: { box: Box; image: string; theme: Theme }[];
 }
+
+export type Theme = 'light' | 'dark';
 
 export interface Profile {
   surface: Surface;

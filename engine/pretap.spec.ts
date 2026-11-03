@@ -19,6 +19,12 @@ describe('engine/pretap treeVerdict', () => {
   it('pass when the target is still at the point', () => {
     expect(treeVerdict(ref, P, nodesOf(ROW(400)))?.kind).toBe('pass');
   });
+  it('a label made only of symbols ("⌫") is compared as it is (2026-11-03 bench: the key was "not on screen")', () => {
+    const key = (t: string) => `<node text="${t}" content-desc="" resource-id="" class="android.widget.Button" package="p" clickable="true" bounds="[760,1600][880,1690]" />`;
+    const r = { purpose: 'tap', text: '⌫', box: [760, 1600, 120, 90] as [number, number, number, number] };
+    expect(treeVerdict(r, { x: 820, y: 1645 }, nodesOf(key('⌫')))?.kind).toBe('pass');
+    expect(treeVerdict(r, { x: 820, y: 1645 }, nodesOf(key('+')))?.kind).toBe('gone');
+  });
   it('small drift is corrected to the new centre', () => {
     const r = treeVerdict(ref, P, nodesOf(ROW(460)));
     expect(r?.kind).toBe('corrected');

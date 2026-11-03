@@ -63,7 +63,17 @@ export function resolvePlan(id: string): ResolvedPlan {
   if (allowed.includes('mobile-web')) allowed.push('android-web');
   if (!allowed.includes(ref.surface)) throw new CodedError('NOT_FOUND', `子用例 ${ref.sub} 不能在 ${ref.surface} 上执行`, `可选：${allowed.join(', ')}`);
   const plan = applyApproval(d, [{ sub: ref.sub, surface: ref.surface }])[0];
+  const unfit = surfaceUnfit(plan);
+  if (unfit) throw new CodedError('PLAN_NOT_EXECUTABLE', unfit, '换一个端执行（例如 android-app 或 mobile-web）');
   return { id, ref, draft: d, plan, hash: planHash(plan) };
+}
+
+/** Pure: why this plan cannot run on its surface, if it cannot (W2-5 §8.2). The phone browser's accessibility
+ *  tree does not follow in-page navigation, so members in the @ picker cannot be read and frozen there. */
+export function surfaceUnfit(plan: Pick<TestPlan, 'surface' | 'prepare'>): string | undefined {
+  if (plan.surface === 'android-web' && plan.prepare.some((a) => a.node?.name === 'teamily.freezeMention'))
+    return 'android-web 不适用：计划要在 @ 选择器里读出并冻结成员，手机浏览器的无障碍树不跟随页面内跳转，读不准';
+  return undefined;
 }
 
 /** What an approval is bound to besides the plan hash (§5.1): any change after approval → 32. */

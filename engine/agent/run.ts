@@ -27,7 +27,8 @@ import { closeSession, enterApp, openBenchSession, openSession, packageOf, type 
 import { snapshot } from '../snapshot';
 import { deadTap, detect, DETECT, DETECT_EXPECTED, type DetectHit, type DetectKind, newDetectState, type Observation } from '../detect';
 import { type Box, decodePng } from '../../core/image';
-import { classifyRisk, nearOwnContent } from './risk';
+import { classifyRisk, isSearchLabel, nearOwnContent, wasSearchBox } from './risk';
+import { CandidateTracker } from './candidates';
 import { type AgentAction, type AgentAnswer, BENCH_SYSTEM, fingerprint, historyText, loopHint, parseAnswer, planState, type StepRecord, SYSTEM, userPrompt, visibleElements } from './step';
 import { scalePng } from '../recorder/evidence-review';
 
@@ -105,6 +106,8 @@ export interface AgentResult {
   coverage: { screens: number; actions: number; byScreen: Record<string, number> };
   usage: { steps: number; seconds: number; modelCalls: number };
   steps: StepRecord[];
+  /** SKILL candidates written to skill-candidates.json (W2-5 §7.3). */
+  candidates?: { count: number; file: string };
   /** Instructions added during the run, with the step they arrived before. */
   instructions?: { step: number; text: string }[];
   runDir: string;
@@ -155,11 +158,18 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
   const { maxSteps, maxMinutes } = agentLimits(o);
   const deadline = t0 + maxMinutes * 60_000;
   const tried = new Map<string, Set<string>>();
+  // SKILL candidates (W2-5 §7.3, N6): elements seen again and again with the same text — a list for people.
+  const candidates = new CandidateTracker();
   const ownNames = o.pool?.ownContent(o.env) ?? [];
   const finish = async (): Promise<AgentResult> => {
     res.finishedAt = new Date().toISOString();
     res.usage = { steps: res.steps.length, seconds: Math.round((Date.now() - t0) / 1000), modelCalls: modelCalls.vision + modelCalls.text - calls0 };
     res.coverage = { screens: tried.size, actions: [...tried.values()].reduce((n, s) => n + s.size, 0), byScreen: Object.fromEntries([...tried].map(([k, v]) => [k, v.size])) };
+    if (!o.bench) {
+      const list = candidates.list();
+      res.candidates = { count: list.length, file: join(o.runDir, 'skill-candidates.json') };
+      await writeFile(res.candidates.file, JSON.stringify({ schemaVersion: 1, goal: o.goal, surface: o.surface, env: o.env, note: '候选元素：人工审核后再进 SKILL 标定，不会自动写入 profile（W2-5 N6）', candidates: list }, null, 2)).catch(() => {});
+    }
     await writeFile(join(o.runDir, 'result.json'), JSON.stringify(res, null, 2));
     await writeFile(join(o.runDir, 'report.md'), agentMarkdown(res));
     traj.emit('verdict', { conclusion: res.status, detail: res.summary, findings: res.findings.filter((f) => f.counted).length });
@@ -230,6 +240,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       return dir;
     };
 
+    const searchBoxes: Box[] = [];
     // Deterministic detectors (W2-5 §6): on the observation each step takes anyway; not in bench runs.
     const dst = newDetectState();
     const seenHits = new Set<string>();
@@ -264,6 +275,9 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       const nodes: ScreenNode[] = snap?.nodes ?? [];
       const els = visibleElements(nodes);
       const screen = fingerprint(nodes);
+      for (const n of els) if (isSearchLabel(label(n)) && !searchBoxes.some((b) => b.join() === n.box.join())) searchBoxes.push(n.box);
+      if (searchBoxes.length > 20) searchBoxes.splice(0, searchBoxes.length - 20);
+      if (!bench) candidates.see(step, screen, els);
       const triedHere = tried.get(screen) ?? new Set<string>();
       tried.set(screen, triedHere);
       const png = snap?.png ?? (await s.inner.screenshot());
@@ -312,7 +326,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
         o.onStep?.(r);
       };
       const a = ans.action;
-      const act = describe(a, els);
+      const burst = [a, ...(ans.then ?? [])];
+      const act = burst.map((x) => describe(x, els)).join(' → ');
       traj.emit('agent.step', { step, screen, thought, action: act, thumb });
       if (a.type === 'done') {
         res.status = a.status;
@@ -330,23 +345,38 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
         record(`issue ${counted ? 'confirmed' : review?.verdict ?? 'unverified'}`);
         continue;
       }
-      // Risk rules before anything touches the app.
-      const el = 'target' in a && a.target !== undefined ? els[a.target - 1] : undefined;
-      const lbl = el ? label(el) : 'description' in a ? (a.description ?? '') : '';
-      const y = el ? el.center.y : 'y' in a ? a.y : undefined;
-      const own = y !== undefined && nearOwnContent(y, nodes.map((n) => ({ label: label(n), y: n.center.y })), ownNames, vp.height);
-      const risk = classifyRisk({ type: a.type, label: lbl, text: a.type === 'type' ? a.text : undefined, free: !el }, !!o.writable, { ownContent: own, bench: !!bench });
-      if (risk.blocked) {
-        res.blocked.push({ step, action: act, reason: risk.reason });
-        traj.emit('blocked', { step, action: act, reason: risk.reason });
-        feedback = `BLOCKED: ${risk.reason}`;
-        record(`blocked: ${risk.reason}`);
+      // The action, or a short burst of them on this screen (Artemis Flash click_sequence): each passes the risk
+      // rules (before anything touches the app) and the pre-tap check; the burst stops at the first that does not.
+      const outs: string[] = [];
+      let blocked: string | undefined;
+      for (const [i, b] of burst.entries()) {
+        const bAct = describe(b, els);
+        const el = 'target' in b && b.target !== undefined ? els[b.target - 1] : undefined;
+        const lbl = el ? label(el) : 'description' in b ? (b.description ?? '') : '';
+        const y = el ? el.center.y : 'y' in b ? b.y : undefined;
+        const own = y !== undefined && nearOwnContent(y, nodes.map((n) => ({ label: label(n), y: n.center.y })), ownNames, vp.height);
+        const searchBox = b.type === 'type' && !!el && wasSearchBox(el.box, searchBoxes);
+        const risk = classifyRisk({ type: b.type, label: lbl, text: b.type === 'type' ? b.text : undefined, free: !el }, !!o.writable, { ownContent: own, bench: !!bench, searchBox });
+        if (risk.blocked) {
+          res.blocked.push({ step, action: bAct, reason: risk.reason });
+          traj.emit('blocked', { step, action: bAct, reason: risk.reason });
+          blocked = risk.reason;
+          break;
+        }
+        if (i) await sleep(400);
+        const out = await perform(s, guard, b, el, vp, bench).catch((e) => `error: ${(e as Error).message.split('\n')[0].slice(0, 160)}`);
+        if (obs && burst.length === 1 && el?.clickable && b.type === 'tap' && out === 'ok') lastTap = { key: actionKey(b, el), obs, target: { text: label(el), box: el.box }, at: Date.now() };
+        triedHere.add(actionKey(b, el));
+        path.push(bAct);
+        outs.push(out);
+        if (out !== 'ok' && !out.startsWith('answer')) break;
+      }
+      if (blocked && !outs.length) {
+        feedback = `BLOCKED: ${blocked}`;
+        record(`blocked: ${blocked}`);
         continue;
       }
-      feedback = await perform(s, guard, a, el, vp, bench).catch((e) => `error: ${(e as Error).message.split('\n')[0].slice(0, 160)}`);
-      if (obs && el?.clickable && a.type === 'tap' && feedback === 'ok') lastTap = { key: actionKey(a, el), obs, target: { text: label(el), box: el.box }, at: Date.now() };
-      triedHere.add(actionKey(a, el));
-      path.push(act);
+      feedback = burst.length === 1 ? outs[0] : `${outs.map((r, i) => `#${i + 1} ${r}`).join('; ')}${outs.length < burst.length ? ` — stopped after ${outs.length} of ${burst.length}${blocked ? ` (BLOCKED: ${blocked})` : ''}` : ''}`;
       await sleep(900);
       // Bench runs judge nothing: the driver is bound to no app under test.
       const hard = bench ? [] : s.d.drainAnomalies().filter((x: Anomaly) => HARD_ANOMALIES.includes(x.kind));
@@ -391,7 +421,9 @@ function describe(a: AgentAction, els: ScreenNode[]): string {
     case 'longPress':
       return `${a.type} ${a.target !== undefined ? t(a.target) : `(${a.x},${a.y}) ${a.description ?? ''}`}`.trim();
     case 'type':
-      return `type ${t(a.target)} "${a.text.slice(0, 40)}"`;
+      return `type ${t(a.target)} "${a.text.slice(0, 40)}"${a.clear ? ' (clear)' : ''}`;
+    case 'drag':
+      return `drag (${a.x1},${a.y1})→(${a.x2},${a.y2})`;
     case 'swipe':
       return `swipe ${a.direction}`;
     case 'wait':
@@ -440,9 +472,16 @@ async function perform(s: Session, guard: PreTapGuard, a: AgentAction, el: Scree
         await d.tap(p);
         await sleep(400);
       }
+      if (a.clear) {
+        await d.key('selectall');
+        await d.key('del');
+      }
       await d.type(a.text);
       return 'ok';
     }
+    case 'drag':
+      await d.swipe({ x: a.x1, y: a.y1 }, { x: a.x2, y: a.y2 }, 600);
+      return 'ok';
     case 'swipe': {
       // A swipe started on the soft keyboard glide-types a word into the focused field (2026-11-03 bench run:
       // "Gonzalez" became "Gonzalez By"): close the keyboard first, as a user would.

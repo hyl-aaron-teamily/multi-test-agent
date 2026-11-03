@@ -11,7 +11,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { decodePng, drawBox, encodePng, pixelDiff, type Rgba } from '../core/image';
 import { visionConfigured, visionJson } from '../core/model/llm';
-import { clickableOf, hitTest, label, related, similarity, type Box, type ScreenNode } from '../core/screen-index';
+import { clickableOf, hitTest, label, norm, related, similarity, type Box, type ScreenNode } from '../core/screen-index';
 import type { Driver, Point } from '../drivers/types';
 import type { RecordingDriver } from './recorder/recording-driver';
 import { snapshot } from './snapshot';
@@ -51,8 +51,10 @@ const boxSim = (a: Box, b: Box) => (Math.min(a[2], b[2]) / Math.max(a[2], b[2], 
 export function treeVerdict(ref: TapRef, point: Point, nodes: ScreenNode[], driftPx = DRIFT_PX): PreTapResult | undefined {
   if (!ref.text && !ref.rid) return undefined;
   let best: { n: ScreenNode; box: ScreenNode; score: number } | undefined;
+  // A label made only of symbols ("⌫", "+") normalises to nothing: compare it as it is.
+  const symbolic = !!ref.text && !norm(ref.text);
   for (const n of nodes) {
-    const ts = ref.text ? Math.max(similarity(n.text, ref.text), similarity(n.desc, ref.text)) : 0;
+    const ts = !ref.text ? 0 : symbolic ? (n.text.trim() === ref.text.trim() || n.desc.trim() === ref.text.trim() ? 1 : 0) : Math.max(similarity(n.text, ref.text), similarity(n.desc, ref.text));
     const rs = ref.rid && n.rid === ref.rid ? 1 : 0;
     // A fingerprint with text needs the text: rows of one list share a resource-id.
     if (ref.text ? ts < 0.75 : !rs) continue;

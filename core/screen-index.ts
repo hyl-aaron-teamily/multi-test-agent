@@ -14,6 +14,8 @@ export interface ScreenNode {
   clickable: boolean;
   box: Box;
   center: { x: number; y: number };
+  /** An empty input's placeholder ("Phone", "First name"): shown to the exploration model only. */
+  hint?: string;
   /** Android: document id and ancestor ids (core/ui-tree.ts). */
   id?: number;
   anc?: number[];
@@ -44,7 +46,7 @@ export function normalizeNodes(nodes: UiNode[]): ScreenNode[] {
     if (box[2] <= 0 || box[3] <= 0) continue;
     const text = n.text === n.hint && /EditText/.test(n.cls) ? '' : n.text;
     if (!text && !n.desc && !n.rid && !n.clickable && !/EditText/.test(n.cls)) continue;
-    out.push({ text, desc: n.desc, rid: n.rid ?? '', cls: n.cls, clickable: n.clickable, box, center: { x: Math.round(n.x1 + box[2] / 2), y: Math.round(n.y1 + box[3] / 2) }, ...(n.id !== undefined ? { id: n.id, anc: n.anc } : {}) });
+    out.push({ text, desc: n.desc, rid: n.rid ?? '', cls: n.cls, clickable: n.clickable, ...(n.hint && /EditText/.test(n.cls) ? { hint: n.hint } : {}), box, center: { x: Math.round(n.x1 + box[2] / 2), y: Math.round(n.y1 + box[3] / 2) }, ...(n.id !== undefined ? { id: n.id, anc: n.anc } : {}) });
   }
   return out;
 }

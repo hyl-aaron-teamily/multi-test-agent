@@ -358,6 +358,8 @@ export interface ExploreSummary {
   coverage: { screens: number; actions: number };
   blocked: number;
   usage: { steps: number; seconds: number; modelCalls: number };
+  /** SKILL candidates found (skill-candidates.json; `explore candidates <task>`). */
+  candidates?: number;
 }
 
 /** Pure: the conclusion sentence of a exploration-tier run. */
@@ -400,7 +402,7 @@ export function resultRun(r: RunResult): ResultRun {
 
 /** Pure: what the views keep of a exploration-tier result. */
 export function exploreSummary(a: AgentResult): ExploreSummary {
-  return { goal: a.goal, mode: a.mode, status: a.status, summary: a.summary, findings: a.findings.map((f) => ({ n: f.n, counted: f.counted, source: f.source, kind: f.detector ?? f.kind, description: f.description, incident: f.incident, review: f.review })), coverage: { screens: a.coverage.screens, actions: a.coverage.actions }, blocked: a.blocked.length, usage: a.usage };
+  return { goal: a.goal, mode: a.mode, status: a.status, summary: a.summary, findings: a.findings.map((f) => ({ n: f.n, counted: f.counted, source: f.source, kind: f.detector ?? f.kind, description: f.description, incident: f.incident, review: f.review })), coverage: { screens: a.coverage.screens, actions: a.coverage.actions }, blocked: a.blocked.length, usage: a.usage, ...(a.candidates ? { candidates: a.candidates.count } : {}) };
 }
 
 export function resultView(t: TaskRecord, runs: RunResult[], code: Code, extra: { series?: ResultView['series']; report?: string; runDir?: string; explore?: ExploreSummary; sync?: SyncSummary } = {}): ResultView {
