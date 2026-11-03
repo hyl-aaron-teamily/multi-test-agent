@@ -4,7 +4,8 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { type NormalizedIssue, parseIssue } from './parse';
 
-export const ISSUE_DIRS = () => [resolve('issues'), resolve('issues', 'explore')];
+/** `issues/` is local (not in git); tests point AUTOTEST_ISSUES_DIR at the committed samples (fixtures/issues). */
+export const ISSUE_DIRS = () => [resolve(process.env.AUTOTEST_ISSUES_DIR ?? 'issues'), resolve('issues', 'explore')];
 
 export function issuePath(ref: string): string {
   if (existsSync(ref)) return ref;

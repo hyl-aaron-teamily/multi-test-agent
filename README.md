@@ -1,6 +1,6 @@
 # multi-test-agent
 
-> 介绍页：[docs/intro.html](docs/intro.html) · 规则（生效版，带代码落点）：[docs/rules.md](docs/rules.md) · 命令行参考：[docs/cli-reference.md](docs/cli-reference.md) · Agent 使用规则：[docs/agent-rules.md](docs/agent-rules.md) · 本期验收：[docs/w2m4.1-acceptance.md](docs/w2m4.1-acceptance.md) · 变更：[CHANGELOG.md](CHANGELOG.md) · 旧版文档、验收记录与证据：git 历史
+> 仓库只放可运行的代码；需求文档、验收记录、规则审核、CHANGELOG 等过程文档留在本地（`docs/`、`issues/` 不进 git）。Agent 使用规则：[platform/agent-rules.md](platform/agent-rules.md)。
 
 Teamily 客户端的真机黑盒测试台。只做用户能做的操作（触控、光标、键盘），只看用户能看到的现象（屏幕、无障碍文本、系统日志），在四个执行端上运行：**Android App**、**手机自带浏览器里的 Web**（android-web）、**手机视口 Web**（mobile-web，Playwright）、**桌面 Web**（desktop-web，Windows 上是最大化的 Edge）。
 
@@ -8,7 +8,7 @@ Teamily 客户端的真机黑盒测试台。只做用户能做的操作（触控
 
 | | 能力 ① 快速档：Issue → 计划 → 重复执行、拦截问题 | 能力 ② 探索档：自然语言任务 / AI 探索，发现新问题 |
 |---|---|---|
-| 输入 | 结构化文档：一份 Issue（`issues/*.md`）→ 审批过的计划 | 一句话目标，例如「打开通知铃铛，看看有哪些分类」 |
+| 输入 | 结构化文档：一份 Issue（本地 `issues/*.md`，样例见 `fixtures/issues/`）→ 审批过的计划 | 一句话目标，例如「打开通知铃铛，看看有哪些分类」 |
 | 怎么做 | 规则 + 模型生成高确定性的计划，确认一次后按坐标循环执行（每步 ≤ 1 s，循环内不读屏、不调视觉） | 每一步看截图和可点元素，视觉模型决定一个动作；默认只读；用速度和 token 换覆盖 |
 | 结论 | 已复现 / 未复现（带有效尝试数和区间）、已实现 / 未实现；命中时有完整现场包 | 发现清单（每条带现场包）、覆盖了哪些界面、拦截了哪些动作、用量 |
 | 两者关系 | 复现探索档的发现，给出带分母的结论 | ← 探索的发现可以一键转成 Issue 草稿 |
@@ -66,7 +66,7 @@ npx tsx bin/autotest.ts explore candidates <taskId>    # SKILL 候选元素清�
 
 ## 评测模式：AndroidWorld（探索档的操作能力）
 
-用 Google 的 [AndroidWorld](https://github.com/google-research/android_world)（`ref/android_world`）给探索档打分：116 道任务、20 个开源 App，在模拟器上做，分数由 AndroidWorld 读 App 真实状态给出。环境安装见 `docs/env-plan.md`。
+用 Google 的 [AndroidWorld](https://github.com/google-research/android_world)（`ref/android_world`）给探索档打分：116 道任务、20 个开源 App，在模拟器上做，分数由 AndroidWorld 读 App 真实状态给出。环境：Android 模拟器（AVD `AndroidWorldAvd`，Pixel 6 / API 33 x86_64，启动带 `-grpc 8554`）+ Python 3.11 环境里装好 AndroidWorld（`ref/android_world`）与 fastapi / uvicorn；只用一个 adb。
 
 ```bash
 emulator -avd AndroidWorldAvd -no-snapshot -grpc 8554 -no-boot-anim -gpu host          # 用完关掉：adb -s emulator-5554 emu kill
@@ -90,7 +90,7 @@ npx tsx bin/autotest.ts task run --sync desktop-web,android-app --rounds 4   # 1
 ## 平台、命令行、MCP、Web
 
 - **平台服务**（`pnpm platform`，`platform/server.ts`）：`/api/v1` 一个服务，状态落盘在 `platform/state/`（JSON，没有数据库）。环境 = 端 × 设备 × 服务环境（如 `android-app:4f2ebdf2@prod`），开机、任务结束后自动检查；任务进程是否存活按 pid + 启动时间判断；取消在步骤边界生效，60 s 不停则强制结束。
-- **命令行**（`bin/autotest.ts`，面向 Agent）：`autotest <对象> <动作> [--json]`，`--json` 时 stdout 只有一个 JSON 信封；从不提问；退出码两位、十位是类别（1x 结论 / 2x 已受理 / 3x 审批 / 4x 输入 / 5x 环境 / 6x 工具 / 7x 取消与中断），全表见 [docs/cli-reference.md](docs/cli-reference.md)。
+- **命令行**（`bin/autotest.ts`，面向 Agent）：`autotest <对象> <动作> [--json]`，`--json` 时 stdout 只有一个 JSON 信封；从不提问；退出码两位、十位是类别（1x 结论 / 2x 已受理 / 3x 审批 / 4x 输入 / 5x 环境 / 6x 工具 / 7x 取消与中断），全表见 `autotest help --json`（或本地生成的 docs/cli-reference.md）。
 - **MCP**（`npx tsx scripts/mcp.ts`，`--print-config claude` 打印接入配置）：工具由命令表生成（19 个，含 `explore_run`、`explore_issue`、`device_snapshot`），结果就是 `--json` 信封；同意类操作只在 Web。
 - **Web**（面向人）：`index.html` + `style.css` + `app.js` 单页，hash 路由：总览、新建任务（自然语言·探索 / Issue / 多端协同）、任务详情（实时推送；探索档每步的截图、动作和思路）、结果（转成 Issue）、计划（步骤标在最近一次运行的截图上）、环境、审批（完全授权开关常显红色横幅）。每页回答五问：要做什么 / 正在做什么 / 结果 / 可信吗 / 下一步。CLI、MCP、Web 读同一份视图模型（`platform/views.ts`）。
 - **读树后端**：默认 uiautomator；设备项写 `treeBackend: a11y-service` 改用手机上的只读读树服务（`android/a11y-service/`，`env check` 时按配置项安装启用），不可用时自动退回。
@@ -103,7 +103,7 @@ npx tsx bin/autotest.ts task run --sync desktop-web,android-app --rounds 4   # 1
 
 ```bash
 pnpm code-gate          # typecheck + 单测 + 证据复核用例（每次改动后）
-npx tsx scripts/cli-ref.ts            # 重新生成 docs/cli-reference.md
+npx tsx scripts/cli-ref.ts            # 在本地生成命令行参考 docs/cli-reference.md（不进 git）
 npx tsx scripts/web-shots.ts          # Web 各页截图（平台需在运行）
 ```
 
@@ -121,7 +121,8 @@ npx tsx scripts/web-shots.ts          # Web 各页截图（平台需在运行）
 ## 目录
 
 ```
-issues/            样例 Issue；issues/explore/ = 探索发现转成的 Issue（运行产物）
+issues/            本地 Issue（不进 git）；issues/explore/ = 探索发现转成的 Issue
+fixtures/issues/   样例 Issue（单测输入；把它们复制到 issues/ 就能直接 draft create）
 issue/             解析、分类、契约、计划生成、校验、报告
 engine/            统一引擎（两档共用）：会话、端适配、登录、SKILL 现场定位、快照、点击前检查、检查、判定、预检、租约
 engine/agent/      能力 ② 探索档：循环、风险规则、提示词与动作解析、发现 → Issue
@@ -133,7 +134,7 @@ platform/          服务（server.ts、api-v1.ts、views.ts、approval.ts、mcp
 platform/lifecycle/ 环境 / 任务状态机、状态码、环境检查、调度与租约
 core/              adb、截图与区域比对、模型调用、轨迹
 bin/、scripts/     命令入口与实现
-docs/              介绍页、规则、命令行参考、Agent 规则、各里程碑需求文档、本期验收、backlog
+docs/              本地过程文档（不进 git）
 ```
 
 ## 原则

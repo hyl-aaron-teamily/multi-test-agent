@@ -13,10 +13,10 @@ import { splitSubcases, templateFor } from './planner';
 const golden = JSON.parse(readFileSync('issue/__golden__/templates.json', 'utf8')) as Record<string, unknown>;
 
 describe('pattern library = pre-W2-1 templates', () => {
-  const issues = readdirSync('issues').filter((f) => f.endsWith('.md'));
+  const issues = readdirSync('fixtures/issues').filter((f) => f.endsWith('.md'));
   for (const f of issues) {
     const id = f.replace('.md', '');
-    const i = parseIssue(id, readFileSync(`issues/${f}`, 'utf8'));
+    const i = parseIssue(id, readFileSync(`fixtures/issues/${f}`, 'utf8'));
     const c = classifyRules(i);
     if (!['bug-always', 'bug-intermittent', 'feature', 'suspected-misuse'].includes(c.category)) continue;
     const subs = c.category === 'feature' ? [{ sub: 'main', text: `${i.summary} ${i.expected}` }] : splitSubcases(i);

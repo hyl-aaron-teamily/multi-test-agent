@@ -23,3 +23,10 @@ platform/secrets/
 issues/explore/
 platform/plans/drafts/explore-*
 platform/plans/explore-*
+
+# Process documents stay local: the repository holds runnable code only (2026-11-03).
+# Milestone docs, acceptance records, rules audit, changelog, summaries, local Issues.
+/docs/
+/issues/
+/CHANGELOG.md
+/PROJECT-SUMMARY.md
