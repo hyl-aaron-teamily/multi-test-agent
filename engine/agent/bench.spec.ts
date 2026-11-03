@@ -6,7 +6,7 @@ import { agentLimits } from './run';
 import { parseAnswer } from './step';
 
 const task = (name: string, complexity = 1, apps = ['contacts']): BenchTask => ({ name, instances: 1, apps, complexity, maxSteps: Math.trunc(10 * complexity) });
-const res = (name: string, success: boolean, o: Partial<BenchTaskResult> = {}): BenchTaskResult => ({ name, idx: 0, goal: '', apps: ['contacts'], complexity: 1, maxSteps: 10, done: true, success, status: 'completed', steps: 5, seconds: 30, modelCalls: 5, runDir: '', ...o });
+const res = (name: string, success: boolean, o: Partial<BenchTaskResult> = {}): BenchTaskResult => ({ name, idx: 0, goal: '', apps: ['contacts'], complexity: 1, maxSteps: 10, done: true, success, official: success, status: 'completed', steps: 5, seconds: 30, modelCalls: 5, runDir: '', ...o });
 
 describe('bench mode (AndroidWorld, W2-5 P1)', () => {
   it('runs only on an emulator', async () => {
@@ -46,12 +46,13 @@ describe('bench mode (AndroidWorld, W2-5 P1)', () => {
     expect(() => selectTasks(all, { tasks: ['Nope'] })).toThrow(/unknown AndroidWorld task/);
   });
 
-  it('a success needs the agent to end the task and the app state to check out', () => {
-    expect(outcome(1, 'completed')).toEqual({ done: true, success: true });
-    expect(outcome(1, 'failed')).toEqual({ done: true, success: true });
-    expect(outcome(0, 'completed')).toEqual({ done: true, success: false });
-    expect(outcome(1, 'limit')).toEqual({ done: false, success: false });
-    expect(outcome(undefined, 'error')).toEqual({ done: false, success: false });
+  it('success = the app state checks out; AndroidWorld’s rule also needs the agent to end the task', () => {
+    expect(outcome(1, 'completed')).toEqual({ done: true, success: true, official: true });
+    expect(outcome(1, 'failed')).toEqual({ done: true, success: true, official: true });
+    expect(outcome(0, 'completed')).toEqual({ done: true, success: false, official: false });
+    // the goal holds although the agent ran out of steps: a success, not an official one
+    expect(outcome(1, 'limit')).toEqual({ done: false, success: true, official: false });
+    expect(outcome(undefined, 'error')).toEqual({ done: false, success: false, official: false });
   });
 
   it('summary: errors count as failures; tasks count under each app and their complexity', () => {
@@ -61,7 +62,7 @@ describe('bench mode (AndroidWorld, W2-5 P1)', () => {
     expect(s.byApp).toEqual({ contacts: { tasks: 3, successes: 1 }, sms: { tasks: 1, successes: 0 } });
     expect(s.byComplexity).toEqual({ '1': { tasks: 2, successes: 1 }, '2': { tasks: 1, successes: 0 } });
     const md = benchMarkdown({ seed: 42, combos: 1, model: 'm', startedAt: 't' }, [res('A', true), res('C', false, { error: 'a | b', status: 'error' })]);
-    expect(md).toMatch(/1 \/ 2（50\.0%）/);
+    expect(md).toMatch(/成功率：\*\*1 \/ 2（50\.0%）/);
     expect(md).toMatch(/\| C#0 \| ❌ .*\| a \/ b \|/);
     expect(summarize([]).rate).toBe(0);
   });

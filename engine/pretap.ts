@@ -36,6 +36,8 @@ export interface PreTapResult {
   how: 'tree' | 'pixel' | 'vision' | 'none';
   /** Point to tap (the corrected one when kind = corrected). */
   point: Point;
+  /** kind shifted (tree): where the same element is now. */
+  to?: Point;
   score?: number;
   detail: string;
 }
@@ -72,7 +74,7 @@ export function treeVerdict(ref: TapRef, point: Point, nodes: ScreenNode[], drif
   if (!best || best.score < MATCH_MIN) return { kind: 'gone', how: 'tree', point, score: best?.score ?? 0, detail: `"${ref.text ?? ref.rid}" not on screen${best ? ` (best ${best.score.toFixed(2)})` : ''}` };
   const d = dist(best.box.center, point);
   const name = `"${label(best.n).slice(0, 40) || best.n.rid}"`;
-  if (d > driftPx) return { kind: 'shifted', how: 'tree', point, score: best.score, detail: `${name} moved ${Math.round(d)} px (> ${driftPx}) to (${best.box.center.x},${best.box.center.y})` };
+  if (d > driftPx) return { kind: 'shifted', how: 'tree', point, to: best.box.center, score: best.score, detail: `${name} moved ${Math.round(d)} px (> ${driftPx}) to (${best.box.center.x},${best.box.center.y})` };
   const at = d <= 8 ? point : best.box.center;
   const hit = hitTest(nodes, at.x, at.y);
   if (hit && !related(hit, best.box))

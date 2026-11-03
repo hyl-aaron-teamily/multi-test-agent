@@ -134,7 +134,7 @@ Actions:
 - {"type":"answer","text":"..."}  (the task asks a question: give the answer, then finish with done)
 - {"type":"done","status":"completed|failed","summary":"..."}  (the task is done, or it cannot be done)
 Several steps on the same screen (fill a form, type then press Enter, set a picker): add "then": [up to 3 more actions of the kinds tap / longPress / type / swipe / drag / back / enter / wait]; they run in order and stop at the first one that does not go through. Turns are limited: batch what you can see.
-Rules: look before you act; do not assume where a tap leads; check on the screen that each step took effect before moving on; finish with done as soon as the task is complete.`;
+Rules: look before you act; do not assume where a tap leads; check on the screen that each step took effect before moving on — never repeat an action whose effect you have not looked at (a second press of a button that already worked does it twice); read back the values the app shows after you enter them (names, numbers, dates, times) and correct them before moving on; finish with done as soon as the task is complete.`;
 
 export function userPrompt(o: { goal: string; mode: 'task' | 'explore'; plan?: string; history: string; screen: string; els: ScreenNode[]; tried: string[]; feedback?: string; size: { width: number; height: number }; instructions?: string[] }): string {
   return [

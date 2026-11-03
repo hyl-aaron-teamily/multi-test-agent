@@ -118,6 +118,8 @@ export interface AgentResult {
 }
 
 const MODEL_TIMEOUT_MS = 180_000;
+/** Pre-tap match score above which a target that moved far is tapped where it is now. */
+const SHIFT_RETARGET_SCORE = 0.9;
 /** Pure: the limits of one run — the requested ones, never above EXPLORE_LIMITS. */
 export function agentLimits(o: { maxSteps?: number; maxMinutes?: number }): { maxSteps: number; maxMinutes: number } {
   return { maxSteps: Math.min(o.maxSteps ?? EXPLORE_LIMITS.maxSteps, EXPLORE_LIMITS.maxSteps), maxMinutes: Math.min(o.maxMinutes ?? EXPLORE_LIMITS.maxMinutes, EXPLORE_LIMITS.maxMinutes) };
@@ -388,7 +390,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
         triedHere.add(actionKey(b, el));
         path.push(bAct);
         outs.push(out);
-        if (out !== 'ok' && !out.startsWith('answer')) break;
+        if (!out.startsWith('ok') && !out.startsWith('answer')) break;
       }
       if (blocked && !outs.length) {
         feedback = `BLOCKED: ${blocked}`;
@@ -464,11 +466,17 @@ const actionKey = (a: AgentAction, el?: ScreenNode) => `${a.type}${el ? `:${labe
 
 /** Run one action through the recording driver; the pre-tap check guards taps on listed elements. */
 async function perform(s: Session, guard: PreTapGuard, a: AgentAction, el: ScreenNode | undefined, vp: { width: number; height: number }, bench?: BenchLink): Promise<string> {
+  let moved = '';
   const d = s.d;
   d.label = a.type;
   const pointOf = async (purpose: string): Promise<Point | string> => {
     if (el) {
       const r = await guard.check(el.center, { purpose, text: label(el) || undefined, rid: el.rid || undefined, box: el.box });
+      // The same element, clearly identified, only further away (a list that scrolled on): tap it where it is now.
+      if (r.kind === 'shifted' && r.how === 'tree' && r.to && (r.score ?? 0) >= SHIFT_RETARGET_SCORE) {
+        moved = ` (the target had moved to (${r.to.x},${r.to.y}); tapped it there)`;
+        return r.to;
+      }
       if (r.kind !== 'pass' && r.kind !== 'corrected' && r.kind !== 'uncertain') return `pre-tap check: target ${r.kind} (${r.detail}) — not tapped`;
       return r.point;
     }
@@ -482,7 +490,7 @@ async function perform(s: Session, guard: PreTapGuard, a: AgentAction, el: Scree
       if (typeof p === 'string') return p;
       if (a.type === 'tap') await d.tap(p);
       else await d.longPress(p);
-      return 'ok';
+      return moved ? `ok${moved}` : 'ok';
     }
     case 'type': {
       if (el) {

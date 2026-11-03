@@ -51,7 +51,13 @@ export async function benchCmd(args: string[]): Promise<number> {
   }
   const root = resolve(flag(args, 'resume') ?? join('midscene_run/bench', `aw-${new Date().toISOString().replace(/[:.]/g, '-')}`));
   await mkdir(root, { recursive: true });
-  const meta = { seed: Number(flag(args, 'seed') ?? 42), combos: Number(flag(args, 'combos') ?? 1), model: process.env.MIDSCENE_MODEL_NAME ?? '', startedAt: new Date().toISOString() };
+  // --budget: the step budget as a multiple of AndroidWorld's (2× the human average); the time cap stays 30 minutes.
+  const budget = Number(flag(args, 'budget') ?? 1);
+  if (!(budget > 0 && budget <= 10)) {
+    console.error('--budget: 0 < x ≤ 10');
+    return 40;
+  }
+  const meta = { seed: Number(flag(args, 'seed') ?? 42), combos: Number(flag(args, 'combos') ?? 1), model: process.env.MIDSCENE_MODEL_NAME ?? '', startedAt: new Date().toISOString(), budget };
   const results: BenchTaskResult[] = [];
   const save = async () => {
     await writeFile(join(root, 'summary.json'), JSON.stringify({ ...meta, summary: summarize(results), results }, null, 2));
@@ -69,7 +75,7 @@ export async function benchCmd(args: string[]): Promise<number> {
         continue;
       }
       const q = `name=${encodeURIComponent(t.name)}&idx=${idx}`;
-      const r: BenchTaskResult = { name: t.name, idx, goal: '', apps: t.apps, complexity: t.complexity, maxSteps: t.maxSteps, done: false, success: false, status: 'error', steps: 0, seconds: 0, modelCalls: 0, runDir: dir };
+      const r: BenchTaskResult = { name: t.name, idx, goal: '', apps: t.apps, complexity: t.complexity, maxSteps: t.maxSteps, done: false, success: false, official: false, status: 'error', steps: 0, seconds: 0, modelCalls: 0, runDir: dir };
       try {
         // A device call inside AndroidWorld's set-up can fail for a moment (settings service "Broken pipe"): once more.
         const init = await call<{ goal: string; maxSteps: number }>('POST', `/task/init?${q}`).catch(async (e) => {
@@ -78,15 +84,15 @@ export async function benchCmd(args: string[]): Promise<number> {
           return call<{ goal: string; maxSteps: number }>('POST', `/task/init?${q}`);
         });
         r.goal = init.goal;
-        r.maxSteps = init.maxSteps;
-        console.log(`[bench] ${t.name}#${idx} (${init.maxSteps} steps): ${init.goal}`);
+        r.maxSteps = Math.ceil(init.maxSteps * budget);
+        console.log(`[bench] ${t.name}#${idx} (${r.maxSteps} steps): ${init.goal}`);
         const a = await runAgent({
           goal: init.goal,
           mode: 'task',
           surface: 'android-app',
           env: 'test',
           writable: true,
-          maxSteps: init.maxSteps,
+          maxSteps: r.maxSteps,
           maxMinutes: 30,
           runDir: dir,
           bench: { udid, act: async (body) => void (await call('POST', '/action', body)) },
@@ -114,7 +120,7 @@ export async function benchCmd(args: string[]): Promise<number> {
   }
   await save();
   const s = summarize(results);
-  console.log(`[bench] ${s.successes}/${s.tasks} tasks (${(100 * s.rate).toFixed(1)}%), ${s.errors} errors, ${s.modelCalls} model calls → ${join(root, 'report.md')}`);
+  console.log(`[bench] success ${s.successes}/${s.tasks} (${(100 * s.rate).toFixed(1)}%), AndroidWorld rule ${s.official}/${s.tasks}, ${s.errors} errors, ${s.modelCalls} model calls → ${join(root, 'report.md')}`);
   return 0;
 }
 

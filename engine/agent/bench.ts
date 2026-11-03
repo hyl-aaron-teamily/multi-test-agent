@@ -33,9 +33,12 @@ export interface BenchTaskResult {
   maxSteps: number;
   /** AndroidWorld's is_successful (0–1); undefined when the task did not get that far. */
   score?: number;
-  /** The agent ended the task itself (done completed / failed), as AndroidWorld requires for a success. */
+  /** The agent ended the task itself (done completed / failed). */
   done: boolean;
+  /** The task's goal holds in the app's state (AndroidWorld is_successful > 0.5): the success rate counts this. */
   success: boolean;
+  /** AndroidWorld's own leaderboard rule: a success only if the agent also ended the task itself. */
+  official: boolean;
   status: string;
   steps: number;
   seconds: number;
@@ -56,11 +59,12 @@ export function selectTasks(all: BenchTask[], o: { tasks?: string[]; pilot?: boo
   return all.filter((t) => want.includes(t.name));
 }
 
-/** Pure: AndroidWorld counts a task only when the agent finished it itself and the app state checks out
- *  (suite_utils._run_task: agent_successful = task_successful if done else 0). */
-export function outcome(score: number | undefined, agentStatus: string): { done: boolean; success: boolean } {
+/** Pure: success = the app state checks out (is_successful); official = also ended by the agent itself, as the
+ *  AndroidWorld runner counts it (suite_utils._run_task: agent_successful = task_successful if done else 0). */
+export function outcome(score: number | undefined, agentStatus: string): { done: boolean; success: boolean; official: boolean } {
   const done = agentStatus === 'completed' || agentStatus === 'failed';
-  return { done, success: done && score !== undefined && score > 0.5 };
+  const success = score !== undefined && score > 0.5;
+  return { done, success, official: done && success };
 }
 
 export interface BenchSummary {
@@ -68,8 +72,10 @@ export interface BenchSummary {
   ran: number;
   errors: number;
   successes: number;
-  /** Successes / all tasks (errors count as failures, as in AndroidWorld). */
+  /** Success rate: successes / all tasks (errors count as failures). */
   rate: number;
+  /** AndroidWorld's rule (success and ended by the agent). */
+  official: number;
   byApp: Record<string, { tasks: number; successes: number }>;
   byComplexity: Record<string, { tasks: number; successes: number }>;
   steps: number;
@@ -97,6 +103,7 @@ export function summarize(rs: BenchTaskResult[]): BenchSummary {
     errors: rs.filter((r) => r.error).length,
     successes,
     rate: rs.length ? successes / rs.length : 0,
+    official: rs.filter((r) => r.official).length,
     byApp,
     byComplexity,
     steps: rs.reduce((n, r) => n + r.steps, 0),
@@ -107,16 +114,17 @@ export function summarize(rs: BenchTaskResult[]): BenchSummary {
 
 const pct = (a: number, b: number) => (b ? `${((100 * a) / b).toFixed(1)}%` : '-');
 
-export function benchMarkdown(meta: { seed: number; combos: number; model: string; startedAt: string }, rs: BenchTaskResult[]): string {
+export function benchMarkdown(meta: { seed: number; combos: number; model: string; startedAt: string; budget?: number }, rs: BenchTaskResult[]): string {
   const s = summarize(rs);
   const rows = (m: BenchSummary['byApp']) => Object.entries(m).sort(([a], [b]) => a.localeCompare(b, undefined, { numeric: true })).map(([k, v]) => `| ${k} | ${v.successes} / ${v.tasks} | ${pct(v.successes, v.tasks)} |`);
   return [
     `# AndroidWorld 评测：探索档`,
     '',
-    `- 完成率：**${s.successes} / ${s.tasks}（${pct(s.successes, s.tasks)}）**；跑到打分 ${s.ran} 题，出错 ${s.errors} 题（按未完成计）`,
-    `- 题目：seed ${meta.seed}，每题 ${meta.combos} 组参数；模型 ${meta.model || '-'}；开始 ${meta.startedAt}`,
+    `- 成功率：**${s.successes} / ${s.tasks}（${pct(s.successes, s.tasks)}）**（App 状态符合题目要求，AndroidWorld \`is_successful\`）；跑到打分 ${s.ran} 题，出错 ${s.errors} 题（按失败计）`,
+    `- AndroidWorld 排行榜口径（还要求 agent 自己结束）：${s.official} / ${s.tasks}（${pct(s.official, s.tasks)}）`,
+    `- 题目：seed ${meta.seed}，每题 ${meta.combos} 组参数；步数预算 ${meta.budget ?? 1} × AndroidWorld 预算；模型 ${meta.model || '-'}；开始 ${meta.startedAt}`,
     `- 用量：${s.steps} 步，${Math.round(s.seconds / 60)} 分钟，模型调用 ${s.modelCalls} 次${s.tasks ? `（每题平均 ${(s.modelCalls / s.tasks).toFixed(1)} 次）` : ''}`,
-    '- 打分来自 AndroidWorld 的 `is_successful`；agent 没有自己结束（done）的题按未完成计。',
+
     '',
     '## 按 App',
     '',
@@ -132,7 +140,7 @@ export function benchMarkdown(meta: { seed: number; combos: number; model: strin
     '',
     '## 逐题',
     '',
-    '| 题目 | 结果 | 分数 | agent 结束 | 步数 / 预算 | 用时 | 模型调用 | 备注 |',
+    '| 题目 | 成功 | 分数 | agent 结束方式 | 步数 / 预算 | 用时 | 模型调用 | 备注 |',
     '|---|---|---|---|---|---|---|---|',
     ...rs.map((r) => `| ${r.name}#${r.idx} | ${r.success ? '✅' : '❌'} | ${r.score ?? '-'} | ${r.status} | ${r.steps} / ${r.maxSteps} | ${r.seconds} s | ${r.modelCalls} | ${(r.error ?? (r.success ? '' : (r.lastThought ?? ''))).replace(/\|/g, '/').replace(/\s+/g, ' ').slice(0, 120)} |`),
     '',
