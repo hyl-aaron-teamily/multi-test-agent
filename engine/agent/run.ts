@@ -11,7 +11,7 @@ import { label, type ScreenNode } from '../../core/screen-index';
 import { isoMs, openTrajectory } from '../../core/trajectory';
 import { TEAMILY_PACKAGE } from '../../drivers/factory';
 import { type Anomaly, HARD_ANOMALIES, type Point, sleep } from '../../drivers/types';
-import type { AccountPool } from '../../platform/accounts/account-pool';
+import type { AccountPool, Lease } from '../../platform/accounts/account-pool';
 import { type Env, onAndroid, onPlaywright, type Surface } from '../../platform/accounts/types';
 import type { DevicePool } from '../../platform/device-pool';
 import { CancelledError, type RunHooks } from '../../platform/lifecycle/runtime';
@@ -23,10 +23,10 @@ import { AndroidFlightRecorder } from '../recorder/android-recorder';
 import { incidentDir, incidentKind, type IncidentKind, type ReplayFile, writeIncident } from '../recorder/bundle';
 import { type EvidenceVerdict, reviewIncident } from '../recorder/evidence-review';
 import { WebFlightRecorder } from '../recorder/web-recorder';
-import { closeSession, enterApp, openSession, packageOf, type Session } from '../session';
+import { closeSession, enterApp, openBenchSession, openSession, packageOf, type Session } from '../session';
 import { snapshot } from '../snapshot';
 import { classifyRisk, nearOwnContent } from './risk';
-import { type AgentAction, type AgentAnswer, fingerprint, historyText, loopHint, parseAnswer, planState, type StepRecord, SYSTEM, userPrompt, visibleElements } from './step';
+import { type AgentAction, type AgentAnswer, BENCH_SYSTEM, fingerprint, historyText, loopHint, parseAnswer, planState, type StepRecord, SYSTEM, userPrompt, visibleElements } from './step';
 import { scalePng } from '../recorder/evidence-review';
 
 export type AgentMode = 'task' | 'explore';
@@ -36,7 +36,8 @@ export interface AgentOptions {
   mode: AgentMode;
   surface: Surface;
   env: Env;
-  pool: AccountPool;
+  /** Absent only in bench runs. */
+  pool?: AccountPool;
   devices?: DevicePool;
   udid?: string;
   account?: string;
@@ -51,6 +52,14 @@ export interface AgentOptions {
   onStep?: (r: StepRecord) => void;
   headed?: boolean;
   log?: (s: string) => void;
+  /** Bench mode (AndroidWorld on an emulator, W2-5 P1): no lease / preflight / sign-in, nothing blocked,
+   *  no findings; open_app and answer go to the bench service. */
+  bench?: BenchLink;
+}
+
+export interface BenchLink {
+  udid: string;
+  act(a: { action_type: 'open_app'; app_name: string } | { action_type: 'answer'; text: string }): Promise<void>;
 }
 
 export interface Finding {
@@ -133,7 +142,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
   const maxSteps = Math.min(o.maxSteps ?? HARD_LIMITS.maxSteps, HARD_LIMITS.maxSteps);
   const deadline = t0 + Math.min(o.maxMinutes ?? HARD_LIMITS.maxMinutes, HARD_LIMITS.maxMinutes) * 60_000;
   const tried = new Map<string, Set<string>>();
-  const ownNames = o.pool.ownContent(o.env);
+  const ownNames = o.pool?.ownContent(o.env) ?? [];
   const finish = async (): Promise<AgentResult> => {
     res.finishedAt = new Date().toISOString();
     res.usage = { steps: res.steps.length, seconds: Math.round((Date.now() - t0) / 1000), modelCalls: modelCalls.vision + modelCalls.text - calls0 };
@@ -150,39 +159,48 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
     return finish();
   }
 
-  // ---- lease + preflight (shared with the pro tier)
-  const leased = await leaseFor({ pool: o.pool, devices: o.devices, env: o.env, surface: o.surface, accountId: o.account, udid: o.udid, taskId: o.taskId ?? id, hooks: o.hooks, log });
-  if (leased.error !== undefined) {
-    res.error = leased.error;
-    res.summary = leased.error;
-    return finish();
+  // ---- lease + preflight (shared with the pro tier); bench runs use their emulator as it is
+  const bench = o.bench;
+  let lease: Lease | undefined;
+  let accountId = 'bench';
+  let udid: string | undefined = bench?.udid;
+  if (!bench) {
+    if (!o.pool) throw new Error('runAgent: an account pool is required outside bench mode');
+    const leased = await leaseFor({ pool: o.pool, devices: o.devices, env: o.env, surface: o.surface, accountId: o.account, udid: o.udid, taskId: o.taskId ?? id, hooks: o.hooks, log });
+    if (leased.error !== undefined) {
+      res.error = leased.error;
+      res.summary = leased.error;
+      return finish();
+    }
+    lease = leased.lease;
+    accountId = leased.account.id;
+    udid = leased.udid;
+    traj.emit('lease', { account: accountId, device: udid, surface: o.surface });
+    o.hooks?.phase?.('preflight');
+    const pf = await preflightFor({ pool: o.pool, surface: o.surface, hooks: o.hooks, log }, accountId, udid);
+    if (pf && !pf.ok) {
+      res.status = 'env-unfit';
+      res.summary = `环境不合格：${pf.reason}`;
+      o.pool.release(lease, o.devices);
+      return finish();
+    }
   }
-  const { lease, account, udid } = leased;
-  res.account = account.id;
+  res.account = accountId;
   res.device = onAndroid(o.surface) ? udid : undefined;
-  traj.emit('lease', { account: account.id, device: udid, surface: o.surface });
-  o.hooks?.phase?.('preflight');
-  const pf = await preflightFor({ pool: o.pool, surface: o.surface, hooks: o.hooks, log }, account.id, udid);
-  if (pf && !pf.ok) {
-    res.status = 'env-unfit';
-    res.summary = `环境不合格：${pf.reason}`;
-    o.pool.release(lease, o.devices);
-    return finish();
-  }
 
   let sess: Session | undefined;
   let afr: AndroidFlightRecorder | undefined;
   let wfr: WebFlightRecorder | undefined;
   const flightDir = join(o.runDir, '.flight');
   try {
-    if (onPlaywright(o.surface)) wfr = new WebFlightRecorder(flightDir);
-    if (onAndroid(o.surface) && udid) afr = new AndroidFlightRecorder(udid, packageOf(o.surface) ?? TEAMILY_PACKAGE, flightDir);
+    if (!bench && onPlaywright(o.surface)) wfr = new WebFlightRecorder(flightDir);
+    if (!bench && onAndroid(o.surface) && udid) afr = new AndroidFlightRecorder(udid, packageOf(o.surface) ?? TEAMILY_PACKAGE, flightDir);
     o.hooks?.phase?.('launch');
-    sess = await openSession({ surface: o.surface, env: o.env, account: account.id, udid, pool: o.pool, headed: o.headed, onLog: afr?.onLog, onConsole: wfr?.onConsole, log });
+    sess = bench ? await openBenchSession(bench.udid, log) : await openSession({ surface: o.surface, env: o.env, account: accountId, udid, pool: o.pool!, headed: o.headed, onLog: afr?.onLog, onConsole: wfr?.onConsole, log });
     const s = sess;
-    const guard = new PreTapGuard(s.inner, { dir: o.runDir, log });
+    const guard = new PreTapGuard(s.inner, { dir: o.runDir, log, ...(bench ? { pkg: '' } : {}) });
     await afr?.start();
-    await enterApp(s, { afterLaunch: async () => void (s.web && (await wfr!.start(s.web.context!, s.web.page!))) });
+    if (!bench) await enterApp(s, { afterLaunch: async () => void (s.web && (await wfr!.start(s.web.context!, s.web.page!))) });
     o.hooks?.phase?.('loop');
     setModelPurpose('agent');
     let plan: string | undefined;
@@ -194,8 +212,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       const dir = incidentDir(o.runDir, n, kind);
       const at = Date.now();
       const cap = afr ? await afr.capture(dir, at) : wfr && s.web ? await wfr.capture(s.web.context!, dir, at) : undefined;
-      const replay: ReplayFile = { format: 'coord-v1', skillVersion: s.profile.skillVersion, surface: o.surface, profile: s.profile.name, env: o.env, url: s.web ? o.pool.webUrl(o.env) : undefined, packageName: s.profile.packageName, account: account.id, device: udid, launch: 'once', category: 'bug-intermittent', verdictRule: { anyHit: true }, checks: [], targets: [], setupOps: [], rounds: [{ round: 1, ops: s.d.ops.slice(-80) }], incidentRound: 1 };
-      await writeIncident({ runDir: o.runDir, n, kind, at, detail, plan: planStub(o, id), step, round: 1, action: s.d.label, env: { account: account.id, device: udid, ...(cap && 'state' in cap ? cap.state : {}) }, ops: s.d.ops, frames: [], replay, videos: cap && 'videos' in cap ? cap.videos : undefined, traces: cap && 'traces' in cap ? cap.traces : undefined, logFrom: cap?.logFrom ?? at - 180_000, logTo: cap?.logTo ?? at, clockOffsetMs: afr?.clockOffsetMs, dir });
+      const replay: ReplayFile = { format: 'coord-v1', skillVersion: s.profile.skillVersion, surface: o.surface, profile: s.profile.name, env: o.env, url: s.web ? o.pool?.webUrl(o.env) : undefined, packageName: s.profile.packageName, account: accountId, device: udid, launch: 'once', category: 'bug-intermittent', verdictRule: { anyHit: true }, checks: [], targets: [], setupOps: [], rounds: [{ round: 1, ops: s.d.ops.slice(-80) }], incidentRound: 1 };
+      await writeIncident({ runDir: o.runDir, n, kind, at, detail, plan: planStub(o, id), step, round: 1, action: s.d.label, env: { account: accountId, device: udid, ...(cap && 'state' in cap ? cap.state : {}) }, ops: s.d.ops, frames: [], replay, videos: cap && 'videos' in cap ? cap.videos : undefined, traces: cap && 'traces' in cap ? cap.traces : undefined, logFrom: cap?.logFrom ?? at - 180_000, logTo: cap?.logTo ?? at, clockOffsetMs: afr?.clockOffsetMs, dir });
       return dir;
     };
 
@@ -208,7 +226,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       }
       s.d.step = step;
       s.d.round = 1;
-      const snap = await snapshot(s.inner, { keepPng: true, stableMaxMs: 1500 }).catch(() => undefined);
+      // Bench: whatever app is in front (the driver is bound to the launcher); otherwise the app under test.
+      const snap = await snapshot(s.inner, { keepPng: true, stableMaxMs: 1500, ...(bench ? { pkg: '' } : {}) }).catch(() => undefined);
       const nodes: ScreenNode[] = snap?.nodes ?? [];
       const els = visibleElements(nodes);
       const screen = fingerprint(nodes);
@@ -219,7 +238,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       const vp = s.profile.viewport.width ? s.profile.viewport : { width: snap?.width ?? 0, height: snap?.height ?? 0 };
       const prompt = userPrompt({ goal: o.goal, mode: o.mode, plan, history: historyText(res.steps), screen, els, tried: [...triedHere], feedback, size: vp });
       let ans: AgentAnswer | undefined;
-      for (let k = 0; k < 2 && !ans; k++) ans = parseAnswer(await visionJson(SYSTEM(!!o.writable, ownNames), [prompt, { label: 'Screenshot (scaled; use the element coordinates for taps)', png: shot }], MODEL_TIMEOUT_MS).catch(() => undefined));
+      const system = bench ? BENCH_SYSTEM : SYSTEM(!!o.writable, ownNames);
+      for (let k = 0; k < 2 && !ans; k++) ans = parseAnswer(await visionJson(system, [prompt, { label: 'Screenshot (scaled; use the element coordinates for taps)', png: shot }], MODEL_TIMEOUT_MS).catch(() => undefined), !!bench);
       if (!ans) {
         res.status = 'failed';
         res.summary = '模型连续两次没有给出可用的动作';
@@ -259,7 +279,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       const lbl = el ? label(el) : 'description' in a ? (a.description ?? '') : '';
       const y = el ? el.center.y : 'y' in a ? a.y : undefined;
       const own = y !== undefined && nearOwnContent(y, nodes.map((n) => ({ label: label(n), y: n.center.y })), ownNames, vp.height);
-      const risk = classifyRisk({ type: a.type, label: lbl, text: a.type === 'type' ? a.text : undefined, free: !el }, !!o.writable, { ownContent: own });
+      const risk = classifyRisk({ type: a.type, label: lbl, text: a.type === 'type' ? a.text : undefined, free: !el }, !!o.writable, { ownContent: own, bench: !!bench });
       if (risk.blocked) {
         res.blocked.push({ step, action: act, reason: risk.reason });
         traj.emit('blocked', { step, action: act, reason: risk.reason });
@@ -267,11 +287,12 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
         record(`blocked: ${risk.reason}`);
         continue;
       }
-      feedback = await perform(s, guard, a, el, vp).catch((e) => `error: ${(e as Error).message.split('\n')[0].slice(0, 160)}`);
+      feedback = await perform(s, guard, a, el, vp, bench).catch((e) => `error: ${(e as Error).message.split('\n')[0].slice(0, 160)}`);
       triedHere.add(actionKey(a, el));
       path.push(act);
       await sleep(900);
-      const hard = s.d.drainAnomalies().filter((x: Anomaly) => HARD_ANOMALIES.includes(x.kind));
+      // Bench runs judge nothing: the driver is bound to no app under test.
+      const hard = bench ? [] : s.d.drainAnomalies().filter((x: Anomaly) => HARD_ANOMALIES.includes(x.kind));
       if (hard.length) {
         const x = hard[0];
         const kind = incidentKind(x.kind);
@@ -300,7 +321,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
     setModelPurpose('other');
     await afr?.stop().catch(() => {});
     await closeSession(sess);
-    o.pool.release(lease, o.devices);
+    if (lease) o.pool!.release(lease, o.devices);
   }
   return finish();
 }
@@ -321,6 +342,10 @@ function describe(a: AgentAction, els: ScreenNode[]): string {
       return `done ${a.status}`;
     case 'report_issue':
       return `report_issue "${a.description.slice(0, 60)}"`;
+    case 'open_app':
+      return `open_app "${a.app}"`;
+    case 'answer':
+      return `answer "${a.text.slice(0, 60)}"`;
     default:
       return a.type;
   }
@@ -329,7 +354,7 @@ function describe(a: AgentAction, els: ScreenNode[]): string {
 const actionKey = (a: AgentAction, el?: ScreenNode) => `${a.type}${el ? `:${label(el).slice(0, 20)}` : 'direction' in a ? `:${a.direction}` : ''}`;
 
 /** Run one action through the recording driver; the pre-tap check guards taps on listed elements. */
-async function perform(s: Session, guard: PreTapGuard, a: AgentAction, el: ScreenNode | undefined, vp: { width: number; height: number }): Promise<string> {
+async function perform(s: Session, guard: PreTapGuard, a: AgentAction, el: ScreenNode | undefined, vp: { width: number; height: number }, bench?: BenchLink): Promise<string> {
   const d = s.d;
   d.label = a.type;
   const pointOf = async (purpose: string): Promise<Point | string> => {
@@ -361,6 +386,12 @@ async function perform(s: Session, guard: PreTapGuard, a: AgentAction, el: Scree
       return 'ok';
     }
     case 'swipe': {
+      // A swipe started on the soft keyboard glide-types a word into the focused field (2026-11-03 bench run:
+      // "Gonzalez" became "Gonzalez By"): close the keyboard first, as a user would.
+      if (await d.keyboardShown()) {
+        await d.back();
+        await sleep(400);
+      }
       // "up" = the content moves up (more below comes into view): the finger goes from lower to upper.
       const cx = Math.round(vp.width / 2);
       const cy = Math.round(vp.height / 2);
@@ -380,6 +411,19 @@ async function perform(s: Session, guard: PreTapGuard, a: AgentAction, el: Scree
     case 'wait':
       await sleep(a.ms);
       return 'ok';
+    case 'home':
+      await d.key('home');
+      return 'ok';
+    case 'enter':
+      await d.key('enter');
+      return 'ok';
+    case 'open_app':
+      await bench!.act({ action_type: 'open_app', app_name: a.app });
+      await sleep(1500);
+      return 'ok';
+    case 'answer':
+      await bench!.act({ action_type: 'answer', text: a.text });
+      return 'answer recorded — finish with done';
     default:
       return 'ok';
   }

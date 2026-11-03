@@ -111,7 +111,7 @@ const androidWebAdapter: SurfaceAdapter = {
     if (!(await s.profile.resolver?.refresh('login.email', { rulesOnly: true }).catch(() => false))) await toChatListAndroidWeb(s.d, s.inner as AndroidDriver, s.profile, s.log);
   },
   async ensureLogin(s) {
-    await s.d.redacted(() => ensureUiLogin(s.d, s.profile, s.pool, s.account, s.log));
+    await s.d.redacted(() => ensureUiLogin(s.d, s.profile, s.pool!, s.account, s.log));
   },
   async recoverHome(s, i) {
     if (i >= 2) return false;

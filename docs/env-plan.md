@@ -26,7 +26,7 @@
 | 渲染 | `-gpu host`（780M） | 最快；画面异常时退回 `swiftshader_indirect` |
 | 启动参数 | `-no-snapshot -grpc 8554 -no-boot-anim` | AndroidWorld 要求 `-no-snapshot` 与 `-grpc 8554`；不加 `-no-audio`（录音任务要麦克风） |
 | adb | 只用现有的 winget adb，一个 adb 服务同时管手机和模拟器 | 两个不同版本的 adb 会互相杀掉对方的服务，手机连接会断。**不要把 SDK 自带的 platform-tools 加进 PATH** |
-| Python | 用 miniconda base 的 3.11.13 建独立 venv（不重复装解释器，不改现有 conda 环境） | AndroidWorld 的锁定版本（matplotlib 3.6.1、numpy 1.26.3 等）没有 3.12 的预编译包 |
+| Python | 独立 conda 环境 `D:\envs\androidworld`（conda-forge 的 Python 3.11.15 + libsqlite 3.53.2，离线从本机 conda 缓存建，不下载、不改现有环境）。不用 base 的 3.11.13：它的 sqlite 没有 FTS4，AndroidWorld 初始化 Joplin 时报 `no such module: fts4` | AndroidWorld 的锁定版本（matplotlib 3.6.1、numpy 1.26.3 等）没有 3.12 的预编译包 |
 | AndroidWorld 源码 | 复制 `ref/android_world` 到 `D:\envs\android_world-src` 再安装 | 安装时会生成 protobuf 文件写进源码目录；`ref/` 只读（I13） |
 
 ## 2. 步骤
@@ -41,9 +41,9 @@
 | 6 | 改 AVD 配置 | 编辑 `C:\Users\hyl20\.android\avd\AndroidWorldAvd.avd\config.ini`，设：`hw.ramSize=4096`、`hw.cpu.ncore=4`、`disk.dataPartition.size=8G`、`hw.gpu.enabled=yes`、`hw.gpu.mode=host`、`hw.keyboard=yes` | 文件里这 6 行都在 | 用户完成（`hw.ramSize=4G`，生效为 4 GB） |
 | 7 | 首次启动模拟器 | `emulator -avd AndroidWorldAvd -no-snapshot -grpc 8554 -no-boot-anim -gpu host` | 窗口出现桌面；`adb devices` 同时列出手机和 `emulator-5554`；`adb -s emulator-5554 root` 输出 `restarting adbd as root` 或 `already running as root` | 首次报 `Cannot find AVD system path`：模拟器要求 SDK 根下有 `platform-tools` 目录才认 SDK。处理：`mklink /J D:\Android\Sdk\platform-tools <winget 的 platform-tools 目录>`（目录联接，仍是同一个 adb 37.0.1，不引入第二个版本）。之后启动成功：`emulator-5554` 与手机 `4f2ebdf2` 同时在线，`adb root` 成功，API 33、4 GB、4 核 |
 | 8 | 装 Python 3.11 | python.org 的 3.11 最新版 Windows x64 安装包，勾选 py launcher，不勾「Add to PATH」 | `py -3.11 --version` 输出 3.11.x | 跳过：用 miniconda base 的 3.11.13 |
-| 9 | 建虚拟环境、复制源码 | `py -3.11 -m venv D:\envs\androidworld`；把 `D:\projects\Tools\multi-test-agent\ref\android_world` 整个复制为 `D:\envs\android_world-src` | `D:\envs\androidworld\Scripts\python --version` 输出 3.11.x | `C:\Users\hyl20\miniconda3\python.exe -m venv D:\envs\androidworld`；源码复制时去掉 `.git` |
-| 10 | 装依赖（官方源；需要时设代理） | `D:\envs\androidworld\Scripts\python -m pip install -i https://pypi.org/simple -r D:\envs\android_world-src\requirements.txt fastapi uvicorn`；然后 `D:\envs\androidworld\Scripts\python -m pip install -i https://pypi.org/simple D:\envs\android_world-src` | `D:\envs\androidworld\Scripts\python -c "import android_world, android_env, fastapi; print('ok')"` 输出 `ok` | 两条命令均成功；`import android_world, android_env, fastapi` 输出 ok（Windows 原生可用，不需要 WSL 回退） |
-| 11 | 确认能下载 AndroidWorld 的 App | AndroidWorld 首次初始化从 `storage.googleapis.com` 下载约 20 个 APK；不通就在第 13 步前给终端设 `HTTPS_PROXY` | `curl -I https://storage.googleapis.com/gresearch/android_world/` 有 HTTP 响应（403 / 404 也算通） | 未完成：开发者这边的联网检查命令被权限拦下，需用户执行 |
+| 9 | 建虚拟环境、复制源码 | `py -3.11 -m venv D:\envs\androidworld`；把 `D:\projects\Tools\multi-test-agent\ref\android_world` 整个复制为 `D:\envs\android_world-src` | `D:\envs\androidworld\Scripts\python --version` 输出 3.11.x | 先用 base 3.11.13 建了 venv，因 sqlite 缺 FTS4 删除，改为 `conda create -p D:\envs\androidworld -c conda-forge --override-channels "python=3.11.15=h0159041_1_cpython" "libsqlite=3.53.2" --offline -y`；源码复制时去掉 `.git` |
+| 10 | 装依赖（官方源；需要时设代理） | `D:\envs\androidworld\Scripts\python -m pip install -i https://pypi.org/simple -r D:\envs\android_world-src\requirements.txt fastapi uvicorn`；然后 `D:\envs\androidworld\Scripts\python -m pip install -i https://pypi.org/simple D:\envs\android_world-src` | `D:\envs\androidworld\Scripts\python -c "import android_world, android_env, fastapi; print('ok')"` 输出 `ok` | 在 conda 环境里重装（解释器 `D:\envs\androidworld\python.exe`），两条命令均成功；`import android_world, android_env, fastapi` 输出 ok，FTS4 可用（Windows 原生可用，不需要 WSL 回退） |
+| 11 | 确认能下载 AndroidWorld 的 App | AndroidWorld 首次初始化从 `storage.googleapis.com` 下载约 20 个 APK；不通就在第 13 步前给终端设 `HTTPS_PROXY` | `curl -I https://storage.googleapis.com/gresearch/android_world/` 有 HTTP 响应（403 / 404 也算通） | 用户执行 `curl.exe -I https://storage.googleapis.com/gresearch/android_world/`：HTTP 404（可达，不需要代理） |
 | 12 | 告诉开发者已完成 | 贴回第 1、4、7、10、11 步的检查输出；模拟器保持开着 | — | |
 
 第 12 步之后由开发者做（不需要你操作）：
@@ -51,8 +51,8 @@
 | # | 操作 | 说明 |
 |---|---|---|
 | 13 | 检查 `android_env` 的 adb 控制器有没有 `adb kill-server` | **已查：有。** `android_env/components/adb_controller.py:75-92` 的 `_restart_server` 执行 `kill-server`，任何一条设备命令失败、重试前都会调用（第 145 行）。评测服务启动时把 `AdbController._restart_server` 替换成抛错 |
-| 14 | 首次初始化 | `bench/androidworld/server.py --setup`：装 App、授权限，几分钟 |
-| 15 | 往模拟器装读树服务 `ai.autotest.a11y` | 已预先同意的安装（与手机同一 APK） |
+| 14 | 首次初始化 | **已完成（2026-11-03）。** `bench/androidworld/server.py --setup`，约 8 分钟，116 题就绪。修了两处 Windows 问题（都在我们的启动脚本里，不改 android_env）：android_env 把 APK 写进仍打开着的临时文件再让 adb 安装，Windows 上 adb 打不开（改为写入已关闭的临时文件再按路径安装）；sqlite FTS4（见第 10 步）。Chrome、Contacts、OpenTracks 的首启弹窗没自动点掉（日志 `Target text … not found`），留给 agent 像用户一样处理 |
+| 15 | 往模拟器装读树服务 `ai.autotest.a11y` | **已完成**：评测会话打开时安装并启用（与 AndroidWorld 的 accessibility forwarder 并存），冒烟运行读树后端为 a11y-service |
 
 ## 3. 回退
 

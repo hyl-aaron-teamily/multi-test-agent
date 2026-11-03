@@ -13,7 +13,12 @@ export type AgentAction =
   | { type: 'launch' }
   | { type: 'wait'; ms: number }
   | { type: 'done'; status: 'completed' | 'failed'; summary: string }
-  | { type: 'report_issue'; description: string };
+  | { type: 'report_issue'; description: string }
+  // Bench mode only (AndroidWorld, W2-5 P1): open an app by name, hand in an answer, Home, Enter.
+  | { type: 'open_app'; app: string }
+  | { type: 'answer'; text: string }
+  | { type: 'home' }
+  | { type: 'enter' };
 
 export interface AgentAnswer {
   thought: string;
@@ -95,6 +100,22 @@ ${writable ? 'Writable run: you may type and send, but never delete or recall an
 Likes, follows, favourites and subscriptions change what real users see: do them only on the test accounts' own profiles and content (${ownContent.length ? ownContent.map((n) => `"${n}"`).join(', ') : 'none configured'}); elsewhere they are blocked. Tabs with those names on other people's pages are blocked too — check them on the own profiles.
 When exploring, prefer entries you have not tried on this screen yet.`;
 
+/** Bench mode (AndroidWorld on an emulator): complete the task; nothing is blocked, nothing is reported. */
+export const BENCH_SYSTEM = `You operate an Android phone to complete the user's task, one action per turn, like a careful human.
+Each turn you get: the task, your current plan, the history, the screenshot and the numbered visible elements.
+Answer ONE JSON object: {"thought": "<short>", "plan": "<markdown checklist: - [ ] todo / - [/] doing / - [x] done / - [!] failed>", "action": {...}}.
+Actions:
+- {"type":"tap","target":<element number>}  (preferred)
+- {"type":"tap","x":<px>,"y":<px>,"description":"<what is there>"}  (only for something not in the list; coordinates in the element list's space)
+- {"type":"longPress","target":<n>}
+- {"type":"type","target":<n>,"text":"..."}  (taps the field, then types; clear existing text first if it must be replaced)
+- {"type":"swipe","direction":"up|down|left|right"}
+- {"type":"open_app","app":"<app name, e.g. Contacts, Clock, Markor>"}
+- {"type":"back"} | {"type":"home"} | {"type":"enter"} | {"type":"wait","ms":<=3000}
+- {"type":"answer","text":"..."}  (the task asks a question: give the answer, then finish with done)
+- {"type":"done","status":"completed|failed","summary":"..."}  (the task is done, or it cannot be done)
+Rules: look before you act; do not assume where a tap leads; check on the screen that each step took effect before moving on; finish with done as soon as the task is complete.`;
+
 export function userPrompt(o: { goal: string; mode: 'task' | 'explore'; plan?: string; history: string; screen: string; els: ScreenNode[]; tried: string[]; feedback?: string; size: { width: number; height: number } }): string {
   return [
     `Goal (${o.mode === 'explore' ? 'explore and find problems' : 'task'}): ${o.goal}`,
@@ -109,7 +130,7 @@ export function userPrompt(o: { goal: string; mode: 'task' | 'explore'; plan?: s
 }
 
 /** Pure: validate the model's answer; undefined = unusable (the turn is retried once, then ends as failed). */
-export function parseAnswer(raw: unknown): AgentAnswer | undefined {
+export function parseAnswer(raw: unknown, bench = false): AgentAnswer | undefined {
   if (!raw || typeof raw !== 'object') return undefined;
   const r = raw as { thought?: unknown; plan?: unknown; action?: Record<string, unknown> };
   const a = r.action;
@@ -134,8 +155,24 @@ export function parseAnswer(raw: unknown): AgentAnswer | undefined {
       action = { type: 'swipe', direction: (['up', 'down', 'left', 'right'] as const).find((d) => d === a.direction) ?? 'up' };
       break;
     case 'back':
+      action = { type: 'back' };
+      break;
     case 'launch':
+      if (bench) return undefined;
+      action = { type: 'launch' };
+      break;
+    case 'home':
+    case 'enter':
+      if (!bench) return undefined;
       action = { type: a.type };
+      break;
+    case 'open_app':
+      if (!bench || typeof a.app !== 'string' || !a.app.trim()) return undefined;
+      action = { type: 'open_app', app: a.app.trim() };
+      break;
+    case 'answer':
+      if (!bench || typeof a.text !== 'string') return undefined;
+      action = { type: 'answer', text: a.text };
       break;
     case 'wait':
       action = { type: 'wait', ms: Math.min(3000, num(a.ms) ?? 1000) };
@@ -144,6 +181,7 @@ export function parseAnswer(raw: unknown): AgentAnswer | undefined {
       action = { type: 'done', status: a.status === 'failed' ? 'failed' : 'completed', summary: String(a.summary ?? '') };
       break;
     case 'report_issue':
+      if (bench) return undefined;
       if (typeof a.description !== 'string' || !a.description.trim()) return undefined;
       action = { type: 'report_issue', description: a.description };
       break;

@@ -46,8 +46,10 @@ const SEARCH = /搜索|search|查找|find/i;
 
 /** Pure: the risk of an action on an element labelled `label` (typing: `text` is what would be typed;
  *  `free`: the label is the model's description of a coordinate tap). Social actions run only on the agent
- *  accounts' own profiles and content (`ownContent`, see nearOwnContent) — in writable runs too. */
-export function classifyRisk(a: { type: string; label?: string; text?: string; free?: boolean }, writable = false, ctx: { ownContent?: boolean } = {}): Risk {
+ *  accounts' own profiles and content (`ownContent`, see nearOwnContent) — in writable runs too.
+ *  `bench`: AndroidWorld on an emulator (W2-5 N9) — no real users, nothing is blocked. */
+export function classifyRisk(a: { type: string; label?: string; text?: string; free?: boolean }, writable = false, ctx: { ownContent?: boolean; bench?: boolean } = {}): Risk {
+  if (ctx.bench) return { blocked: false, reason: 'bench (emulator)' };
   const label = (a.label ?? '').trim();
   if (HARD.test(label) || (a.type === 'type' && HARD.test(a.text ?? '') && /密码|password/i.test(label))) return { blocked: true, category: label.match(/锁屏|lock/i) ? 'lock' : 'delete', reason: `硬约束：${label || a.type}` };
   const tapLike = a.type === 'tap' || a.type === 'longPress';

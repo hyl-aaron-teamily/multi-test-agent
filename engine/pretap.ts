@@ -110,7 +110,8 @@ export class PreTapGuard {
 
   constructor(
     readonly driver: Driver,
-    readonly o: { dir?: string; driftPx?: number; log?: (s: string) => void } = {},
+    /** `pkg`: whose nodes to read ('' = every app on screen; default the driver's app). */
+    readonly o: { dir?: string; driftPx?: number; log?: (s: string) => void; pkg?: string } = {},
   ) {}
 
   /** The phone browser's accessibility tree is built on page load only (stale after in-page navigation):
@@ -171,7 +172,7 @@ export class PreTapGuard {
   }
 
   async check(p: Point, ref: TapRef): Promise<PreTapResult> {
-    const snap = await snapshot(this.driver, { keepPng: !!ref.png || this.pixelOnly, stableMaxMs: 900 });
+    const snap = await snapshot(this.driver, { keepPng: !!ref.png || this.pixelOnly, stableMaxMs: 900, ...(this.o.pkg !== undefined ? { pkg: this.o.pkg } : {}) });
     this.lastPng = snap.png;
     const t = this.pixelOnly ? undefined : treeVerdict(ref, p, snap.nodes, this.o.driftPx);
     if (t) return t;
