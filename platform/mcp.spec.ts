@@ -83,7 +83,7 @@ describe('MCP: sensitive plans stay Web-only (§7.6, full access off)', () => {
       const call = (method: string, path: string, body: any = {}) => apiV1({ method, path: `/api/v1${path}`, query: new URLSearchParams(), body, web: false }, {});
       const run = toolResult((await call('POST', '/tasks', { planId: id, series: 21 })) as any);
       expect(run.isError).toBe(true);
-      expect(run.structuredContent).toMatchObject({ code: 'APPROVAL_REQUIRED', exit: 30, error: { kind: 'policy', retryable: false, hint: expect.stringMatching(/plan\.html/) } });
+      expect(run.structuredContent).toMatchObject({ code: 'APPROVAL_REQUIRED', exit: 30, error: { kind: 'policy', retryable: false, hint: expect.stringMatching(/#\/plan\//) } });
       const ap = toolResult((await call('POST', `/plans/${encodeURIComponent(id)}/approve`, { hash: resolvePlan(id).hash, series: 21 })) as any);
       expect(ap.structuredContent).toMatchObject({ code: 'APPROVAL_REQUIRED', exit: 30 });
     } finally {

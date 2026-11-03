@@ -165,7 +165,7 @@ export function approve(i: ApproveInput): Approval {
   if (c.category === 'default') by = i.via === 'web' ? (i.reviewer ?? reviewerName()) : i.auto ? 'policy' : 'cli';
   else if (i.via === 'web') by = i.reviewer ?? reviewerName();
   else if (fa.on) by = `full-access（${fa.by} 开启）`;
-  else throw new CodedError('APPROVAL_REQUIRED', `敏感计划需要人在 Web 上同意：${c.reasons.join('；')}`, `打开 ${webUrl(`/plan.html?id=${encodeURIComponent(i.planId)}`)}`);
+  else throw new CodedError('APPROVAL_REQUIRED', `敏感计划需要人在 Web 上同意：${c.reasons.join('；')}`, `打开 ${webUrl(`/#/plan/${encodeURIComponent(i.planId)}`)}`);
   const a: Approval = { id: apId(i.planId), planId: i.planId, planHash: i.planHash, facts: i.facts, category: c.category, reasons: c.reasons, runsAllowed: i.series ?? i.runs ?? 1, runsUsed: 0, series: i.series, by, at: new Date().toISOString(), ...(i.auto ? { auto: true } : {}) };
   writeJsonAtomic(apFile(a.id), a);
   audit({ by, action: 'plan.approve', object: i.planId, after: { hash: i.planHash, runs: a.runsAllowed, category: c.category }, basis: c.reasons.join('；') });

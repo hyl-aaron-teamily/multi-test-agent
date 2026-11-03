@@ -308,6 +308,8 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     );
     phase('prepare', tPrep);
     nodeCtx.composerText = undefined; // the loop reads no hierarchy
+    // The screen the plan acts on (outside the loop): the Web plan page marks its steps on it (§7).
+    await s.inner.screenshot().then((png) => writeFile(join(o.runDir, 'screen.png'), png)).catch(() => {});
     if (plan.category === 'feature') {
       setModelPurpose('acceptance');
       o.hooks?.phase('loop');

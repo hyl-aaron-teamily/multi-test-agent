@@ -4,7 +4,7 @@ import { issueExists, issueIds, issuePath } from '../issue/paths';
 // the CLI text, `--json` and the pages say the same thing. Consent-type actions (sensitive plans, full
 // access, environment configuration items) are Web-only: the pages send `x-autotest-client: web`; the CLI
 // never does. Local use without login — a process rule, not a security boundary (§5.1).
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, normalize, resolve, sep } from 'node:path';
 import { classifyRules } from '../issue/classify';
 import { parseIssue } from '../issue/parse';
@@ -94,6 +94,86 @@ function resultOf(t: TaskRecord): ResultView {
   return resultView(t, res?.runs ?? [], code, { report: res?.report, runDir: res?.runDir, series: s && { runs: s.counted, reachedLoop: s.reachedLoop, reproducedRuns: s.reproducedRuns, validRuns: s.validRuns, valid: s.pooled.valid, hits: s.pooled.hits } });
 }
 
+/** Absolute path under midscene_run/ → its /files/ URL (else undefined). */
+export function fileUrl(p: string | undefined): string | undefined {
+  if (!p) return undefined;
+  const root = resolve('midscene_run');
+  const f = normalize(resolve(p));
+  return f.startsWith(root + sep) ? `/files/${f.slice(root.length + 1).replace(/\\/g, '/')}` : undefined;
+}
+
+const pngSize = (f: string): { width: number; height: number } | undefined => {
+  try {
+    const b = readFileSync(f);
+    return b.length > 24 && b.toString('ascii', 1, 4) === 'PNG' ? { width: b.readUInt32BE(16), height: b.readUInt32BE(20) } : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/** Newest .png under dir (≤ 3 levels; incident bundles excluded): the task page's "latest screen". */
+function newestPng(dir: string, depth = 3): { file: string; at: number } | undefined {
+  let best: { file: string; at: number } | undefined;
+  const walk = (d: string, k: number) => {
+    let names: string[] = [];
+    try {
+      names = readdirSync(d);
+    } catch {
+      return;
+    }
+    for (const n of names) {
+      const f = join(d, n);
+      let st;
+      try {
+        st = statSync(f);
+      } catch {
+        continue;
+      }
+      if (st.isDirectory()) {
+        if (k > 0 && !/^(incidents|\.flight|steps)$/.test(n)) walk(f, k - 1);
+      } else if (n.endsWith('.png') && (!best || st.mtimeMs > best.at)) best = { file: f, at: st.mtimeMs };
+    }
+  };
+  walk(dir, depth);
+  return best;
+}
+
+/** Task page (§7): quick-tier steps (thumbnail + reasoning, live from the trajectory), or the newest screen. */
+function taskSteps(t: TaskRecord) {
+  const dir = t.runDir;
+  if (!dir) return { steps: [], latest: undefined };
+  if (t.kind === 'explore') {
+    const lines = existsSync(join(dir, 'trajectory.jsonl')) ? readFileSync(join(dir, 'trajectory.jsonl'), 'utf8').split('\n').filter(Boolean) : [];
+    const ev = lines.map((l) => { try { return JSON.parse(l); } catch { return undefined; } }).filter(Boolean) as any[];
+    const steps = ev.filter((e) => e.kind === 'agent.step').map((e) => ({ step: e.step, at: e.t, action: e.action, thought: e.thought, thumb: e.thumb ? fileUrl(join(dir, e.thumb)) : undefined, blocked: ev.find((b) => b.kind === 'blocked' && b.step === e.step)?.reason, finding: ev.find((b) => b.kind === 'finding' && b.step === e.step)?.description }));
+    return { steps, latest: steps.at(-1)?.thumb };
+  }
+  const p = newestPng(dir);
+  return { steps: [], latest: p && fileUrl(p.file) };
+}
+
+/** Plan page (§7): the plan's steps marked on the latest run's screen, boxes from the SKILL cache. */
+function planMarks(planId: string) {
+  const r = resolvePlan(planId);
+  const p = r.plan;
+  let shot: string | undefined;
+  let at = 0;
+  const runs = resolve('midscene_run', 'issues');
+  for (const d of existsSync(runs) ? readdirSync(runs).filter((n) => n.startsWith(`${p.issueRef}-`)) : []) {
+    const f = join(runs, d, p.id, 'screen.png');
+    const st = existsSync(f) ? statSync(f).mtimeMs : 0;
+    if (st > at) [shot, at] = [f, st];
+  }
+  const size = shot ? pngSize(shot) : undefined;
+  const root = resolve('platform/state/skill-cache');
+  const caches = existsSync(root) ? readdirSync(root).filter((n) => n.startsWith(`${p.surface}@${p.env}@`) && (!size || n.endsWith(`@${size.width}x${size.height}`))) : [];
+  const newest = caches.map((n) => ({ n, at: statSync(join(root, n)).mtimeMs })).sort((a, b) => b.at - a.at)[0];
+  const elements: Record<string, { box: [number, number, number, number]; page: string }> = newest && existsSync(join(root, newest.n, 'profile.json')) ? JSON.parse(readFileSync(join(root, newest.n, 'profile.json'), 'utf8')).elements ?? {} : {};
+  const v = planView({ id: planId, hash: r.hash, plan: p, classified: classifyPlan(p, { allow: allowList() }) });
+  const marks = v.steps.map((s, i) => ({ n: i + 1, text: s.text, element: s.element, box: s.element && elements[s.element]?.box })).filter((m) => m.box);
+  return { shot: fileUrl(shot), shotAt: at ? new Date(at).toISOString() : undefined, size, cache: newest?.n, marks };
+}
+
 const tv = (t: TaskRecord) => taskView(t, readEvents(t.id) as any, readLedger(t.id));
 
 /** Environment refusals: offline / unfit (transient, so they come after the definitive checks). */
@@ -128,9 +208,9 @@ function submitExplore(b: any): Envelope {
   const env = envFor(surface, serviceEnv, b.envId);
   if (!env) return fail(b.envId ? 'NOT_FOUND' : 'ENV_OFFLINE', b.envId ? `没有环境 ${b.envId}` : `没有 ${surface}@${serviceEnv} 的环境`, 'autotest env list');
   const writable = !!b.writable;
-  if (writable && !getFullAccess().on) return fail('APPROVAL_REQUIRED', '可写探索（--writable）需要完全授权：它会真的发消息、改资料', webUrl('/'));
+  if (writable && !getFullAccess().on) return fail('APPROVAL_REQUIRED', '可写探索（--writable）需要完全授权：它会真的发消息、改资料', webUrl('/#/approvals'));
   const pending = pendingConfig(env);
-  if (pending.length) return fail('APPROVAL_REQUIRED', `环境 ${env.id} 的配置项尚未同意：${pending.map((c) => c.what).join('；')}`, webUrl(`/env.html?id=${encodeURIComponent(env.id)}`));
+  if (pending.length) return fail('APPROVAL_REQUIRED', `环境 ${env.id} 的配置项尚未同意：${pending.map((c) => c.what).join('；')}`, webUrl(`/#/env/${encodeURIComponent(env.id)}`));
   if (b.idempotencyKey) {
     const same = listTasks().find((t) => t.idempotencyKey === String(b.idempotencyKey) && !t.parent);
     if (same) return ok('ACCEPTED', `同一幂等键的任务已存在：${same.id}`, tv(same));
@@ -173,9 +253,9 @@ function submitSync(b: any): Envelope {
   if (new Set(all.map((e) => e.serviceEnv)).size > 1) return fail('BAD_INPUT', '--sync：各端必须是同一个服务环境（test / prod）');
   const rounds = b.rounds !== undefined && b.rounds !== null ? Number(b.rounds) : all.length;
   if (!(Number.isInteger(rounds) && rounds >= 1 && rounds <= 1000)) return fail('BAD_INPUT', '--rounds: 1..1000');
-  if (rounds > SENSITIVE.maxMessages && !getFullAccess().on) return fail('APPROVAL_REQUIRED', `会发送 ${rounds} 条消息（> ${SENSITIVE.maxMessages}），需要完全授权`, webUrl('/'));
+  if (rounds > SENSITIVE.maxMessages && !getFullAccess().on) return fail('APPROVAL_REQUIRED', `会发送 ${rounds} 条消息（> ${SENSITIVE.maxMessages}），需要完全授权`, webUrl('/#/approvals'));
   const pending = all.flatMap((e) => pendingConfig(e).map((c) => ({ ...c, env: e.id })));
-  if (pending.length) return fail('APPROVAL_REQUIRED', `环境 ${pending[0].env} 的配置项尚未同意：${pending.map((c) => c.what).join('；')}`, webUrl(`/env.html?id=${encodeURIComponent(pending[0].env)}`));
+  if (pending.length) return fail('APPROVAL_REQUIRED', `环境 ${pending[0].env} 的配置项尚未同意：${pending.map((c) => c.what).join('；')}`, webUrl(`/#/env/${encodeURIComponent(pending[0].env)}`));
   if (b.idempotencyKey) {
     const same = listTasks().find((t) => t.idempotencyKey === String(b.idempotencyKey) && !t.parent);
     if (same) return ok('ACCEPTED', `同一幂等键的任务已存在：${same.id}`, tv(same));
@@ -211,7 +291,7 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
   // Environment refusals come after the policy checks: those are definitive, an unfit phone is transient.
   const envRefusal = () => all.map(envRefusalOf).find(Boolean);
   const pending = all.flatMap((e) => pendingConfig(e).map((c) => ({ ...c, env: e.id })));
-  if (pending.length) return fail('APPROVAL_REQUIRED', `环境 ${pending[0].env} 的配置项尚未同意：${pending.map((c) => c.what).join('；')}`, webUrl(`/env.html?id=${encodeURIComponent(pending[0].env)}`));
+  if (pending.length) return fail('APPROVAL_REQUIRED', `环境 ${pending[0].env} 的配置项尚未同意：${pending.map((c) => c.what).join('；')}`, webUrl(`/#/env/${encodeURIComponent(pending[0].env)}`));
   const classified = classifyPlan(r.plan, { series, maxRounds, allow: allowList() });
   if (classified.category === 'refused') return fail('PLAN_NOT_EXECUTABLE', `计划触及硬约束：${classified.reasons.join('；')}`);
   const facts = versionFacts(r.plan, env.udid, env.appVersion);
@@ -230,7 +310,7 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
   const willAuto = !cur?.rejected && !curLive && (!cur || machineMade || cur.planHash !== r.hash) && (classified.category === 'default' || getFullAccess().on);
   // Sensitive: only a person's sensitive approval (Web) counts; a policy approval of the plain plan does not.
   if (classified.category === 'sensitive' && !getFullAccess().on && !(cur && !cur.rejected && cur.category === 'sensitive' && cur.planHash === r.hash && !cur.auto && cur.by !== 'policy' && !cur.by.startsWith('full-access')))
-    return fail('APPROVAL_REQUIRED', `敏感计划需要人在 Web 上同意：${classified.reasons.join('；')}`, webUrl(`/plan.html?id=${encodeURIComponent(planId)}${series ? `&series=${series}` : ''}`));
+    return fail('APPROVAL_REQUIRED', `敏感计划需要人在 Web 上同意：${classified.reasons.join('；')}`, webUrl(`/#/plan/${encodeURIComponent(planId)}${series ? `?series=${series}` : ''}`));
   if (b.dryRun) {
     if (!willAuto) useApproval(planId, r.hash, facts, n, true);
     const er = envRefusal();
@@ -284,6 +364,10 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
         const e = explain(planId, { series: q.query.get('series') ? Number(q.query.get('series')) : undefined, maxRounds: q.query.get('maxRounds') ? Number(q.query.get('maxRounds')) : undefined });
         return ok('OK', e.view.summary, { ...e.view, env: e.env ? envView(e.env) : undefined }, planText(e.view));
       }
+      if (M === 'GET' && seg[2] === 'marks') {
+        const m = planMarks(planId);
+        return ok('OK', m.shot ? `${m.marks.length} 个步骤标在最近一次运行的截图上` : '还没有运行截图（运行一次后出现）', m);
+      }
       if (M === 'POST' && seg[2] === 'approve') {
         const series = q.body.series !== undefined ? Number(q.body.series) : undefined;
         const e = explain(planId, { series });
@@ -308,7 +392,7 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
         return ok('OK', v.summary, v, [v.summary, ...(v.check?.items ?? []).map((i) => `  ${i.ok ? '✓' : '✗'} ${i.id}: ${i.detail}`), ...v.configItems.map((c) => `  配置项 ${c.id}：${c.what}（${c.consented ? `已同意 ${c.by}` : '待同意'}）`)].join('\n'));
       }
       if (M === 'POST' && seg[2] === 'consent') {
-        if (!q.web) return fail('APPROVAL_REQUIRED', '环境配置项只能在 Web 上同意', webUrl(`/env.html?id=${encodeURIComponent(env.id)}`));
+        if (!q.web) return fail('APPROVAL_REQUIRED', '环境配置项只能在 Web 上同意', webUrl(`/#/env/${encodeURIComponent(env.id)}`));
         const e = consentConfig(env.id, String(q.body.item ?? ''), reviewerName());
         return ok('OK', `已同意 ${q.body.item}`, envView(e));
       }
@@ -332,6 +416,10 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
       if (M === 'GET' && !seg[2]) {
         const v = tv(t);
         return ok('OK', v.summary, v, taskText(v));
+      }
+      if (M === 'GET' && seg[2] === 'steps') {
+        const s = taskSteps(t);
+        return ok('OK', `${s.steps.length} 步`, s);
       }
       if (M === 'GET' && seg[2] === 'wait') {
         const deadline = Date.now() + Math.min(25, Math.max(0, Number(q.query.get('timeout') ?? 20))) * 1000;
@@ -362,7 +450,7 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
     }
     if (seg[0] === 'full-access') {
       if (M === 'POST') {
-        if (!q.web) return fail('APPROVAL_REQUIRED', '完全授权只能在 Web 上开关', webUrl('/'));
+        if (!q.web) return fail('APPROVAL_REQUIRED', '完全授权只能在 Web 上开关', webUrl('/#/approvals'));
         const v = setFullAccess(!!q.body.on, reviewerName());
         return ok('OK', v.on ? `完全授权已开启（${v.by}）` : '完全授权已关闭', v);
       }

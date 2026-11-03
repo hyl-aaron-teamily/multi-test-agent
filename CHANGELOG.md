@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased] — W2-4.1 P7 / T8：前端（HTML + CSS + JS）
+
+### Changed
+- Web 控制台改为单页：`platform/web/index.html` + `style.css` + `app.js`，hash 路由，不用框架，沿用 intro / im-loadtest 的设计变量；总览、新建任务（自然语言·探索 / Issue / 多端协同）、任务详情（SSE 实时推送、快速档步骤缩略图与思路）、结果（转成 Issue）、计划（步骤标在最近一次运行的截图上）、环境、审批。旧页面删除，旧链接跳转到 hash 路由。
+- 计划运行在准备阶段后保存一张 `screen.png`，供计划页标注步骤。
+- 参考区域对不上时，准备阶段在锚点处重新截取（主题切换）；参考图解码缓存按文件修改时间区分。
+- `teamily.freezeMention` 取选择器里最下面的那个匹配，并等位置稳定后再冻结。
+
+### Added
+- `GET /api/v1/tasks/<id>/steps`、`GET /api/v1/plans/<id>/marks`、`GET /api/v1/tasks/<id>/stream`（SSE）；`scripts/web-shots.ts` 逐页截图。
+
 ## [Unreleased] — W2-4.1 P6 / T7：多端协同接入 v1 任务
 
 ### Added

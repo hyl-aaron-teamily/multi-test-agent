@@ -2,7 +2,7 @@
 // (SKILL cache, refactor P3); only a mismatch (or an explicit ai check) goes to the vision model — and every
 // vision call is counted. A missing reference is captured outside the loop when its anchors are on screen.
 import { visionAsk, visionEnabled } from '../core/model/midscene';
-import { readFileSync } from 'node:fs';
+import { readFileSync, statSync } from 'node:fs';
 import { type Box, decodePng, type Rgba, regionDiffFraction, scaleBox } from '../core/image';
 import type { Driver } from '../drivers/types';
 import { majority } from '../core/model/llm';
@@ -34,14 +34,21 @@ export function dprOf(p: Profile, img: Rgba): number {
 const refImages = new Map<string, Rgba>();
 function refImage(p: Profile, image: string): Rgba | undefined {
   const f = refImagePath(p, image);
-  if (!refImages.has(f)) {
+  // Keyed by modification time too: a reference captured again (theme switch, redesign) rewrites the same file.
+  let key: string;
+  try {
+    key = `${f}@${statSync(f).mtimeMs}`;
+  } catch {
+    return undefined;
+  }
+  if (!refImages.has(key)) {
     try {
-      refImages.set(f, decodePng(readFileSync(f)));
+      refImages.set(key, decodePng(readFileSync(f)));
     } catch {
       return undefined;
     }
   }
-  return refImages.get(f);
+  return refImages.get(key);
 }
 
 /** Pure: smallest differing-pixel fraction of the reference region within a vertical search window. */
@@ -183,11 +190,26 @@ export function regionShows(img: Rgba, p: Profile, key: string, tolerance = MATC
 export async function waitForRegion(driver: Driver, p: Profile, keys: string[], ms = 30_000, every = 1500, tolerance = 0.35): Promise<string | undefined> {
   const t0 = Date.now();
   let last: string | undefined;
+  let refreshed = false;
   for (;;) {
     // A region never captured yet: capture it as soon as its anchors are on screen (outside the loop).
     for (const k of keys) if (!refFor(p, ...(k.split('/') as [string, string]))) await ensureRef(p, k);
     const img = decodePng(await driver.screenshot());
-    const hit = keys.find((k) => regionShows(img, p, k, tolerance));
+    let hit = keys.find((k) => regionShows(img, p, k, tolerance));
+    // Still no match after a while, outside the loop: the reference may be stale (the phone switched between
+    // light and dark theme, 2026-11-03; a redesign). Capture it again where its anchors are found now.
+    if (!hit && !refreshed && Date.now() - t0 > Math.min(6000, ms / 3) && p.resolver && !p.resolver.inLoop) {
+      refreshed = true;
+      for (const k of keys) {
+        const [page, region] = k.split('/');
+        const old = p.refs[page]?.[region];
+        if (!old) continue;
+        delete p.refs[page][region];
+        if (!(await ensureRef(p, k))) p.refs[page][region] = old;
+      }
+      const again = decodePng(await driver.screenshot());
+      hit = keys.find((k) => regionShows(again, p, k, tolerance));
+    }
     if (hit && hit === last) return hit;
     last = hit;
     if (Date.now() - t0 > ms) return undefined;

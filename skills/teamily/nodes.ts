@@ -303,7 +303,8 @@ const tapSend: Exec<Record<string, never>> = async ({ context: c }) => {
 };
 
 /** prepare-only: open the @ picker, locate a member row by its literal text (① only — a vision guess could
- *  pick another member) and freeze its point as target `as`; then close the picker and clear the input. */
+ *  pick another member) and freeze its point as target `as`; then close the picker and clear the input. The
+ *  bottom-most match: the sheet covers the chat, whose sender names carry the same text (2026-11-03). */
 const freezeMention: Exec<{ member: string; as: string }> = async ({ input, context: c }) => {
   if (!c.locate) throw new Error('teamily.freezeMention: no locator (prepare-only node)');
   if (c.driver.surface === 'android-app') await focusComposer(c);
@@ -312,9 +313,19 @@ const freezeMention: Exec<{ member: string; as: string }> = async ({ input, cont
   let p: Point | null = null;
   for (let i = 0; i < 3 && !p; i++) {
     await sleep(i ? 1000 : 1500);
-    p = await c.locate(`the member "${input.member}" in the @ mention picker`, [input.member], false, true);
+    p = await c.locate(`the member "${input.member}" in the @ mention picker`, [input.member], true, true);
   }
   if (!p) throw new Error(`teamily.freezeMention: "${input.member}" not in the @ picker`);
+  // The picker sheet slides up: a row read mid-animation sits ~500 px too high (2026-11-03). Freeze the point
+  // only once two reads agree.
+  for (let i = 0; i < 5; i++) {
+    await sleep(700);
+    const q = await c.locate(`the member "${input.member}" in the @ mention picker`, [input.member], true, true);
+    if (!q) break;
+    const settled = Math.abs(q.x - p.x) <= 20 && Math.abs(q.y - p.y) <= 20;
+    p = q;
+    if (settled) break;
+  }
   c.targets[input.as] = p;
   c.onFreeze?.(input.as, p, `@ picker row "${input.member}"`);
   await c.driver.back(); // closes the picker sheet

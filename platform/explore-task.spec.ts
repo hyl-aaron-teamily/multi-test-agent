@@ -99,6 +99,12 @@ describe('W2-4.1 T6 explore task', () => {
       expect(iss.code).toBe('OK');
       expect((iss.data as any).issue).toBe('explore-20261103020000-1');
       rmSync((iss.data as any).file, { force: true });
+      // Task page steps (§7): thumbnail URL, reasoning, blocked reason, from the trajectory.
+      writeFileSync(join(runDir, 'trajectory.jsonl'), [{ t: 'a', step: 1, action: 'tap #3 "Notifications"', thought: 'open it', thumb: 'steps/0001.png', kind: 'agent.step' }, { t: 'b', step: 2, action: 'tap #4 "Like"', thought: 'like', thumb: 'steps/0002.png', kind: 'agent.step' }, { step: 2, reason: 'social', kind: 'blocked' }].map((x) => JSON.stringify(x)).join('\n'));
+      const st = await call('GET', `/tasks/${id}/steps`);
+      expect((st.data as any).steps.map((s: any) => [s.step, s.blocked ?? null])).toEqual([[1, null], [2, 'social']]);
+      expect((st.data as any).steps[0].thumb).toBe(`/files/explore/spec-${id}/steps/0001.png`);
+      expect((st.data as any).latest).toBe(`/files/explore/spec-${id}/steps/0002.png`);
     } finally {
       rmSync(runDir, { recursive: true, force: true });
     }

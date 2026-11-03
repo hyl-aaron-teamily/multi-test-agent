@@ -188,7 +188,7 @@ describe('W2-3 T7 API envelope and CLI help', () => {
     expect(getApproval(id)!.by).toBe('policy');
     const s = await call('POST', '/tasks', { planId: id, series: 21 });
     expect(s.code).toBe('APPROVAL_REQUIRED');
-    expect(s.error?.hint).toMatch(/plan\.html/);
+    expect(s.error?.hint).toMatch(/#\/plan\//);
     const h = resolvePlan(id).hash;
     expect((await call('POST', `/plans/${encodeURIComponent(id)}/approve`, { hash: h, series: 21 })).code).toBe('APPROVAL_REQUIRED'); // CLI cannot
     expect((await call('POST', `/plans/${encodeURIComponent(id)}/approve`, { hash: h, series: 21 }, true)).code).toBe('OK'); // the Web can

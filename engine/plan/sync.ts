@@ -242,7 +242,15 @@ async function prepareRole(r: Role, o: SyncOptions, log: (s: string) => void, fo
     ? `the conversation titled "${chosenTitle}" (the same group the other test clients opened; titles may be cut short with …)`
     : (o.conversation ?? DEFAULT_CONVERSATION());
   const plan = { targets: [{ id: 'conv', kind: 'group-conversation', guidance }] } as unknown as TestPlan;
-  const [t] = await pickTargets(plan, r.inner, profile, (s) => log(`${r.spec.id}: ${s}`), await visionLocator(r.inner as any), 'rows');
+  // The list may still be loading right after sign-in (web: "连接中…", only the Personal Agent row): retry.
+  let t: Awaited<ReturnType<typeof pickTargets>>[number] | undefined;
+  for (let k = 0; k < 4 && !t; k++) {
+    if (k) {
+      log(`${r.spec.id}: conversation not on the list yet — waiting for it to load (${k}/3)`);
+      await sleep(5000);
+    }
+    t = (await pickTargets(plan, r.inner, profile, (s) => log(`${r.spec.id}: ${s}`), await visionLocator(r.inner as any), 'rows').catch((e) => (k === 3 ? Promise.reject(e) : [])))[0];
+  }
   if (!t) throw new Error('conversation not found on the list');
   if (o.allow && !constructionAllowed(t.chosen, o.allow)) throw new Error(`conversation "${t.chosen.slice(0, 40)}" is not on the allow list (G3): nothing is sent there`);
   r.target = t.point;
