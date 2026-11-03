@@ -1,0 +1,8 @@
+# Test fixture for unit tests (vitest.config.ts sets CONVERSATIONS_FILE to this file), so tests never read the
+# private platform/conversations.local.yaml. Names are the ones already in the committed plans and snapshots.
+construct:
+  allow:
+    - 黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2
+  member: aaron+test2
+sync:
+  defaultConversation: 黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2

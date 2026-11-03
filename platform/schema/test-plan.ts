@@ -59,7 +59,9 @@ export const LimitsZ = z.object({
   maxRounds: z.number().int().min(1).max(1000).optional(),
 });
 
-export const VerdictRuleZ = z.union([z.object({ consecutiveHits: z.literal(3) }), z.object({ anyHit: z.literal(true) })]);
+/** One hit reproduces, for every bug category (rule E1, 2026-11-03). Plans saved earlier with the old
+ *  "3 consecutive hits" rule for bug-always read as anyHit. */
+export const VerdictRuleZ = z.union([z.object({ anyHit: z.literal(true) }), z.object({ consecutiveHits: z.literal(3) }).transform(() => ({ anyHit: true as const }))]);
 
 /** Feature acceptance: one item per Expected/AC line; each is a check run once. */
 export const AcceptanceItemZ = z.object({ id: z.string(), text: z.string(), actions: z.array(PlannedActionZ), check: CheckPointZ });
@@ -92,6 +94,9 @@ export const TestPlanZ = z.object({
   epilogue: z.object({ actions: z.array(PlannedActionZ), check: CheckPointZ }).optional(),
   /** suspected-misuse: the correct path, run first. */
   correctPath: z.array(PlannedActionZ).optional(),
+  /** Multi-role plan (multi-account Issues, §6): one client per surface, each a different pool account, in an
+   *  allow-listed group; every round one sends a unique line and every other must show it. surface = roles[0]. */
+  sync: z.object({ roles: z.array(SurfaceZ).min(2).max(4), rounds: z.number().int().min(1).max(50) }).optional(),
   limits: LimitsZ,
   verdictRule: VerdictRuleZ,
   /** Intent contract the plan was compiled from (W2-1 §5). */
@@ -118,8 +123,8 @@ export const APP_SURFACES: string[] = ['android-app', 'android-web'];
 /** Ops that are not user input pacing: excluded from the ≤ 1 s action-interval statistic. */
 export const LIFECYCLE_OPS = new Set(['launch', 'exitApp', 'killApp', 'reload', 'idle', 'focus', 'observe']);
 
-export function verdictRuleFor(c: Category): TestPlan['verdictRule'] {
-  return c === 'bug-always' ? { consecutiveHits: 3 } : { anyHit: true };
+export function verdictRuleFor(_c: Category): TestPlan['verdictRule'] {
+  return { anyHit: true };
 }
 
 export function testPlanJsonSchema(): unknown {

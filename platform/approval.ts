@@ -26,7 +26,7 @@ export interface Classified {
 
 const SEND = new Set(['teamily.sendMessage', 'teamily.quoteReply', 'teamily.tapSend']);
 const sends = (xs: PlannedAction[] | undefined) => (xs ?? []).filter((a) => a.node && SEND.has(a.node.name)).length;
-/** Operation drifts stop a run after 10 (executor/loop.ts) — the 11th ends it. */
+/** Operation drifts stop a run after 10 (engine/plan/loop.ts) — the 11th ends it. */
 export const MAX_DRIFT_ROUNDS = 11;
 
 /** Pure: upper bound of loop rounds (valid attempts + drift rounds, capped by the step limit). */
@@ -38,6 +38,7 @@ export function roundBound(p: TestPlan, maxRounds?: number): number {
 
 /** Pure: upper bound of messages one run of the plan sends (warm-up round included). */
 export function messageBound(p: TestPlan, maxRounds?: number): number {
+  if (p.sync) return maxRounds ?? p.sync.rounds;
   if (p.category === 'feature') return sends(p.setup) + sends(p.prepare) + (p.acceptance ?? []).reduce((n, a) => n + sends(a.actions), 0);
   const perRound = sends(p.actions) + sends(p.afterCheck);
   return sends(p.setup) + sends(p.prepare) + sends(p.correctPath) + perRound * (roundBound(p, maxRounds) + 1) + sends(p.epilogue?.actions);
@@ -164,7 +165,7 @@ export function approve(i: ApproveInput): Approval {
   if (c.category === 'default') by = i.via === 'web' ? (i.reviewer ?? reviewerName()) : i.auto ? 'policy' : 'cli';
   else if (i.via === 'web') by = i.reviewer ?? reviewerName();
   else if (fa.on) by = `full-access（${fa.by} 开启）`;
-  else throw new CodedError('APPROVAL_REQUIRED', `敏感计划需要人在 Web 上同意：${c.reasons.join('；')}`, `打开 ${webUrl(`/plan.html?id=${encodeURIComponent(i.planId)}`)}`);
+  else throw new CodedError('APPROVAL_REQUIRED', `敏感计划需要人在 Web 上同意：${c.reasons.join('；')}`, `打开 ${webUrl(`/#/plan/${encodeURIComponent(i.planId)}`)}`);
   const a: Approval = { id: apId(i.planId), planId: i.planId, planHash: i.planHash, facts: i.facts, category: c.category, reasons: c.reasons, runsAllowed: i.series ?? i.runs ?? 1, runsUsed: 0, series: i.series, by, at: new Date().toISOString(), ...(i.auto ? { auto: true } : {}) };
   writeJsonAtomic(apFile(a.id), a);
   audit({ by, action: 'plan.approve', object: i.planId, after: { hash: i.planHash, runs: a.runsAllowed, category: c.category }, basis: c.reasons.join('；') });

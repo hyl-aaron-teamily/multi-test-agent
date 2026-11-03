@@ -140,11 +140,13 @@ Check the environment now (online, unlocked, app version, configuration items) �
 
 ### `autotest task run`
 
-Submit a plan; returns the task id at once (20). Default-class plans are approved by policy
+Submit a plan, or a multi-client sync check (--sync); returns the task id at once (20). Default-class plans are approved by policy. Multi-role plans and --sync lease every environment or none. `task run --explore "<goal>" …` = explore run
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| <planId> | string | 是 | <Issue>/<sub>:<surface>@v<draft version>, e.g. 1903/main:android-app@v1 |
+| <planId> | string |  | <Issue>/<sub>:<surface>@v<draft version>, e.g. 1903/main:android-app@v1 (or --sync) |
+| --sync | string |  | multi-client sync check instead of a plan: 2–4 surfaces or environment ids, comma-separated, e.g. desktop-web,android-app (a different pool account each; sends into an allow-listed group) |
+| --rounds | integer |  | with --sync: rounds (one line sent per round; default one per client) |
 | --env | string |  | environment id (default: the plan surface’s ready one) |
 | --series | integer |  | N independent runs |
 | --max-rounds | integer |  | valid attempts per run |
@@ -212,6 +214,37 @@ Can runs start, what is missing, what to do next (ready / degraded / blocked; ne
 
 可能的状态码：`OK`、`PLATFORM_DOWN`、`ENV_LOCKED`、`ENV_OFFLINE`、`ENV_UNFIT`（另有 1 / 40 / 54）
 
+### `autotest explore run`
+
+Quick tier (capability ①): a goal in plain words, run by the vision agent on a real phone / browser; returns the task id at once (20). Read-only unless --writable (needs full access). result show → findings (each with an incident bundle), coverage, blocked actions, usage
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| <goal> | string | 是 | what to do or explore, e.g. "看看个人主页的通知铃铛能不能打开" |
+| --mode | string |  | explore (find problems, default) | task (reach the goal) |
+| --surface | string |  | android-app (default) | desktop-web | android-web | mobile-web |
+| --env | string |  | environment id (default: the surface’s ready prod one) |
+| --max-steps | integer |  | default: none (hard cap 3000) |
+| --max-minutes | integer |  | default: none (hard cap 120) |
+| --writable | boolean |  | allow sending / editing (full access only; payment, logout, deleting stay blocked) |
+| --dry-run | boolean |  | check everything, start nothing |
+| --idempotency-key | string |  | same key → the same task |
+| --json | boolean |  | stdout = one JSON envelope { status, code, exit, summary, data, error } |
+
+可能的状态码：`ACCEPTED`、`OK`、`APPROVAL_REQUIRED`、`NOT_FOUND`、`ENV_UNFIT`、`ENV_LOCKED`、`ENV_OFFLINE`（另有 1 / 40 / 54）
+
+### `autotest explore issue`
+
+Exploration finding → Issue draft (issues/explore/<id>.md) for the pro tier: then draft create / plan explain / task run
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| <taskId> | string | 是 | exploration task id (or its run dir under midscene_run) |
+| <n> | integer | 是 | finding number from result show |
+| --json | boolean |  | stdout = one JSON envelope { status, code, exit, summary, data, error } |
+
+可能的状态码：`OK`、`NOT_FOUND`、`BAD_INPUT`（另有 1 / 40 / 54）
+
 ### `autotest result show`
 
 ResultView of a finished task: conclusion sentence, basis, attempts, flags, failure kind, evidence
@@ -237,6 +270,8 @@ ResultView of a finished task: conclusion sentence, basis, attempts, flags, fail
 | 15 | 200 | `SUSPECTED_MISOP` | 疑似误操作 |
 | 16 | 200 | `TURNED_BUG` | 转为 bug |
 | 17 | 207 | `SERIES_DONE` | 系列完成（各次结论见 JSON） |
+| 18 | 200 | `EXPLORE_FINDINGS` | 探索 / 自然语言任务：有发现 |
+| 19 | 200 | `EXPLORE_DONE` | 探索 / 自然语言任务：未发现问题（覆盖见 JSON） |
 | 20 | 202 | `ACCEPTED` | 已受理（任务已排队） |
 | 21 | 202 | `STILL_RUNNING` | wait 超时，任务仍在运行 |
 | 30 | 403 | `APPROVAL_REQUIRED` | 需要人在 Web 同意 |

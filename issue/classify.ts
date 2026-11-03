@@ -63,7 +63,7 @@ export function classifyRules(i: NormalizedIssue): Classification {
     const needsOther = /mentioned by|@-mentioned|someone @|被 ?@|另一账号|second account/.test(t);
     return mk('feature', needsOther ? '需求类：单账号可验部分一次性验收；需要他人 @ 我的部分需第二账号，暂缓' : '需求类：按 Expected/AC 一次性验收', 'strong', { partialMultiAccount: needsOther });
   }
-  if (multi && /sync|同步|forward|转发|multi-device|other clients/.test(head)) return mk('multi-account', '需要第二账号或同账号多端配合观察，等待账号池/设备池多客户端支持');
+  if (multi && /sync|同步|forward|转发|multi-device|other clients/.test(head)) return mk('multi-account', '需要第二账号或同账号多端配合观察（多端协同计划）');
   if (/always|必现|100%/.test(i.frequency.toLowerCase())) return mk('bug-always', `Frequency: ${i.frequency}；步骤明确`, i.steps.length ? 'strong' : 'weak');
   if (/intermittent|sometimes|occasional|偶|有时/.test(i.frequency.toLowerCase() + head)) return mk('bug-intermittent', `Frequency: ${i.frequency || '偶发'}`);
   return mk('bug-intermittent', '频率未声明，按偶现处理', 'weak');

@@ -33,7 +33,7 @@ describe('classification of the sample issues', () => {
     '1614': 'server-side',
     '1903': 'bug-always',
     '1918': 'deferred', // platform/issue-overrides.yaml (W2-2: Agent reply content cannot be constructed)
-    '1922': 'not-executable', // platform/issue-overrides.yaml (user decision, see file)
+    '1922': 'bug-intermittent', // rule A3 (2026-11-03): the old "refuse" override is gone
     '2044': 'bug-always',
     '2122': 'feature',
     '2235': 'multi-account',
@@ -73,7 +73,7 @@ const basePlan = () => ({
 
 describe('plan validation', () => {
   it('accepts a well-formed plan', () => expect(validatePlan(basePlan()).errors).toEqual([]));
-  it('rejects unknown element / node / target, slow intervals and wrong verdict rule', () => {
+  it('rejects unknown element / node / target and slow intervals; the old 3-hit rule reads as one hit', () => {
     const p: any = basePlan();
     p.actions.push({ type: 'tap', element: 'chat.nope' }, { type: 'node', node: { name: 'teamily.fly', input: {} } }, { type: 'wait', value: '1', delayAfterMs: 1000 });
     p.setup[0].node.input.target = 'ghost';
@@ -83,7 +83,6 @@ describe('plan validation', () => {
     expect(v.errors.join('\n')).toMatch(/unknown element chat.nope/);
     expect(v.errors.join('\n')).toMatch(/unknown node teamily.fly/);
     expect(v.errors.join('\n')).toMatch(/unknown target ghost/);
-    expect(v.errors.join('\n')).toMatch(/verdictRule/);
   });
   it('schema refuses intervals above 1 s', () => {
     const p: any = basePlan();
@@ -91,7 +90,7 @@ describe('plan validation', () => {
     expect(validatePlan(p).ok).toBe(false);
   });
   it('verdict rule follows the category; JSON schema exports', () => {
-    expect(verdictRuleFor('bug-always')).toEqual({ consecutiveHits: 3 });
+    expect(verdictRuleFor('bug-always')).toEqual({ anyHit: true });
     expect(verdictRuleFor('bug-intermittent')).toEqual({ anyHit: true });
     expect(JSON.stringify(testPlanJsonSchema())).toMatch(/verdictRule/);
   });

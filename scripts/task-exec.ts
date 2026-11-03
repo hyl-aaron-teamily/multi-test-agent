@@ -5,15 +5,19 @@
 // after this exits.
 import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
-import type { RunResult } from '../executor/run';
-import { summarizeSeries, type SeriesRun } from '../executor/series';
+import type { AgentResult } from '../engine/agent/run';
+import type { StepRecord } from '../engine/agent/step';
+import type { RunResult } from '../engine/plan/run';
+import type { Surface } from '../platform/accounts/types';
+import { summarizeSeries, type SeriesRun } from '../engine/plan/series';
 import type { Draft } from '../issue/planner';
 import { getEnv, updateEnv } from '../platform/lifecycle/env';
 import { recordWarmupFailures } from '../issue/drafts';
 import { TaskRuntime } from '../platform/lifecycle/runtime';
 import { type Code, codeOfRuns } from '../platform/lifecycle/status';
 import { readJson } from '../platform/lifecycle/store';
-import { createTask, getTask, isTerminal, moveTask, taskDir, type TaskState, updateTask, writeResult } from '../platform/lifecycle/task';
+import { createTask, getTask, isTerminal, moveTask, taskDir, taskEnvs, type TaskState, updateTask, writeResult } from '../platform/lifecycle/task';
+import type { SyncResult } from '../engine/plan/sync';
 import { type TestPlan, TestPlanZ } from '../platform/schema/test-plan';
 
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
@@ -30,11 +34,121 @@ function advance(id: string, to: TaskState[], basis: string): void {
   for (const s of to) if (getTask(id)!.state !== s) moveTask(id, s, 'task', basis);
 }
 
+/** Pure: the code a finished quick-tier run maps to. */
+export function exploreCode(r: Pick<AgentResult, 'status' | 'summary' | 'findings'>): Code {
+  if (r.status === 'cancelled') return 'CANCELLED';
+  if (r.status === 'env-unfit') return unfitCode(r.summary.replace(/^环境不合格：/, ''));
+  if (r.status === 'error') return 'TOOL_FAILED';
+  return r.findings.some((f) => f.counted) ? 'EXPLORE_FINDINGS' : 'EXPLORE_DONE';
+}
+
+/** Task kind explore (§5.4): the quick tier's agent loop on the leased environment. */
+async function execExplore(id: string, rt: TaskRuntime): Promise<number> {
+  const t0 = getTask(id)!;
+  const x = t0.explore!;
+  const env = getEnv(t0.envId)!;
+  rt.move('preflight', `process ${process.pid} started`);
+  const hooks = {
+    phase: (p: Parameters<TaskRuntime['phase']>[0]) => {
+      rt.phase(p);
+      if (p !== 'preflight' && getTask(id)!.state === 'preflight') rt.move('running', 'preflight passed');
+    },
+    shouldStop: rt.shouldStop.bind(rt),
+  };
+  let last = 0;
+  const onStep = (s: StepRecord) => {
+    if (Date.now() - last < 500) return;
+    last = Date.now();
+    updateTask(id, (t) => void (t.progress = { phase: 'loop', step: s.step, at: new Date().toISOString(), summary: /^blocked/.test(s.result) ? `已拦截（未执行）：${s.action}` : s.action }));
+  };
+  const { openPools } = await import('../platform/pools');
+  const { runAgent } = await import('../engine/agent/run');
+  const { pool, devices } = await openPools();
+  const runDir = resolve('midscene_run/explore', `${env.surface}-${id}`);
+  updateTask(id, (t) => void (t.runDir = runDir));
+  const r = await runAgent({ goal: x.goal, mode: x.mode, surface: env.surface as Surface, env: env.serviceEnv, pool, devices, udid: env.udid, account: env.account, writable: x.writable, maxSteps: t0.options.maxSteps, maxMinutes: t0.options.maxMinutes, runDir, taskId: id, hooks, onStep });
+  const code = exploreCode(r);
+  const report = join(runDir, 'report.md');
+  writeResult(id, { schemaVersion: 1, taskId: id, planId: t0.planId, code, agent: r, report, runDir });
+  const state: TaskState = code === 'CANCELLED' ? 'cancelled' : r.status === 'env-unfit' ? 'env-unfit' : 'done';
+  const found = r.findings.filter((f) => f.counted).length;
+  const patch = (t: Parameters<Parameters<typeof updateTask>[1]>[0]) => {
+    t.outcome = { code, summary: code === 'CANCELLED' ? `已取消（${r.usage.steps} 步，${found} 个发现）` : found ? `${found} 个发现` : r.summary || r.status };
+    t.endedBy = code === 'CANCELLED' ? 'cancel' : 'normal';
+    t.endedAt = rt.position;
+    t.report = report;
+  };
+  if (state === 'done') advance(id, [...(getTask(id)!.state === 'preflight' ? (['running'] as TaskState[]) : []), 'finishing'], 'run ended');
+  moveTask(id, state, 'task', `run ended: ${code}`, patch);
+  return 0;
+}
+
+/** Pure: the code of a finished sync run. A multi-role Issue plan (§6): a line some client never showed
+ *  reproduces it; a plain sync check: every line on every client = 已实现. */
+export function syncCode(r: Pick<SyncResult, 'conclusion' | 'cancelled' | 'roles' | 'rounds'>, issue: boolean): Code {
+  if (r.cancelled) return 'CANCELLED';
+  if (r.conclusion === '存在未同步') return issue ? 'REPRODUCED' : 'NOT_IMPLEMENTED';
+  if (r.conclusion === '全部同步') return issue ? 'NOT_REPRODUCED' : 'IMPLEMENTED';
+  // Not every client got ready: the environment unless the run never got to a round for another reason.
+  const why = r.roles.find((x) => x.error)?.error ?? '';
+  if (!r.rounds.length && /no free|lease|not on the allow list|offline|unauthor|keyguard|锁屏/.test(why)) return /allow list/.test(why) ? 'PLAN_NOT_EXECUTABLE' : 'ENV_UNFIT';
+  return 'TOOL_FAILED';
+}
+
+/** Task kind sync (§6): one role per leased environment, a different pool account each (phones keep their
+ *  signed-in account), in an allow-listed group. */
+async function execSync(id: string, rt: TaskRuntime): Promise<number> {
+  const t0 = getTask(id)!;
+  const envs = taskEnvs(t0).map((e) => getEnv(e)!);
+  const plan: TestPlan | undefined = t0.issue !== 'sync' ? TestPlanZ.parse(readJson(join(taskDir(id), 'plan.json'))) : undefined;
+  rt.move('preflight', `process ${process.pid} started`);
+  const { openPools } = await import('../platform/pools');
+  const { runSync } = await import('../engine/plan/sync');
+  const { allowList } = await import('../platform/approval');
+  const { pool, devices } = await openPools();
+  const runDir = resolve('midscene_run/sync', `${envs.map((e) => e.surface).join('+')}-${id}`);
+  updateTask(id, (t) => void (t.runDir = runDir));
+  rt.phase('launch');
+  rt.move('running', 'leases taken');
+  const r = await runSync({
+    env: envs[0].serviceEnv,
+    roles: envs.map((e) => ({ id: e.surface, surface: e.surface as Surface, device: e.udid, account: e.account })),
+    rounds: t0.sync?.rounds,
+    runDir,
+    pool,
+    devices,
+    taskId: id,
+    allow: envs[0].serviceEnv === 'prod' ? allowList() : undefined,
+    onEffect: (e) => rt.effect(e),
+    shouldStop: () => {
+      const stop = rt.shouldStop();
+      if (!stop) rt.phase('loop');
+      return stop;
+    },
+  });
+  const code = syncCode(r, !!plan);
+  const report = join(runDir, 'report.md');
+  rt.phase('finishing');
+  writeResult(id, { schemaVersion: 1, taskId: id, planId: t0.planId, code, sync: r, report, runDir });
+  const state: TaskState = code === 'CANCELLED' ? 'cancelled' : code === 'ENV_UNFIT' ? 'env-unfit' : 'done';
+  const patch = (t: Parameters<Parameters<typeof updateTask>[1]>[0]) => {
+    t.outcome = { code, summary: r.cancelled ? `已取消（完成 ${r.rounds.length} 轮）` : `${r.conclusion}：${r.detail.slice(0, 120)}` };
+    t.endedBy = r.cancelled ? 'cancel' : 'normal';
+    t.endedAt = rt.position;
+    t.report = report;
+  };
+  if (state === 'done') advance(id, ['finishing'], 'run ended');
+  moveTask(id, state, 'task', `run ended: ${code}`, patch);
+  return 0;
+}
+
 export async function execTask(id: string): Promise<number> {
   const t0 = getTask(id);
   if (!t0) throw new Error(`no task ${id}`);
   const rt = new TaskRuntime(id);
   rt.start();
+  if (t0.kind === 'explore') return execExplore(id, rt);
+  if (t0.kind === 'sync') return execSync(id, rt);
   const env = getEnv(t0.envId)!;
   const plan: TestPlan = TestPlanZ.parse(readJson(join(taskDir(id), 'plan.json')));
   const draft = readJson<Draft>(join(taskDir(id), 'draft.json'))!;
@@ -59,7 +173,7 @@ export async function execTask(id: string): Promise<number> {
     shouldStop: rt.shouldStop.bind(rt),
   };
   const { openPools } = await import('../platform/pools');
-  const { runPlan } = await import('../executor/run');
+  const { runPlan } = await import('../engine/plan/run');
   const { writeIssueReport } = await import('../issue/report');
   const { pool, devices } = await openPools();
   const n = t0.series?.runs ?? 1;
@@ -84,8 +198,8 @@ export async function execTask(id: string): Promise<number> {
     } catch (e) {
       // runPlan returns on its own errors; one escaping it is classified like any failure (env or tool).
       const msg = (e as Error).message.split('\n')[0];
-      const { classifyFailure } = await import('../executor/failure');
-      const { envSnapshot } = await import('../executor/preflight');
+      const { classifyFailure } = await import('../engine/failure');
+      const { envSnapshot } = await import('../engine/preflight');
       const snap = env.udid ? await envSnapshot(env.udid, env.package ?? '').catch(() => undefined) : undefined;
       const f = classifyFailure('执行失败', msg, snap);
       r = { planId: plan.id, issue: plan.issueRef, title: plan.title, category: plan.category, surface: plan.surface, env: plan.env, conclusion: '执行失败', conclusionDetail: msg, startedAt: new Date().toISOString(), finishedAt: new Date().toISOString(), stats: {} as RunResult['stats'], hits: [], incidents: [], targets: [], roundLog: [], error: msg, failure: f.rule === 'default' ? { ...f, rule: 'uncaught-in-run' } : f };

@@ -20,21 +20,211 @@
     "featureArea": "Messaging / Group-chat @-mention (Mention)",
     "context": "- **Feature area**: Messaging / Group-chat @-mention (Mention)\r\n- Group: 2213724931 (Session Replay & Onboarding). Failing message ID ced731ead7421943e571e779f65689d6, 2026-09-10 16:01:36 (UTC+8); mention segment text @12236097754431223609775443.\r\n- Member-table cross-check: get_groups_info([\"2213724931\"]) shows Tmly Quan userID = 1223609773775443 (16 digits), which does not match the malformed 26-digit string.\r\n- Root cause: (1) the mention target was an invalid userID matching no group member, so no notification could be produced; (2) the send path performs no validation of the @ target, so the malformed id is emitted as ordinary text while the message still reports success; (3) possible aggravating factor — an agent-side send path that builds the mention by string concatenation instead of populating the structured atUserList field.\r\n- Ruled out: group unavailable / agent lacking post permission — the same agent identity re-sent successfully into the same group with the correct userID.\r\n- Impact: issue-sync, escalation and handoff messages that rely on @-mentions for notification can silently fail to reach the responsible owner, delaying triage and fixes, while the sender has no failure feedback and no self-check.\r\n- Suggested fix: validate @ targets before sending (digit-only, expected length, membership); fail loudly or degrade to plain text with an explicit notice; have the agent send path populate the structured atUserList field; log/acknowledge unmatched mentions server-side so silent drops become observable.\r\n- Reported by 林子溪 Susan (QA) on 2026-09-10. Full bilingual report: https://static.teamily.ai/sites/983a64a5-ef89-4aef-9753-b7d77f5155b9/documents/bugbuddy-submission-at-mention-invalid-userid/invalid_mention_userid_silent_failure_2026-09-10.md?tk=c2l0ZTo5ODNhNjRhNS1lZjg5LTRhZWYtOTc1My1iN2Q3N2Y1MTU1YjkvZG9jdW1lbnRzL2J1Z2J1ZGR5LXN1Ym1pc3Npb24tYXQtbWVudGlvbi1pbnZhbGlkLXVzZXJpZDoxNzg5MDM3OTc3.NDNhMTM1NTEwZjExZTYwNjc0ZjI3M2FkMTk2YjA3ZjY\r\n\r\n---",
     "environment": "- **Platform / OS / Browser**: Teamily IM group chat (Web / desktop client); sender is an agent account posting into group 2213724931 (Session Replay & Onboarding); 2026-09-10 16:01:36 (UTC+8); exact client OS / browser build not specified — please confirm",
-    "empty": false
+    "empty": false,
+    "images": []
   },
   "classification": {
-    "category": "server-side",
+    "category": "bug-intermittent",
     "surfaces": [
       "desktop-web"
     ],
-    "reason": "问题发生在服务端 / Agent 发送路径，无用户可见 UI 现象可驱动或观察",
+    "reason": "问题发生在服务端 / Agent 发送路径，无用户可见 UI 现象可驱动或观察；仍执行：只观察用户可见的一侧（通用模板）",
     "strength": "strong",
     "by": "rules"
   },
-  "status": "refused",
-  "reason": "问题发生在服务端 / Agent 发送路径，无用户可见 UI 现象可驱动或观察",
-  "subcases": [],
-  "hash": "04a9edf1b69553ec",
+  "status": "plannable",
+  "reason": "问题发生在服务端 / Agent 发送路径，无用户可见 UI 现象可驱动或观察；仍执行：只观察用户可见的一侧（通用模板）",
+  "subcases": [
+    {
+      "sub": "main",
+      "title": "On 2026-09-10 16:01:36 (UTC+8) an onboarding sync message was sent into group 22",
+      "surface": "desktop-web",
+      "plan": {
+        "id": "1614-desktop-web-v1",
+        "issueRef": "1614",
+        "title": "@ 成员选择器弹出（切换会话后循环）",
+        "category": "bug-intermittent",
+        "surface": "desktop-web",
+        "issueSurfaces": [
+          "web",
+          "desktop"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "group",
+            "kind": "group-conversation",
+            "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+          },
+          {
+            "id": "other",
+            "kind": "other-conversation",
+            "guidance": "与目标群不同的任意会话（用于切换会话再切回）"
+          }
+        ],
+        "setup": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "group"
+              }
+            },
+            "delayAfterMs": 800
+          }
+        ],
+        "prepare": [],
+        "actions": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.clearComposer",
+              "input": {}
+            },
+            "delayAfterMs": 200
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "other"
+              }
+            },
+            "delayAfterMs": 500
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "group"
+              }
+            },
+            "delayAfterMs": 700
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.typeMention",
+              "input": {}
+            },
+            "delayAfterMs": 700
+          }
+        ],
+        "checks": [
+          {
+            "kind": "visual-region",
+            "page": "mention-picker",
+            "region": "picker",
+            "expect": "输入 @ 后成员/智能体选择器弹出",
+            "want": "present",
+            "onlyOnAnomaly": true,
+            "requires": {
+              "composerHas": "@"
+            }
+          },
+          {
+            "kind": "page-error",
+            "expect": "无崩溃 / 页面错误",
+            "want": "absent"
+          }
+        ],
+        "afterCheck": [],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 15,
+          "maxIntervalMs": 1000
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "contract": {
+          "issueRef": "1614",
+          "sub": "main",
+          "preconditions": [
+            {
+              "id": "logged-in",
+              "text": "已登录",
+              "establish": "executor"
+            },
+            {
+              "id": "group-conversation",
+              "text": "存在成员 ≥3 的群聊",
+              "establish": "existing-data"
+            },
+            {
+              "id": "other-conversation",
+              "text": "存在另一个会话（切换用）",
+              "establish": "existing-data"
+            }
+          ],
+          "trigger": {
+            "semantics": "repeat-switch-and-mention",
+            "text": "On 2026-09-10 16:01:36 (UTC+8) an onboarding sync message was sent into group 2213724931 (Session Replay & Onboarding) whose mention segment read @12236097754431223609775443 — a 26-digit string equal to 1223609775443 concatenated twice. That string matches no member of the group, so it could not be ",
+            "pattern": "mention-picker",
+            "params": {}
+          },
+          "observable": {
+            "observation": "region",
+            "text": "When the @ target userID is malformed or matches no group member, the sender should get a clear error or a degraded-mode notice (e.g. mention target invalid — sent as plain text) instead of a plain success. Ideally the send path should validate the target (digit-only + expected length) and verify membership before sending, then either reject the send or auto-correct it.",
+            "phenomenon": "The message is sent successfully with no warning at all, but the @ does not take effect and the mentioned member receives no notification; the sender has no feedback and no way to detect the failure."
+          },
+          "provenance": {
+            "by": "rules",
+            "skillVersion": "2026.10.30-1"
+          }
+        },
+        "provenance": {
+          "generatedBy": "rules",
+          "skillVersion": "2026.10.30-1",
+          "pattern": "mention-picker"
+        },
+        "coverage": "covered"
+      },
+      "planErrors": [],
+      "contract": {
+        "issueRef": "1614",
+        "sub": "main",
+        "preconditions": [
+          {
+            "id": "logged-in",
+            "text": "已登录",
+            "establish": "executor"
+          },
+          {
+            "id": "group-conversation",
+            "text": "存在成员 ≥3 的群聊",
+            "establish": "existing-data"
+          },
+          {
+            "id": "other-conversation",
+            "text": "存在另一个会话（切换用）",
+            "establish": "existing-data"
+          }
+        ],
+        "trigger": {
+          "semantics": "repeat-switch-and-mention",
+          "text": "On 2026-09-10 16:01:36 (UTC+8) an onboarding sync message was sent into group 2213724931 (Session Replay & Onboarding) whose mention segment read @12236097754431223609775443 — a 26-digit string equal to 1223609775443 concatenated twice. That string matches no member of the group, so it could not be ",
+          "pattern": "mention-picker",
+          "params": {}
+        },
+        "observable": {
+          "observation": "region",
+          "text": "When the @ target userID is malformed or matches no group member, the sender should get a clear error or a degraded-mode notice (e.g. mention target invalid — sent as plain text) instead of a plain success. Ideally the send path should validate the target (digit-only + expected length) and verify membership before sending, then either reject the send or auto-correct it.",
+          "phenomenon": "The message is sent successfully with no warning at all, but the @ does not take effect and the mentioned member receives no notification; the sender has no feedback and no way to detect the failure."
+        },
+        "provenance": {
+          "by": "rules",
+          "skillVersion": "2026.10.30-1"
+        }
+      }
+    }
+  ],
+  "hash": "715795ba0ed884e2",
   "issueHash": "b8ffa5670c5a8a7b",
-  "env": "prod"
+  "env": "prod",
+  "version": 2
 }

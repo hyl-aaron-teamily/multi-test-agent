@@ -58,7 +58,9 @@ export function resolvePlan(id: string): ResolvedPlan {
   if (d.status !== 'plannable') throw new CodedError('PLAN_NOT_EXECUTABLE', `Issue ${ref.issue} 的草稿状态为 ${d.status}：${d.reason}`);
   const sc = d.subcases.find((s) => s.sub === ref.sub);
   if (!sc) throw new CodedError('NOT_FOUND', `草稿里没有子用例 ${ref.sub}`, `可选：${d.subcases.map((s) => s.sub).join(', ')}`);
-  const allowed = [sc.surface, ...(sc.substitution?.alternatives ?? [])];
+  const allowed: string[] = [sc.surface, ...(sc.substitution?.alternatives ?? [])];
+  // The phone's own browser runs the same Web code in the same mobile layout as mobile-web (W2-4.1 T9).
+  if (allowed.includes('mobile-web')) allowed.push('android-web');
   if (!allowed.includes(ref.surface)) throw new CodedError('NOT_FOUND', `子用例 ${ref.sub} 不能在 ${ref.surface} 上执行`, `可选：${allowed.join(', ')}`);
   const plan = applyApproval(d, [{ sub: ref.sub, surface: ref.surface }])[0];
   return { id, ref, draft: d, plan, hash: planHash(plan) };

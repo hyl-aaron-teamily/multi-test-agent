@@ -5,7 +5,7 @@ import type { PlannedAction } from '../schema/test-plan';
 import { bindLeaseProc } from './env';
 import { selfId } from './proc';
 import { appendLine } from './store';
-import { event, getTask, ledgerFile, type LedgerEntry, moveTask, type Phase, type TaskState, updateTask } from './task';
+import { event, getTask, ledgerFile, taskEnvs, type LedgerEntry, moveTask, type Phase, type TaskState, updateTask } from './task';
 
 export class CancelledError extends Error {
   constructor(why = 'cancel requested') {
@@ -14,7 +14,7 @@ export class CancelledError extends Error {
   }
 }
 
-/** Hooks the executor calls (executor/run.ts RunOptions.hooks). All optional for the executor. */
+/** Hooks the executor calls (engine/plan/run.ts RunOptions.hooks). All optional for the executor. */
 export interface RunHooks {
   phase(p: Phase): void;
   /** Before every planned action (step boundary): may throw CancelledError; records progress + side effect. */
@@ -60,7 +60,7 @@ export class TaskRuntime implements RunHooks {
   start(): void {
     const me = selfId();
     const t = updateTask(this.taskId, (t) => void (t.proc = me));
-    bindLeaseProc(t.envId, t.id, me);
+    for (const e of taskEnvs(t)) bindLeaseProc(e, t.id, me);
     const onSig = () => {
       this.cancelled = true;
       event(this.taskId, { type: 'note', note: 'signal: stop at the next step boundary' });

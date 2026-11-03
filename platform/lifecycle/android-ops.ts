@@ -1,8 +1,8 @@
 // Phone side of the environment check (refactor P2): online, screen, app version and the configuration items,
-// over adb. No tree reads, no cleaning — every run starts from a clean point itself (executor/isolation.ts).
+// over adb. No tree reads, no cleaning — every run starts from a clean point itself (engine/plan/isolation.ts).
 import { adb } from '../../core/adb';
 import { a11yHealth, A11Y_PKG, enableA11y, installA11y } from '../../core/a11y-service';
-import { parseDeviceState, taplusWith } from '../../executor/preflight';
+import { parseDeviceState, taplusWith } from '../../engine/preflight';
 import type { PhoneDriver } from './check';
 import type { ConfigItem } from './env';
 

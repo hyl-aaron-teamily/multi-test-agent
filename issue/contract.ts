@@ -2,8 +2,9 @@
 // Rules give the strong signals (the trigger pattern a sub-case text selects, crash words); the LLM fills a
 // contract only where no specific pattern applies, and may only use library ids (or 'unmapped').
 // suspectedMechanism is a guess: shown in the confirmation, never executed or judged.
-import { chatJson, modelConfigured } from '../core/model/llm';
-import { observationOf, OBSERVATIONS } from '../executor/observe';
+import { chatJson, modelConfigured, visionConfigured, visionJson } from '../core/model/llm';
+import { issueImages } from './images';
+import { observationOf, OBSERVATIONS } from '../engine/observe';
 import { loadConversations } from '../platform/conversations';
 import { type IssueContract, IssueContractZ } from '../platform/schema/contract';
 import type { Category, Surface, TestPlan } from '../platform/schema/test-plan';
@@ -74,7 +75,10 @@ If no pattern fits, omit "pattern" and use trigger semantics "unmapped". Never i
 /** Stage 1 by the model (validated: unknown ids become 'unmapped', unknown patterns are dropped). */
 export async function modelContract(i: NormalizedIssue, sub: string, text: string, category: Category): Promise<IssueContract | undefined> {
   if (!modelConfigured()) return undefined;
-  const ans = (await chatJson(CONTRACT_SYSTEM(), `Category: ${category}\nIssue ${i.id} (${sub}): ${text}\nSteps:\n${i.steps.join('\n')}\nExpected: ${i.expected.slice(0, 1500)}\nActual: ${i.actual.slice(0, 1500)}`)) as Partial<IssueContract> | undefined;
+  const prompt = `Category: ${category}\nIssue ${i.id} (${sub}): ${text}\nSteps:\n${i.steps.join('\n')}\nExpected: ${i.expected.slice(0, 1500)}\nActual: ${i.actual.slice(0, 1500)}`;
+  // B7: the Issue's screenshots go to the vision model with the text (what the reporter saw).
+  const shots = visionConfigured() && i.images?.length ? await issueImages(i.images) : [];
+  const ans = (shots.length ? await visionJson(CONTRACT_SYSTEM(), [prompt, ...shots]) : await chatJson(CONTRACT_SYSTEM(), prompt)) as Partial<IssueContract> | undefined;
   if (!ans || typeof ans !== 'object') return undefined;
   const pre = (ans.preconditions ?? []).map((p) => {
     const spec = preconditionById(String(p?.id));

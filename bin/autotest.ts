@@ -1,8 +1,9 @@
 // Unified entry.
 //   pnpm autotest help | <issue|draft|plan|env|task|result> <action> [--json]   (W2-3 v1 CLI for agents)
 //   pnpm autotest doctor | mcp [--print-config claude|cursor|codex|vscode]      (W2-4)
-//   pnpm autotest accounts|nodes|plan|run|series|rerender|evidence|sync ... (scripts/m5.ts)
+//   pnpm autotest accounts|nodes|plan|run|series|rerender|evidence ... (scripts/m5.ts)
 //   pnpm autotest replay <incident>/replay.json [--times 3]                     (coordinate replay)
+//   pnpm autotest explore run "<goal>" [--mode task|explore] [--surface …]   (quick tier, capability ①; explore local = no platform)
 //   pnpm autotest devices [--json]
 import 'dotenv/config';
 import { spawn } from 'node:child_process';
@@ -11,7 +12,7 @@ import { listDevices } from '../platform/adb-devices';
 
 const [cmd, ...rest] = process.argv.slice(2);
 
-const M5 = ['accounts', 'nodes', 'plan', 'run', 'series', 'rerender', 'evidence', 'sync'];
+const M5 = ['accounts', 'nodes', 'plan', 'run', 'series', 'rerender', 'evidence'];
 
 function run(bin: string, args: string[]): Promise<number> {
   return new Promise((res) => {
@@ -27,11 +28,13 @@ function run(bin: string, args: string[]): Promise<number> {
 
 const tsx = resolve('node_modules/tsx/dist/cli.mjs');
 
-const V1 = ['issue', 'draft', 'env', 'task', 'result', 'help', 'doctor'];
+const V1 = ['issue', 'draft', 'env', 'task', 'result', 'explore', 'help', 'doctor'];
 
 async function main(): Promise<number> {
   // `task exec <id>` is the platform's internal child; the rest of the v1 objects are thin service clients.
   if (cmd === 'task' && rest[0] === 'exec') return run(tsx, ['scripts/task-exec.ts', ...rest.slice(1)]);
+  // explore local "<goal>": the quick tier in this process, without the platform (development).
+  if (cmd === 'explore' && rest[0] === 'local') return run(tsx, ['scripts/explore.ts', ...rest]);
   if (cmd && (V1.includes(cmd) || (cmd === 'plan' && ['explain', 'approve', 'reject'].includes(rest[0])))) {
     const { cliV1 } = await import('../scripts/cli-v1');
     return cliV1(cmd, rest);
@@ -47,7 +50,7 @@ async function main(): Promise<number> {
     else for (const d of devices) console.log(`${d.udid.padEnd(20)} ${d.state.padEnd(13)} ${d.model ?? ''}`);
     return 0;
   }
-  console.error('Usage: pnpm autotest help | <issue|draft|plan|env|task|result> <action> [--json] | <doctor|mcp|accounts|nodes|plan|run|series|rerender|evidence|sync|replay|devices> [...args]');
+  console.error('Usage: pnpm autotest help | <issue|draft|plan|env|task|result> <action> [--json] | <doctor|mcp|explore|accounts|nodes|plan|run|series|rerender|evidence|replay|devices> [...args]');
   return 2;
 }
 

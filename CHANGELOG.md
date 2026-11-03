@@ -1,10 +1,80 @@
 # Changelog
 
-## [Unreleased] — 重构 P3：即时定位 + 缓存，替代离线标定（`docs/refactor-plan.md`）
+## 重构 P1–P3 + W2-4.1（2026-11-03 合并到 main）：两项能力——快速档（自然语言 / 探索）与 Pro 档（Issue → 计划 → 复现）
+
+范围：`docs/dev-week2-milestone4.1.md`；验收：`docs/w2m4.1-acceptance.md`；生效规则：`docs/rules.md`。各阶段按时间倒序。
+
+### W2-4.1 P8 / T10：文档定稿
+
+**Changed**
+- `docs/rules.md`：生效规定 111 条，每条带落点（`路径#符号`）；末尾核对已删规定在代码里有无残留。原审核表移到 `docs/history/rules-audit.md`。
+- README 按两项能力重写；`docs/agent-rules.md` 补「何时用探索、何时用 Issue 主线」「探索结论不是复现结论」；本 CHANGELOG 把重构各阶段与 W2-4.1 合为一节。
+- `docs/dev-week1-*`、`dev-week2-milestone1–5`、各里程碑验收、`env-plan` / `env-report`、重构方案与验收移到 `docs/history/`（引用的证据目录一起移动，相对链接不变）。
+- 已删规定的残留：`refusalMarkdown` 改名为 `unplannableMarkdown`；README / SKILL 里「不连调试端口」的文字删除；平台退出日志不再写「draining」；1614、1922、2235 的草稿按现行规则重新生成（不再有 refused / deferred 状态）。
+
+### W2-4.1 T9：android-web 与命中现场包
+
+**Changed**
+- mobile-web 能执行的子用例也可以在 android-web 上执行（手机自带浏览器，同一套 Web 代码）。
+- android-web：输入框规则排除浏览器自身的控件；每次会话先回到已知页面，避免把恢复出来的面板当成首页。
+
+### W2-4.1 P7 / T8：前端（HTML + CSS + JS）
+
+**Changed**
+- Web 控制台改为单页：`platform/web/index.html` + `style.css` + `app.js`，hash 路由，不用框架，沿用 intro / im-loadtest 的设计变量；总览、新建任务（自然语言·探索 / Issue / 多端协同）、任务详情（SSE 实时推送、快速档步骤缩略图与思路）、结果（转成 Issue）、计划（步骤标在最近一次运行的截图上）、环境、审批。旧页面删除，旧链接跳转到 hash 路由。
+- 计划运行在准备阶段后保存一张 `screen.png`，供计划页标注步骤。
+- 参考区域对不上时，准备阶段在锚点处重新截取（主题切换）；参考图解码缓存按文件修改时间区分。
+- `teamily.freezeMention` 取选择器里最下面的那个匹配，并等位置稳定后再冻结。
+
+**Added**
+- `GET /api/v1/tasks/<id>/steps`、`GET /api/v1/plans/<id>/marks`、`GET /api/v1/tasks/<id>/stream`（SSE）；`scripts/web-shots.ts` 逐页截图。
+
+### W2-4.1 P6 / T7：多端协同接入 v1 任务
+
+**Added**
+- 多环境租约：一个任务的环境全部租到才开始，任一租不到就都不租；结束时逐个释放、逐个检查。
+- 任务类型 `sync`：`autotest task run --sync <端>,<端> [--rounds N]`，各端分配不同的池账号；发送前核对会话在允许清单内。全部同步 = 已实现（13），存在未同步 = 未实现（14）。
+- multi-account 类 Issue 规划成多角色计划（`TestPlan.sync`），走同一条执行路径，结论为已复现 / 未复现；需要转发等 SKILL 尚无的操作时，出「无法生成计划」报告并写明原因。
+
+**Changed**
+- 同步核对：App 端没看到消息时先滑到最新消息再读（新消息到达时 App 保持在原来的阅读位置）。
+
+**Removed**
+- 旧入口 `autotest sync`（改用 `task run --sync`）。
+
+### W2-4.1 P5 / T3–T6：快速档（能力①）
+
+**Added**
+- `engine/agent/`：自然语言任务与 AI 探索。每一步把截图和编号元素表交给视觉模型，模型给出一个动作；动作先过风险规则（默认只读）和点击前检查再执行。崩溃、ANR、App 退出、页面崩溃这类硬异常立即生成现场包和一条发现；模型报告的问题先做证据复核，结论一致才计入。覆盖按屏幕指纹统计。上限参考 Artemis Flash：默认不限步数，每 12 步压缩一次历史，单次模型调用最长 180 s，硬上限 3000 步 / 120 分钟。
+- 平台任务类型 `explore`：`autotest explore run`（= `task run --explore`）；结果码 18（有发现）/ 19（未发现）；`result show` 给出发现、覆盖、拦截和用量；`explore issue` 把一条发现写成 Issue 草稿，交给 Pro 档复现（`issues/explore/`）。MCP 新增 `explore_run`、`explore_issue` 两个工具。每步保存缩略图和模型思路。
+- 循环提示：同一动作连续 3 次，或两个动作交替出现时，提醒模型换路。
+- 驱动把 HyperOS 的 `am_kill … stop <pkg>` 识别为 App 退出。
+
+**Changed**
+- 社交类操作（关注 / 点赞 / 收藏 / 订阅）只在测试账号自己的主页和内容上放行，可写模式也一样。测试账号名单写在 `accounts.local.yaml` 的 `environments.<env>.ownContent`（用户反馈 2026-11-03）。
+- 计划校验按 Node 的参数 schema 检查输入。
+
+### W2-4.1 P5 / T2：统一引擎（行为不变）
+
+**Changed**
+- `executor/` 与 `incident/` 合并为 `engine/`：两档共用的会话、端适配、登录、SKILL 现场定位、屏幕快照、定位、点击前检查、观察与检查、判定、失败归类、运行清单、统计、预检在 `engine/`；飞行记录器、现场包、离线查看器、重放、证据复核在 `engine/recorder/`；Issue 计划执行（Pro 档）在 `engine/plan/`。只移动文件、重写 import，行为不变（golden、快照未变；真机 1903、2336 结论与移动前一致）。
+
+### W2-4.1 P4：规则语义
+
+**Changed**
+- **E1**：必现类也是命中 1 次即「已复现」。`VerdictRuleZ` 把旧计划里的 `{ consecutiveHits: 3 }` 读作 `{ anyHit: true }`，已保存的计划 / 草稿无需改写；判定、校验、视图、运行清单、重放的「连续 3 次」分支删除。计划视图快照随之更新（判定说明、计划哈希）。
+- **E2**：命中 = 硬异常，或检查不通过且经证据复核符合 Issue 描述（能力②）；能力①的口径在 P5 落地。
+- **A3 / E18**：不拒绝任何 Issue。草稿状态只有 `plannable` / `unplannable`；服务端类 Issue 按偶现类执行，只观察用户可见的一侧；空文档、黑盒构造不了的前置条件、需多端协同的 Issue 出一页「无法生成计划」报告，写明原因与怎样才能执行。删除 1922 的「拒绝」覆盖项，1922 按规则分为偶现类（golden 增加 4 条）。
+- **E12**：去掉「结论以生产环境为准」的限制与文字；生产与测试各是一组账号池。
+- **J3**：完全授权开启时 Agent 在 `plan_explain` 后直接 `task_run`，不等用户确认（`docs/agent-rules.md`、MCP 服务说明）。
+- **B7**：Issue 里的截图链接（`NormalizedIssue.images`）在契约阶段与文字一起交给视觉模型（最多 3 张，`issue/images.ts`；GitHub 链接在设置 `GITHUB_TOKEN` 时带授权，取不到就只用文字）。`visionJson` 支持 jpg / webp。
+- 单测改用夹具 `issue/__fixtures__/conversations.yaml`（`vitest.config.ts` 设置 `CONVERSATIONS_FILE`），不再读本机的 `platform/conversations.local.yaml`。
+
+### 重构 P3：即时定位 + 缓存，替代离线标定
 
 规则 C1–C4 改为：不再离线标定；循环外第一次用到时现场定位，结果按 `端@环境@App 版本@分辨率` 缓存（`docs/rules-audit.md`）。
 
-### Changed
+**Changed**
 - `skills/profile.ts` 由「标定文件」变为运行时缓存（`platform/state/skill-cache/<key>/`，本机、不进仓库），结构不变：元素点位 + 参考区域。会话启动 App 后按当前 App 版本与分辨率载入缓存（`attachSkillCache` / `skillProfile`），并挂上 `SkillResolver`（`executor/skill-resolver.ts`）：缺什么、循环外第一次用到时在当前屏幕上找——规则优先（`skills/teamily/finders.ts`：文字 / 无障碍描述（忽略 Teamily 拼在描述后的「, 11」「, 有新更新」状态）、几何规则、Web 只读选择器），只有真要点它且规则找不到时才用视觉；缓存里有的直接用，预热轮核验失败或首页对不上时重新定位。参考区域在锚点第一次出现时从实时截图截取。循环内只读缓存（`inLoop`），缺失即报错。
 - 旧标定器里的识别经验搬进 `finders.ts`：App 发送按钮（输入框工具行最右的无标签按钮）、改写确认框（同时含「取消」「强化」的最小节点）、导航带、输入框工具带等；按 2026-11-02 的新界面补了规则：App 2.1.1 会话行跳过头像上的字母（`executor/targets.ts`）、Web 新侧栏、Artifacts 卡片（只剩标题按钮带名称）、手机浏览器登录框。
 - SKILL 失效：首页参考对不上时先重新定位锚点，锚点（「聊天」入口）都找不到才报 `SKILL 失效`，提示更新 `finders.ts`。
@@ -13,14 +83,14 @@
 - 审批与运行清单不再绑定 profile 哈希（App 版本已绑定）；环境记录去掉 `profile` 字段；计划页去掉「标定截图上的步骤标注」与 `/refs/` 路由；MCP 文件资源只剩 `midscene_run/`。
 - 驱动工厂不再接收 profile，只接收包名。
 
-### Removed
+**Removed**
 - `skills/calibrate-{web,android,android-web,common}.ts`、`executor/heal.ts`、`skills/teamily/profiles/`、`skills/teamily/refs/`（17 MB 参考图）、命令 `skill calibrate` / `skill smoke`。
 
-## [Unreleased] — 重构 P2：生命周期瘦身（`docs/refactor-plan.md`）
+### 重构 P2：生命周期瘦身
 
 规则 F2–F5 删除（`docs/rules-audit.md`）：不再有环境恢复、隔离、心跳、看门狗、交叉检测；保留 F1（任务 / 环境状态机、一个环境一个租约，租约记录任务进程 pid + 启动时间）与 F6（步骤边界取消、结构化输出、JSON 状态）。
 
-### Changed
+**Changed**
 - 环境状态机：`offline / checking / ready / leased / unfit`。租约结束 → `checking` → 环境检查（`platform/lifecycle/check.ts`，替代 `baseline` 与 `recover`）：手机在线、未锁屏（熄屏会唤醒）、App 版本、已同意的配置项（读树服务、Taplus、常亮）；Web 看登录态文件。不再清输入框、回首页、杀残留进程——每次运行自己回到干净起点（`executor/isolation.ts`）。旧记录里的 `recovering / quarantined / draining` 在登记时映射为 `checking / unfit`。
 - 任务状态去掉 `recovering`、`timed-out`；`closeTask` 移到 `task.ts`（中断的任务照旧带停止位置与「不完整，不给结论」的部分结果）。
 - 调度（`supervisor.ts`）：任务进程退出而记录未结束 → 中断（63）；平台启动时按租约里的进程判断（活着 → 接管，不在 → 中断 72，从未启动 → 回队列；`reconcile()` 可单测）。取消在步骤边界与阶段边界（启动 / 准备 / 预热 / 循环之前）生效，请求后 60 s 仍未停止则强制结束进程（`AUTOTEST_CANCEL_KILL_MS`）。
@@ -28,15 +98,15 @@
 - Web 环境页只剩「重新检查」；任务页去掉心跳与环境恢复；「副作用台账」改称「副作用记录」。
 - `.gitattributes`：`*.snap` 固定 LF，跑测试不再让快照文件显示改动。
 
-### Removed
+**Removed**
 - `platform/lifecycle/{baseline,recover,crosscheck}.ts`，`android-ops.ts` 中读树与清理相关的驱动；命令 `env recover`、`env offline`（CLI / API / Web）。
 - 状态码 53 `ENV_QUARANTINED`、71 `TIMED_OUT`；62 `TASK_STUCK` 只保留给 P2 之前的记录。
 
-## [Unreleased] — 重构 P1：删除旧路径（`docs/refactor-plan.md`）
+### 重构 P1：删除旧路径
 
 范围收窄为两项能力（自然语言自主测试 / 探索；Issue 驱动的确定性测试 + 现场包），规则见 `docs/rules-audit.md`。本阶段只删除，主链路（`/api/v1`、CLI、MCP、Issue 执行与系列、现场包、重放、`autotest sync`）行为不变。
 
-### Removed
+**Removed**
 - W1–W4 旁路入口：`mission/`、`explore/`、`monkey/`、`replay/`（Midscene 动作重放）、`report/`（问题报告）、`imui/`（im-loadtest 界面层移植）及其脚本（`scripts/{mission,explore,monkey,imui,replay,report,loop-android,crash-check-android}.ts`）。自然语言任务与 AI 探索将在 P5 的统一引擎里重做。
 - W1 基线用例 `tests/`、`fixtures/{page,android}.ts`、`android/flows/`；`core/{logcat-monitor,task-result,credentials}.ts`。
 - 旧控制台 `platform/console.html`、`/console`、旧 `/api/tasks*`、`/api/issues*` 路由与 `platform/tasks.ts`（TaskManager）。新页面只用 `/api/v1`；多端同步暂时只有 `autotest sync` 命令入口，P6 接入 v1 任务。
@@ -44,7 +114,7 @@
 - Allure：Issue 运行不再写 `allure-results/`；依赖 `allure-commandline`、`allure-js-commons`、`allure-vitest`，以及从未使用的 `@playwright/test`；`package.json` 中对应脚本（`test:web`、`test:android`、`loop:android`、`report`、`mission`、`explore`、`monkey`、`imui` …）。
 - `docs/imui.md`、`docs/console.png`。
 
-### Changed
+**Changed**
 - `autotest replay` 只接受坐标级 `replay.json`（现场包格式）。
 - `vitest.config.ts` 只剩 unit 项目；`tsconfig.json` 只包含现存目录。
 

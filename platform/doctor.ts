@@ -14,7 +14,7 @@ import { adb, resolveAdbPath, screencap } from '../core/adb';
 import { modelConfigured, visionConfigured } from '../core/model/llm';
 import { findScrcpy } from '../core/screen-recorder';
 import { uiautomatorBackend } from '../core/tree-backend';
-import { readDeviceState } from '../executor/preflight';
+import { readDeviceState } from '../engine/preflight';
 import { listDevices } from './adb-devices';
 import { CONFIG_FILE, declaredTreeBackend, parsePoolConfig } from './device-pool';
 import { endLease, listEnvs } from './lifecycle/env';

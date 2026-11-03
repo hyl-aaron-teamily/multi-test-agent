@@ -5,8 +5,8 @@ import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import type { RunResult } from '../executor/run';
-import { attemptsOf } from '../executor/stats';
+import type { RunResult } from '../engine/plan/run';
+import { attemptsOf } from '../engine/stats';
 import { apiV1 } from './api-v1';
 import { approve, classifyPlan, getApproval, messageBound, reject, setFullAccess, useApproval } from './approval';
 import { consentConfig, getEnv, moveEnv, registerEnv, updateEnv } from './lifecycle/env';
@@ -129,7 +129,7 @@ describe('W2-3 T6 view models', () => {
   });
 
   it('report lead reuses the plan-view step rendering (leadOf)', async () => {
-    const { leadOf } = await import('../executor/run');
+    const { leadOf } = await import('../engine/plan/run');
     const p = plan('1903-android-app-v1');
     const lead = leadOf(p, { hits: [], runTag: 'r1', attempts: attemptsOf(6, 0, 0) });
     expect(lead.trigger).toBe(p.actions.map((a) => stepText(a, p, true).text.replace(/\{token\}/g, 'r1').replace(/\{round\}/g, '<轮号>')).join(' → '));
@@ -188,7 +188,7 @@ describe('W2-3 T7 API envelope and CLI help', () => {
     expect(getApproval(id)!.by).toBe('policy');
     const s = await call('POST', '/tasks', { planId: id, series: 21 });
     expect(s.code).toBe('APPROVAL_REQUIRED');
-    expect(s.error?.hint).toMatch(/plan\.html/);
+    expect(s.error?.hint).toMatch(/#\/plan\//);
     const h = resolvePlan(id).hash;
     expect((await call('POST', `/plans/${encodeURIComponent(id)}/approve`, { hash: h, series: 21 })).code).toBe('APPROVAL_REQUIRED'); // CLI cannot
     expect((await call('POST', `/plans/${encodeURIComponent(id)}/approve`, { hash: h, series: 21 }, true)).code).toBe('OK'); // the Web can

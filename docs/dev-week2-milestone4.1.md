@@ -1,8 +1,8 @@
 # 里程碑 W2-4.1：重构收尾——规则语义、统一引擎与能力①、多端协同、前端、文档
 
-> 前置：重构 P0–P3 完成（`docs/refactor-plan.md`、`docs/refactor-acceptance.md`）。P0–P2 已在 `main`；P3 在 `feat/refactor-p3`（`432eec9`），合并到 `main` 后本期开分支（合并需用户同意）。
+> 前置：重构 P0–P3 完成（`docs/history/refactor-plan.md`、`docs/history/refactor-acceptance.md`）。P0–P2 已在 `main`；P3 在 `feat/refactor-p3`（`432eec9`），合并到 `main` 后本期开分支（合并需用户同意）。
 > 本期是重构计划剩下的 P4–P8，范围封闭：§2 的完成标准全部满足，重构结束。
-> 依据：`docs/rules-audit.md`（用户审核过的规则）；能力①的需求取自 `docs/dev-week2-milestone5.md`（W2-5 草案）。K1–K4 已于 2026-11-03 定稿（§12）。
+> 依据：`docs/history/rules-audit.md`（用户审核过的规则）；能力①的需求取自 `docs/history/dev-week2-milestone5.md`（W2-5 草案）。K1–K4 已于 2026-11-03 定稿（§12）。
 
 ---
 
@@ -10,15 +10,15 @@
 
 | 事实 | 依据 |
 |---|---|
-| 项目只做两项能力：① 自然语言自主测试 / AI 探索；② Issue → 确定性计划 → 执行 → 现场包 | 用户 2026-10-31；`docs/refactor-plan.md` §0 |
-| 能力②在 Teamily 2.1.1 上可用：1903 × 10 进入循环 10/10、有效尝试 60、命中 0；desktop-web（2336）、mobile-web（1329 s1）端到端跑通 | `docs/refactor-acceptance.md` P3 |
+| 项目只做两项能力：① 自然语言自主测试 / AI 探索；② Issue → 确定性计划 → 执行 → 现场包 | 用户 2026-10-31；`docs/history/refactor-plan.md` §0 |
+| 能力②在 Teamily 2.1.1 上可用：1903 × 10 进入循环 10/10、有效尝试 60、命中 0；desktop-web（2336）、mobile-web（1329 s1）端到端跑通 | `docs/history/refactor-acceptance.md` P3 |
 | android-web 在 P3 之后没有上过真机 | 同上 |
 | 能力①目前没有实现：W1 的 mission / explore 在 P1 删除，W2-5 草案未执行 | `CHANGELOG.md` P1 |
 | 元素按 `skills/teamily/finders.ts` 现场定位，缓存在 `platform/state/skill-cache/<端>@<环境>@<App 版本>@<分辨率>/` | `CHANGELOG.md` P3 |
 | 一个任务只持有一个环境的租约；租约记录任务进程 pid + 启动时间 | `platform/lifecycle/{env,supervisor}.ts` |
 | 多端同步只有命令行入口 `autotest sync`，不经过 v1 任务、审批和租约 | `executor/sync.ts` |
 | 规则语义未改：必现类要连续 3 次命中（E1）；Issue 分类有拒绝 / 暂缓（A3）；「最终结论必须来自生产」（E12）；`task_run` 前等人确认（J3） | `executor/verdict.ts`、`issue/classify.ts`、`docs/agent-rules.md` |
-| `issue/contract.spec.ts` 读 gitignore 的 `platform/conversations.local.yaml`，干净检出上 2 个用例失败 | `docs/refactor-acceptance.md` P1 |
+| `issue/contract.spec.ts` 读 gitignore 的 `platform/conversations.local.yaml`，干净检出上 2 个用例失败 | `docs/history/refactor-acceptance.md` P1 |
 | TS 源码 13,626 行（不含测试），测试 2,221 行；前端 6 个 HTML + `web.js` 约 300 行，无样式 | 2026-11-03 统计 |
 
 ## 1. 范围
@@ -46,7 +46,7 @@
 - 只做 §1 的五个阶段，阶段内只做本文写明的工作。
 - 范围外的问题记进 `docs/backlog.md`；阻塞本阶段验收的当场修（如 P3 里 Teamily 2.1.1 导致跑不起来的规则）。
 - 每个阶段合并前，列出 §2 各条的满足情况。
-- 继承：`docs/rules-audit.md` 的规则；黑盒 B1；能力②循环内不读屏、不调视觉（D2–D8 只约束能力②）；硬约束 G3（不删除 / 撤回消息、不出允许清单、不动锁屏 PIN、凭据不落盘）；功能开发期完全授权默认开启。
+- 继承：`docs/history/rules-audit.md` 的规则；黑盒 B1；能力②循环内不读屏、不调视觉（D2–D8 只约束能力②）；硬约束 G3（不删除 / 撤回消息、不出允许清单、不动锁屏 PIN、凭据不落盘）；功能开发期完全授权默认开启。
 
 ## 4. P4：规则语义
 

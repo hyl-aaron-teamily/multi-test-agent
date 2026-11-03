@@ -82,7 +82,7 @@ export function visionConfigured(): boolean {
   return !!visionCfg() && process.env.ISSUE_NO_VISION !== '1';
 }
 
-export type VisionPart = string | { label: string; png: Buffer };
+export type VisionPart = string | { label: string; png: Buffer; mime?: string };
 
 /** Images + text → JSON, against the vision model Midscene uses (OpenAI-compatible image_url parts).
  *  Used offline on recorded evidence only (never in the action loop). Counted as a vision call. */
@@ -91,7 +91,7 @@ export async function visionJson(system: string, parts: VisionPart[], timeoutMs 
   if (!c || process.env.ISSUE_NO_VISION === '1') return undefined;
   countCall('vision');
   const content = parts.flatMap((p) =>
-    typeof p === 'string' ? [{ type: 'text', text: p }] : [{ type: 'text', text: p.label }, { type: 'image_url', image_url: { url: `data:image/png;base64,${p.png.toString('base64')}` } }],
+    typeof p === 'string' ? [{ type: 'text', text: p }] : [{ type: 'text', text: p.label }, { type: 'image_url', image_url: { url: `data:${p.mime ?? 'image/png'};base64,${p.png.toString('base64')}` } }],
   );
   try {
     const res = await fetch(`${c.base.replace(/\/$/, '')}/chat/completions`, {

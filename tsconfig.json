@@ -10,5 +10,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["core", "android", "scripts", "bin", "drivers", "executor", "incident", "issue", "platform", "skills", "vitest.config.ts"]
+  "include": ["core", "android", "scripts", "bin", "drivers", "engine", "issue", "platform", "skills", "vitest.config.ts"]
 }

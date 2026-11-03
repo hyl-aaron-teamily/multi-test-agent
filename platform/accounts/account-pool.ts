@@ -76,6 +76,11 @@ export class AccountPool {
     return this.backend.environments()[env].webUrl;
   }
 
+  /** Names marking the agent accounts' own content in `env` (accounts.local.yaml environments.<env>.ownContent). */
+  ownContent(env: Env): string[] {
+    return this.backend.environments()[env].ownContent ?? [];
+  }
+
   /** Free accounts satisfying the request ([] if fewer than `count`). Accounts that logged in fine go first. */
   pick(req: LeaseRequest, now = Date.now()): Account[] {
     const n = req.count ?? 1;

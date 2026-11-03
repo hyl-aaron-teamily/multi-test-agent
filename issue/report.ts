@@ -1,11 +1,11 @@
-// Issue reports: report.md + result.json per Issue run, and one-page reports for refused / deferred Issues.
+// Issue reports: report.md + result.json per Issue run, and a one-page report when no plan could be built.
 import { existsSync, readdirSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, join, relative } from 'node:path';
-import { FAILURE_TEXT } from '../executor/failure';
-import { manifestMarkdown } from '../executor/manifest';
-import type { RunResult } from '../executor/run';
-import { attemptsOf, attemptsText } from '../executor/stats';
+import { FAILURE_TEXT } from '../engine/failure';
+import { manifestMarkdown } from '../engine/manifest';
+import type { RunResult } from '../engine/plan/run';
+import { attemptsOf, attemptsText } from '../engine/stats';
 import type { Draft } from './planner';
 
 const REVIEW_TEXT: Record<string, string> = { consistent: '符合 Issue 描述', inconsistent: '不符', unverified: '未能复核（视觉模型不可用），结论仅依据自动检查' };
@@ -16,14 +16,15 @@ const CAT: Record<string, string> = {
   feature: '需求验收',
   'suspected-misuse': '疑似误操作',
   'server-side': '服务端问题',
-  'multi-account': '多账号/多端',
-  deferred: '未来计划',
-  'not-executable': '不可执行',
+  'multi-account': '多账号 / 多端',
+  deferred: '前置条件构造不了',
+  'not-executable': '没有可执行的内容',
 };
 
-export function refusalMarkdown(d: Draft): string {
-  const verb = d.status === 'refused' ? '拒绝执行' : '暂缓';
-  return `# Issue ${d.issue.id} — ${verb}\n\n- 预判类别：**${d.classification.category}**（${CAT[d.classification.category]}，${d.classification.by === 'model' ? '模型' : '规则'}判定）\n- 原因：${d.reason}\n- Issue 声明的端：${d.issue.platforms.join(', ') || '（未声明）'}\n- 摘要：${d.issue.title || '（空）'}\n\n${d.status === 'refused' ? '黑盒执行器只能驱动用户可做的操作、观察用户可见的现象；本 Issue 没有可驱动/可观察的 UI 路径。' : '需要的能力（第二账号 / 多客户端 / 构造浏览器存储）进入未来计划，具备后自动可执行。'}\n`;
+/** One page for an Issue no plan could be built for (E18): why, and what would make it plannable. */
+export function unplannableMarkdown(d: Draft): string {
+  const need = d.classification.category === 'multi-account' ? '按原因补上缺的 SKILL 能力后，多端协同计划（两个账号 / 两个端）即可执行。' : d.classification.category === 'not-executable' ? '补充复现步骤与可观察的现象后重新生成草稿。' : '缺少的前置条件黑盒构造不了；具备构造能力后重新生成草稿。';
+  return [`# Issue ${d.issue.id} — 无法生成计划`, '', `- 预判类别：**${d.classification.category}**（${CAT[d.classification.category]}，${d.classification.by === 'model' ? '模型' : '规则'}判定）`, `- 原因：${d.reason}`, `- 怎样才能执行：${need}`, `- Issue 声明的端：${d.issue.platforms.join(', ') || '（未声明）'}`, `- 摘要：${d.issue.title || '（空）'}`, ''].join('\n');
 }
 
 const PHASE_TEXT: Record<string, string> = { lease: '租用', preflight: '预检', launch: '启动', login: '登录', prepare: '准备', warmup: '预热', loop: '循环', teardown: '收尾' };
@@ -43,8 +44,8 @@ export function runMarkdown(d: Draft, input: RunResult[], runDir: string): strin
   const lines = [`# Issue ${d.issue.id} — ${results.map((r) => r.conclusion).join(' / ') || '未执行'}`, ''];
   const subst = results.find((r) => r.substitution);
   if (subst) lines.push(`> **替代执行**：Issue 端 ${subst.substitution!.from} → 实际 ${results.map((r) => r.surface).join(', ')}。${subst.substitution!.reason}`, '');
-  lines.push(`- 预判类别：**${d.classification.category}**（${CAT[d.classification.category]}）— ${d.classification.reason}`, `- 环境：${results[0]?.env ?? '-'}（结论以生产环境为准）`, `- Issue 摘要：${d.issue.title}`);
-  if (d.deferredPart) lines.push(`- 暂缓部分：${d.deferredPart}`);
+  lines.push(`- 预判类别：**${d.classification.category}**（${CAT[d.classification.category]}）— ${d.classification.reason}`, `- 环境：${results[0]?.env ?? '-'}`, `- Issue 摘要：${d.issue.title}`);
+  if (d.deferredPart) lines.push(`- 未覆盖部分：${d.deferredPart}`);
   lines.push('');
   for (const r of results) {
     lines.push(`## ${r.planId} — ${r.conclusion}${r.coverage === 'not-covered' ? '（⚠ 计划未覆盖 Issue 现象，仅说明无崩溃）' : ''}`, '');
@@ -98,7 +99,7 @@ export function runMarkdown(d: Draft, input: RunResult[], runDir: string): strin
 
 export async function writeIssueReport(d: Draft, results: RunResult[], runDir: string): Promise<string> {
   await mkdir(runDir, { recursive: true });
-  const md = d.status === 'plannable' ? runMarkdown(d, results, runDir) : refusalMarkdown(d);
+  const md = d.status === 'plannable' ? runMarkdown(d, results, runDir) : unplannableMarkdown(d);
   const f = join(runDir, 'report.md');
   await writeFile(f, md);
   await writeFile(join(runDir, 'result.json'), JSON.stringify({ issue: d.issue.id, status: d.status, category: d.classification.category, reason: d.reason, deferredPart: d.deferredPart, contracts: d.status === 'plannable' ? undefined : d.contracts, results }, null, 2));

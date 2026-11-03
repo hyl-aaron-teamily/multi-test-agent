@@ -12,6 +12,8 @@ export const STATUS = {
   SUSPECTED_MISOP: { exit: 15, status: 200, text: '疑似误操作' },
   TURNED_BUG: { exit: 16, status: 200, text: '转为 bug' },
   SERIES_DONE: { exit: 17, status: 207, text: '系列完成（各次结论见 JSON）' },
+  EXPLORE_FINDINGS: { exit: 18, status: 200, text: '探索 / 自然语言任务：有发现' },
+  EXPLORE_DONE: { exit: 19, status: 200, text: '探索 / 自然语言任务：未发现问题（覆盖见 JSON）' },
   ACCEPTED: { exit: 20, status: 202, text: '已受理（任务已排队）' },
   STILL_RUNNING: { exit: 21, status: 202, text: 'wait 超时，任务仍在运行' },
   APPROVAL_REQUIRED: { exit: 30, status: 403, text: '需要人在 Web 同意' },

@@ -2460,5 +2460,224 @@
       }
     },
     "maxRounds": 6
+  },
+  "1922/main/android-app": {
+    "title": "按步骤执行并核对预期",
+    "targets": [
+      {
+        "id": "conv",
+        "kind": "group-conversation",
+        "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+      }
+    ],
+    "setup": [
+      {
+        "type": "node",
+        "node": {
+          "name": "teamily.openConversation",
+          "input": {
+            "target": "conv"
+          }
+        },
+        "delayAfterMs": 800
+      }
+    ],
+    "actions": [
+      {
+        "type": "tap",
+        "delayAfterMs": 700,
+        "element": "chat.back"
+      },
+      {
+        "type": "node",
+        "node": {
+          "name": "teamily.openConversation",
+          "input": {
+            "target": "conv"
+          }
+        },
+        "delayAfterMs": 900
+      },
+      {
+        "type": "scroll",
+        "delayAfterMs": 700,
+        "value": "up"
+      },
+      {
+        "type": "scroll",
+        "delayAfterMs": 700,
+        "value": "down"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "crash",
+        "expect": "无崩溃 / 页面错误",
+        "want": "absent"
+      }
+    ]
+  },
+  "1922/main/android-web": {
+    "title": "按步骤执行并核对预期",
+    "targets": [
+      {
+        "id": "conv",
+        "kind": "group-conversation",
+        "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+      }
+    ],
+    "setup": [
+      {
+        "type": "node",
+        "node": {
+          "name": "teamily.openConversation",
+          "input": {
+            "target": "conv"
+          }
+        },
+        "delayAfterMs": 800
+      }
+    ],
+    "actions": [
+      {
+        "type": "tap",
+        "delayAfterMs": 700,
+        "element": "chat.back"
+      },
+      {
+        "type": "node",
+        "node": {
+          "name": "teamily.openConversation",
+          "input": {
+            "target": "conv"
+          }
+        },
+        "delayAfterMs": 900
+      },
+      {
+        "type": "scroll",
+        "delayAfterMs": 700,
+        "value": "up"
+      },
+      {
+        "type": "scroll",
+        "delayAfterMs": 700,
+        "value": "down"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "page-error",
+        "expect": "无崩溃 / 页面错误",
+        "want": "absent"
+      }
+    ]
+  },
+  "1922/main/mobile-web": {
+    "title": "按步骤执行并核对预期",
+    "targets": [
+      {
+        "id": "conv",
+        "kind": "group-conversation",
+        "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+      }
+    ],
+    "setup": [
+      {
+        "type": "node",
+        "node": {
+          "name": "teamily.openConversation",
+          "input": {
+            "target": "conv"
+          }
+        },
+        "delayAfterMs": 800
+      }
+    ],
+    "actions": [
+      {
+        "type": "tap",
+        "delayAfterMs": 700,
+        "element": "chat.back"
+      },
+      {
+        "type": "node",
+        "node": {
+          "name": "teamily.openConversation",
+          "input": {
+            "target": "conv"
+          }
+        },
+        "delayAfterMs": 900
+      },
+      {
+        "type": "scroll",
+        "delayAfterMs": 700,
+        "value": "up"
+      },
+      {
+        "type": "scroll",
+        "delayAfterMs": 700,
+        "value": "down"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "page-error",
+        "expect": "无崩溃 / 页面错误",
+        "want": "absent"
+      }
+    ]
+  },
+  "1922/main/desktop-web": {
+    "title": "按步骤执行并核对预期",
+    "targets": [
+      {
+        "id": "conv",
+        "kind": "group-conversation",
+        "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+      }
+    ],
+    "setup": [
+      {
+        "type": "node",
+        "node": {
+          "name": "teamily.openConversation",
+          "input": {
+            "target": "conv"
+          }
+        },
+        "delayAfterMs": 800
+      }
+    ],
+    "actions": [
+      {
+        "type": "node",
+        "node": {
+          "name": "teamily.openConversation",
+          "input": {
+            "target": "conv"
+          }
+        },
+        "delayAfterMs": 900
+      },
+      {
+        "type": "scroll",
+        "delayAfterMs": 700,
+        "value": "up"
+      },
+      {
+        "type": "scroll",
+        "delayAfterMs": 700,
+        "value": "down"
+      }
+    ],
+    "checks": [
+      {
+        "kind": "page-error",
+        "expect": "无崩溃 / 页面错误",
+        "want": "absent"
+      }
+    ]
   }
 }
