@@ -23,7 +23,7 @@ const CAT: Record<string, string> = {
 
 /** One page for an Issue no plan could be built for (E18): why, and what would make it plannable. */
 export function refusalMarkdown(d: Draft): string {
-  const need = d.classification.category === 'multi-account' ? '需要多端协同计划（两个账号 / 两个端）。' : d.classification.category === 'not-executable' ? '补充复现步骤与可观察的现象后重新生成草稿。' : '缺少的前置条件黑盒构造不了；具备构造能力后重新生成草稿。';
+  const need = d.classification.category === 'multi-account' ? '按原因补上缺的 SKILL 能力后，多端协同计划（两个账号 / 两个端）即可执行。' : d.classification.category === 'not-executable' ? '补充复现步骤与可观察的现象后重新生成草稿。' : '缺少的前置条件黑盒构造不了；具备构造能力后重新生成草稿。';
   return [`# Issue ${d.issue.id} — 无法生成计划`, '', `- 预判类别：**${d.classification.category}**（${CAT[d.classification.category]}，${d.classification.by === 'model' ? '模型' : '规则'}判定）`, `- 原因：${d.reason}`, `- 怎样才能执行：${need}`, `- Issue 声明的端：${d.issue.platforms.join(', ') || '（未声明）'}`, `- 摘要：${d.issue.title || '（空）'}`, ''].join('\n');
 }
 

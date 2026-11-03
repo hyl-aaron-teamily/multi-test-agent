@@ -132,7 +132,12 @@ export async function draftIssue(i: NormalizedIssue, opts: { env?: 'test' | 'pro
   // and the one-page report says why (E18). A server-side Issue runs like an intermittent bug on what the user
   // can see (its report says so).
   if (pre.category === 'not-executable') return { issue: i, classification: pre, status: 'unplannable', reason: pre.reason, subcases: [] };
-  if (pre.category === 'multi-account' || pre.category === 'deferred') return { issue: i, classification: pre, status: 'unplannable', reason: pre.reason, subcases: [], contracts: [deferredContract(i, pre.category, pre.blockedBy)] };
+  if (pre.category === 'multi-account') {
+    const s = syncSubcase(i, pre, env);
+    if (typeof s === 'string') return { issue: i, classification: pre, status: 'unplannable', reason: s, subcases: [], contracts: [deferredContract(i, 'multi-account', pre.blockedBy)] };
+    return { issue: i, classification: pre, status: 'plannable', reason: `${pre.reason}：${s.plan.sync!.roles.join(' + ')}，每轮一端发一条、其余端都要看到`, subcases: [s] };
+  }
+  if (pre.category === 'deferred') return { issue: i, classification: pre, status: 'unplannable', reason: pre.reason, subcases: [], contracts: [deferredContract(i, pre.category, pre.blockedBy)] };
   const c = pre.category === 'server-side' ? { ...pre, category: 'bug-intermittent' as const, reason: `${pre.reason}；仍执行：只观察用户可见的一侧（通用模板）` } : pre;
   const subst = substitutionOptions(i.platforms);
   const surface: Surface = c.surfaces.find((s) => AVAILABLE.includes(s) && s === 'desktop-web') ?? c.surfaces[0] ?? 'android-app';
@@ -178,6 +183,22 @@ export async function draftIssue(i: NormalizedIssue, opts: { env?: 'test' | 'pro
   if (subcases.length && blocked.length === subcases.length)
     return { issue: i, classification: c, status: 'unplannable', reason: `前置条件黑盒无法构造：${[...new Set(blocked.flatMap((s) => s.contract!.preconditions.filter((p) => p.establish === 'unconstructible').map((p) => p.text)))].join('；')}`, subcases: [] };
   return { issue: i, classification: c, status: 'plannable', reason: c.reason, subcases, deferredPart: c.partialMultiAccount ? '需要第二账号 @ 我才能产生的角标 / 推送部分：要用多端协同计划执行' : undefined };
+}
+
+/** Issue platform words → the surfaces a multi-role plan uses (iOS → the Android app, desktop client → Edge). */
+const ROLE_OF: [RegExp, Surface][] = [[/android|ios|iphone|mobile app|app/i, 'android-app'], [/web|browser|desktop|mac|windows/i, 'desktop-web']];
+
+/** A multi-account Issue whose observable is "the message shows on every client" → one multi-role sub-case
+ *  (§6); a forward / other operation the SKILL has no Node for → the reason it cannot be planned (E18). */
+export function syncSubcase(i: NormalizedIssue, c: Classification, env: 'test' | 'prod'): SubCase | string {
+  const text = `${i.summary} ${i.steps.join(' ')}`;
+  if (/forward|转发/i.test(text)) return '需要「转发」操作：SKILL 里还没有转发 Node，多端协同计划只能发普通消息；补上转发 Node 后重新生成草稿';
+  const roles = [...new Set(i.platforms.flatMap((p) => ROLE_OF.filter(([re]) => re.test(p)).map(([, s]) => s)))];
+  for (const s of ['desktop-web', 'android-app'] as Surface[]) if (roles.length < 2 && !roles.includes(s)) roles.push(s);
+  const cat = { ...c, category: (/always|必现|100%/i.test(i.frequency) ? 'bug-always' : 'bug-intermittent') as Classification['category'] };
+  const plan: TestPlan = { ...basePlan(i, cat, 'sync', roles[0], env, { title: `多端同步：${roles.join(' + ')}`, targets: [], setup: [], actions: [], checks: [] }, 'rules'), sync: { roles, rounds: 3 } };
+  const v = validatePlan(plan);
+  return { sub: 'sync', title: `多端同步（${roles.join(' + ')}）`, surface: roles[0], substitution: i.platforms.some((p) => /ios|iphone/i.test(p)) ? { from: 'ios', to: 'android-app', reason: '没有 iOS 设备，用 Android App 代替', alternatives: ['android-app'] } : undefined, plan: v.plan ?? plan, planErrors: v.errors };
 }
 
 /** Apply the one-time confirmation: chosen sub-cases (and their surfaces) become fixed plans. */

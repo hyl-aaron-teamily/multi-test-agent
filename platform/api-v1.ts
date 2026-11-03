@@ -10,14 +10,15 @@ import { classifyRules } from '../issue/classify';
 import { parseIssue } from '../issue/parse';
 import type { RunResult } from '../engine/plan/run';
 import type { AgentResult } from '../engine/agent/run';
-import { allowList, approve, classifyPlan, getApproval, getFullAccess, reject, reviewerName, setFullAccess, useApproval, webUrl } from './approval';
+import type { SyncResult } from '../engine/plan/sync';
+import { allowList, approve, classifyPlan, SENSITIVE, getApproval, getFullAccess, reject, reviewerName, setFullAccess, useApproval, webUrl } from './approval';
 import { consentConfig, type EnvRecord, getEnv, listEnvs, unconsented } from './lifecycle/env';
 import { STATUS, type Code, CodedError, apiError, outcome } from './lifecycle/status';
 import { readAudit, writeJsonAtomic } from './lifecycle/store';
 import type { Supervisor } from './lifecycle/supervisor';
 import { createTask, getTask, isTerminal, listTasks, newTaskId, readEvents, readLedger, readResult, taskDir, type TaskRecord } from './lifecycle/task';
 import { parsePlanId, planIdOf, planIdsOf, resolvePlan, savedDraft, staleFacts, versionFacts } from './plans-v1';
-import { envView, exploreSummary, planText, planView, resultText, resultView, taskView, type ResultView } from './views';
+import { envView, exploreSummary, syncSummary, planText, planView, resultText, resultView, taskView, type ResultView } from './views';
 
 export interface Envelope {
   status: number;
@@ -79,6 +80,10 @@ function explain(planId: string, o: { series?: number; maxRounds?: number } = {}
 }
 
 function resultOf(t: TaskRecord): ResultView {
+  if (t.kind === 'sync') {
+    const a = readResult<{ code?: Code; sync?: SyncResult; report?: string; runDir?: string }>(t.id);
+    return resultView(t, [], t.outcome?.code ?? a?.code ?? 'STILL_RUNNING', { report: a?.report, runDir: a?.runDir, sync: a?.sync && syncSummary(a.sync) });
+  }
   if (t.kind === 'explore') {
     const a = readResult<{ code?: Code; agent?: AgentResult; report?: string; runDir?: string }>(t.id);
     return resultView(t, [], t.outcome?.code ?? a?.code ?? 'STILL_RUNNING', { report: a?.report, runDir: a?.runDir, explore: a?.agent && exploreSummary(a.agent) });
@@ -153,9 +158,41 @@ async function exploreIssue(ref: string, n: number): Promise<Envelope> {
   return ok('OK', `Issue ${out.id} 已生成`, { issue: out.id, file: out.file }, `Issue ${out.id} → ${out.file}\n下一步：autotest draft create ${out.id}，再 plan explain / task run`);
 }
 
+/** Submit a multi-client sync check (§6): `--sync <surface or env id>,<…>` — one environment per role, leased
+ *  all or none, a different pool account each, N rounds in an allow-listed group. More than SENSITIVE.maxMessages
+ *  messages is a sensitive run (full access, or not at all: there is no Web approval for ad-hoc sync tasks). */
+function submitSync(b: any): Envelope {
+  const parts = String(b.sync ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (parts.length < 2 || parts.length > 4) return fail('BAD_INPUT', '--sync 需要 2–4 个端或环境 id，用逗号分开，例如 desktop-web,android-app');
+  const serviceEnv = String(b.env ?? 'prod');
+  const envs = parts.map((p) => (p.includes(':') ? getEnv(p) : EXPLORE_SURFACES.includes(p) ? envFor(p, serviceEnv) : undefined));
+  const bad = parts.filter((_, i) => !envs[i]);
+  if (bad.length) return fail(bad.some((p) => p.includes(':') || !EXPLORE_SURFACES.includes(p)) ? 'BAD_INPUT' : 'ENV_OFFLINE', `--sync：没有环境 ${bad.map((p) => (p.includes(':') ? p : `${p}@${serviceEnv}`)).join('、')}`, 'autotest env list');
+  const all = envs as EnvRecord[];
+  if (new Set(all.map((e) => e.id)).size !== all.length || new Set(all.map((e) => e.surface)).size !== all.length) return fail('BAD_INPUT', '--sync：每个端只能出现一次');
+  if (new Set(all.map((e) => e.serviceEnv)).size > 1) return fail('BAD_INPUT', '--sync：各端必须是同一个服务环境（test / prod）');
+  const rounds = b.rounds !== undefined && b.rounds !== null ? Number(b.rounds) : all.length;
+  if (!(Number.isInteger(rounds) && rounds >= 1 && rounds <= 1000)) return fail('BAD_INPUT', '--rounds: 1..1000');
+  if (rounds > SENSITIVE.maxMessages && !getFullAccess().on) return fail('APPROVAL_REQUIRED', `会发送 ${rounds} 条消息（> ${SENSITIVE.maxMessages}），需要完全授权`, webUrl('/'));
+  const pending = all.flatMap((e) => pendingConfig(e).map((c) => ({ ...c, env: e.id })));
+  if (pending.length) return fail('APPROVAL_REQUIRED', `环境 ${pending[0].env} 的配置项尚未同意：${pending.map((c) => c.what).join('；')}`, webUrl(`/env.html?id=${encodeURIComponent(pending[0].env)}`));
+  if (b.idempotencyKey) {
+    const same = listTasks().find((t) => t.idempotencyKey === String(b.idempotencyKey) && !t.parent);
+    if (same) return ok('ACCEPTED', `同一幂等键的任务已存在：${same.id}`, tv(same));
+  }
+  const er = all.map(envRefusalOf).find(Boolean);
+  if (er) return er;
+  const where = all.map((e) => e.id).join(' + ');
+  if (b.dryRun) return ok('OK', `演练：多端同步 ${rounds} 轮，${where}（每轮一端发一条，发到允许清单里的群）`, { envIds: all.map((e) => e.id), rounds, messagesMax: rounds });
+  const id = newTaskId();
+  const t = createTask({ id, kind: 'sync', issue: 'sync', planId: `sync:${all.map((e) => e.surface).join('+')}`, planHash: '-', envId: all[0].id, envIds: all.slice(1).map((e) => e.id), sync: { rounds }, options: {}, idempotencyKey: b.idempotencyKey ? String(b.idempotencyKey) : undefined });
+  return ok('ACCEPTED', `任务 ${id} 已排队：多端同步 ${rounds} 轮 @ ${where}`, tv(t));
+}
+
 /** Submit a task (§5.3 task run): resolve → hash → environment → policy → approval → task record. */
 function submit(b: any, via: 'cli' | 'web'): Envelope {
   if (b.explore !== undefined && b.explore !== null) return submitExplore(b);
+  if (b.sync !== undefined && b.sync !== null) return submitSync(b);
   const planId = String(b.planId ?? '');
   const series = b.series !== undefined ? Number(b.series) : undefined;
   if (series !== undefined && !(Number.isInteger(series) && series >= 1 && series <= 100)) return fail('BAD_INPUT', '--series: 1..100');
@@ -166,10 +203,15 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
   const env = envFor(r.plan.surface, r.plan.env, b.envId);
   if (!env) return fail(b.envId ? 'NOT_FOUND' : 'ENV_OFFLINE', b.envId ? `没有环境 ${b.envId}` : `没有 ${r.plan.surface}@${r.plan.env} 的环境`, 'autotest env list');
   if (env.surface !== r.plan.surface || env.serviceEnv !== r.plan.env) return fail('BAD_INPUT', `环境 ${env.id} 不是 ${r.plan.surface}@${r.plan.env}`);
+  // A multi-role plan (§6) leases one environment per role, all or none.
+  if (r.plan.sync && series && series > 1) return fail('BAD_INPUT', '多端协同计划不支持 --series（用 --max-rounds 加轮数）');
+  const more = (r.plan.sync?.roles.slice(1) ?? []).map((s) => envFor(s, r.plan.env));
+  if (more.some((e) => !e)) return fail('ENV_OFFLINE', `多端协同计划缺环境：${r.plan.sync!.roles.filter((_, i) => i > 0 && !more[i - 1]).map((s) => `${s}@${r.plan.env}`).join('、')}`, 'autotest env list');
+  const all = [env, ...(more as EnvRecord[])];
   // Environment refusals come after the policy checks: those are definitive, an unfit phone is transient.
-  const envRefusal = () => envRefusalOf(env);
-  const pending = pendingConfig(env);
-  if (pending.length) return fail('APPROVAL_REQUIRED', `环境 ${env.id} 的配置项尚未同意：${pending.map((c) => c.what).join('；')}`, webUrl(`/env.html?id=${encodeURIComponent(env.id)}`));
+  const envRefusal = () => all.map(envRefusalOf).find(Boolean);
+  const pending = all.flatMap((e) => pendingConfig(e).map((c) => ({ ...c, env: e.id })));
+  if (pending.length) return fail('APPROVAL_REQUIRED', `环境 ${pending[0].env} 的配置项尚未同意：${pending.map((c) => c.what).join('；')}`, webUrl(`/env.html?id=${encodeURIComponent(pending[0].env)}`));
   const classified = classifyPlan(r.plan, { series, maxRounds, allow: allowList() });
   if (classified.category === 'refused') return fail('PLAN_NOT_EXECUTABLE', `计划触及硬约束：${classified.reasons.join('；')}`);
   const facts = versionFacts(r.plan, env.udid, env.appVersion);
@@ -201,7 +243,7 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
   if (er) return er;
   const ap = useApproval(planId, r.hash, facts, n);
   const id = newTaskId();
-  const t = createTask({ id, kind: series && series > 1 ? 'series' : 'issue', issue: r.ref.issue, planId, planHash: r.hash, approvalId: ap.id, envId: env.id, series: series && series > 1 ? { runs: series } : undefined, options: { maxRounds, maxSteps: b.maxSteps, maxMinutes: b.maxMinutes }, idempotencyKey: b.idempotencyKey ? String(b.idempotencyKey) : undefined });
+  const t = createTask({ id, kind: r.plan.sync ? 'sync' : series && series > 1 ? 'series' : 'issue', issue: r.ref.issue, planId, planHash: r.hash, approvalId: ap.id, envId: env.id, ...(r.plan.sync ? { envIds: all.slice(1).map((e) => e.id), sync: { rounds: maxRounds ?? r.plan.sync.rounds } } : {}), series: series && series > 1 ? { runs: series } : undefined, options: { maxRounds, maxSteps: b.maxSteps, maxMinutes: b.maxMinutes }, idempotencyKey: b.idempotencyKey ? String(b.idempotencyKey) : undefined });
   // Confirmation = execution: the exact plan and draft are frozen into the task dir.
   writeJsonAtomic(join(taskDir(id), 'plan.json'), r.plan);
   writeJsonAtomic(join(taskDir(id), 'draft.json'), r.draft);

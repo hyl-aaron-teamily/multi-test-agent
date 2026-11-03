@@ -71,7 +71,10 @@ export function validatePlan(raw: unknown): Validation {
     if (o && !o.usable.includes(plan.surface)) errors.push(`contract: observation ${plan.contract.observable.observation} cannot be observed on ${plan.surface}`);
     for (const p of plan.contract.preconditions) if (p.establish === 'construct' && !plan.prepare.length) errors.push(`contract: precondition ${p.id} must be constructed but the plan has no prepare steps`);
   }
-  if (plan.category !== 'feature' && !plan.actions.length) errors.push('actions: empty loop');
+  if (plan.sync) {
+    if (new Set(plan.sync.roles).size !== plan.sync.roles.length) errors.push('sync: roles must be different surfaces');
+    if (plan.sync.roles[0] !== plan.surface) errors.push('sync: surface must be the first role');
+  } else if (plan.category !== 'feature' && !plan.actions.length) errors.push('actions: empty loop');
   if (plan.category === 'feature' && !plan.acceptance?.length) errors.push('feature plan needs acceptance items');
   if (plan.limits.maxSteps > HARD_LIMITS.maxSteps || plan.limits.maxMinutes > HARD_LIMITS.maxMinutes) errors.push('limits above platform hard cap');
   return { ok: !errors.length, errors, plan };

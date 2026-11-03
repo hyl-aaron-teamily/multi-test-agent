@@ -38,6 +38,7 @@ export function roundBound(p: TestPlan, maxRounds?: number): number {
 
 /** Pure: upper bound of messages one run of the plan sends (warm-up round included). */
 export function messageBound(p: TestPlan, maxRounds?: number): number {
+  if (p.sync) return maxRounds ?? p.sync.rounds;
   if (p.category === 'feature') return sends(p.setup) + sends(p.prepare) + (p.acceptance ?? []).reduce((n, a) => n + sends(a.actions), 0);
   const perRound = sends(p.actions) + sends(p.afterCheck);
   return sends(p.setup) + sends(p.prepare) + sends(p.correctPath) + perRound * (roundBound(p, maxRounds) + 1) + sends(p.epilogue?.actions);

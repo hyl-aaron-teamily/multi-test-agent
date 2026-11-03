@@ -16,7 +16,8 @@ import { recordWarmupFailures } from '../issue/drafts';
 import { TaskRuntime } from '../platform/lifecycle/runtime';
 import { type Code, codeOfRuns } from '../platform/lifecycle/status';
 import { readJson } from '../platform/lifecycle/store';
-import { createTask, getTask, isTerminal, moveTask, taskDir, type TaskState, updateTask, writeResult } from '../platform/lifecycle/task';
+import { createTask, getTask, isTerminal, moveTask, taskDir, taskEnvs, type TaskState, updateTask, writeResult } from '../platform/lifecycle/task';
+import type { SyncResult } from '../engine/plan/sync';
 import { type TestPlan, TestPlanZ } from '../platform/schema/test-plan';
 
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-');
@@ -82,12 +83,72 @@ async function execExplore(id: string, rt: TaskRuntime): Promise<number> {
   return 0;
 }
 
+/** Pure: the code of a finished sync run. A multi-role Issue plan (§6): a line some client never showed
+ *  reproduces it; a plain sync check: every line on every client = 已实现. */
+export function syncCode(r: Pick<SyncResult, 'conclusion' | 'cancelled' | 'roles' | 'rounds'>, issue: boolean): Code {
+  if (r.cancelled) return 'CANCELLED';
+  if (r.conclusion === '存在未同步') return issue ? 'REPRODUCED' : 'NOT_IMPLEMENTED';
+  if (r.conclusion === '全部同步') return issue ? 'NOT_REPRODUCED' : 'IMPLEMENTED';
+  // Not every client got ready: the environment unless the run never got to a round for another reason.
+  const why = r.roles.find((x) => x.error)?.error ?? '';
+  if (!r.rounds.length && /no free|lease|not on the allow list|offline|unauthor|keyguard|锁屏/.test(why)) return /allow list/.test(why) ? 'PLAN_NOT_EXECUTABLE' : 'ENV_UNFIT';
+  return 'TOOL_FAILED';
+}
+
+/** Task kind sync (§6): one role per leased environment, a different pool account each (phones keep their
+ *  signed-in account), in an allow-listed group. */
+async function execSync(id: string, rt: TaskRuntime): Promise<number> {
+  const t0 = getTask(id)!;
+  const envs = taskEnvs(t0).map((e) => getEnv(e)!);
+  const plan: TestPlan | undefined = t0.issue !== 'sync' ? TestPlanZ.parse(readJson(join(taskDir(id), 'plan.json'))) : undefined;
+  rt.move('preflight', `process ${process.pid} started`);
+  const { openPools } = await import('../platform/pools');
+  const { runSync } = await import('../engine/plan/sync');
+  const { allowList } = await import('../platform/approval');
+  const { pool, devices } = await openPools();
+  const runDir = resolve('midscene_run/sync', `${envs.map((e) => e.surface).join('+')}-${id}`);
+  updateTask(id, (t) => void (t.runDir = runDir));
+  rt.phase('launch');
+  rt.move('running', 'leases taken');
+  const r = await runSync({
+    env: envs[0].serviceEnv,
+    roles: envs.map((e) => ({ id: e.surface, surface: e.surface as Surface, device: e.udid, account: e.account })),
+    rounds: t0.sync?.rounds,
+    runDir,
+    pool,
+    devices,
+    taskId: id,
+    allow: envs[0].serviceEnv === 'prod' ? allowList() : undefined,
+    onEffect: (e) => rt.effect(e),
+    shouldStop: () => {
+      const stop = rt.shouldStop();
+      if (!stop) rt.phase('loop');
+      return stop;
+    },
+  });
+  const code = syncCode(r, !!plan);
+  const report = join(runDir, 'report.md');
+  rt.phase('finishing');
+  writeResult(id, { schemaVersion: 1, taskId: id, planId: t0.planId, code, sync: r, report, runDir });
+  const state: TaskState = code === 'CANCELLED' ? 'cancelled' : code === 'ENV_UNFIT' ? 'env-unfit' : 'done';
+  const patch = (t: Parameters<Parameters<typeof updateTask>[1]>[0]) => {
+    t.outcome = { code, summary: r.cancelled ? `已取消（完成 ${r.rounds.length} 轮）` : `${r.conclusion}：${r.detail.slice(0, 120)}` };
+    t.endedBy = r.cancelled ? 'cancel' : 'normal';
+    t.endedAt = rt.position;
+    t.report = report;
+  };
+  if (state === 'done') advance(id, ['finishing'], 'run ended');
+  moveTask(id, state, 'task', `run ended: ${code}`, patch);
+  return 0;
+}
+
 export async function execTask(id: string): Promise<number> {
   const t0 = getTask(id);
   if (!t0) throw new Error(`no task ${id}`);
   const rt = new TaskRuntime(id);
   rt.start();
   if (t0.kind === 'explore') return execExplore(id, rt);
+  if (t0.kind === 'sync') return execSync(id, rt);
   const env = getEnv(t0.envId)!;
   const plan: TestPlan = TestPlanZ.parse(readJson(join(taskDir(id), 'plan.json')));
   const draft = readJson<Draft>(join(taskDir(id), 'draft.json'))!;

@@ -94,6 +94,9 @@ export const TestPlanZ = z.object({
   epilogue: z.object({ actions: z.array(PlannedActionZ), check: CheckPointZ }).optional(),
   /** suspected-misuse: the correct path, run first. */
   correctPath: z.array(PlannedActionZ).optional(),
+  /** Multi-role plan (multi-account Issues, §6): one client per surface, each a different pool account, in an
+   *  allow-listed group; every round one sends a unique line and every other must show it. surface = roles[0]. */
+  sync: z.object({ roles: z.array(SurfaceZ).min(2).max(4), rounds: z.number().int().min(1).max(50) }).optional(),
   limits: LimitsZ,
   verdictRule: VerdictRuleZ,
   /** Intent contract the plan was compiled from (W2-1 §5). */

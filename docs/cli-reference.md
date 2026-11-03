@@ -140,11 +140,13 @@ Check the environment now (online, unlocked, app version, configuration items) �
 
 ### `autotest task run`
 
-Submit a plan; returns the task id at once (20). Default-class plans are approved by policy. `task run --explore "<goal>" …` = explore run
+Submit a plan, or a multi-client sync check (--sync); returns the task id at once (20). Default-class plans are approved by policy. Multi-role plans and --sync lease every environment or none. `task run --explore "<goal>" …` = explore run
 
 | 参数 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| <planId> | string | 是 | <Issue>/<sub>:<surface>@v<draft version>, e.g. 1903/main:android-app@v1 |
+| <planId> | string |  | <Issue>/<sub>:<surface>@v<draft version>, e.g. 1903/main:android-app@v1 (or --sync) |
+| --sync | string |  | multi-client sync check instead of a plan: 2–4 surfaces or environment ids, comma-separated, e.g. desktop-web,android-app (a different pool account each; sends into an allow-listed group) |
+| --rounds | integer |  | with --sync: rounds (one line sent per round; default one per client) |
 | --env | string |  | environment id (default: the plan surface’s ready one) |
 | --series | integer |  | N independent runs |
 | --max-rounds | integer |  | valid attempts per run |

@@ -14,8 +14,9 @@ describe('platform/mcp (W2-4 §5)', () => {
   });
   it('input schema from the CLI arg specs (required / optional, no --json)', () => {
     const s = inputShape(cmd('task run'));
-    expect(Object.keys(s)).toEqual(['planId', 'env', 'series', 'max-rounds', 'hash', 'dry-run', 'idempotency-key']);
-    expect(s.planId.safeParse(undefined).success).toBe(false);
+    expect(Object.keys(s)).toEqual(['planId', 'sync', 'rounds', 'env', 'series', 'max-rounds', 'hash', 'dry-run', 'idempotency-key']);
+    expect(s.planId.safeParse(undefined).success).toBe(true); // a plan id, or --sync
+    expect(inputShape(cmd('explore run')).goal.safeParse(undefined).success).toBe(false);
     expect(s.series.safeParse(undefined).success).toBe(true);
     expect(s.series.safeParse(1.5).success).toBe(false);
   });

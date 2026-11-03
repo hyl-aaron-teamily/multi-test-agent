@@ -1,7 +1,7 @@
 // Unified entry.
 //   pnpm autotest help | <issue|draft|plan|env|task|result> <action> [--json]   (W2-3 v1 CLI for agents)
 //   pnpm autotest doctor | mcp [--print-config claude|cursor|codex|vscode]      (W2-4)
-//   pnpm autotest accounts|nodes|plan|run|series|rerender|evidence|sync ... (scripts/m5.ts)
+//   pnpm autotest accounts|nodes|plan|run|series|rerender|evidence ... (scripts/m5.ts)
 //   pnpm autotest replay <incident>/replay.json [--times 3]                     (coordinate replay)
 //   pnpm autotest explore run "<goal>" [--mode task|explore] [--surface …]   (quick tier, capability ①; explore local = no platform)
 //   pnpm autotest devices [--json]
@@ -12,7 +12,7 @@ import { listDevices } from '../platform/adb-devices';
 
 const [cmd, ...rest] = process.argv.slice(2);
 
-const M5 = ['accounts', 'nodes', 'plan', 'run', 'series', 'rerender', 'evidence', 'sync'];
+const M5 = ['accounts', 'nodes', 'plan', 'run', 'series', 'rerender', 'evidence'];
 
 function run(bin: string, args: string[]): Promise<number> {
   return new Promise((res) => {
@@ -50,7 +50,7 @@ async function main(): Promise<number> {
     else for (const d of devices) console.log(`${d.udid.padEnd(20)} ${d.state.padEnd(13)} ${d.model ?? ''}`);
     return 0;
   }
-  console.error('Usage: pnpm autotest help | <issue|draft|plan|env|task|result> <action> [--json] | <doctor|mcp|explore|accounts|nodes|plan|run|series|rerender|evidence|sync|replay|devices> [...args]');
+  console.error('Usage: pnpm autotest help | <issue|draft|plan|env|task|result> <action> [--json] | <doctor|mcp|explore|accounts|nodes|plan|run|series|rerender|evidence|replay|devices> [...args]');
   return 2;
 }
 

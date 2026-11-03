@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased] — W2-4.1 P6 / T7：多端协同接入 v1 任务
+
+### Added
+- 多环境租约：一个任务的环境全部租到才开始，任一租不到就都不租；结束时逐个释放、逐个检查。
+- 任务类型 `sync`：`autotest task run --sync <端>,<端> [--rounds N]`，各端分配不同的池账号；发送前核对会话在允许清单内。全部同步 = 已实现（13），存在未同步 = 未实现（14）。
+- multi-account 类 Issue 规划成多角色计划（`TestPlan.sync`），走同一条执行路径，结论为已复现 / 未复现；需要转发等 SKILL 尚无的操作时，出「无法生成计划」报告并写明原因。
+
+### Changed
+- 同步核对：App 端没看到消息时先滑到最新消息再读（新消息到达时 App 保持在原来的阅读位置）。
+
+### Removed
+- 旧入口 `autotest sync`（改用 `task run --sync`）。
+
 ## [Unreleased] — W2-4.1 P5 / T3–T6：快速档（能力①）
 
 ### Added

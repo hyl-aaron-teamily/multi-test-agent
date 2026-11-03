@@ -19,7 +19,7 @@ import { RecordingDriver } from '../recorder/recording-driver';
 import { modelCalls } from '../../core/model/llm';
 import type { AccountPool, Lease } from '../../platform/accounts/account-pool';
 import { type Env, onAndroid, type Surface } from '../../platform/accounts/types';
-import { loadConversations } from '../../platform/conversations';
+import { constructionAllowed, loadConversations } from '../../platform/conversations';
 import type { DevicePool } from '../../platform/device-pool';
 import type { TestPlan } from '../../platform/schema/test-plan';
 import type { Profile } from '../../skills/profile';
@@ -51,6 +51,14 @@ export interface SyncOptions {
   devices: DevicePool;
   headed?: boolean;
   log?: (s: string) => void;
+  /** Platform task id (the leases are taken under it). */
+  taskId?: string;
+  /** Cancel point between rounds (platform task). */
+  shouldStop?: () => boolean;
+  /** Prod: the conversation must be on the allow list (G3); every role refuses another one. */
+  allow?: string[];
+  /** Side-effect record (G6): called before each send / conversation entry. */
+  onEffect?: (e: { kind: 'enter-conversation' | 'send'; target?: string; value?: string }) => void;
 }
 
 export interface SyncRoleResult {
@@ -87,6 +95,8 @@ export interface SyncResult {
   roles: SyncRoleResult[];
   rounds: SyncRound[];
   conclusion: '全部同步' | '存在未同步' | '执行失败';
+  /** Stopped by a cancel between rounds (incomplete: no conclusion). */
+  cancelled?: boolean;
   detail: string;
   visionCalls: number;
   /** Delivery checks by tier (① accessibility / page text, ③ vision). */
@@ -116,7 +126,7 @@ export async function runSync(o: SyncOptions): Promise<SyncResult> {
   const t0 = Date.now();
   const v0 = modelCalls.vision;
   await mkdir(o.runDir, { recursive: true });
-  const taskId = `sync-${t0}`;
+  const taskId = o.taskId ?? `sync-${t0}`;
   const tag = new Date(t0).toISOString().slice(11, 19).replace(/:/g, '');
   const result: SyncResult = { env: o.env, startedAt: new Date(t0).toISOString(), finishedAt: '', roles: [], rounds: [], conclusion: '执行失败', detail: '', visionCalls: 0 };
   // Phone roles lease first: their account is the one signed in on the phone; host roles take what is left.
@@ -174,10 +184,15 @@ export async function runSync(o: SyncOptions): Promise<SyncResult> {
     // ---- rounds: one sender, every other client must show the line
     const rounds = o.rounds ?? ready.length;
     for (let k = 1; k <= rounds; k++) {
+      if (o.shouldStop?.()) {
+        result.cancelled = true;
+        break;
+      }
       const sender = ready[(k - 1) % ready.length];
       const text = `autotest sync ${tag} r${k} ${sender.spec.id}`;
       await focus(sender);
       sender.d!.label = `send r${k}`;
+      o.onEffect?.({ kind: 'send', target: sender.res.conversation, value: text });
       await runNode('teamily.sendMessage', { text }, { driver: sender.d!, profile: sender.profile!, targets: {} });
       const sentAt = Date.now();
       log(`round ${k}: ${sender.spec.id} sent "${text}"`);
@@ -192,7 +207,7 @@ export async function runSync(o: SyncOptions): Promise<SyncResult> {
     const missed = all.filter((x) => x.seen === false);
     const unverified = all.filter((x) => x.seen === null);
     const notReady = roles.filter((r) => !r.res.ready);
-    result.conclusion = missed.length ? '存在未同步' : unverified.length || notReady.length ? '执行失败' : '全部同步';
+    result.conclusion = missed.length ? '存在未同步' : unverified.length || notReady.length || result.cancelled ? '执行失败' : '全部同步';
     const lat = all.filter((x) => x.seen && x.latencyMs !== undefined && !x.receiver.endsWith('(sender)')).map((x) => x.latencyMs!);
     result.detail = `${notReady.length ? `未就绪：${notReady.map((r) => r.spec.id).join(', ')}；` : ''}${result.rounds.length} 轮，${all.length} 次投递检查：可见 ${all.filter((x) => x.seen).length}，未出现 ${missed.length}，未能核实 ${unverified.length}${lat.length ? `；接收端从发送到看到 平均 ${Math.round(lat.reduce((a, b) => a + b, 0) / lat.length / 100) / 10}s / 最长 ${Math.round(Math.max(...lat) / 100) / 10}s（含切换手机前台）` : ''}`;
   } catch (e) {
@@ -229,8 +244,10 @@ async function prepareRole(r: Role, o: SyncOptions, log: (s: string) => void, fo
   const plan = { targets: [{ id: 'conv', kind: 'group-conversation', guidance }] } as unknown as TestPlan;
   const [t] = await pickTargets(plan, r.inner, profile, (s) => log(`${r.spec.id}: ${s}`), await visionLocator(r.inner as any), 'rows');
   if (!t) throw new Error('conversation not found on the list');
+  if (o.allow && !constructionAllowed(t.chosen, o.allow)) throw new Error(`conversation "${t.chosen.slice(0, 40)}" is not on the allow list (G3): nothing is sent there`);
   r.target = t.point;
   r.res.conversation = t.chosen;
+  o.onEffect?.({ kind: 'enter-conversation', target: t.chosen });
   r.titleRead = t.by !== 'vision';
   await runNode('teamily.openConversation', { target: 'conv' }, { driver: d, profile, targets: { conv: t.point } });
   const open = await waitForRegion(d, profile, ['chat/composer'], 20_000);
@@ -242,7 +259,7 @@ async function prepareRole(r: Role, o: SyncOptions, log: (s: string) => void, fo
     if (!(await pageHasText(r.inner.page, { contains: head }, inPane))) {
       log(`${r.spec.id}: opened conversation is not "${head}" (list re-sorted) — opening again`);
       const [t2] = await pickTargets(plan, r.inner, profile, (s) => log(`${r.spec.id}: ${s}`), await visionLocator(r.inner as any), 'rows');
-      if (t2) {
+      if (t2 && (!o.allow || constructionAllowed(t2.chosen, o.allow))) {
         if (r.spec.surface !== 'desktop-web') await sess.adapter.leaveConversation(d, profile);
         await runNode('teamily.openConversation', { target: 'conv' }, { driver: d, profile, targets: { conv: t2.point } });
         await waitForRegion(d, profile, ['chat/composer'], 20_000);
@@ -303,8 +320,18 @@ async function lineVisible(r: Role, text: string): Promise<boolean | null> {
     return v;
   };
   if (onAndroid(r.spec.surface) && r.inner instanceof AndroidDriver) {
-    const nodes = await dumpTree(r.inner.o.udid, r.inner.o.packageName, 2);
-    if (nodes.some((n) => n.text.includes(key) || n.desc.includes(key))) return done(true, '①');
+    let nodes = await dumpTree(r.inner.o.udid, r.inner.o.packageName, 2);
+    const has = () => nodes.some((n) => n.text.includes(key) || n.desc.includes(key));
+    if (has()) return done(true, '①');
+    // The App keeps a reader where they were when a line arrives (a "↓ n" badge): scroll to the newest
+    // messages, as a reader would, and read again (2026-11-03: a delivered line counted as missing).
+    if (r.spec.surface === 'android-app' && nodes.length && r.profile) {
+      const x = Math.round(r.profile.viewport.width / 2);
+      for (let i = 0; i < 3; i++) await r.inner.swipe({ x, y: Math.round(r.profile.viewport.height * 0.7) }, { x, y: Math.round(r.profile.viewport.height * 0.25) }, 150);
+      await sleep(600);
+      nodes = await dumpTree(r.inner.o.udid, r.inner.o.packageName, 2);
+      if (has()) return done(true, '①');
+    }
     if (r.spec.surface === 'android-app' && nodes.length) return done(false, '①');
   } else if (r.inner instanceof WebDriver && r.inner.page) {
     // Desktop: only the chat pane (right of the conversation list, whose preview shows the line too).

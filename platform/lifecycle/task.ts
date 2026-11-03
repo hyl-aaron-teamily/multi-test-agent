@@ -30,7 +30,7 @@ export interface Position {
 export interface TaskRecord {
   schemaVersion: 1;
   id: string;
-  kind: 'issue' | 'series' | 'explore';
+  kind: 'issue' | 'series' | 'explore' | 'sync';
   /** kind explore: the quick tier's goal (capability ①). */
   explore?: { goal: string; mode: 'task' | 'explore'; writable: boolean };
   issue: string;
@@ -39,6 +39,10 @@ export interface TaskRecord {
   planHash: string;
   approvalId?: string;
   envId: string;
+  /** Further environments the task leases with envId (all or none; §6): multi-client sync. */
+  envIds?: string[];
+  /** kind sync: one role per environment (same order as taskEnvs), N rounds. */
+  sync?: { rounds: number };
   parent?: string;
   series?: { runs: number };
   options: { maxRounds?: number; maxSteps?: number; maxMinutes?: number; dryRun?: boolean };
@@ -93,6 +97,9 @@ export function listTasks(): TaskRecord[] {
     .filter((t): t is TaskRecord => !!t)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
+
+/** Every environment a task leases: the primary one first. */
+export const taskEnvs = (t: Pick<TaskRecord, 'envId' | 'envIds'>): string[] => [t.envId, ...(t.envIds ?? [])];
 
 export function createTask(t: Omit<TaskRecord, 'schemaVersion' | 'state' | 'createdAt' | 'updatedAt' | 'progress'> & { progress?: TaskRecord['progress'] }): TaskRecord {
   const now = new Date().toISOString();

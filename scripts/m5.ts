@@ -7,13 +7,12 @@
 //   pnpm autotest rerender <issue run dir>                                                    (old result.json → report.v2.md, W2-2 wording)
 //   pnpm autotest replay <incident>/replay.json [--variant original|fast|slow|cold] [--times N]
 //   pnpm autotest evidence review <incidentDir> | snapshot <incidentDir> --id <case> --expect .. | cases
-//   pnpm autotest sync [--roles desktop-web,android-web,android-app] [--rounds N] [--env prod] [--timeout S]
 import 'dotenv/config';
 import { TEAMILY_PACKAGE } from '../drivers/factory';
 import { openPools } from '../platform/pools';
 import { patternById } from '../skills/teamily/patterns';
 import { AccountPool } from '../platform/accounts/account-pool';
-import type { Env, Surface } from '../platform/accounts/types';
+import type { Env } from '../platform/accounts/types';
 
 export function flag(args: string[], name: string): string | undefined {
   const i = args.indexOf(`--${name}`);
@@ -37,24 +36,6 @@ async function accounts(args: string[]): Promise<number> {
   return 0;
 }
 
-/** T2 smoke: by coordinates only, open a conversation (picked at preparation) and send one message. */
-async function sync(args: string[]): Promise<number> {
-  const { runSync } = await import('../engine/plan/sync');
-  const { resolve } = await import('node:path');
-  const env = (flag(args, 'env') ?? 'prod') as Env;
-  const { pool, devices } = await openPools();
-  // --roles desktop-web,android-web,android-app  (a role per surface; repeat a surface with a suffix: desktop-web#2)
-  const roles = (flag(args, 'roles') ?? 'desktop-web,android-web,android-app').split(',').map((x) => {
-    const [surface] = x.split('#');
-    return { id: x.replace('#', '-'), surface: surface as Surface, device: flag(args, `device-${surface}`) };
-  });
-  const runDir = resolve('midscene_run/sync', new Date().toISOString().replace(/[:.]/g, '-'));
-  const r = await runSync({ env, roles, rounds: flag(args, 'rounds') ? Number(flag(args, 'rounds')) : undefined, conversation: flag(args, 'conversation'), timeoutSec: flag(args, 'timeout') ? Number(flag(args, 'timeout')) : undefined, settleSec: flag(args, 'settle') ? Number(flag(args, 'settle')) : undefined, runDir, pool, devices, headed: has(args, 'headed') });
-  console.log(`[sync] ${r.conclusion} — ${r.detail}`);
-  console.log(`[sync] report → ${resolve(runDir, 'report.md')}`);
-  return r.conclusion === '全部同步' ? 0 : 1;
-}
-
 async function nodes(args: string[]): Promise<number> {
   const { listNodes } = await import('../skills/teamily/nodes');
   const list = listNodes();
@@ -73,10 +54,9 @@ const table: Record<string, (a: string[]) => Promise<number>> = {
   rerender: async (a) => (await import('./issue-cli')).rerenderCmd(a),
   replay: async (a) => (await import('../engine/recorder/replay')).replayCmd(a),
   evidence: async (a) => (await import('../engine/recorder/evidence-cases')).evidenceCmd(a),
-  sync,
 };
 if (!cmd || !table[cmd]) {
-  console.error('Usage: m5 <accounts|nodes|plan|run|series|rerender|replay|evidence|sync> ...');
+  console.error('Usage: m5 <accounts|nodes|plan|run|series|rerender|replay|evidence> ...');
   process.exit(2);
 }
 table[cmd](rest).then(
