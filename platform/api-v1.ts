@@ -178,6 +178,12 @@ function planMarks(planId: string) {
 
 const tv = (t: TaskRecord) => taskView(t, readEvents(t.id) as any, readLedger(t.id), t.kind === 'explore' ? readInstructions(t.id) : []);
 
+/** Pure: the platform has just started and checks environments in the background (W2-5 §9): say so. */
+export function checkingNote(envs: Pick<EnvRecord, 'id' | 'state'>[]): string {
+  const c = envs.filter((e) => e.state === 'checking').map((e) => e.id);
+  return c.length ? `（环境检查中：${c.join('、')}；检查通过后开始）` : '';
+}
+
 /** Environment refusals: offline / unfit (transient, so they come after the definitive checks). */
 function envRefusalOf(env: EnvRecord): Envelope | undefined {
   if (env.state === 'offline') return fail('ENV_OFFLINE', `环境 ${env.id} 已下线`, 'autotest env check <envId>（或在环境页点「重新检查」）');
@@ -224,7 +230,7 @@ function submitExplore(b: any): Envelope {
   const id = newTaskId();
   const num = (v: unknown) => (v === undefined || v === null ? undefined : Number(v));
   const t = createTask({ id, kind: 'explore', issue: 'explore', planId: `explore:${mode}`, planHash: '-', envId: env.id, options: { maxSteps: num(b.maxSteps), maxMinutes: num(b.maxMinutes) }, explore: { goal, mode, writable }, idempotencyKey: b.idempotencyKey ? String(b.idempotencyKey) : undefined });
-  return ok('ACCEPTED', `任务 ${id} 已排队：${what} @ ${env.id}`, tv(t));
+  return ok('ACCEPTED', `任务 ${id} 已排队：${what} @ ${env.id}${checkingNote([env])}`, tv(t));
 }
 
 /** Incidental finding n of a quick-tier task's run → issues/explore/<id>.md (W2-5 §6). */
@@ -304,7 +310,7 @@ function submitSync(b: any): Envelope {
   if (b.dryRun) return ok('OK', `演练：多端同步 ${rounds} 轮，${where}（每轮一端发一条，发到允许清单里的群）`, { envIds: all.map((e) => e.id), rounds, messagesMax: rounds });
   const id = newTaskId();
   const t = createTask({ id, kind: 'sync', issue: 'sync', planId: `sync:${all.map((e) => e.surface).join('+')}`, planHash: '-', envId: all[0].id, envIds: all.slice(1).map((e) => e.id), sync: { rounds }, options: {}, idempotencyKey: b.idempotencyKey ? String(b.idempotencyKey) : undefined });
-  return ok('ACCEPTED', `任务 ${id} 已排队：多端同步 ${rounds} 轮 @ ${where}`, tv(t));
+  return ok('ACCEPTED', `任务 ${id} 已排队：多端同步 ${rounds} 轮 @ ${where}${checkingNote(all)}`, tv(t));
 }
 
 /** Submit a task (§5.3 task run): resolve → hash → environment → policy → approval → task record. */
@@ -365,7 +371,7 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
   // Confirmation = execution: the exact plan and draft are frozen into the task dir.
   writeJsonAtomic(join(taskDir(id), 'plan.json'), r.plan);
   writeJsonAtomic(join(taskDir(id), 'draft.json'), r.draft);
-  return ok('ACCEPTED', `任务 ${id} 已排队：${planId} @ ${env.id}${n > 1 ? `，系列 ${n} 次` : ''}`, tv(t));
+  return ok('ACCEPTED', `任务 ${id} 已排队：${planId} @ ${env.id}${n > 1 ? `，系列 ${n} 次` : ''}${checkingNote([env])}`, tv(t));
 }
 
 export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {

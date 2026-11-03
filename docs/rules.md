@@ -50,7 +50,7 @@
 | D6 | 快速档：判定和定位分三层（① 确定性 → ② 屏幕索引排序 → ③ 视觉），记录由哪一层决定、耗时多少 | `engine/observe.ts#observeText`；`engine/locate.ts#locate`；`engine/stats.ts#addTier` |
 | D7 | 快速档：执行前校验只用于循环外的点击，循环内为 0 次；校验不通过就不点 | `engine/pretap.ts#PreTapGuard`；`engine/plan/prepare.ts#prepare` |
 | D8 | 快速档：进循环前过预热闸门，逐步核验，每步允许重做 1 次；失败就判「计划不可执行」 | `engine/plan/warmup.ts#runWarmup` |
-| D9 | 快速档的步数上限默认 1000 步 / 15 分钟；两档共用硬上限 3000 步 / 120 分钟（能力②见 M4） | `platform/schema/test-plan.ts#DEFAULT_LIMITS`；`platform/schema/test-plan.ts#HARD_LIMITS` |
+| D9 | 快速档的步数上限默认 1000 步 / 15 分钟，硬上限 3000 步 / 120 分钟（探索档见 N2） | `platform/schema/test-plan.ts#DEFAULT_LIMITS`；`platform/schema/test-plan.ts#HARD_LIMITS` |
 | D10 | 看门狗：快速档循环中单步预算 20 s，超时就写现场包并停止 | `engine/plan/loop.ts#runLoop`（`WATCHDOG_MS`） |
 | D11 | 预检目标 ≤10 s；电量低于 15% 判为环境不合格 | `engine/preflight.ts#preflightAndroid`（`MIN_BATTERY`） |
 | D12 | 飞行记录器用环形窗口：视频 30 s × 6 段，logcat 保留 180 s，不得单调增长 | `engine/recorder/android-recorder.ts#AndroidFlightRecorder`；`engine/recorder/android-recorder.ts#WINDOW_MS`；`engine/recorder/web-recorder.ts#WebFlightRecorder` |
@@ -62,7 +62,7 @@
 | # | 规定 | 落点 |
 |---|---|---|
 | E1 | 偶现类和必现类都是命中 1 次即「已复现」；feature 类分为已实现 / 部分实现 / 未实现 | `engine/verdict.ts#VerdictTracker`；`engine/verdict.ts#featureConclusion`；`platform/schema/test-plan.ts#verdictRuleFor` |
-| E2 | 命中的定义：能力①是硬异常，或检查不通过且证据复核认定与 Issue 描述相符；能力②是硬异常，或出现影响正常使用的报错（经证据复核） | `engine/plan/loop.ts#runLoop`；`engine/agent/run.ts#runAgent`；`engine/recorder/evidence-review.ts#reviewIncident` |
+| E2 | 命中的定义：快速档是硬异常，或检查不通过且证据复核认定与 Issue 描述相符（确定性判定看到的其他问题是附带发现，不计入，N3）；探索档是硬异常，或出现影响正常使用的报错——模型报告或确定性判定，经证据复核 | `engine/plan/loop.ts#runLoop`；`engine/agent/run.ts#runAgent`；`engine/recorder/evidence-review.ts#reviewIncident` |
 | E3 | bug 类结论只有「已复现」和「未复现（n 次有效尝试）」，不写已修复或疑似已修复 | `engine/verdict.ts#VerdictTracker`；`docs/agent-rules.md` §4 |
 | E4 | 有效尝试 = require 成立且没有偏离；报告给出总轮数、有效、偏离、命中和 Wilson 95% 区间，0 命中时给出 3/n 上界 | `engine/stats.ts#attemptsOf`；`engine/stats.ts#wilson` |
 | E5 | 按比例验收：每个用例独立运行 10 次，工具可靠性 ≥9/10 | `engine/plan/series.ts#summarizeSeries`；`scripts/issue-cli.ts#seriesCmd` |
@@ -170,9 +170,29 @@
 | # | 规定 | 落点 |
 |---|---|---|
 | M1 | （原 K1）TS 源码 ≤12,000 行（不含测试）是目标，不是硬性标准；代码门不检查行数 | `docs/dev-week2-milestone4.1.md` §2 第 7 条、§12；`scripts/code-gate.sh`（无行数闸门） |
-| M2 | （原 K2）能力② = 探索档，能力① = 快速档；探索发现转成 Issue 草稿，由能力①复现；不另做规划者 / 检查者 | `engine/agent/run.ts#runAgent`；`engine/plan/run.ts#runPlan`；`engine/agent/to-issue.ts#writeFindingIssue` |
-| M3 | （原 K3）能力②本期覆盖 android-app 和 desktop-web | `README.md`（能力②验收范围）；`docs/w2m4.1-acceptance.md` |
-| M4 | （原 K4）探索档的上限参照 Artemis Flash：默认不设步数上限；每 12 步把历史压缩成一段摘要；单次模型调用 180 s 超时；平台兜底为硬上限 3000 步 / 120 分钟，`--max-steps` / `--max-minutes` 可以收紧 | `engine/agent/run.ts#runAgent`（`MODEL_TIMEOUT_MS`）；`engine/agent/step.ts#historyText`（`KEEP_STEPS`）；`platform/api-v1.ts#submitExplore` |
+| M2 | （已由 W2-5 N 组取代）（原 K2）能力② = 探索档，能力① = 快速档；探索发现转成 Issue 草稿，由能力①复现；不另做规划者 / 检查者 | `engine/agent/run.ts#runAgent`；`engine/plan/run.ts#runPlan`；`engine/agent/to-issue.ts#writeFindingIssue` |
+| M3 | （已由 W2-5 N 组取代）（原 K3）能力②本期覆盖 android-app 和 desktop-web | `README.md`（能力②验收范围）；`docs/w2m4.1-acceptance.md` |
+| M4 | （已由 W2-5 N 组取代）（原 K4）探索档的上限参照 Artemis Flash：默认不设步数上限；每 12 步把历史压缩成一段摘要；单次模型调用 180 s 超时；平台兜底为硬上限 3000 步 / 120 分钟，`--max-steps` / `--max-minutes` 可以收紧 | `engine/agent/run.ts#runAgent`（`MODEL_TIMEOUT_MS`）；`engine/agent/step.ts#historyText`（`KEEP_STEPS`）；`platform/api-v1.ts#submitExplore` |
+
+## N W2-5 决定（2026-11-03，`docs/dev-week2-milestone5.md` §3）
+
+| # | 规定 | 落点 |
+|---|---|---|
+| N1 | 能力① = 快速档：结构化文档（Issue、计划）→ 确定性计划 → 重复执行、拦截问题；能力② = 探索档：一句话目标，每步看屏幕，用速度和 token 换新问题。代码目录、任务类型、命令名不变 | `engine/plan/run.ts#runPlan`（快速档）；`engine/agent/run.ts#runAgent`（探索档）；README 两档表；`platform/mcp.ts`（`instructions`） |
+| N2 | 探索档硬上限 500 步 / 30 分钟，`--max-steps` / `--max-minutes` 只能收紧；每 12 步压缩历史、单次模型调用 180 s 超时 | `platform/schema/test-plan.ts#EXPLORE_LIMITS`；`engine/agent/run.ts#agentLimits`；`platform/api-v1.ts#submitExplore` |
+| N3 | 确定性判定五项：白屏、一直加载、错误文案、占位文字 / Markdown 源码、点了没反应；不做布局问题。命中都经证据复核；探索档计为发现，快速档只在轮末（第 1 轮和每 10 轮）判定，记为附带发现、不计入 Issue 结论 | `engine/detect.ts#detect`；`engine/detect.ts#deadTap`；`engine/agent/run.ts#runAgent`（`detectorFinding`）；`engine/plan/loop.ts#runLoop`（`INCIDENTAL_EVERY`）；`platform/views.ts#resultRun`（`incidental`） |
+| N4 | 风险判断只用规则表与 SKILL 已知元素，不加模型兜底；搜索框键入后标签变成已输入文字，按「这里之前是搜索框」继续放行 | `engine/agent/risk.ts#classifyRisk`；`engine/agent/risk.ts#wasSearchBox` |
+| N5 | 探索档本期只在 android-app、desktop-web 上验收；android-web、mobile-web 接口照常接受 | `platform/api-v1.ts`（`EXPLORE_SURFACES`）；`docs/backlog.md` |
+| N6 | SKILL 候选只出清单（`skill-candidates.json`），人工审核后再标定，不自动写 profile | `engine/agent/candidates.ts#CandidateTracker`；`platform/api-v1.ts#exploreCandidates`；`autotest explore candidates` |
+| N7 | 快速档的「结构化文档」本期 = Issue Markdown 与计划，不新增用例格式 | `issue/`；`platform/plans-v1.ts#resolvePlan` |
+| N8 | git 是唯一的历史：`docs/` 只留各里程碑需求文档和当期文件；验收文档、证据在里程碑结束、结论写进 CHANGELOG 后删除 | `docs/`；`CHANGELOG.md` |
+| N9 | 评测模式只在模拟器（`emulator-*`）上运行，风险规则全部放行；真机与生产账号一律拒绝 | `engine/session.ts#openBenchSession`；`engine/session.ts#isEmulator`；`engine/agent/risk.ts#classifyRisk`（`bench`） |
+| N10 | 评测模式是独立命令，不经平台任务 / 审批 / 租约，不进 MCP / Web；结果写 `midscene_run/bench/` | `scripts/bench-aw.ts#benchCmd`；`bench/androidworld/server.py` |
+| N11 | 评测完成率不设达标线，如实报告；agent 没有自己结束的题按未完成计（与 AndroidWorld 相同） | `engine/agent/bench.ts#outcome`；`engine/agent/bench.ts#benchMarkdown` |
+| N12 | 评测环境：Windows 原生模拟器 + WHPX、API 33 x86_64、`-gpu host`、Python 3.11；只用一个 adb（winget 版），不让 android_env 执行 `adb kill-server` | `docs/env-plan.md`；`bench/androidworld/server.py`（`_retry_without_restart`） |
+| N13 | 运行中的探索任务可以追加指令，下一步开始时交给模型，结束后拒绝 | `platform/lifecycle/inbox.ts`；`platform/api-v1.ts#exploreInject`；`engine/agent/step.ts#userPrompt` |
+| N14 | 参考区域按浅色 / 深色分别保存，检查时任一符合即通过；android-web 上冻结 @ 成员的计划标「不适用」，输入框前提改用视觉核对 | `engine/checks.ts#withThemeVariant`；`engine/checks.ts#regionShows`；`platform/plans-v1.ts#surfaceUnfit`；`engine/plan/loop.ts#runLoop` |
+| N15 | 平台先监听端口，环境检查在后台；检查期间提交的任务照常排队，回复里注明「环境检查中」 | `platform/lifecycle/supervisor.ts#start`；`platform/api-v1.ts#checkingNote` |
 
 ## 删除规则的残留核对
 

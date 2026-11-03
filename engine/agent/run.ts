@@ -6,7 +6,10 @@
 // tier (engine/plan). Ends when the agent reports done, at the step / time limits, or on cancel.
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import * as llm from '../../core/model/llm';
 import { modelCalls, setModelPurpose, visionConfigured, visionJson } from '../../core/model/llm';
+
+const visionOutageNow = () => llm.visionOutage;
 import { label, type ScreenNode } from '../../core/screen-index';
 import { isoMs, openTrajectory } from '../../core/trajectory';
 import { TEAMILY_PACKAGE } from '../../drivers/factory';
@@ -311,8 +314,11 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       const system = bench ? BENCH_SYSTEM : SYSTEM(!!o.writable, ownNames);
       for (let k = 0; k < 2 && !ans; k++) ans = parseAnswer(await visionJson(system, [prompt, { label: 'Screenshot (scaled; use the element coordinates for taps)', png: shot }], MODEL_TIMEOUT_MS).catch(() => undefined), !!bench);
       if (!ans) {
-        res.status = 'failed';
-        res.summary = '模型连续两次没有给出可用的动作';
+        // A service that stays busy is a tool failure, not the agent's: no conclusion from this run.
+        const down = visionOutageNow();
+        res.status = down ? 'error' : 'failed';
+        res.summary = down ? `模型服务不可用：${down}` : '模型连续两次没有给出可用的动作';
+        if (down) res.error = `vision service unavailable: ${down}`;
         break;
       }
       plan = ans.plan ?? plan;

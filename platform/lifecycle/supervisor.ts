@@ -66,7 +66,8 @@ export class Supervisor {
     private accounts: AccountPool,
   ) {}
 
-  /** Registry, then the leases left by a previous platform run, then a check of every free environment. */
+  /** Registry, then the leases left by a previous platform run; the check of every free environment runs in the
+   *  background (W2-5 §9: the platform answers at once; tasks wait for their environment to be ready). */
   async start(): Promise<void> {
     syncEnvs(this.devices.config, this.accounts);
     for (const a of reconcile()) {
@@ -74,10 +75,17 @@ export class Supervisor {
       const e = a.env ? getEnv(a.env) : undefined;
       if (a.action === 'adopted' && e?.udid) this.devices.acquire(a.task, e.udid, e.surface);
     }
-    for (const e of listEnvs()) if (!e.lease) await this.check(e.id);
+    const free = listEnvs().filter((e) => !e.lease);
+    for (const e of free) if (e.state !== 'checking' && e.state !== 'offline') moveEnv(e.id, 'checking', { by: 'platform', basis: 'platform start' });
+    this.startupChecks = (async () => {
+      for (const e of free) await this.check(e.id);
+    })();
     this.timers.push(setInterval(() => void this.tick(), 2000));
     this.timers.push(setInterval(() => void this.watch(), 5000));
   }
+
+  /** The start-up checks (tests, shutdown wait for them). */
+  startupChecks: Promise<void> = Promise.resolve();
 
   /** Check an environment (one at a time per environment). */
   async check(envId: string, by = 'platform'): Promise<void> {

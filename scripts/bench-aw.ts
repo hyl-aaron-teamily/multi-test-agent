@@ -62,8 +62,10 @@ export async function benchCmd(args: string[]): Promise<number> {
     for (let idx = 0; idx < t.instances; idx++) {
       const dir = join(root, `${t.name}-${idx}`);
       const file = join(dir, 'bench.json');
-      if (existsSync(file)) {
-        results.push(JSON.parse(readFileSync(file, 'utf8')) as BenchTaskResult);
+      // --resume: tasks that got a score are kept; those that ended in a service / driver error run again.
+      const prev = existsSync(file) ? (JSON.parse(readFileSync(file, 'utf8')) as BenchTaskResult) : undefined;
+      if (prev && !prev.error) {
+        results.push(prev);
         continue;
       }
       const q = `name=${encodeURIComponent(t.name)}&idx=${idx}`;
