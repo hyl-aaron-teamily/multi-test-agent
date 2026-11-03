@@ -3,6 +3,8 @@
 // the lifecycle hooks (progress, side-effect record, cancel at step boundaries), writes the usual Issue report
 // and result.json, and ends the task record in its real state. The platform checks the environment again
 // after this exits.
+// The model settings come from .env (the platform may have started this process outside its own tree).
+import 'dotenv/config';
 import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { AgentResult } from '../engine/agent/run';

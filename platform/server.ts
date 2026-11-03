@@ -7,10 +7,11 @@
 //   GET  /<old page>.html?id=…         redirect to the hash route (links in older reports and hints)
 // Tasks run asynchronously in child processes (platform/lifecycle).
 import 'dotenv/config';
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, statSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
-import { extname, normalize, resolve, sep } from 'node:path';
+import { extname, join, normalize, resolve, sep } from 'node:path';
+import { stateRoot } from './lifecycle/store';
 import { DevicePool } from './device-pool';
 import { AccountPool } from './accounts/account-pool';
 import { apiV1 } from './api-v1';
@@ -135,6 +136,8 @@ async function main() {
   createServer((req, res) => {
     handle(req, res).catch((err) => send(res, 500, { error: (err as Error).message }));
   }).listen(PORT, () => {
+    // Who serves this port (W2-5 §9 acceptance: stop exactly this process, not the task processes it started).
+    writeFileSync(join(stateRoot(), 'platform.pid'), String(process.pid));
     console.log(`[platform] console → http://localhost:${PORT}  (maxConcurrent=${pool.config.maxConcurrent}, devices=${pool.config.devices.map((d) => d.udid).join(', ') || 'all adb'})`);
   });
 }

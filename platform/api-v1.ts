@@ -266,7 +266,7 @@ function exploreInject(id: string, text: unknown): Envelope {
   const s = typeof text === 'string' ? text.trim() : '';
   if (!s || s.length > 500) return fail('BAD_INPUT', '指令：1–500 个字');
   const n = appendInstruction(id, s);
-  return ok('OK', `已追加第 ${n} 条指令，下一步生效`, { taskId: id, instructions: n }, `已追加第 ${n} 条指令：${s}\n下一步开始时交给模型；进度：autotest task show ${id}`);
+  return ok('OK', `已追加第 ${n} 条指令，下一步生效`, { taskId: id, instructions: n }, `已追加第 ${n} 条指令：${s}\n下一步开始时交给模型；进度：autotest task status ${id}`);
 }
 
 /** Finding n of an exploration task (or exploration run dir) → issues/explore/<id>.md for the quick tier (§5.3). */
