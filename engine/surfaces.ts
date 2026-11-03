@@ -2,6 +2,7 @@
 // back to the home list or leaving a conversation. Callers (executor, sync, replay, smoke) never branch
 // on the surface themselves.
 import { AndroidDriver } from '../drivers/android';
+import { decodePng, pixelDiff, type Rgba } from '../core/image';
 import { type Driver, type Point, sleep } from '../drivers/types';
 import { notifyPromptClose } from '../drivers/web-dialogs';
 import { ensureUiLogin } from './login/ui-login';
@@ -27,6 +28,8 @@ export interface SurfaceAdapter {
   showChatTab(s: Session): Promise<void>;
   /** Leave the open conversation for the list, like a user (never leaves the app). */
   leaveConversation(d: Driver, p: Profile): Promise<void>;
+  /** Is the conversation list showing? (default: the home/nav reference region) */
+  atHomeList?(s: Session): Promise<boolean>;
 }
 
 const webAdapter: SurfaceAdapter = {
@@ -120,7 +123,13 @@ const androidWebAdapter: SurfaceAdapter = {
   async leaveConversation(d, p) {
     await d.tap(await pointFor(p, 'chat.back'));
   },
+  // The bottom bar (home/nav) looks the same on every page here: ask the screen.
+  async atHomeList(s) {
+    return (await visionAsk(s.inner as any, CHAT_LIST, 'prep').catch(() => null)) === true;
+  },
 };
+
+const CHAT_LIST = 'The conversation list of the chat app is shown (a search box at the top and rows of conversations with avatars, titles and last messages); no single conversation is open';
 
 export function adapterFor(surface: Surface): SurfaceAdapter {
   return surface === 'android-app' ? androidAppAdapter : surface === 'android-web' ? androidWebAdapter : webAdapter;
@@ -142,13 +151,40 @@ export async function toChatListAndroidWeb(d: Driver, a: AndroidDriver, profile:
   log('android-web: not on the chat list (last conversation restored?) — Artifacts → 聊天 → back');
   await a.openUrl('/artifacts');
   if (!(await waitPastDialog(d, a, profile, ['artifacts/nav', 'home/nav'], 40_000, log))) return false;
-  await d.tap(await pointFor(profile, 'nav.chat'));
-  const where = await waitPastDialog(d, a, profile, ['chat/composer', 'home/nav'], 20_000, log);
-  if (where === 'chat/composer') {
-    await d.tap(await pointFor(profile, 'chat.back'));
-    return !!(await waitPastDialog(d, a, profile, ['home/nav'], 15_000, log));
+  // The phone browser's page answers a tap seconds later, and its bottom bar looks the same on Artifacts and
+  // on the chat list: after each tap wait until the page really changed, then let the screen (vision) say
+  // where we are (2026-11-03: conversations were picked from the Artifacts cards).
+  const LIST = CHAT_LIST;
+  const OPEN = 'A single chat conversation is open (a header with a back arrow and the conversation title at the top, messages, and a message input box at the bottom)';
+  const tapAndSettle = async (p: Point) => {
+    const before = decodePng(await d.screenshot());
+    await d.tap(p);
+    await untilChanged(d, before, 20_000);
+  };
+  await tapAndSettle(await pointFor(profile, 'nav.chat'));
+  for (let i = 0; i < 2; i++) {
+    if ((await visionAsk(a as any, LIST, 'prep').catch(() => null)) === true) return true;
+    if ((await visionAsk(a as any, OPEN, 'prep').catch(() => null)) !== true) break;
+    await tapAndSettle(await pointFor(profile, 'chat.back'));
   }
-  return where === 'home/nav';
+  const ok = (await visionAsk(a as any, LIST, 'prep').catch(() => null)) === true;
+  if (!ok) log('android-web: the chat list did not show');
+  return ok;
+}
+
+/** Wait until the page area differs from `before` (≥ 3 % of its pixels) and then holds still for one poll. */
+async function untilChanged(d: Driver, before: Rgba, ms: number): Promise<boolean> {
+  const t0 = Date.now();
+  const area = (img: Rgba): [number, number, number, number] => [0, Math.round(img.height * 0.12), img.width, Math.round(img.height * 0.8)];
+  let last: Rgba | undefined;
+  while (Date.now() - t0 < ms) {
+    await sleep(1000);
+    const now = decodePng(await d.screenshot());
+    const changed = pixelDiff(now, before, area(now)) > now.width * now.height * 0.03;
+    if (changed && last && pixelDiff(now, last, area(now)) < now.width * now.height * 0.01) return true;
+    last = changed ? now : undefined;
+  }
+  return false;
 }
 
 /** Wait for a reference region; Teamily web shows a "download the app" dialog on some page loads, which
@@ -161,7 +197,10 @@ async function waitPastDialog(d: Driver, a: AndroidDriver, profile: Profile, key
     const hit = await waitForRegion(d, profile, [...keys, ...banner], Math.max(5000, ms - (Date.now() - t0)) / (tries ? 2 : 1));
     if (hit && hit !== 'banner/dismiss') return hit;
     let p: Point | null = hit ? await pointFor(profile, 'popup.appBannerDismiss') : null;
-    if (!p) p = (await (await visionLocator(a as any))?.('the "忽略" (Ignore) button of a dialog asking to download the Teamily mobile app')) ?? null;
+    // No region matched: tap "忽略" only when the screen really shows that dialog (2026-11-03: a vision guess
+    // tapped the page when there was no dialog).
+    if (!p && (await visionAsk(a as any, 'A dialog asking to download the Teamily mobile app (with an "忽略" / Ignore button) is shown over the page', 'prep').catch(() => null)) === true)
+      p = (await (await visionLocator(a as any))?.('the "忽略" (Ignore) button of the dialog asking to download the Teamily mobile app')) ?? null;
     if (!p) return undefined;
     log('android-web: app download dialog over the page — dismissing');
     await d.tap(p);

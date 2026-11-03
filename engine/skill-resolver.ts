@@ -8,7 +8,7 @@
 import { writeFile } from 'node:fs/promises';
 import { mkdir } from 'node:fs/promises';
 import type { Box } from '../core/image';
-import { visionLocateRect } from '../core/model/midscene';
+import { visionAsk, visionLocateRect } from '../core/model/midscene';
 import { clickableOf, label, type ScreenNode } from '../core/screen-index';
 import type { Driver } from '../drivers/types';
 import { WebDriver } from '../drivers/web';
@@ -94,7 +94,12 @@ export class SkillResolver implements SkillResolverLike {
     if (!r && o.vision !== false) {
       const desc = finderFor(id, this.p.surface)?.vision ?? spec?.meaning ?? id;
       const v = await visionLocateRect(this.d as any, desc, `locate ${id}`).catch(() => null);
-      if (v && v.w > 0 && v.h > 0) r = { box: [v.x, v.y, v.w, v.h], how: 'vision' };
+      // Phone browser: a point on the browser's own toolbars is not the page's control (2026-11-03: its back
+      // button was taken for the conversation's back arrow).
+      const chrome = v && this.p.surface === 'android-web' ? browserChrome(nodes) : undefined;
+      const onChrome = v && chrome && (v.y + v.h / 2 < chrome.top || v.y + v.h / 2 > chrome.bottom);
+      if (onChrome) this.log(`vision put ${id} on the browser's toolbar — ignored`);
+      if (v && v.w > 0 && v.h > 0 && !onChrome) r = { box: [v.x, v.y, v.w, v.h], how: 'vision' };
       tier = '③';
     }
     if (!r) return false;
@@ -114,6 +119,16 @@ export class SkillResolver implements SkillResolverLike {
     if (!spec) return false;
     const t0 = Date.now();
     for (const a of spec.anchors) if (!(await this.element(a, { vision: false }))) return false;
+    // Phone browser: its accessibility tree is not refreshed by in-page navigation, so an anchor "found" there
+    // may belong to a page no longer shown. Capture only once the screen itself shows the anchors (vision).
+    if (this.p.surface === 'android-web') {
+      const what = spec.anchors.map((a) => finderFor(a, this.p.surface)?.vision ?? a).join('; and ');
+      const shown = await visionAsk(this.d as any, `The page on screen shows: ${what}`, 'prep').catch(() => null);
+      if (shown !== true) {
+        this.log(`reference ${key} not captured: the screen does not show its anchors (vision: ${shown})`);
+        return false;
+      }
+    }
     const { nodes, png } = await this.nodes();
     const box = spec.box({ surface: this.p.surface, vp: this.p.viewport, nodes, el: (id) => this.p.elements[id]?.box });
     if (!box || !png) return false;
@@ -171,4 +186,14 @@ export async function skillProfile(d: Driver, o: { surface: Surface; env: 'test'
 export function labelsOf(n: Pick<ScreenNode, 'text' | 'desc'>): string[] {
   const out = [n.text.trim(), n.desc.trim(), n.desc.split(/[,，]/)[0].trim()];
   return [...new Set(out.filter(Boolean))];
+}
+
+/** Phone browser: the page area between the browser's own title bar and bottom bar (native views, whose
+ *  accessibility nodes stay current). */
+function browserChrome(nodes: ScreenNode[]): { top: number; bottom: number } | undefined {
+  const bar = (id: string) => nodes.find((n) => (n as ScreenNode & { rid?: string }).rid === `com.android.browser:id/${id}`);
+  const top = bar('titleBar') ?? bar('nav_bar');
+  const bottom = bar('bottom_bar');
+  if (!top && !bottom) return undefined;
+  return { top: top ? top.box[1] + top.box[3] : 0, bottom: bottom ? bottom.box[1] : Number.POSITIVE_INFINITY };
 }
