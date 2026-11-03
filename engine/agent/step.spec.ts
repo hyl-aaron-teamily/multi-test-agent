@@ -55,4 +55,12 @@ describe('exploration tier step', () => {
     expect(list).toMatch(/\[2\] button "" id "menu_save"/);
     expect(list).toMatch(/\[3\] button "OK" @/);
   });
+
+  it('loop hint: a cycle of 3–4 actions run twice is a loop too (2026-11-03 rewrite task)', () => {
+    const st = (screen: string, action: string): StepRecord => ({ step: 0, screen, action, result: 'ok' });
+    const cyc = ['type #52 "x" (clear)', 'tap #44 "用记忆强化 prompt"', 'tap #69 "强化"'];
+    const steps = [...cyc, ...cyc].map((a, i) => st(`s${i}`, a));
+    expect(loopHint(steps)).toMatch(/last 6 steps repeated/);
+    expect(loopHint([...cyc, 'back', ...cyc].map((a, i) => st(`s${i}`, a)))).toBeUndefined();
+  });
 });

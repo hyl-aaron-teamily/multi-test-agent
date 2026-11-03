@@ -91,14 +91,22 @@ export function historyText(steps: StepRecord[]): string {
 /** Pure: the last steps repeat one (screen, action) pair, or alternate two of them → a hint for the model
  *  (a 2026-11-03 desktop run spent 11 steps opening and closing the same side panel). */
 export function loopHint(steps: StepRecord[]): string | undefined {
-  const k = (s: StepRecord) => `${s.screen} ${s.action}`;
+  // The same action on the same screen three times (scrolling on through new screens is fine) …
+  const ks = (s: StepRecord) => `${s.screen} ${s.action}`;
   const t = steps.slice(-4);
   if (t.length < 3) return undefined;
-  const same = t.slice(-3).every((s) => k(s) === k(t.at(-1)!));
-  const swap = t.length === 4 && k(t[0]) === k(t[2]) && k(t[1]) === k(t[3]) && k(t[0]) !== k(t[1]);
-  if (!same && !swap) return undefined;
-  const acts = [...new Set(t.map((s) => s.action))].join(' / ');
-  return `LOOP: the last ${same ? 3 : 4} steps repeated ${acts} and the screens went back and forth. Do not repeat it; choose another element or area, scroll, go back, or end with done(failed) if the goal cannot be reached.`;
+  const same = t.slice(-3).every((s) => ks(s) === ks(t.at(-1)!));
+  // … or a cycle by actions only: the screen fingerprint changes with typed text, a loop through a dialog repeats anyway.
+  const k = (s: StepRecord) => s.action;
+  // A cycle of 2–4 steps run twice in a row (2026-11-03: type → rewrite → confirm → clear, again and again).
+  let cycle = 0;
+  for (let n = 2; n <= 4 && !cycle; n++) {
+    const w = steps.slice(-2 * n);
+    if (w.length === 2 * n && w.slice(0, n).every((s, i) => k(s) === k(w[n + i])) && new Set(w.slice(0, n).map(k)).size > 1) cycle = n;
+  }
+  if (!same && !cycle) return undefined;
+  const acts = [...new Set((same ? t.slice(-3) : steps.slice(-cycle)).map((s) => s.action))].join(' / ');
+  return `LOOP: the last ${same ? 3 : 2 * cycle} steps repeated ${acts}. Do not repeat it: if what you came for is already on the screen, finish with done; otherwise choose another element or area, scroll, go back, or end with done(failed).`;
 }
 
 export const SYSTEM = (writable: boolean, ownContent: string[] = []) => `You test the Teamily app like a careful human tester, one action per turn, on a real ${'device or browser'}.
