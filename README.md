@@ -24,7 +24,7 @@ pnpm install
 pnpm exec playwright install chromium
 cp .env.example .env                 # 填 MIDSCENE_MODEL_*；可选 SCRCPY_PATH、MIDSCENE_ADB_PATH
 # 账号：platform/accounts.local.yaml（gitignored），格式见 platform/accounts/secret-backend.ts
-pnpm platform                        # 平台服务 + Web 控制台 http://localhost:3210（约 1 分钟后开始监听）
+pnpm platform                        # 平台服务 + Web 控制台 http://localhost:3210（马上监听；环境检查在后台）
 npx tsx bin/autotest.ts doctor       # 能不能跑、缺什么、下一步（平台没启动也能答）
 ```
 
@@ -53,13 +53,31 @@ npx tsx bin/autotest.ts explore run "浏览发现页和个人主页，找找界�
 npx tsx bin/autotest.ts task wait <taskId> --json      # 18 = 有发现，19 = 未发现问题
 npx tsx bin/autotest.ts result show <taskId>           # 发现、覆盖、拦截、用量
 npx tsx bin/autotest.ts explore issue <taskId> <序号>  # 发现 → issues/explore/<id>.md，交给能力 ①
+npx tsx bin/autotest.ts explore inject <taskId> "先看看设置页"   # 给运行中的探索追加指令，下一步生效
+npx tsx bin/autotest.ts explore candidates <taskId>    # SKILL 候选元素清单（人工审核后再标定）
 ```
 
-- 每一步：截图（缩到 720 px）+ 编号元素表 → 视觉模型给一个 JSON 动作（点、长按、输入、滑动、返回、重开、等待、报告问题、结束）。同一动作反复出现或两个动作来回切换时，提示模型换路。
+- 每一步：截图（缩到 720 px）+ 编号元素表（输入框带占位提示，无文字的元素带资源 id）→ 视觉模型给一个 JSON 动作（点、长按、输入〔可先清空〕、滑动、拖动、返回、重开、等待、报告问题、结束），同一屏上可以连发最多 4 个。同一动作反复出现或两个动作来回切换时，提示模型换路。
 - **只读**是默认：发送、删除、改设置、支付、退出登录、邀请分享、改资料、在搜索框以外键入，都在执行前拦截并告诉模型。`--writable` 需要完全授权；删除 / 撤回、锁屏、密码任何模式都拦。**点赞、关注、收藏、订阅只对测试账号自己的主页和内容做**（名单写在 `accounts.local.yaml` 的 `environments.<env>.ownContent`），真实用户的内容在可写模式下也拦。
 - 崩溃、ANR、App 退出、页面崩溃立即保存现场包，计为发现，然后重开 App；模型报告的问题先做证据复核，结论一致才计入。
+- **确定性判定**（`engine/detect.ts`）每步都跑：白屏、一直加载（如「等待网络」持续 15 秒）、错误文案、占位文字 / Markdown 源码、点了没反应（同一元素连续两次）。命中写现场包并做证据复核，一致才计入；会话消息区和输入框里的文字不判。
 - 上限：硬上限 500 步 / 30 分钟（`--max-steps`、`--max-minutes` 只能收紧）；每 12 步压缩一次历史，单次模型调用最长 180 s。
 - 不经平台、在本进程直接跑（开发用）：`npx tsx bin/autotest.ts explore local "<目标>"`。
+
+## 评测模式：AndroidWorld（探索档的操作能力）
+
+用 Google 的 [AndroidWorld](https://github.com/google-research/android_world)（`ref/android_world`）给探索档打分：116 道任务、20 个开源 App，在模拟器上做，分数由 AndroidWorld 读 App 真实状态给出。环境安装见 `docs/env-plan.md`。
+
+```bash
+emulator -avd AndroidWorldAvd -no-snapshot -grpc 8554 -no-boot-anim -gpu host          # 用完关掉：adb -s emulator-5554 emu kill
+AW_ADB=<winget adb 路径> D:\envs\androidworld\python bench/androidworld/server.py      # 首次加 --setup（装 App，约 8 分钟）
+npx tsx bin/autotest.ts bench aw --pilot [--budget 2]     # 试跑集 10 题；--budget = 步数预算倍数
+npx tsx bin/autotest.ts bench aw [--resume <目录>]        # 全量；结果 midscene_run/bench/aw-<时间>/report.md
+```
+
+- 只接受模拟器（`emulator-*`），风险规则全部放行；不经平台、不进 MCP / Web。
+- 报告给出**成功率**（App 状态符合题目，`is_successful`）和 AndroidWorld 排行榜口径（还要求 agent 自己结束）。
+- 评测服务不让 android_env 执行 `adb kill-server`（手机共用同一个 adb 服务），命令失败时停 5 秒再试。
 
 ## 多端协同
 
@@ -93,7 +111,8 @@ npx tsx scripts/web-shots.ts          # Web 各页截图（平台需在运行）
 
 - **android-web**：手机浏览器的无障碍树不跟随页面内跳转，所以会话列表、当前页面的判断都靠视觉，每一步要等页面变化（这个页面响应慢）；读不准页面内容的计划（@ 选择器、输入框文字前提）在 android-web 上还不可靠（[docs/backlog.md](docs/backlog.md)）。
 - 能力 ② 本期在 android-app 与 desktop-web 上验收；探索的发现是线索，不是复现结论。
-- 循环内（快速档）不重新截取参考区域：运行中途手机切换深 / 浅色主题时，区域检查会失败。
+- 快速档运行时确定性判定只在轮末做（第 1 轮和每 10 轮），看到的问题列为「附带发现」，不计入 Issue 结论。
+- 参考区域按浅色 / 深色各存一份，任一符合即通过；某个主题第一次出现时，要在准备阶段（循环外）补截。
 - 浏览器只在页面加载时建立无障碍树；临时出现的元素（密码页、@ 选择器）由视觉定位；系统返回键会关掉标签页，执行中只用页面里的返回。
 - Teamily Web 重新加载后会自动打开上次的会话，而那时会话的返回按钮无效；执行器经 Artifacts → 聊天 → 返回回到列表。
 - iOS、WebView、小程序没有接入：iOS 的 Issue 经确认后在 Android App 或手机 Web 上替代执行，结论标明「替代执行」。
