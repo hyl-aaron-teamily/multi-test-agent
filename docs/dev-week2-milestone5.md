@@ -81,10 +81,10 @@
 
 | 部分 | 位置 | 做什么 |
 |---|---|---|
-| 评测服务（Python 3.11，I1） | `bench/androidworld/server.py` | 导入已安装的 android_world：连 `emulator-5554`（console 5554、gRPC 8554、adb 路径取环境变量 `AW_ADB`），按 `--seed`、`--combos` 建任务集；`--setup` 做首次初始化。接口：`GET /health`；`GET /tasks`（任务名、App、难度、步数预算 = int(10 × 难度)，与 AndroidWorld 的 `_allocate_step_budget` 相同）；`POST /task/init`、`GET /task/goal`、`GET /task/score`、`POST /task/teardown`；`POST /action`（只接受 `open_app`、`answer`）。启动时若 android_env 的 adb 控制器含 `kill-server`，替换成抛错 |
+| 评测服务（Python 3.11，I1） | `bench/androidworld/server.py` | 导入已安装的 android_world：连 `emulator-5554`（console 5554、gRPC 8554、adb 路径取环境变量 `AW_ADB`），按 `--seed`、`--combos` 建任务集；`--setup` 做首次初始化。接口：`GET /health`；`GET /tasks`（任务名、App、难度、步数预算 = int(10 × 难度)，与 AndroidWorld 的 `_allocate_step_budget` 相同）；`POST /task/init`（返回题目和步数预算）、`GET /task/score`、`POST /task/teardown`；`POST /action`（只接受 `open_app`、`answer`）。启动时若 android_env 的 adb 控制器含 `kill-server`，替换成抛错 |
 | 评测会话 | `engine/session.ts#openBenchSession` | 只接受 `^emulator-\d+$` 的设备，其他一律报错；不租环境、不预检、不登录、不用 SKILL 缓存；Android 驱动不绑被测包 |
 | 探索档评测选项 | `engine/agent/run.ts`（`AgentOptions.bench`） | 用评测会话；风险规则全部放行（N9）；动作表去掉 `report_issue`、`launch`，加 `open_app`（App 名）、`answer`（文字）、`home`、`enter`；`done` 照旧结束；不判异常、不写发现与现场包；步数上限 = 该题预算，时长受 30 分钟硬上限（N2） |
-| 评测命令 | `scripts/bench-aw.ts`；`autotest bench aw` | 逐题：init → goal → 回桌面 → 探索档（task 模式、可写）→ score → teardown。参数：`--tasks A,B`、`--pilot`（§5.3 试跑集）、`--seed 42`、`--combos 1`、`--server http://127.0.0.1:5000`、`--udid emulator-5554`、`--resume <目录>`（跳过已打分的题） |
+| 评测命令 | `scripts/bench-aw.ts`；`autotest bench aw` | 逐题：init → goal → 回桌面 → 探索档（task 模式、可写）→ score → teardown。参数：`--tasks A,B`、`--pilot`（§5.3 试跑集）、`--seed 42`、`--combos 1`、`--server http://127.0.0.1:5055`、`--budget <倍数>`、`--udid emulator-5554`、`--resume <目录>`（跳过已打分的题） |
 | 产出 | `midscene_run/bench/aw-<时间>/` | 每题一个子目录（探索档的 `result.json`、`steps/` 缩略图、轨迹、分数）；`summary.json` 与 `report.md`：总完成率、按 App、按难度、每题步数 / 用时 / 模型调用、未完成题的最后一步思路 |
 
 ### 5.2 规则
