@@ -85,9 +85,10 @@ export async function prepare(c: RunCtx, afterSetup?: () => Promise<void>): Prom
   c.res.targets = [];
   // Conversation rows are picked on the home list: a restored conversation (phone browser) or a sheet left
   // open would make the row pick tap something else — get back to the list first.
-  if (c.plan.targets.some((t) => isRowKind(t.kind)) && !(await waitForRegion(d, profile, ['home/nav'], 6000))) {
+  const atList = async (ms: number) => (c.sess.adapter.atHomeList ? c.sess.adapter.atHomeList(c.sess) : !!(await waitForRegion(d, profile, ['home/nav'], ms)));
+  if (c.plan.targets.some((t) => isRowKind(t.kind)) && !(await atList(6000))) {
     c.log('not on the home list before picking conversations — going back to it');
-    for (let i = 0; i < 2 && !(await waitForRegion(d, profile, ['home/nav'], 4000)); i++) await c.sess.adapter.recoverHome(c.sess, i);
+    for (let i = 0; i < 2 && !(await atList(4000)); i++) await c.sess.adapter.recoverHome(c.sess, i);
   }
   await freeze(c, 'rows');
   await runSetup(c);
