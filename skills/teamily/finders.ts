@@ -30,6 +30,8 @@ const pad = (b: Box, p: number): Box => [b[0] - p, b[1] - p, b[2] + 2 * p, b[3] 
 const byLabel = (nodes: ScreenNode[], re: RegExp) => nodes.find((n) => re.test(label(n)));
 const ARTIFACT_CONTROLS = /^(更多操作|加入收藏|发送到聊天|筛选|通知|新建|新建子文档|查看全部|开启|网格视图|列表视图|收起侧边栏|搜索.*)$/;
 const isEdit = (n: ScreenNode) => /EditText|textbox/i.test(n.cls) && !/^(搜索|Search)/i.test(label(n));
+/** Phone browser: its own controls (address bar …) carry the browser's resource ids; the page's do not. */
+const inPage = (n: ScreenNode) => !/^com\.android\.browser:id\//.test(n.rid ?? '');
 
 export const FINDERS: Record<string, PerSurface> = {
   'login.email': { web: { selector: 'input[type=email]', vision: 'the email input field of the sign-in form' }, 'android-web': { pick: (ns) => ns.find((n) => isEdit(n) && /mail|邮箱/i.test(`${label(n)} ${n.rid}`)), vision: 'the email input field of the sign-in form' } },
@@ -45,6 +47,8 @@ export const FINDERS: Record<string, PerSurface> = {
   'chat.composer': {
     'android-app': { pick: (ns) => ns.filter(isEdit).sort((a, b) => b.box[1] - a.box[1])[0], vision: 'the message input box at the bottom of the chat' },
     web: { selector: '[contenteditable="true"], textarea', vision: 'the message input box of the chat' },
+    // 2026-11-03: the address bar (an EditText too) was taken for the composer on a page without one.
+    'android-web': { pick: (ns) => ns.filter((n) => isEdit(n) && inPage(n)).sort((a, b) => b.box[1] - a.box[1])[0], vision: 'the message input box of the chat' },
     default: { pick: (ns) => ns.filter(isEdit).sort((a, b) => b.box[1] - a.box[1])[0], vision: 'the message input box of the chat' },
   },
   'chat.send': {

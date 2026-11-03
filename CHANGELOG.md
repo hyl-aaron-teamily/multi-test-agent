@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased] — W2-4.1 T9：android-web 与命中现场包
+
+### Changed
+- mobile-web 能执行的子用例也可以在 android-web 上执行（手机自带浏览器，同一套 Web 代码）。
+- android-web：输入框规则排除浏览器自身的控件；每次会话先回到已知页面，避免把恢复出来的面板当成首页。
+
 ## [Unreleased] — W2-4.1 P7 / T8：前端（HTML + CSS + JS）
 
 ### Changed

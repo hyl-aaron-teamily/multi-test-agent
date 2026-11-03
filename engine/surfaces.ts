@@ -103,6 +103,9 @@ const androidWebAdapter: SurfaceAdapter = {
   async dismissDialogs(s) {
     await dismissBanner(s);
     await awaitConnected(s);
+    // The browser restores the tab as it was (a profile panel open, a conversation): start from a known page,
+    // so nothing left over is taken for the home screen (2026-11-03). Signed out → the login form comes first.
+    if (!(await s.profile.resolver?.refresh('login.email', { rulesOnly: true }).catch(() => false))) await toChatListAndroidWeb(s.d, s.inner as AndroidDriver, s.profile, s.log);
   },
   async ensureLogin(s) {
     await s.d.redacted(() => ensureUiLogin(s.d, s.profile, s.pool, s.account, s.log));
