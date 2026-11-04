@@ -44,10 +44,10 @@ describe('platform/mcp (W2-4 §5)', () => {
   });
 });
 
-describe('docs/agent-rules.md matches the tool table (W2-4 T7)', () => {
+describe('platform/agent-rules.md matches the tool table (W2-4 T7)', () => {
   it('lists every MCP tool, and only those', async () => {
     const { readFileSync } = await import('node:fs');
-    const doc = readFileSync('docs/agent-rules.md', 'utf8');
+    const doc = readFileSync('platform/agent-rules.md', 'utf8');
     const listed = [...doc.matchAll(/^\| `(\w+)` \|/gm)].map((m) => m[1]);
     expect(listed.sort()).toEqual([...EXPOSED.map(toolName), 'device_snapshot'].sort());
   });

@@ -5,7 +5,7 @@ import { coverageOf, rulesContract } from './contract';
 import { parseIssue } from './parse';
 import { draftIssue } from './planner';
 
-const issue = (id: string) => parseIssue(id, readFileSync(`issues/${id}.md`, 'utf8'));
+const issue = (id: string) => parseIssue(id, readFileSync(`fixtures/issues/${id}.md`, 'utf8'));
 
 describe('intent contract (rules)', () => {
   it('2044: constructed precondition, quote-preview pattern, text observation, phenomenon from Actual', () => {

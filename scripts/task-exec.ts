@@ -3,6 +3,8 @@
 // the lifecycle hooks (progress, side-effect record, cancel at step boundaries), writes the usual Issue report
 // and result.json, and ends the task record in its real state. The platform checks the environment again
 // after this exits.
+// The model settings come from .env (the platform may have started this process outside its own tree).
+import 'dotenv/config';
 import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { AgentResult } from '../engine/agent/run';
@@ -34,7 +36,7 @@ function advance(id: string, to: TaskState[], basis: string): void {
   for (const s of to) if (getTask(id)!.state !== s) moveTask(id, s, 'task', basis);
 }
 
-/** Pure: the code a finished quick-tier run maps to. */
+/** Pure: the code a finished exploration-tier run maps to. */
 export function exploreCode(r: Pick<AgentResult, 'status' | 'summary' | 'findings'>): Code {
   if (r.status === 'cancelled') return 'CANCELLED';
   if (r.status === 'env-unfit') return unfitCode(r.summary.replace(/^环境不合格：/, ''));
@@ -42,7 +44,7 @@ export function exploreCode(r: Pick<AgentResult, 'status' | 'summary' | 'finding
   return r.findings.some((f) => f.counted) ? 'EXPLORE_FINDINGS' : 'EXPLORE_DONE';
 }
 
-/** Task kind explore (§5.4): the quick tier's agent loop on the leased environment. */
+/** Task kind explore (§5.4): the exploration tier's agent loop on the leased environment. */
 async function execExplore(id: string, rt: TaskRuntime): Promise<number> {
   const t0 = getTask(id)!;
   const x = t0.explore!;
@@ -66,7 +68,8 @@ async function execExplore(id: string, rt: TaskRuntime): Promise<number> {
   const { pool, devices } = await openPools();
   const runDir = resolve('midscene_run/explore', `${env.surface}-${id}`);
   updateTask(id, (t) => void (t.runDir = runDir));
-  const r = await runAgent({ goal: x.goal, mode: x.mode, surface: env.surface as Surface, env: env.serviceEnv, pool, devices, udid: env.udid, account: env.account, writable: x.writable, maxSteps: t0.options.maxSteps, maxMinutes: t0.options.maxMinutes, runDir, taskId: id, hooks, onStep });
+  const { inboxReader } = await import('../platform/lifecycle/inbox');
+  const r = await runAgent({ goal: x.goal, mode: x.mode, surface: env.surface as Surface, env: env.serviceEnv, pool, devices, udid: env.udid, account: env.account, writable: x.writable, maxSteps: t0.options.maxSteps, maxMinutes: t0.options.maxMinutes, runDir, taskId: id, hooks, onStep, inbox: inboxReader(id) });
   const code = exploreCode(r);
   const report = join(runDir, 'report.md');
   writeResult(id, { schemaVersion: 1, taskId: id, planId: t0.planId, code, agent: r, report, runDir });

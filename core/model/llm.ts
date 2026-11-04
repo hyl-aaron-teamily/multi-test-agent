@@ -93,18 +93,34 @@ export async function visionJson(system: string, parts: VisionPart[], timeoutMs 
   const content = parts.flatMap((p) =>
     typeof p === 'string' ? [{ type: 'text', text: p }] : [{ type: 'text', text: p.label }, { type: 'image_url', image_url: { url: `data:${p.mime ?? 'image/png'};base64,${p.png.toString('base64')}` } }],
   );
-  try {
-    const res = await fetch(`${c.base.replace(/\/$/, '')}/chat/completions`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', authorization: `Bearer ${c.key}` },
-      body: JSON.stringify({ model: c.model, temperature: 0.1, messages: [{ role: 'system', content: system }, { role: 'user', content }] }),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
-    const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
-    return extractJson(body.choices?.[0]?.message?.content ?? '');
-  } catch (err) {
-    console.warn(`[vision] evidence call failed (${(err as Error).message})`);
-    return undefined;
+  // A busy or failing service (429 / 5xx / network) is tried again after a pause; a bad answer is not.
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch(`${c.base.replace(/\/$/, '')}/chat/completions`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: `Bearer ${c.key}` },
+        body: JSON.stringify({ model: c.model, temperature: 0.1, messages: [{ role: 'system', content: system }, { role: 'user', content }] }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!res.ok) throw Object.assign(new Error(`HTTP ${res.status} ${(await res.text()).slice(0, 200)}`), { status: res.status });
+      const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
+      visionOutage = undefined;
+      return extractJson(body.choices?.[0]?.message?.content ?? '');
+    } catch (err) {
+      const status = (err as { status?: number }).status;
+      const transient = status === undefined ? (err as Error).name !== 'TimeoutError' : status === 429 || status >= 500;
+      console.warn(`[vision] call failed (${(err as Error).message})${transient && attempt < VISION_RETRY_MS.length ? ` — retrying in ${VISION_RETRY_MS[attempt] / 1000} s` : ''}`);
+      if (!transient || attempt >= VISION_RETRY_MS.length) {
+        if (transient) visionOutage = (err as Error).message.slice(0, 200);
+        return undefined;
+      }
+      await new Promise((r) => setTimeout(r, VISION_RETRY_MS[attempt]));
+    }
   }
 }
+
+/** Pauses before retrying a busy / failing vision service. */
+export const VISION_RETRY_MS = [5_000, 20_000, 60_000];
+/** Set when the last vision call gave up on a busy / failing service (cleared by the next answer): callers tell
+ *  "the service is down" (a tool failure) from "the model gave no usable answer". */
+export let visionOutage: string | undefined;

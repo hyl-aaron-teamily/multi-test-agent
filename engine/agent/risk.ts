@@ -1,4 +1,4 @@
-// Quick tier safety (rule G10, W2-5 X2): read-only by default. An action is classified before it runs from the
+// Exploration tier safety (rule G10, W2-5 X2): read-only by default. An action is classified before it runs from the
 // label of what it acts on and, for typing, the typed text. Read-only blocks every high-risk category and all
 // typing except into a search box; writable (an approved sensitive plan) blocks only the hard constraints G3.
 // Seed words: the keyword lists of the W1 explorer / mission runner (git show 3d7dc46:explore/explore-loop.ts,
@@ -46,8 +46,10 @@ const SEARCH = /搜索|search|查找|find/i;
 
 /** Pure: the risk of an action on an element labelled `label` (typing: `text` is what would be typed;
  *  `free`: the label is the model's description of a coordinate tap). Social actions run only on the agent
- *  accounts' own profiles and content (`ownContent`, see nearOwnContent) — in writable runs too. */
-export function classifyRisk(a: { type: string; label?: string; text?: string; free?: boolean }, writable = false, ctx: { ownContent?: boolean } = {}): Risk {
+ *  accounts' own profiles and content (`ownContent`, see nearOwnContent) — in writable runs too.
+ *  `bench`: AndroidWorld on an emulator (W2-5 N9) — no real users, nothing is blocked. */
+export function classifyRisk(a: { type: string; label?: string; text?: string; free?: boolean }, writable = false, ctx: { ownContent?: boolean; bench?: boolean; searchBox?: boolean } = {}): Risk {
+  if (ctx.bench) return { blocked: false, reason: 'bench (emulator)' };
   const label = (a.label ?? '').trim();
   if (HARD.test(label) || (a.type === 'type' && HARD.test(a.text ?? '') && /密码|password/i.test(label))) return { blocked: true, category: label.match(/锁屏|lock/i) ? 'lock' : 'delete', reason: `硬约束：${label || a.type}` };
   const tapLike = a.type === 'tap' || a.type === 'longPress';
@@ -55,12 +57,25 @@ export function classifyRisk(a: { type: string; label?: string; text?: string; f
   if (writable) return { blocked: false, reason: 'writable' };
   if (a.type === 'type') {
     if (SEARCH.test(label)) return { blocked: false, reason: 'typing into a search box' };
+    // After typing, the box shows what was typed ("1"): it is still the search box seen there before.
+    if (ctx.searchBox) return { blocked: false, reason: 'typing into a search box (seen there before)' };
     return { blocked: true, category: 'type', reason: `只读探索不键入（目标「${label || '未知输入框'}」）` };
   }
   if (!tapLike) return { blocked: false, reason: 'no target' };
   for (const [category, re] of [...ZH, ...EN]) if (re.test(label)) return { blocked: true, category, reason: `只读探索拦截「${label}」（${category}）` };
   return { blocked: false, reason: 'read-only safe' };
 }
+
+/** Pure: was a search box seen at this place (its centre inside the box, within `slack` px)? `seen` = the boxes
+ *  of the search boxes on earlier screens of this run (W2-5 §7.4). */
+export function wasSearchBox(box: [number, number, number, number], seen: [number, number, number, number][], slack = 12): boolean {
+  const cx = box[0] + box[2] / 2;
+  const cy = box[1] + box[3] / 2;
+  return seen.some((b) => cx >= b[0] - slack && cx <= b[0] + b[2] + slack && cy >= b[1] - slack && cy <= b[1] + b[3] + slack);
+}
+
+/** A search box by its label (the read-only rule's own test). */
+export const isSearchLabel = (label: string) => SEARCH.test(label);
 
 /** Pure: the tapped point belongs to the agent accounts' own content — one of their names (nickname, or an
  *  agent / post they made, `ownContent` in accounts.local.yaml) is on screen within a fifth of the screen

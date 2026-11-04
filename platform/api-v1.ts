@@ -19,6 +19,8 @@ import type { Supervisor } from './lifecycle/supervisor';
 import { createTask, getTask, isTerminal, listTasks, newTaskId, readEvents, readLedger, readResult, taskDir, type TaskRecord } from './lifecycle/task';
 import { parsePlanId, planIdOf, planIdsOf, resolvePlan, savedDraft, staleFacts, versionFacts } from './plans-v1';
 import { envView, exploreSummary, syncSummary, planText, planView, resultText, resultView, taskView, type ResultView } from './views';
+import { EXPLORE_LIMITS } from './schema/test-plan';
+import { appendInstruction, readInstructions } from './lifecycle/inbox';
 
 export interface Envelope {
   status: number;
@@ -138,7 +140,7 @@ function newestPng(dir: string, depth = 3): { file: string; at: number } | undef
   return best;
 }
 
-/** Task page (§7): quick-tier steps (thumbnail + reasoning, live from the trajectory), or the newest screen. */
+/** Task page (§7): exploration-tier steps (thumbnail + reasoning, live from the trajectory), or the newest screen. */
 function taskSteps(t: TaskRecord) {
   const dir = t.runDir;
   if (!dir) return { steps: [], latest: undefined };
@@ -174,7 +176,13 @@ function planMarks(planId: string) {
   return { shot: fileUrl(shot), shotAt: at ? new Date(at).toISOString() : undefined, size, cache: newest?.n, marks };
 }
 
-const tv = (t: TaskRecord) => taskView(t, readEvents(t.id) as any, readLedger(t.id));
+const tv = (t: TaskRecord) => taskView(t, readEvents(t.id) as any, readLedger(t.id), t.kind === 'explore' ? readInstructions(t.id) : []);
+
+/** Pure: the platform has just started and checks environments in the background (W2-5 §9): say so. */
+export function checkingNote(envs: Pick<EnvRecord, 'id' | 'state'>[]): string {
+  const c = envs.filter((e) => e.state === 'checking').map((e) => e.id);
+  return c.length ? `（环境检查中：${c.join('、')}；检查通过后开始）` : '';
+}
 
 /** Environment refusals: offline / unfit (transient, so they come after the definitive checks). */
 function envRefusalOf(env: EnvRecord): Envelope | undefined {
@@ -193,7 +201,7 @@ function pendingConfig(env: EnvRecord) {
 
 const EXPLORE_SURFACES = ['android-app', 'android-web', 'mobile-web', 'desktop-web'];
 
-/** Submit a quick-tier task (§5.4, capability ①): a goal in plain words, run by the agent loop. Read-only
+/** Submit a exploration-tier task (§5.4, capability ②): a goal in plain words, run by the agent loop. Read-only
  *  by default; --writable needs full access (the risk rules still block payment / logout / delete …). */
 function submitExplore(b: any): Envelope {
   const goal = String(b.explore ?? '').trim();
@@ -201,7 +209,7 @@ function submitExplore(b: any): Envelope {
   const mode = b.mode === 'task' ? 'task' : 'explore';
   const surface = String(b.surface ?? 'android-app');
   if (!EXPLORE_SURFACES.includes(surface)) return fail('BAD_INPUT', `--surface: ${EXPLORE_SURFACES.join(' | ')}`);
-  for (const [k, flag, max] of [['maxSteps', 'max-steps', 3000], ['maxMinutes', 'max-minutes', 120]] as const) {
+  for (const [k, flag, max] of [['maxSteps', 'max-steps', EXPLORE_LIMITS.maxSteps], ['maxMinutes', 'max-minutes', EXPLORE_LIMITS.maxMinutes]] as const) {
     if (b[k] !== undefined && b[k] !== null && !(Number.isInteger(Number(b[k])) && Number(b[k]) >= 1 && Number(b[k]) <= max)) return fail('BAD_INPUT', `--${flag}: 1..${max}`);
   }
   const serviceEnv = String(b.env ?? 'prod');
@@ -222,10 +230,46 @@ function submitExplore(b: any): Envelope {
   const id = newTaskId();
   const num = (v: unknown) => (v === undefined || v === null ? undefined : Number(v));
   const t = createTask({ id, kind: 'explore', issue: 'explore', planId: `explore:${mode}`, planHash: '-', envId: env.id, options: { maxSteps: num(b.maxSteps), maxMinutes: num(b.maxMinutes) }, explore: { goal, mode, writable }, idempotencyKey: b.idempotencyKey ? String(b.idempotencyKey) : undefined });
-  return ok('ACCEPTED', `任务 ${id} 已排队：${what} @ ${env.id}`, tv(t));
+  return ok('ACCEPTED', `任务 ${id} 已排队：${what} @ ${env.id}${checkingNote([env])}`, tv(t));
 }
 
-/** Finding n of an exploration task (or exploration run dir) → issues/explore/<id>.md for the pro tier (§5.3). */
+/** Incidental finding n of a quick-tier task's run → issues/explore/<id>.md (W2-5 §6). */
+async function incidentalIssue(id: string, n: number, run = 0): Promise<Envelope> {
+  const t = getTask(id);
+  if (!t) return fail('NOT_FOUND', `没有任务 ${id}`);
+  const r = readResult<{ runs?: RunResult[] }>(id)?.runs?.[run];
+  if (!r) return fail('NOT_FOUND', `任务 ${id} 没有第 ${run + 1} 次运行的结果`);
+  if (!r.incidental?.some((x) => x.n === n)) return fail('NOT_FOUND', `任务 ${id} 没有附带发现 #${n}（共 ${r.incidental?.length ?? 0} 个）`);
+  const { writeIncidentalIssue } = await import('../engine/agent/to-issue');
+  const out = await writeIncidentalIssue(r, n);
+  return ok('OK', `Issue ${out.id} 已生成`, { issue: out.id, file: out.file }, `Issue ${out.id} → ${out.file}\n下一步：autotest draft create ${out.id}，再 plan explain / task run`);
+}
+
+/** SKILL candidates of an exploration task (W2-5 §7.3): a list for people to review, never written to a profile. */
+function exploreCandidates(ref: string): Envelope {
+  const dir = getTask(ref)?.runDir ?? resolve(ref);
+  if (!normalize(dir).startsWith(resolve('midscene_run') + sep)) return fail('BAD_INPUT', `${ref} 不是探索任务，也不是 midscene_run 下的探索目录`);
+  const f = join(dir, 'skill-candidates.json');
+  if (!existsSync(f)) return fail('NOT_FOUND', `${ref} 还没有 SKILL 候选清单（探索结束时生成）`);
+  const c = JSON.parse(readFileSync(f, 'utf8')) as { candidates: { page: string; meaning: string; count: number; clickable: boolean; box: number[]; shot: string }[] };
+  for (const x of c.candidates) x.shot = join(dir, x.shot);
+  const text = c.candidates.length ? c.candidates.slice(0, 40).map((x) => `- [${x.page}] 「${x.meaning}」${x.clickable ? '（可点）' : ''} × ${x.count} @ ${x.box.join(',')}`).join('\n') : '（没有出现 3 次以上、文字稳定的元素）';
+  return ok('OK', `${c.candidates.length} 个 SKILL 候选（人工审核后再标定）`, { file: f, url: fileUrl(f), candidates: c.candidates }, `${text}\n清单：${f}`);
+}
+
+/** Add an instruction to a running exploration task (W2-5 §7.2): it takes effect at the next step boundary. */
+function exploreInject(id: string, text: unknown): Envelope {
+  const t = getTask(id);
+  if (!t) return fail('NOT_FOUND', `没有任务 ${id}`);
+  if (t.kind !== 'explore') return fail('BAD_INPUT', `任务 ${id} 不是探索任务，不能追加指令`);
+  if (isTerminal(t.state)) return fail('BAD_INPUT', `任务 ${id} 已结束（${t.state}），不再接受指令`);
+  const s = typeof text === 'string' ? text.trim() : '';
+  if (!s || s.length > 500) return fail('BAD_INPUT', '指令：1–500 个字');
+  const n = appendInstruction(id, s);
+  return ok('OK', `已追加第 ${n} 条指令，下一步生效`, { taskId: id, instructions: n }, `已追加第 ${n} 条指令：${s}\n下一步开始时交给模型；进度：autotest task status ${id}`);
+}
+
+/** Finding n of an exploration task (or exploration run dir) → issues/explore/<id>.md for the quick tier (§5.3). */
 async function exploreIssue(ref: string, n: number): Promise<Envelope> {
   const dir = getTask(ref)?.runDir ?? resolve(ref);
   if (!normalize(dir).startsWith(resolve('midscene_run') + sep)) return fail('BAD_INPUT', `${ref} 不是探索任务，也不是 midscene_run 下的探索目录`);
@@ -266,7 +310,7 @@ function submitSync(b: any): Envelope {
   if (b.dryRun) return ok('OK', `演练：多端同步 ${rounds} 轮，${where}（每轮一端发一条，发到允许清单里的群）`, { envIds: all.map((e) => e.id), rounds, messagesMax: rounds });
   const id = newTaskId();
   const t = createTask({ id, kind: 'sync', issue: 'sync', planId: `sync:${all.map((e) => e.surface).join('+')}`, planHash: '-', envId: all[0].id, envIds: all.slice(1).map((e) => e.id), sync: { rounds }, options: {}, idempotencyKey: b.idempotencyKey ? String(b.idempotencyKey) : undefined });
-  return ok('ACCEPTED', `任务 ${id} 已排队：多端同步 ${rounds} 轮 @ ${where}`, tv(t));
+  return ok('ACCEPTED', `任务 ${id} 已排队：多端同步 ${rounds} 轮 @ ${where}${checkingNote(all)}`, tv(t));
 }
 
 /** Submit a task (§5.3 task run): resolve → hash → environment → policy → approval → task record. */
@@ -327,7 +371,7 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
   // Confirmation = execution: the exact plan and draft are frozen into the task dir.
   writeJsonAtomic(join(taskDir(id), 'plan.json'), r.plan);
   writeJsonAtomic(join(taskDir(id), 'draft.json'), r.draft);
-  return ok('ACCEPTED', `任务 ${id} 已排队：${planId} @ ${env.id}${n > 1 ? `，系列 ${n} 次` : ''}`, tv(t));
+  return ok('ACCEPTED', `任务 ${id} 已排队：${planId} @ ${env.id}${n > 1 ? `，系列 ${n} 次` : ''}${checkingNote([env])}`, tv(t));
 }
 
 export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
@@ -441,6 +485,9 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
       }
     }
     if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'issue') return exploreIssue(seg[1], Number(q.body.n));
+    if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'inject') return exploreInject(seg[1], q.body.text);
+    if (M === 'GET' && seg[0] === 'explore' && seg[1] && seg[2] === 'candidates') return exploreCandidates(seg[1]);
+    if (M === 'POST' && seg[0] === 'results' && seg[1] && seg[2] === 'incidental' && seg[3] && seg[4] === 'issue') return incidentalIssue(seg[1], Number(seg[3]), Number(q.body.run ?? 0));
     if (M === 'GET' && seg[0] === 'results' && seg[1]) {
       const t = getTask(seg[1]);
       if (!t) return fail('NOT_FOUND', `没有任务 ${seg[1]}`);

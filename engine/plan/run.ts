@@ -11,6 +11,9 @@ import { TEAMILY_PACKAGE } from '../../drivers/factory';
 import { sleep } from '../../drivers/types';
 import { AndroidFlightRecorder } from '../recorder/android-recorder';
 import type { EvidenceVerdict } from '../recorder/evidence-review';
+import { type JankStats, parseGfxinfo } from '../stats';
+import { adb } from '../../core/adb';
+import type { DetectKind } from '../detect';
 import { WebFlightRecorder } from '../recorder/web-recorder';
 import { loadIssueOf } from '../../issue/paths';
 import type { AccountPool, Lease } from '../../platform/accounts/account-pool';
@@ -102,6 +105,10 @@ export interface RunResult {
   hits: { round: number; step: number; at: string; reason: string; review?: EvidenceVerdict; reviewNote?: string }[];
   /** Check-based hits the evidence review rejected (frames do not show the Issue's phenomenon): not counted. */
   dismissed?: { round: number; step: number; reason: string; observed: string; incident: string }[];
+  /** Problems the deterministic detectors saw at round ends (W2-5 §6); never part of the Issue verdict. */
+  incidental?: Incidental[];
+  /** android-app: frame statistics over the loop (metric only). */
+  jank?: JankStats;
   incidents: string[];
   targets: FrozenTarget[];
   acceptance?: { id: string; text: string; pass: boolean | null; detail: string; evidence?: string }[];
@@ -126,6 +133,18 @@ export interface RunResult {
   cancelled?: boolean;
   /** Report lead (W2-2 §3.2): trigger path / location / suspected mechanism, each with its basis. */
   lead?: { trigger: string; triggerBasis: string; location: string; locationBasis: string; mechanism: string };
+}
+
+export interface Incidental {
+  n: number;
+  round: number;
+  step: number;
+  kind: DetectKind;
+  description: string;
+  incident: string;
+  review?: EvidenceVerdict;
+  /** The evidence review agrees (a finding worth an Issue draft). */
+  counted: boolean;
 }
 
 export async function runPlan(o: RunOptions): Promise<RunResult> {
@@ -333,11 +352,15 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     o.hooks?.phase('loop');
     // Inside the loop nothing is located: the SKILL cache only (D2).
     if (s.profile.resolver) s.profile.resolver.inLoop = true;
+    // Frame statistics (W2-5 §8.3): reset before the loop, read once after it — no command inside it (D2).
+    const pkg = s.profile.packageName;
+    const gfx = plan.surface === 'android-app' && !!s.udid && !!pkg && (await adb(['shell', 'dumpsys', 'gfxinfo', pkg, 'reset'], s.udid, 10_000).then(() => true).catch(() => false));
     try {
       await runLoop(c, { reviewIssue, correctPathOk });
     } finally {
       if (s.profile.resolver) s.profile.resolver.inLoop = false;
     }
+    if (gfx) res.jank = parseGfxinfo(await adb(['shell', 'dumpsys', 'gfxinfo', pkg!], s.udid, 10_000).catch(() => ''));
     o.hooks?.phase('finishing');
     await runEpilogue(c).catch((e) => log(`epilogue failed: ${(e as Error).message.split('\n')[0]}`));
     phase('loop', tLoop);

@@ -15,7 +15,7 @@ const CLIENTS = ['claude', 'cursor', 'codex', 'vscode'] as const;
 export function printConfig(client: string, root = ROOT): string {
   const node = process.execPath;
   const args = [join(root, 'node_modules', 'tsx', 'dist', 'cli.mjs'), join(root, 'scripts', 'mcp.ts')];
-  const rules = join(root, 'docs', 'agent-rules.md');
+  const rules = join(root, 'platform', 'agent-rules.md');
   const server = { command: node, args };
   const body = (() => {
     switch (client) {

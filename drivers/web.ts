@@ -23,7 +23,7 @@ export interface WebDriverOptions {
   onConsole?: (e: { at: number; type: string; text: string }) => void;
 }
 
-const KEYS: Record<string, string> = { enter: 'Enter', backspace: 'Backspace', escape: 'Escape', esc: 'Escape', tab: 'Tab', up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', space: ' ' };
+const KEYS: Record<string, string> = { enter: 'Enter', backspace: 'Backspace', del: 'Delete', delete: 'Delete', escape: 'Escape', esc: 'Escape', tab: 'Tab', up: 'ArrowUp', down: 'ArrowDown', left: 'ArrowLeft', right: 'ArrowRight', space: ' ' };
 
 /** Desktop browser: Edge (maximized, headed) on Windows unless overridden; Playwright Chromium otherwise. */
 export function desktopBrowser(): 'msedge' | 'chromium' {

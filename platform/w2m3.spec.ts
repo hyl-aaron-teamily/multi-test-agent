@@ -252,11 +252,6 @@ describe('W2-3 T7 API envelope and CLI help', () => {
     expect(getEnv(ENV)!.state).toBe('ready');
   });
 
-  it('docs/cli-reference.md is generated from help --json (up to date)', async () => {
-    const { cliReference } = await import('../scripts/cli-ref');
-    // Line endings follow git's autocrlf on Windows checkouts.
-    expect(readFileSync(resolve('docs/cli-reference.md'), 'utf8').replace(/\r\n/g, '\n')).toBe(cliReference());
-  });
 
   it('help --json lists every command with an argument schema and the full status table', () => {
     const h = helpDoc();

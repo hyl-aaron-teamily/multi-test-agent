@@ -3,9 +3,9 @@
 // tasks whose process ended without a terminal record, and checks an environment again when its lease ends.
 // Liveness is the task process only (pid + start time recorded in the lease): no heartbeat, no watchdog.
 // A cancel stops at the next step boundary; a process that has not stopped CANCEL_KILL_MS later is killed.
-import { spawn } from 'node:child_process';
-import { createWriteStream } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { execFileSync, spawn } from 'node:child_process';
+import { closeSync, openSync } from 'node:fs';
+import { join } from 'node:path';
 import type { AccountPool } from '../accounts/account-pool';
 import type { DevicePool } from '../device-pool';
 import { checkEnv } from './check';
@@ -14,8 +14,9 @@ import { alive, killTree, type ProcId } from './proc';
 import { prodDrivers, syncEnvs } from './registry';
 import { closeTask, event, getTask, isTerminal, LIVE, listTasks, moveTask, taskDir, taskEnvs, type TaskRecord, updateTask } from './task';
 
-const TSX = resolve('node_modules/tsx/dist/cli.mjs');
 export const CANCEL_KILL_MS = Number(process.env.AUTOTEST_CANCEL_KILL_MS ?? 60_000);
+/** A task started outside the platform that has not bound its lease this long after the start did not start. */
+const OUTSIDE_START_MS = 90_000;
 const RECHECK_MS = 30_000;
 
 export interface Reconciled {
@@ -66,7 +67,8 @@ export class Supervisor {
     private accounts: AccountPool,
   ) {}
 
-  /** Registry, then the leases left by a previous platform run, then a check of every free environment. */
+  /** Registry, then the leases left by a previous platform run; the check of every free environment runs in the
+   *  background (W2-5 §9: the platform answers at once; tasks wait for their environment to be ready). */
   async start(): Promise<void> {
     syncEnvs(this.devices.config, this.accounts);
     for (const a of reconcile()) {
@@ -74,10 +76,17 @@ export class Supervisor {
       const e = a.env ? getEnv(a.env) : undefined;
       if (a.action === 'adopted' && e?.udid) this.devices.acquire(a.task, e.udid, e.surface);
     }
-    for (const e of listEnvs()) if (!e.lease) await this.check(e.id);
+    const free = listEnvs().filter((e) => !e.lease);
+    for (const e of free) if (e.state !== 'checking' && e.state !== 'offline') moveEnv(e.id, 'checking', { by: 'platform', basis: 'platform start' });
+    this.startupChecks = (async () => {
+      for (const e of free) await this.check(e.id);
+    })();
     this.timers.push(setInterval(() => void this.tick(), 2000));
     this.timers.push(setInterval(() => void this.watch(), 5000));
   }
+
+  /** The start-up checks (tests, shutdown wait for them). */
+  startupChecks: Promise<void> = Promise.resolve();
 
   /** Check an environment (one at a time per environment). */
   async check(envId: string, by = 'platform'): Promise<void> {
@@ -141,19 +150,51 @@ export class Supervisor {
     return true;
   }
 
+  /** Tasks started outside the platform's process tree (Windows), with when: ended by watch() on their pid. */
+  private readonly outside = new Map<string, number>();
+
   private launch(id: string): void {
-    const t = getTask(id)!;
-    const log = createWriteStream(join(taskDir(id), 'task.log'));
-    const child = spawn(process.execPath, [TSX, 'scripts/task-exec.ts', id], { env: { ...process.env, MIDSCENE_REPORT_QUIET: 'true' }, windowsHide: true });
+    // Windows: pnpm keeps its children in a job that is killed when pnpm exits, and a detached child stays in
+    // it (2026-11-03: stopping the platform killed the running task). Start the task process through WMI, which
+    // creates it outside that job, so a restarted platform can adopt it (W2-5 §9).
+    if (process.platform === 'win32' && !process.env.VITEST && process.env.AUTOTEST_TASK_SPAWN !== 'child' && this.launchOutside(id)) return;
+    // Elsewhere (and as a fallback):
+    // The task process outlives the platform (W2-5 §9): its own process group (a Ctrl+C in the platform's terminal
+    // does not reach it) and its output straight into task.log (no pipe to a parent that may go away). A
+    // restarted platform adopts it (reconcile: pid + start time).
+    const log = openSync(join(taskDir(id), 'task.log'), 'a');
+    // node --import tsx: one process (the tsx command line would add a launcher that dies with its parent).
+    const child = spawn(process.execPath, ['--import', 'tsx', 'scripts/task-exec.ts', id], { env: { ...process.env, MIDSCENE_REPORT_QUIET: 'true' }, windowsHide: true, detached: true, stdio: ['ignore', log, log] });
+    closeSync(log);
     this.children.set(id, child.pid ?? 0);
-    child.stdout.pipe(log, { end: false });
-    child.stderr.pipe(log, { end: false });
     event(id, { type: 'note', note: `spawned pid ${child.pid}` });
-    child.on('close', (code) => {
-      log.end();
+    child.on('exit', (code) => {
       this.children.delete(id);
       void this.ended(id, code);
     });
+  }
+
+  /** Windows: the task process through WMI (Win32_Process.Create), output appended to task.log. Only
+   *  AUTOTEST_* variables are passed on (the task reads .env itself; no secrets on a command line). */
+  private launchOutside(id: string): boolean {
+    const log = join(taskDir(id), 'task.log');
+    const vars = Object.entries(process.env)
+      .filter(([k, v]) => /^AUTOTEST_/.test(k) && v !== undefined && !/["&|<>^%\r\n]/.test(v))
+      .map(([k, v]) => `set "${k}=${v}"&& `)
+      .join('');
+    const line = `cmd.exe /d /s /c "${vars}set "MIDSCENE_REPORT_QUIET=true"&& "${process.execPath}" --import tsx scripts/task-exec.ts ${id} >> "${log}" 2>&1"`;
+    const q = (s: string) => s.replace(/'/g, "''");
+    const ps = `$r = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = '${q(line)}'; CurrentDirectory = '${q(process.cwd())}' }; "$($r.ReturnValue) $($r.ProcessId)"`;
+    try {
+      const [rv, pid] = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', ps], { encoding: 'utf8', windowsHide: true, timeout: 30_000 }).trim().split(/\s+/);
+      if (rv !== '0') throw new Error(`Win32_Process.Create returned ${rv}`);
+      this.outside.set(id, Date.now());
+      event(id, { type: 'note', note: `spawned outside the platform (WMI), cmd pid ${pid}` });
+      return true;
+    } catch (e) {
+      this.log(`task ${id}: could not start it outside the platform (${(e as Error).message.split('\n')[0]}) — starting it as a child`);
+      return false;
+    }
   }
 
   /** The task process exited: close the record if it did not end itself, release, check the environment. */
@@ -188,7 +229,13 @@ export class Supervisor {
           killTree(proc.pid);
         }
         if (mine) continue; // our child: its 'close' event ends it
-        if (isTerminal(t.state) || (proc && !alive(proc))) await this.ended(t.id, null);
+        // Started outside (WMI) but never bound its lease: it did not start.
+        const started = this.outside.get(t.id);
+        const neverRan = !proc && started !== undefined && Date.now() - started > OUTSIDE_START_MS;
+        if (isTerminal(t.state) || (proc && !alive(proc)) || neverRan) {
+          this.outside.delete(t.id);
+          await this.ended(t.id, null);
+        }
       }
     } catch (e) {
       this.log(`watch: ${(e as Error).message}`);

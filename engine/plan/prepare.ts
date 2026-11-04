@@ -53,7 +53,12 @@ const inChat = (c: RunCtx) => {
 export async function onChat(c: RunCtx, png?: Buffer): Promise<boolean> {
   if (!inChat(c)) return true;
   const r = await evaluateVisual(c.sess.d, c.sess.profile, { kind: 'visual-region', page: 'chat', region: 'composer', expect: 'chat page open (composer visible)', want: 'present', onlyOnAnomaly: false }, undefined, png);
-  return r.pass !== false;
+  if (r.pass !== false) return true;
+  // Outside the loop the reference may be stale (the phone switched to the dark theme in the evening,
+  // 2026-11-03): wait for the region, which captures it again (as the other theme's variant) where its anchors are.
+  const p = c.sess.profile;
+  if (!p.resolver || p.resolver.inLoop) return false;
+  return !!(await waitForRegion(c.sess.d, p, ['chat/composer'], 12_000));
 }
 
 /** Re-enter the plan's starting point after an operation drift (never leaves the app). */

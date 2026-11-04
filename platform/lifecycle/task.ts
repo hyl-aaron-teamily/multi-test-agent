@@ -31,7 +31,7 @@ export interface TaskRecord {
   schemaVersion: 1;
   id: string;
   kind: 'issue' | 'series' | 'explore' | 'sync';
-  /** kind explore: the quick tier's goal (capability ①). */
+  /** kind explore: the exploration tier's goal (capability ②). */
   explore?: { goal: string; mode: 'task' | 'explore'; writable: boolean };
   issue: string;
   /** Plan ids `<Issue>/<sub>:<surface>@<version>`, and the approval they run under. */

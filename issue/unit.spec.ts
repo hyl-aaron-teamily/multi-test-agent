@@ -5,7 +5,7 @@ import { classifyRules, surfacesFor } from './classify';
 import { detectPlatforms, parseIssue } from './parse';
 import { validatePlan } from './validate';
 
-const load = (id: string) => parseIssue(id, readFileSync(`issues/${id}.md`, 'utf8'));
+const load = (id: string) => parseIssue(id, readFileSync(`fixtures/issues/${id}.md`, 'utf8'));
 
 describe('issue parsing', () => {
   it('reads sections, frequency and steps', () => {
@@ -39,7 +39,7 @@ describe('classification of the sample issues', () => {
     '2235': 'multi-account',
     '2336': 'feature',
   };
-  for (const f of readdirSync('issues').filter((x) => x.endsWith('.md'))) {
+  for (const f of readdirSync('fixtures/issues').filter((x) => x.endsWith('.md'))) {
     const id = f.replace('.md', '');
     it(`${id} → ${expected[id]}`, () => expect(classifyRules(load(id)).category).toBe(expected[id]));
   }

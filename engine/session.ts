@@ -16,7 +16,8 @@ import { SKILL_VERSION } from '../skills/teamily/vocab';
 import { skillProfile } from './skill-resolver';
 import { assertSkillFresh } from './checks';
 import { adapterFor, type SurfaceAdapter } from './surfaces';
-import { a11yBackend, activateA11y } from '../core/a11y-service';
+import { a11yBackend, activateA11y, enableA11y, installA11y } from '../core/a11y-service';
+import { AndroidDriver } from '../drivers/android';
 import { setTreeBackend, treeStats } from '../core/tree-backend';
 import { declaredTreeBackend } from '../platform/device-pool';
 
@@ -45,7 +46,8 @@ export interface Session {
   adapter: SurfaceAdapter;
   account: string;
   udid?: string;
-  pool: AccountPool;
+  /** Absent in bench sessions (no accounts). */
+  pool?: AccountPool;
   log: (s: string) => void;
 }
 
@@ -83,6 +85,29 @@ export async function openSession(o: SessionOptions): Promise<Session> {
   const inner = createDriver({ surface: o.surface, packageName: profile.packageName, url, udid: o.udid, storageState, headless: !o.headed, onLog: o.onLog, onConsole: o.onConsole });
   return { surface: o.surface, profile, url, inner, d: new RecordingDriver(inner), web: inner instanceof WebDriver ? inner : undefined, adapter: adapterFor(o.surface), account: o.account, udid: o.udid, pool: o.pool, log: o.log ?? ((s) => console.log(`[session] ${s}`)) };
 }
+
+/** An Android emulator (`emulator-5554`); bench sessions run only there (W2-5 N9). */
+export const isEmulator = (udid: string): boolean => /^emulator-\d+$/.test(udid);
+
+/** Bench session (AndroidWorld, W2-5 P1): an emulator, no lease, preflight, sign-in or SKILL cache; the driver is
+ *  bound to no app under test. The tree service is (re)enabled here: AndroidWorld's own accessibility forwarder
+ *  may have replaced the enabled services. Its install is pre-approved; when it cannot be used, uiautomator. */
+export async function openBenchSession(udid: string, log: (s: string) => void): Promise<Session> {
+  if (!isEmulator(udid)) throw new Error(`bench mode runs only on an emulator (emulator-<port>), not on ${udid}`);
+  if (!(await activateA11y(udid)).ok) {
+    await installA11y(udid).catch((e) => log(`tree service install: ${(e as Error).message}`));
+    await enableA11y(udid).catch(() => {});
+  }
+  const r = await activateA11y(udid);
+  setTreeBackend(udid, r.ok ? a11yBackend() : undefined);
+  log(`tree backend: ${r.ok ? 'a11y-service' : `uiautomator (${r.reason})`}`);
+  const inner = new AndroidDriver({ udid, surface: 'android-app', packageName: BENCH_HOME_PACKAGE });
+  const profile: Profile = { surface: 'android-app', name: 'bench', skillVersion: '-', env: 'test', viewport: { width: 0, height: 0 }, packageName: BENCH_HOME_PACKAGE, elements: {}, refs: {} };
+  return { surface: 'android-app', profile, url: '', inner, d: new RecordingDriver(inner), adapter: adapterFor('android-app'), account: 'bench', udid, log };
+}
+
+/** The emulator's launcher (Pixel images): the driver's "app" in bench sessions. */
+export const BENCH_HOME_PACKAGE = 'com.google.android.apps.nexuslauncher';
 
 export interface EnterOptions {
   /** After the first launch, before waiting (web flight recorder start). */

@@ -210,8 +210,8 @@ async function exploreForm() {
       <textarea id="goal" placeholder="例如：打开通知铃铛，看看里面有哪些通知分类，然后关掉它"></textarea>
       <div class="row"><span class="seg"><label><input type="radio" name="mode" value="explore" checked><span>探索：找问题</span></label><label><input type="radio" name="mode" value="task"><span>任务：完成目标</span></label></span></div>
       <div class="row"><label>端 <select id="surface">${Object.entries(SURFACE).map(([k, v]) => `<option value="${k}">${v}</option>`).join('')}</select></label>
-        <label>最多步数 <input id="maxSteps" type="number" min="1" max="3000" placeholder="不限"></label>
-        <label>最多分钟 <input id="maxMinutes" type="number" min="1" max="120" placeholder="不限"></label></div>
+        <label>最多步数 <input id="maxSteps" type="number" min="1" max="500" placeholder="500"></label>
+        <label>最多分钟 <input id="maxMinutes" type="number" min="1" max="30" placeholder="30"></label></div>
       <div class="row"><label><input type="checkbox" id="writable" ${fa?.on ? '' : 'disabled'}> 可写（会真的发消息、改资料）</label>${fa?.on ? '' : '<span class="faint">需要先开启完全授权</span>'}</div>
       <div class="row"><button class="btn" onclick="submitExplore(true)">先检查（不启动）</button><button class="btn primary" onclick="submitExplore(false)">开始</button></div>
       <div id="msg" class="msg"></div>`)}
@@ -219,7 +219,7 @@ async function exploreForm() {
       <li>每一步看当前截图和可点元素，由视觉模型决定一个动作；默认<b>只读</b>：发送、删除、改设置、支付、退出登录、邀请分享、改资料都会被拦截。</li>
       <li>点赞、关注、收藏只对测试账号自己的主页和内容做，真实用户的内容一律拦截。</li>
       <li>崩溃、ANR、App 退出、页面崩溃会立即保存${terms('现场包')}；模型报告的问题经${terms('证据复核')}一致才计入。</li>
-      <li>默认不限步数；平台硬上限 3000 步 / 120 分钟。结果里列出覆盖了哪些界面、拦截了哪些动作、用了多少次模型。</li>
+      <li>上限 500 步 / 30 分钟（只能调小）。结果里列出覆盖了哪些界面、拦截了哪些动作、用了多少次模型。</li>
       <li>探索的发现不是复现结论：可以一键转成 Issue，再由 Issue 主线复现。</li></ul>`, 60)}
   </div>`;
 }
@@ -310,6 +310,12 @@ function drawTask(t, s) {
   const now = t.finishedAt
     ? `<p>${pill(t.state, t.stateText)} 结束于 ${time(t.finishedAt)}${t.endedBy ? `，方式：${esc(t.endedBy)}` : ''}${t.endedAt ? `，停在 ${esc(t.endedAt)}` : ''}</p><p class="lead">${esc(t.outcome?.summary ?? '')}</p>`
     : `<p>${pill(t.state, t.stateText)} ${esc(p.phaseText ?? '')}${p.round !== undefined ? ` · 第 ${p.round} 轮` : ''}${p.step !== undefined ? ` · 第 ${p.step} 步` : ''}</p>${p.summary ? `<p class="mono">${esc(p.summary)}</p>` : ''}<p class="faint">更新于 ${time(p.at)}${t.cancelRequested ? ' · 已请求取消' : ''}</p>`;
+  // The page is redrawn on every progress event: keep a half-typed instruction.
+  const draft = $('#inject')?.value ?? '';
+  const typing = document.activeElement?.id === 'inject';
+  const inject = t.explore && !t.finishedAt
+    ? card('', '追加指令', `<p class="muted">下一步开始时交给模型；只读规则照常生效。任务结束后不再接受。</p><div class="row"><input id="inject" maxlength="500" placeholder="例如：先看看设置页，再回到首页" style="flex:1"><button class="btn" onclick="injectTask('${esc(t.id)}')">发送给 agent</button></div>${(t.instructions ?? []).length ? `<ul>${t.instructions.map((x) => `<li><span class="faint">${hm(x.at)}</span> ${esc(x.text)}</li>`).join('')}</ul>` : ''}`)
+    : '';
   const stepCards = (s?.steps ?? []).slice().reverse().slice(0, 60).map((x) => `<div class="step ${x.blocked ? 'blocked' : ''} ${x.finding ? 'finding' : ''}">
       ${x.thumb ? `<a href="${esc(x.thumb)}" target="_blank"><img loading="lazy" src="${esc(x.thumb)}" alt="第 ${x.step} 步截图"></a>` : ''}
       <div class="step__body"><div><b>#${x.step}</b> <span class="faint">${hm(x.at)}</span> ${x.blocked ? pill('warn', '已拦截') : ''}${x.finding ? pill('bad', '发现') : ''}</div>
@@ -321,11 +327,25 @@ function drawTask(t, s) {
       ${card('要做什么', '', what)}
       ${card('正在做什么', '', now + (t.partial ? `<p class="bad">部分结果：${terms('有效尝试')} ${t.partial.valid}，命中 ${t.partial.hits}（${esc(t.partial.note)}）</p>` : ''), 40)}
     </div>
+    ${inject}
     ${stepCards.length ? card('正在做什么', `步骤 <span class="faint">${s.steps.length}</span>`, `<p class="muted">每一步的截图、动作和模型的思路（最新在前${s.steps.length > 60 ? '，只显示最近 60 步' : ''}）。</p><div class="steps">${stepCards.join('')}</div>`, 80) : s?.latest ? card('正在做什么', '最新截图', `<img class="screen" src="${esc(s.latest)}?t=${Date.now()}" alt="最新截图">`, 80) : ''}
     <div class="grid two">
       ${card('可信吗', '副作用记录', `<table><tr><th>进入会话</th><td>${t.ledger.entered.map(esc).join('、') || '-'}</td></tr><tr><th>键入过的会话</th><td>${t.ledger.typedInto.map(esc).join('、') || '-'}</td></tr><tr><th>发送消息</th><td>${t.ledger.sent} 条（不删除、不撤回）</td></tr><tr><th>手机设置</th><td>${t.ledger.settings.map(esc).join('；') || '-'}</td></tr></table>`, 120)}
       ${card('', '时间线', `<ul class="timeline">${t.timeline.map((e) => `<li><time>${hm(e.at)}</time><span>${e.state ? `状态 → ${esc(e.state)}` : `阶段 → ${esc(e.phase)}`}</span></li>`).join('')}</ul>`, 160)}
     </div>`;
+  const box = $('#inject');
+  if (box) {
+    box.value = draft;
+    if (typing) box.focus();
+  }
+}
+
+async function injectTask(id) {
+  const text = $('#inject').value.trim();
+  if (!text) return;
+  const r = await api('POST', `/explore/${enc(id)}/inject`, { text });
+  if (r.code !== 'OK') return alert(r.summary);
+  $('#inject').value = '';
 }
 
 async function cancelTask(id) {
@@ -348,7 +368,7 @@ async function resultPage(id) {
   parts.push(`<div class="page-head"><h1>结果<small>任务 <a class="mono" href="#/task/${enc(v.taskId)}">${esc(v.taskId)}</a></small></h1></div>`);
   parts.push(card('结果', '', `<p class="lead">${terms(v.sentence)}</p><p>${pill(good ? 'good' : hit ? 'bad' : 'warn', `${v.code} · ${v.status}`)} ${v.complete ? '' : pill('warn', '不完整，不给结论')}</p>${!v.complete && v.ended ? `<p class="muted">结束方式：${esc(v.ended.by ?? '')}${v.ended.at ? `，${esc(v.ended.at)}` : ''}</p>` : ''}`));
   if (v.series) parts.push(card('结果', '系列', `<div class="stats">${stat(v.series.runs, '次运行')}${stat(v.series.reachedLoop, '进入循环')}${stat(`${v.series.reproducedRuns}/${v.series.validRuns}`, '复现的次数')}${stat(v.series.valid, '有效尝试')}${stat(v.series.hits, '命中')}</div>`, 40));
-  for (const x of v.runs) parts.push(runCard(x));
+  v.runs.forEach((x, i) => parts.push(runCard(x, v.taskId, i)));
   if (v.explore) parts.push(exploreCards(v));
   if (v.sync) parts.push(syncCard(v));
   const inc = v.evidence.incidents ?? [];
@@ -359,27 +379,48 @@ async function resultPage(id) {
 
 const stat = (n, label) => `<div class="stat"><b>${esc(n)}</b><span>${esc(label)}</span></div>`;
 
-function runCard(x) {
+function runCard(x, taskId, run) {
+  const inc = (x.incidental ?? []).map((f) => `<div class="finding-card ${f.counted ? '' : 'uncounted'}">
+      <div class="row">${pill(f.counted ? 'bad' : 'offline', f.counted ? `附带发现 #${f.n}` : `#${f.n} 未计入`)} <span class="muted">确定性判定 · ${esc(f.kind)} · 第 ${esc(f.round)} 轮${f.review ? ` · ${terms('证据复核')} ${esc(f.review)}` : ''}</span></div>
+      <p>${esc(f.description)}</p>
+      <div class="row">${fileLink(`${f.incident}/index.html`, '打开现场包')}<button class="btn small" onclick="incidentalToIssue('${esc(taskId)}', ${run}, ${f.n}, this)">转成 Issue</button><span class="muted" id="inc-${run}-${f.n}"></span></div></div>`);
   return card('结果', `${esc(x.planId)}：${esc(x.conclusion)}`, `
     <p>${terms(x.sentence)}</p>
     ${x.attempts ? `<div class="stats">${stat(x.attempts.valid, '有效尝试')}${stat(x.attempts.hits, '命中')}${stat(x.attempts.drift, '偏离')}</div><p class="muted">${terms(x.attempts.text)}</p>` : ''}
     <h3>依据</h3><ol>${x.basis.map((b) => `<li>${terms(b)}</li>`).join('')}</ol>
     <h3>可信吗</h3><ul><li>${terms('证据复核')}：${esc(x.flags.evidenceReview)}</li><li>${terms(x.flags.substituted)}</li><li>${esc(x.flags.selfCheck)}</li></ul>
     ${x.failure ? `<div class="sunk"><p class="bad">失败归类：<b>${esc(x.failure.kindText)}</b>（${esc(x.failure.rule)}）— ${esc(x.failure.reason)}</p><p><b>下一步：</b>${esc(x.failure.suggestion)}</p></div>` : ''}
+    <h3>附带发现</h3><p class="muted">运行中由确定性判定看到的其他问题（白屏、一直加载、报错、占位文字、点了没反应），<b>不计入上面的结论</b>。</p>${inc.join('') || '<p class="empty">没有附带发现。</p>'}
     <p class="faint">耗时 ${esc(x.durationSec ?? '-')} 秒 · 运行标记 ${esc(x.runTag ?? '-')}</p>`, 80);
+}
+
+async function incidentalToIssue(taskId, run, n, btn) {
+  btn.disabled = true;
+  const r = await api('POST', `/results/${enc(taskId)}/incidental/${n}/issue`, { run });
+  const out = $(`#inc-${run}-${n}`);
+  if (r.code !== 'OK') return (out.innerHTML = `<span class="bad">${esc(r.summary)}</span>`);
+  out.innerHTML = `Issue <b>${esc(r.data.issue)}</b> 已生成 <button class="btn small" onclick="draftThen('${esc(r.data.issue)}', this)">生成计划</button>`;
 }
 
 function exploreCards(v) {
   const e = v.explore;
   const fs = e.findings.map((f) => `<div class="finding-card ${f.counted ? '' : 'uncounted'}">
-      <div class="row">${pill(f.counted ? 'bad' : 'offline', f.counted ? `发现 #${f.n}` : `#${f.n} 未计入`)} <span class="muted">${f.source === 'hard' ? '硬异常' : '模型报告'} · ${esc(f.kind)}${f.review ? ` · ${terms('证据复核')} ${esc(f.review)}` : ''}</span></div>
+      <div class="row">${pill(f.counted ? 'bad' : 'offline', f.counted ? `发现 #${f.n}` : `#${f.n} 未计入`)} <span class="muted">${f.source === 'hard' ? '硬异常' : f.source === 'detector' ? '确定性判定' : '模型报告'} · ${esc(f.kind)}${f.review ? ` · ${terms('证据复核')} ${esc(f.review)}` : ''}</span></div>
       <p>${esc(f.description)}</p>
       <div class="row">${fileLink(`${f.incident}/index.html`, '打开现场包')}<button class="btn small" onclick="toIssue('${esc(v.taskId)}', ${f.n}, this)">转成 Issue</button><span class="muted" id="iss-${f.n}"></span></div></div>`);
   return card('结果', `${e.mode === 'explore' ? '探索' : '任务'}：「${esc(e.goal)}」`, `
     <p>${esc(e.summary || '-')}</p>
     <div class="stats">${stat(e.findings.filter((f) => f.counted).length, '发现（计入）')}${stat(e.coverage.screens, '覆盖界面')}${stat(e.coverage.actions, '执行的动作')}${stat(e.blocked, '拦截的动作')}${stat(e.usage.steps, '步')}${stat(e.usage.modelCalls, '模型调用')}${stat(`${Math.round(e.usage.seconds / 60)} 分`, '用时')}</div>
     <h3>发现</h3>${fs.join('') || '<p class="empty">没有发现。</p>'}
+    ${e.candidates !== undefined ? `<h3>SKILL 候选</h3><p class="muted">${e.candidates} 个反复出现、文字稳定的元素，人工审核后再进标定（不会自动写入 SKILL）。<button class="btn small" onclick="showCandidates('${esc(v.taskId)}', this)">查看</button></p><div id="cands"></div>` : ''}
     <p class="muted">探索的发现不是复现结论：转成 Issue 后由 Issue 主线（高确定性的计划）复现，给出带分母的结论。</p>`, 80);
+}
+
+async function showCandidates(taskId, btn) {
+  btn.disabled = true;
+  const r = await api('GET', `/explore/${enc(taskId)}/candidates`);
+  if (r.code !== 'OK') return ($('#cands').innerHTML = `<p class="bad">${esc(r.summary)}</p>`);
+  $('#cands').innerHTML = `<table><tr><th>界面</th><th>含义（文字）</th><th>可点</th><th>次数</th><th>位置</th><th>截图</th></tr>${r.data.candidates.slice(0, 60).map((c) => `<tr><td class="mono">${esc(c.page)}</td><td>${esc(c.meaning)}</td><td>${c.clickable ? '是' : ''}</td><td>${c.count}</td><td class="mono">${esc(c.box.join(','))}</td><td>${fileLink(c.shot, '看')}</td></tr>`).join('')}</table>`;
 }
 
 async function toIssue(taskId, n, btn) {

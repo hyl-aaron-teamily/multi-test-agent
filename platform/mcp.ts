@@ -22,7 +22,7 @@ export interface Envelope {
 }
 
 /** CLI commands exposed as tools (§5.1). */
-export const EXPOSED = ['issue list', 'issue show', 'draft create', 'draft show', 'plan explain', 'plan approve', 'plan reject', 'env list', 'env show', 'env check', 'task run', 'task status', 'task wait', 'task cancel', 'result show', 'explore run', 'explore issue', 'doctor'];
+export const EXPOSED = ['issue list', 'issue show', 'draft create', 'draft show', 'plan explain', 'plan approve', 'plan reject', 'env list', 'env show', 'env check', 'task run', 'task status', 'task wait', 'task cancel', 'result show', 'explore run', 'explore issue', 'explore inject', 'doctor'];
 
 const READ_ONLY = new Set(['issue list', 'issue show', 'draft show', 'plan explain', 'env list', 'env show', 'task status', 'task wait', 'result show']);
 /** One MCP call waits at most this long; STILL_RUNNING (21) → the caller waits again. */
@@ -124,7 +124,7 @@ export function safeResourcePath(rel: string, roots = FILE_ROOTS()): string | un
 const MIME: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.md': 'text/markdown', '.json': 'application/json', '.html': 'text/html', '.txt': 'text/plain', '.ndjson': 'application/x-ndjson' };
 
 export function createMcpServer(): McpServer {
-  const server = new McpServer({ name: 'autotest', version: '1.0.0' }, { instructions: 'Black-box test platform on a real phone / browser: explore_run for a goal in plain words (quick tier: autonomous task or exploration, read-only by default), the Issue tools for deterministic reproduction (pro tier). Read docs/agent-rules.md first: doctor before guessing; plan_explain before task_run and tell the user what will be sent where (with full access on, run without waiting for a confirmation); never approve sensitive plans for the user (30 = a person approves on the Web); 未复现 is not 已修复; one phone, one task; never adb kill-server.' });
+  const server = new McpServer({ name: 'autotest', version: '1.0.0' }, { instructions: 'Black-box test platform on a real phone / browser: explore_run for a goal in plain words (exploration tier: autonomous task or exploration, read-only by default), the Issue tools for deterministic reproduction (quick tier). Read platform/agent-rules.md first: doctor before guessing; plan_explain before task_run and tell the user what will be sent where (with full access on, run without waiting for a confirmation); never approve sensitive plans for the user (30 = a person approves on the Web); 未复现 is not 已修复; one phone, one task; never adb kill-server.' });
 
   for (const command of EXPOSED) {
     const c = COMMANDS.find((x) => x.command === command)!;

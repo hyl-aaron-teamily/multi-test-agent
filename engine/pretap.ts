@@ -11,7 +11,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { decodePng, drawBox, encodePng, pixelDiff, type Rgba } from '../core/image';
 import { visionConfigured, visionJson } from '../core/model/llm';
-import { clickableOf, hitTest, label, related, similarity, type Box, type ScreenNode } from '../core/screen-index';
+import { clickableOf, hitTest, label, norm, related, similarity, type Box, type ScreenNode } from '../core/screen-index';
 import type { Driver, Point } from '../drivers/types';
 import type { RecordingDriver } from './recorder/recording-driver';
 import { snapshot } from './snapshot';
@@ -36,6 +36,8 @@ export interface PreTapResult {
   how: 'tree' | 'pixel' | 'vision' | 'none';
   /** Point to tap (the corrected one when kind = corrected). */
   point: Point;
+  /** kind shifted (tree): where the same element is now. */
+  to?: Point;
   score?: number;
   detail: string;
 }
@@ -51,8 +53,10 @@ const boxSim = (a: Box, b: Box) => (Math.min(a[2], b[2]) / Math.max(a[2], b[2], 
 export function treeVerdict(ref: TapRef, point: Point, nodes: ScreenNode[], driftPx = DRIFT_PX): PreTapResult | undefined {
   if (!ref.text && !ref.rid) return undefined;
   let best: { n: ScreenNode; box: ScreenNode; score: number } | undefined;
+  // A label made only of symbols ("⌫", "+") normalises to nothing: compare it as it is.
+  const symbolic = !!ref.text && !norm(ref.text);
   for (const n of nodes) {
-    const ts = ref.text ? Math.max(similarity(n.text, ref.text), similarity(n.desc, ref.text)) : 0;
+    const ts = !ref.text ? 0 : symbolic ? (n.text.trim() === ref.text.trim() || n.desc.trim() === ref.text.trim() ? 1 : 0) : Math.max(similarity(n.text, ref.text), similarity(n.desc, ref.text));
     const rs = ref.rid && n.rid === ref.rid ? 1 : 0;
     // A fingerprint with text needs the text: rows of one list share a resource-id.
     if (ref.text ? ts < 0.75 : !rs) continue;
@@ -70,7 +74,7 @@ export function treeVerdict(ref: TapRef, point: Point, nodes: ScreenNode[], drif
   if (!best || best.score < MATCH_MIN) return { kind: 'gone', how: 'tree', point, score: best?.score ?? 0, detail: `"${ref.text ?? ref.rid}" not on screen${best ? ` (best ${best.score.toFixed(2)})` : ''}` };
   const d = dist(best.box.center, point);
   const name = `"${label(best.n).slice(0, 40) || best.n.rid}"`;
-  if (d > driftPx) return { kind: 'shifted', how: 'tree', point, score: best.score, detail: `${name} moved ${Math.round(d)} px (> ${driftPx}) to (${best.box.center.x},${best.box.center.y})` };
+  if (d > driftPx) return { kind: 'shifted', how: 'tree', point, to: best.box.center, score: best.score, detail: `${name} moved ${Math.round(d)} px (> ${driftPx}) to (${best.box.center.x},${best.box.center.y})` };
   const at = d <= 8 ? point : best.box.center;
   const hit = hitTest(nodes, at.x, at.y);
   if (hit && !related(hit, best.box))
@@ -110,7 +114,8 @@ export class PreTapGuard {
 
   constructor(
     readonly driver: Driver,
-    readonly o: { dir?: string; driftPx?: number; log?: (s: string) => void } = {},
+    /** `pkg`: whose nodes to read ('' = every app on screen; default the driver's app). */
+    readonly o: { dir?: string; driftPx?: number; log?: (s: string) => void; pkg?: string } = {},
   ) {}
 
   /** The phone browser's accessibility tree is built on page load only (stale after in-page navigation):
@@ -171,7 +176,7 @@ export class PreTapGuard {
   }
 
   async check(p: Point, ref: TapRef): Promise<PreTapResult> {
-    const snap = await snapshot(this.driver, { keepPng: !!ref.png || this.pixelOnly, stableMaxMs: 900 });
+    const snap = await snapshot(this.driver, { keepPng: !!ref.png || this.pixelOnly, stableMaxMs: 900, ...(this.o.pkg !== undefined ? { pkg: this.o.pkg } : {}) });
     this.lastPng = snap.png;
     const t = this.pixelOnly ? undefined : treeVerdict(ref, p, snap.nodes, this.o.driftPx);
     if (t) return t;

@@ -25,7 +25,8 @@ step unit pnpm test:unit
 if [ "$1" = "--no-model" ]; then
   echo "[gate] SKIP evidence cases (--no-model)"
 else
-  step evidence pnpm autotest evidence cases
+  # Preset cases review against the sample Issues (fixtures/issues), not the local issues/ folder.
+  step evidence env AUTOTEST_ISSUES_DIR=fixtures/issues pnpm autotest evidence cases
 fi
 total=$(($(date +%s) - t0))
 echo "[gate] $([ $fails -eq 0 ] && echo OK || echo "$fails step(s) failed") in ${total}s$([ $total -gt 300 ] && echo ' — over the 5 min budget')"

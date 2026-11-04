@@ -14,6 +14,8 @@ export interface Stats {
   anomalyGateTriggers: number;
   suspectSignals: number;
   checkpointScreenshots: number;
+  /** Round-end snapshots taken for the deterministic detectors (W2-5 §6; every INCIDENTAL_EVERY rounds). */
+  incidentalSnapshots?: number;
   visionCalls: number;
   textModelCalls: number;
   launches: number;
@@ -31,6 +33,28 @@ export interface Stats {
   preTap?: { checked: number; pass: number; corrected: number; blocked: number; uncertain: number; vision: number; byPhase: Record<string, number>; lines: string[] };
   /** Hierarchy reads by tree backend (W2-4 §4.1) and fallbacks to uiautomator. */
   treeBackend?: { reads: Record<string, { n: number; p50: number; p95: number }>; fallbacks: number; firstFallback?: string };
+}
+
+/** Frame statistics of the app under test for a whole run (`dumpsys gfxinfo`, W2-5 §8.3): a metric, never a hit. */
+export interface JankStats {
+  totalFrames: number;
+  jankyFrames: number;
+  jankyPercent: number;
+  p50Ms?: number;
+  p90Ms?: number;
+  p95Ms?: number;
+  p99Ms?: number;
+}
+
+/** Pure: parse `dumpsys gfxinfo <package>` (after ref P1's mission/runner.ts#parseGfxinfo, git show 3d7dc46). */
+export function parseGfxinfo(out: string): JankStats | undefined {
+  const total = out.match(/Total frames rendered:\s*(\d+)/);
+  const janky = out.match(/Janky frames:\s*(\d+)\s*\(([\d.]+)%\)/);
+  if (!total || !janky) return undefined;
+  const p = (n: number) => Number(out.match(new RegExp(`${n}th percentile:\\s*(\\d+)ms`))?.[1] ?? NaN);
+  const r: JankStats = { totalFrames: Number(total[1]), jankyFrames: Number(janky[1]), jankyPercent: Number(janky[2]) };
+  for (const [k, n] of [['p50Ms', 50], ['p90Ms', 90], ['p95Ms', 95], ['p99Ms', 99]] as const) if (Number.isFinite(p(n))) r[k] = p(n);
+  return r;
 }
 
 export const newStats = (): Stats => ({ steps: 0, rounds: 0, durationSec: 0, avgIntervalMs: 0, maxIntervalMs: 0, intervalsOverCap: 0, anomalyGateTriggers: 0, suspectSignals: 0, checkpointScreenshots: 0, visionCalls: 0, textModelCalls: 0, launches: 0, drifts: 0 });
