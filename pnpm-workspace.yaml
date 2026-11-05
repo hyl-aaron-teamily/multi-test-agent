@@ -1,3 +1,8 @@
 allowBuilds:
   esbuild: true
   sharp: true
+  # postinstall = `chmod u+x ffmpeg`; @midscene/android uses it for scrcpy screenshots
+  '@ffmpeg-installer/linux-x64': true
+  '@ffmpeg-installer/linux-arm64': true
+  '@ffmpeg-installer/darwin-x64': true
+  '@ffmpeg-installer/darwin-arm64': true
