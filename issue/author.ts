@@ -114,8 +114,21 @@ export function compile(env: Envelope, cx: AuthorContext): Authored['subcases'] 
       body.prepareCheck = first;
       body.prepareChecks = [...rest, ...((body.prepareChecks as unknown[]) ?? [])];
     }
-    if (Array.isArray(body.setup)) body.setup = (body.setup as { type?: string; node?: { name?: string } }[]).filter((a) => a?.type !== 'launch' && a?.node?.name !== 'teamily.login');
-    const audit: Audit = { version: cx.version, sub, quotes: env.quotes, understanding: env.understanding, feasibility: env.feasibility, oracle: sc.oracle, trace: sc.trace, selfCheck: env.selfCheck, risks: env.risks, revision: env.revision };
+    // The trace keeps pointing at the same steps: setup[i] is renumbered after the dropped ones.
+    let trace = sc.trace;
+    if (Array.isArray(body.setup)) {
+      const steps = body.setup as { type?: string; node?: { name?: string } }[];
+      const keep = steps.map((a) => a?.type !== 'launch' && a?.node?.name !== 'teamily.login');
+      const newIndex = keep.map((k, i) => (k ? keep.slice(0, i).filter(Boolean).length : -1));
+      body.setup = steps.filter((_, i) => keep[i]);
+      trace = sc.trace.flatMap((t) => {
+        const m = t.at.match(/^setup\[(\d+)\]$/);
+        if (!m) return [t];
+        const n = newIndex[Number(m[1])];
+        return n === undefined || n < 0 ? [] : [{ ...t, at: `setup[${n}]` }];
+      });
+    }
+    const audit: Audit = { version: cx.version, sub, quotes: env.quotes, understanding: env.understanding, feasibility: env.feasibility, oracle: sc.oracle, trace, selfCheck: env.selfCheck, risks: env.risks, revision: env.revision };
     const raw = {
       title: `Issue ${cx.issue.id}`,
       targets: [],

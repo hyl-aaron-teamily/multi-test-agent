@@ -3,7 +3,7 @@
 // slot (empty) → ③ vision. Only at round-end checkpoints, preparation and warm-up — never per step.
 // Each decision records its tier and time (report: 判定分层统计).
 import type { Page } from 'playwright';
-import { clickableAncestor, dumpTree, inside, keyboardShown, matches, type TextMatch, type UiNode } from '../core/ui-tree';
+import { clickableAncestor, dumpTree, inside, keyboardShown, matches, type TextMatch, toRegExp, type UiNode } from '../core/ui-tree';
 import { visionAsk } from '../core/model/midscene';
 import { similarity } from '../core/screen-index';
 import { AndroidDriver } from '../drivers/android';
@@ -181,7 +181,7 @@ export async function observeText(d: Driver, k: CheckPoint, targets: Record<stri
 /** Read-only: does the visible page text contain the match? (Playwright locator text; nothing evaluated in the page.) */
 export async function pageHasText(page: Page, m: TextMatch, area?: { minX?: number; maxY?: number; minY?: number }): Promise<boolean | null> {
   try {
-    const loc = ('exact' in m ? page.getByText(m.exact, { exact: true }) : 'contains' in m ? page.getByText(m.contains) : page.getByText(new RegExp(m.regex))).filter({ visible: true });
+    const loc = ('exact' in m ? page.getByText(m.exact, { exact: true }) : 'contains' in m ? page.getByText(m.contains) : page.getByText(toRegExp(m.regex))).filter({ visible: true });
     if (!area) return (await loc.count()) > 0;
     // Only matches inside an area (e.g. the chat pane, not the conversation list's preview line).
     for (const el of await loc.all()) {

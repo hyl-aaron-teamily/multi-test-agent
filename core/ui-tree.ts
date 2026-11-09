@@ -106,8 +106,15 @@ export function matches(n: UiNode, m: TextMatch): boolean {
   const vals = [n.text, n.desc].filter(Boolean);
   if ('exact' in m) return vals.some((v) => v.trim() === m.exact);
   if ('contains' in m) return vals.some((v) => v.includes(m.contains));
-  const re = new RegExp(m.regex);
+  const re = toRegExp(m.regex);
   return vals.some((v) => re.test(v));
+}
+
+/** A plan's regex: a leading inline flag group such as "(?i)" (PCRE style, which JavaScript rejects) becomes
+ *  the RegExp flags. Throws on an invalid pattern. */
+export function toRegExp(src: string): RegExp {
+  const m = src.match(/^\(\?([imsu]+)\)/);
+  return m ? new RegExp(src.slice(m[0].length), [...new Set(m[1].replace(/[^imsu]/g, ''))].join('')) : new RegExp(src);
 }
 
 /** Pure: nodes matching text, exact before substring (tier ① locate). */

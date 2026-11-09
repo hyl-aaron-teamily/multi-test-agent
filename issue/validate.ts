@@ -1,8 +1,9 @@
 // Rule validation of a TestPlan against the SKILL vocabulary and platform limits (milestone 5 §A.5), and the
 // W3-1 rules for model-authored plans (validateAuthored: R1 R2 R4 R5 R6 R10 R12 of plan-authoring/SKILL.md §4).
-import { APP_SURFACES, type CheckPoint, HARD_LIMITS, MAX_IDLE_MS, type PlannedAction, type TestPlan, TestPlanZ } from '../platform/schema/test-plan';
+import { APP_SURFACES, type CheckPoint, EXPECT_KINDS, HARD_LIMITS, MAX_IDLE_MS, type PlannedAction, type TestPlan, TestPlanZ } from '../platform/schema/test-plan';
 import { constructionAllowed, loadConversations } from '../platform/conversations';
 import { POSTING_NODES } from './catalog';
+import { toRegExp } from '../core/ui-tree';
 import { classifyPlan } from '../platform/approval';
 import { observationOf, OBSERVATIONS } from '../engine/observe';
 import { NODE_SPECS } from '../skills/teamily/node-specs';
@@ -83,6 +84,13 @@ export function validatePlan(raw: unknown): Validation {
     const o = OBSERVATIONS[observationOf(c)];
     if (o && !o.usable.includes(plan.surface)) errors.push(`check ${c.kind}: observation ${observationOf(c)} has no channel on ${plan.surface}`);
     if (c.kind === 'text' && !c.match) errors.push('check text: needs match');
+    if (c.match && 'regex' in c.match) {
+      try {
+        toRegExp(c.match.regex);
+      } catch (e) {
+        errors.push(`check text: regex /${c.match.regex}/ is not a valid JavaScript regex (${(e as Error).message.split('\n')[0]})`);
+      }
+    }
   }
   if (plan.contract) {
     const o = OBSERVATIONS[plan.contract.observable.observation];
@@ -157,6 +165,10 @@ export function validateAuthored(plan: TestPlan, issueText: string, o: { allow?:
       if (!named.length || !named.every((n) => constructionAllowed(n, allow))) errors.push(`R10 ${where}: ${x.node?.name} posts a message — the conversation target must be named (titled "<name>") and on the allow list`);
     }
   }
+  // A baseline is a state read before the round (① only, like expect): event channels (crash …) cannot be read.
+  plan.baseline.forEach((k, i) => {
+    if (!(EXPECT_KINDS as readonly string[]).includes(k.kind)) errors.push(`R5 baseline[${i}]: kind ${k.kind} is not a ① state read (${EXPECT_KINDS.join(' / ')})`);
+  });
   // R10 as the approval policy sees it (same function): a plan the policy refuses outright is not deliverable.
   for (const r of classifyPlan(plan, { allow }).category === 'refused' ? classifyPlan(plan, { allow }).reasons : []) errors.push(`R10 policy: ${r}`);
   // R12

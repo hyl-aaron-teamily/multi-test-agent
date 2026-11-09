@@ -12,7 +12,8 @@ export interface NodeSpecFull {
   /** English one-liner (`autotest nodes`). */
   description: string;
   /** 'any': coordinates only (loop-safe). 'prepare-only': may locate (hierarchy / vision) — never in the loop.
-   *  'lifecycle': a session step allowed anywhere (W3-1, user 2026-11-09: App logout + pool-account re-login);
+   *  'lifecycle': a session / navigation step allowed anywhere (W3-1, user 2026-11-09: App logout + pool-account
+   *  re-login, the settings page);
    *  it reads literal texts on the accessibility tree (①, never vision) and is not an action interval. */
   phase: 'any' | 'prepare-only' | 'lifecycle';
   /** Expected visible effect, verified in the warm-up round (observation id + args); none = not verified. */
@@ -36,6 +37,7 @@ export const NODE_SPECS: NodeSpecFull[] = [
   { name: 'teamily.tapRewrite', schema: z.object({ timeoutMs: z.number().int().min(1000).max(10_000).optional() }), input: { timeoutMs: 'max wait for the rewrite (default 10000)' }, doc: '收起键盘 → 点 AI 改写（chat.rewrite）→ 用像素变化等改写完成（≤10 s，超时 = 偏离）；弹出已标定的确认框 = 「有确认」，点取消后返回（草稿不变，不算命中）', description: 'Hide keyboard, tap AI rewrite, wait (pixels) until the screen settled (≤ 10 s)', phase: 'any', zh: '收起键盘，点 AI 改写按钮，等改写结束（≤ 10 秒）；先弹确认框则记「有确认」并点取消', serverDependent: '改写结果由服务端 AI 生成：是否替换原草稿、替换率随服务端变化' },
   { name: 'teamily.tapSend', schema: z.object({}), input: {}, doc: '发送输入框里已有的内容（App：收起键盘 → 点发送）', description: 'Send what is in the composer', phase: 'any', zh: '点发送，把输入框里的内容发出去（会真的发出一条消息）' },
   { name: 'teamily.relogin', schema: z.object({ as: z.enum(['self', 'other']).optional() }), input: { as: "'self'（默认：本次租用的测试账号）| 'other'（账号池里的另一个测试账号，即允许清单群里可 @ 的成员）" }, doc: '（仅 android-app）退出登录，再用账号池里的测试账号登录，回到首页会话列表。as=other 切到另一个测试账号（用一台手机交替登录完成多账号 / 多端的 Issue：例如对方发消息、对方 @ 我），as=self 切回；运行结束时执行器一定切回本次租用的账号。路径：我 → 设置 → 退出登录 → 确认 → 邮箱 → 继续 → 密码 → 继续。用于核对「重新登录后结果还在不在」；只按无障碍树上的字面文字定位，不用视觉猜；之后要重新进入会话（setup 不会自动重跑）', description: 'App only: log out, log back in with the leased pool account, end on the home list', phase: 'lifecycle', effect: { observation: 'region', page: 'home', region: 'nav' }, zh: '退出登录，再用账号池里的测试账号「{as}」重新登录（回到首页）' },
+  { name: 'teamily.openSettings', schema: z.object({}), input: {}, doc: '（仅 android-app）从首页打开「全部设置」页：我的（左上头像）→ ☰ 打开设置 → 全部设置。该页分组（App 2.1.5）：账户 / 创作者与奖励 / 套餐、账单和使用情况 / AI / 语言 / Teamily Agent 渠道 / 偏好与安全（显示链接预览、任务完成提醒、长消息折叠、外观、隐私设置、安全）/ 支持与法律 / 关于；需要看下面的分组用 scroll（down）。只按无障碍树上的字面文字定位', description: 'App only: open 全部设置 (avatar → ☰ → 全部设置)', phase: 'lifecycle', zh: '打开「全部设置」页（我的 → 打开设置 → 全部设置）' },
   { name: 'teamily.freezeMention', schema: z.object({ member: z.string().min(1), as: z.string().min(1) }), input: { member: 'member display name in the @ picker', as: 'target id to freeze the row as' }, doc: '键入 @ → 按文字（① 无障碍）定位选择器里的成员行 → 冻结为目标 → 关闭选择器并清空（只在 prepare 用）', description: 'Open the @ picker, locate a member row by text, freeze it as a target — prepare only', phase: 'prepare-only', zh: '键入 @，在成员选择器里按文字找到「{member}」这一行并记下位置，然后关闭选择器、清空输入框' },
 ];
 

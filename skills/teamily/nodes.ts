@@ -282,6 +282,33 @@ const relogin: Exec<{ as?: 'self' | 'other' }> = async ({ input, context: c }) =
   throw new RoundDrift('teamily.relogin: home list not reached after signing in');
 };
 
+/** App: open 全部设置 from the home list (avatar 我的 → ☰ 打开设置 → 全部设置), by literal texts on the tree. */
+const openSettings: Exec<Record<string, never>> = async ({ context: c }) => {
+  if (c.driver.surface !== 'android-app') throw new Error('teamily.openSettings: android-app only');
+  const click = async (texts: string[], what: string, tries = 3) => {
+    for (let i = 0; i < tries; i++) {
+      const n = ((await c.findAll?.(texts)) ?? []).find((x) => x.clickable);
+      if (n) return c.driver.tap(n.point);
+      await sleep(1200);
+    }
+    throw new RoundDrift(`teamily.openSettings: ${what} not on screen`);
+  };
+  // Right after a cold start the first tap on the avatar may be dropped: tap again until the profile's ☰ shows.
+  for (let i = 0; i < 3 && !((await c.findAll?.(['打开设置'])) ?? []).length; i++) {
+    await click(['我的', '我', 'Me'], 'the avatar / 我的 entry');
+    await sleep(2500);
+  }
+  // The profile page renders slowly after a cold start: look longer for its ☰.
+  await click(['打开设置', 'Open settings'], 'the ☰ settings entry', 6);
+  await sleep(1500);
+  await click(['全部设置', 'All settings'], 'the 全部设置 item');
+  for (let i = 0; i < 6; i++) {
+    await sleep(1000);
+    if (((await c.findAll?.(['账户', 'Account', '偏好与安全'])) ?? []).length) return { summary: 'opened 全部设置' };
+  }
+  throw new RoundDrift('teamily.openSettings: the 全部设置 page did not open');
+};
+
 const typeMention: Exec<Record<string, never>> = async ({ context: c }) => {
   await tapEl(c, 'chat.composer');
   await c.driver.type('@');
@@ -470,6 +497,7 @@ const openPage: Exec<{ page: 'profile' | 'artifacts' | 'chat' }> = async ({ inpu
 const EXEC: Record<NodeName, Exec<any>> = {
   'teamily.login': login,
   'teamily.relogin': relogin,
+  'teamily.openSettings': openSettings,
   'teamily.openConversation': openConversation,
   'teamily.sendMessage': sendMessage,
   'teamily.typeMention': typeMention,

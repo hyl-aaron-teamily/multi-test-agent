@@ -444,3 +444,25 @@ describe('multi-client Issues on one phone (user 2026-11-09: alternating logins,
     expect(userPrompt(CX)).toMatch(/teamily\.relogin \{as: "other"\}/);
   });
 });
+
+describe('regex in text checks (2730 run)', () => {
+  it('"(?i)" becomes the i flag; an invalid pattern is a validator error', async () => {
+    const { toRegExp } = await import('../core/ui-tree');
+    expect(toRegExp('(?i)(账户|account)').test('Account')).toBe(true);
+    const p = mainPlan();
+    p.baseline = [{ kind: 'text', expect: 'x', want: 'absent', match: { regex: '(?<=a' } }];
+    expect(validatePlan(p).errors.join()).toMatch(/not a valid JavaScript regex/);
+  });
+});
+
+describe('dropped launch steps keep the trace aligned (2729 run)', () => {
+  it('setup[1] traced by the model is setup[0] after launch is dropped', () => {
+    const e = ENV();
+    const plan = e.subcases[0].plan as any;
+    plan.setup = [{ type: 'launch', delayAfterMs: 500 }, ...plan.setup];
+    e.subcases[0].trace = e.subcases[0].trace.map((t) => (t.at === 'setup[0]' ? { ...t, at: 'setup[1]' } : t));
+    const s = compile(e, CX)[0];
+    expect(s.errors).toEqual([]);
+    expect(s.plan!.setup[0].node?.name).toBe('teamily.openConversation');
+  });
+});
