@@ -125,6 +125,23 @@ export function hamming(a: string, b: string): number {
 }
 
 /** Encode RGBA as PNG (filter 0, default deflate). */
+/** Pure: nearest-neighbour downscale to at most `maxW` pixels wide (aspect kept); smaller images are returned as is. */
+export function downscale(img: Rgba, maxW: number): Rgba {
+  if (img.width <= maxW) return img;
+  const f = maxW / img.width;
+  const w = maxW;
+  const h = Math.max(1, Math.round(img.height * f));
+  const data = new Uint8Array(w * h * 4);
+  for (let y = 0; y < h; y++) {
+    const sy = Math.min(img.height - 1, Math.floor(y / f));
+    for (let x = 0; x < w; x++) {
+      const sx = Math.min(img.width - 1, Math.floor(x / f));
+      data.set(img.data.subarray((sy * img.width + sx) * 4, (sy * img.width + sx) * 4 + 4), (y * w + x) * 4);
+    }
+  }
+  return { width: w, height: h, data };
+}
+
 export function encodePng(img: Rgba): Buffer {
   const crcTable = new Int32Array(256).map((_, n) => {
     let c = n;

@@ -1,0 +1,248 @@
+{
+  "issue": {
+    "id": "2485",
+    "title": "Every photo sent from the mobile app is resampled and re-encoded as JPEG on the phone before upload, and only that compressed copy is uploaded: sourcePicture, b",
+    "severity": "High",
+    "frequency": "Always",
+    "platforms": [
+      "ios",
+      "android",
+      "web",
+      "desktop"
+    ],
+    "summary": "Every photo sent from the mobile app is resampled and re-encoded as JPEG on the phone before upload, and only that compressed copy is uploaded: sourcePicture, bigPicture and snapshotPicture all point to the same compressed object, so neither the receiver, the full-screen viewer nor a download can ever get the original. On iOS production the long edge is capped at 1280 px (~270–370 KB per photo). Web and desktop upload the original file unchanged. Reported by XIN via Shawn on 2026-10-22: a restaurant group photo sent from Teamily became blurry and shrank from several MB to a few hundred KB; they ask that the original be kept, or that sending offers a WeChat-like 'Original' (保留原图) option.",
+    "steps": [
+      "On the iOS app (production), open any chat and tap the photo-album entry.",
+      "Pick a 12 MP camera photo (3–5 MB) and send it (single image or image + text — both paths behave the same).",
+      "Open the sent image full screen or download it on another device, and compare its resolution/size with the original; or inspect the message's sourcePicture fields."
+    ],
+    "expected": "The photo keeps its original resolution and quality (at least when the user chooses so): the send flow offers an 'Original' toggle like WeChat that uploads the untouched file, and the viewer/download serves that original.",
+    "actual": "The uploaded file is a re-encoded JPEG with the long edge at 1280 px (~270–370 KB); sourcePicture = bigPicture = that compressed copy and the original never leaves the phone. Zooming in shows obvious blur. There is no 'Original' option on any platform.",
+    "featureArea": "IM image message sending / mobile media upload",
+    "context": "- **Feature area**: IM image message sending / mobile media upload\r\n- Prod evidence 1 — XIN's restaurant photo, group 'Teamily AI Global Travel Life', 2026-10-22 20:02 (Beijing), senderPlatformID=1 (iOS), contentType 102: sourcePicture = bigPicture = 1280×960, 368,308 B, image/jpeg.\r\n- Prod evidence 2 — same sender, 2026-10-23 12:04, iOS, 4 album photos (IMG_0225/0227/0230/0232.jpg): 960×1280 / 1280×1192, 270–355 KB each; sourcePicture = bigPicture.\r\n- Prod sample across 27 conversations, 2026-10-22–23: 25 images sent from iOS are all ≤ 0.52 MB and 22 of them have a long edge ≤ 1280 px; 135 images sent from Web keep their size — 106 have a long edge > 1280 px, up to 3456 px / 3.18 MB.\r\n- Code (chat-web origin/tm-main @2d74f72): apps/mobile/lib/api/bunny-edge/uploadFileUsingBunnyEdge.ts:132/139/157-217 compressImagePayloadForUpload → react-native-compressor 2.0.3 compress({compressionMethod:'auto', output:'jpg', maxWidth/maxHeight:2560, quality:0.9}). Every send path goes through it: attachment-send.ts:142 → sendImageMessage (:313 compress → :331 createImageMessageFromFullPath), and media-text-builder.ts:249-278 normalizeImageAttachmentForUpload. :342-356 sets sourcePicture/bigPicture/snapshotPicture to the same compressed file; the SDK uploads only sourcePath.\r\n- Why iOS is at 1280 px instead of the intended 2560 (suspected, please confirm): react-native-compressor ios/Image/ImageCompressorOptions.swift:31-38 reads options with (value as? Int) ?? 1280 and (value as? Float) ?? 0.8. Options arrive from the Nitro AnyMap as Swift Double, so both casts fail and the library defaults 1280 / 0.8 are used. This would mean fe53db964b (2026-08-22, 'stop resampling uploads down to the compressor's 1280px default') never took effect on iOS. Prod data matches 1280 / ~0.8 exactly.\r\n- Android, by code: the compressor's auto mode (android ImageCompressor.kt:196-279) decodes a 12 MP photo with inSampleSize=2 (~2016×1512) and then upsamples to 2560, so detail is lost and the image looks soft. Camera entry: chat-input.tsx:3178-3183 launchCameraAsync({quality:0.85}) adds a second JPEG pass. The album picker itself is lossless (quality:1, allowsEditing:false).\r\n- Web / desktop are not affected: apps/chat-to uploads the original bytes (heic-utils.ts only converts HEIC to a same-resolution JPEG 0.9). No 'original image' toggle exists in apps/mobile, apps/chat-to or packages. Current workaround: send the photo through the 'File' entry (DocumentPicker), which sends it as a file message without compression.\r\n- Related: #2255 (received images look blurry, no 'view original' in the viewer — receive side). For images sent from mobile, the viewer cannot show an original that was never uploaded; this issue is the upload side.\r\n\r\n---",
+    "environment": "- **Platform / OS / Browser**: iOS app (production, confirmed from message metadata); Android app by code (same upload path). Web / desktop not affected.",
+    "empty": false,
+    "images": []
+  },
+  "classification": {
+    "category": "bug-always",
+    "surfaces": [
+      "android-app",
+      "desktop-web"
+    ],
+    "reason": "Frequency: Always",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "Every photo sent from the mobile app is resampled and re-encoded as JPEG on the phone before upload, and only that compressed copy is uploaded: sourcePicture, bigPicture and snapshotPicture all point to the same compressed object, so neither the receiver, the full-screen viewer nor a download can ever get the original."
+      },
+      {
+        "id": "q2",
+        "text": "On iOS production the long edge is capped at 1280 px (~270–370 KB per photo)."
+      },
+      {
+        "id": "q3",
+        "text": "1. On the iOS app (production), open any chat and tap the photo-album entry."
+      },
+      {
+        "id": "q4",
+        "text": "2. Pick a 12 MP camera photo (3–5 MB) and send it (single image or image + text — both paths behave the same)."
+      },
+      {
+        "id": "q5",
+        "text": "3. Open the sent image full screen or download it on another device, and compare its resolution/size with the original; or inspect the message's sourcePicture fields."
+      },
+      {
+        "id": "q6",
+        "text": "The photo keeps its original resolution and quality (at least when the user chooses so): the send flow offers an 'Original' toggle like WeChat that uploads the untouched file, and the viewer/download serves that original."
+      },
+      {
+        "id": "q7",
+        "text": "There is no 'Original' option on any platform."
+      },
+      {
+        "id": "q8",
+        "text": "Web and desktop upload the original file unchanged."
+      },
+      {
+        "id": "q9",
+        "text": "Current workaround: send the photo through the 'File' entry (DocumentPicker), which sends it as a file message without compression."
+      },
+      {
+        "id": "q10",
+        "text": "Android app by code (same upload path)."
+      }
+    ],
+    "understanding": {
+      "subject": "手机 App（本次在 android-app 上执行）从相册选出并发送的那张 12 MP 相机照片（发出的图片消息，contentType 102）",
+      "trigger": "在会话里点相册入口，选一张 12 MP（3–5 MB）的照片发送出去（单图或图文混发）",
+      "phenomenon": "照片在上传前被本机重采样并重编码成 JPEG，只上传这份压缩副本：sourcePicture = bigPicture = snapshotPicture，原图从未离开手机，接收方/全屏查看/下载都拿不到原图；iOS 生产上长边被压到 1280 px、每张 270–370 KB，所有端都没有「原图」开关",
+      "expected": "照片保留原始分辨率与画质（至少用户选择时）：发送流程提供「原图」开关并上传未处理的原文件，查看和下载拿到的也是原图",
+      "frequency": "always",
+      "control": "Web/桌面端上传原始文件、不受影响（q8）；临时绕过是改用「文件」入口发送，作为文件消息不压缩（q9）",
+      "basis": [
+        "q1",
+        "q2",
+        "q3",
+        "q4",
+        "q5",
+        "q6",
+        "q7",
+        "q8",
+        "q9",
+        "q10"
+      ]
+    },
+    "feasibility": {
+      "status": "needs-block",
+      "missing": [
+        {
+          "kind": "node",
+          "need": "一个「从相册/相机选图并发送图片消息」的 Node（打开聊天页的图片入口 → 在系统相册里选中指定照片 → 发出图片消息，可带或不带文字）。现有 Node 里只有 teamily.sendMessage，且它只支持 'plain' 和 'markdown-link' 两种纯文本形态，完全没有附图能力；没有这个 Node，Issue 的触发动作（q3、q4）根本无法执行，也不能用发一条文本消息顶替。",
+          "basis": [
+            "q3",
+            "q4"
+          ]
+        },
+        {
+          "kind": "observation",
+          "need": "读取已发出图片消息的服务端对象元数据（sourcePicture / bigPicture / snapshotPicture 的像素尺寸与字节数，或把该对象下载下来与本地原图做字节/分辨率比对）的观察。现有的 text / visual-region / element / crash 等观察只能读无障碍文本和区域存在性，读不到图片对象的分辨率与文件大小；而 Issue 的核心现象正是「上传的是压缩副本、长边 1280 px、270–370 KB」（q1、q2、q5），用屏幕文字或区域都判不出来。",
+          "basis": [
+            "q1",
+            "q2",
+            "q5"
+          ]
+        },
+        {
+          "kind": "element",
+          "need": "图片发送流程里「原图（Original）」开关的元素 id，用来断言它应该存在。目录里没有任何图片发送界面/相册选择界面/原图开关的固定元素；「没有原图开关」本身是缺陷的一部分（q7），但缺少元素就无法用 element/region 观察把它写成可判定的检查。",
+          "basis": [
+            "q6",
+            "q7"
+          ]
+        },
+        {
+          "kind": "precondition",
+          "need": "能把一张已知规格的原图放进测试设备相册（12 MP、3–5 MB、已知原始像素与字节数），并在测试机上记录这份原图作为比对基准。没有它就无法界定「原图」是什么，也就无法判断上传对象是否被压缩（q4、q5）。",
+          "basis": [
+            "q4",
+            "q5"
+          ]
+        }
+      ]
+    },
+    "subcases": [
+      {
+        "sub": "main",
+        "oracle": {
+          "at": "actions[0]",
+          "hit": "从相册发出照片后，该图片消息上传的对象不是所选原图：sourcePicture 与 bigPicture 相同且像素长边/字节数明显小于相册里的原图（iOS 生产表现为长边 1280 px、270–370 KB），或者发送界面上找不到任何「原图」开关。",
+          "normal": "上传对象与相册原图的分辨率和字节数一致（或在「原图」开关打开后一致），发送界面存在「原图」开关。",
+          "canFail": "因为上传端只有一份压缩对象：只要发出的是相册照片，读出来的 sourcePicture 尺寸/字节数就必然小于原图，检查一定失败；如果产品修好了，读到的对象与原图一致，检查通过。",
+          "baseline": "触发前：会话已打开、输入框为空、设备相册里存在那张已记录规格的原图；用打开会话这一前置动作的 expect(precondition) 确认输入框出现，用 prepareCheck 无法覆盖相册内容，故此项目前只能靠执行器侧人工确认（见 risks）。"
+        },
+        "plan": {
+          "title": "安卓 App 从相册发图：上传的是压缩副本还是原图（有无「原图」开关）",
+          "targets": [
+            {
+              "id": "chat",
+              "kind": "conversation",
+              "guidance": "titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"",
+              "must": {
+                "sender": "any",
+                "content": "any"
+              }
+            },
+            {
+              "id": "photo",
+              "kind": "message",
+              "guidance": "本次从相册选出并发送的那条图片消息（本账号发出，气泡在右），取最下面一条本账号发出的图片消息",
+              "afterPrepare": true,
+              "must": {
+                "sender": "self",
+                "content": "image"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "chat"
+                }
+              },
+              "delayAfterMs": 900
+            }
+          ],
+          "prepare": [],
+          "baseline": [],
+          "actions": [],
+          "checks": [],
+          "afterCheck": []
+        },
+        "trace": [
+          {
+            "at": "targets.chat",
+            "basis": [
+              "q3",
+              "executor:进入允许清单里的会话，作为发图场景"
+            ]
+          },
+          {
+            "at": "targets.photo",
+            "basis": [
+              "q4"
+            ]
+          },
+          {
+            "at": "setup[0]",
+            "basis": [
+              "q3",
+              "executor:进入会话"
+            ]
+          }
+        ]
+      }
+    ],
+    "revision": null,
+    "selfCheck": {
+      "R1": "ok：只用了目录里的目标类型 conversation / message 和 Node teamily.openConversation；没有坐标、没有代码。",
+      "R2": "未达成：Issue 的对象是「相册里选出的那张原图所对应的图片消息」，目录里没有任何能产生图片消息的积木，因此无法选中对象、也无法核对 target.must.content=image；已按 R8 记入 missing（node）。",
+      "R3": "未达成：触发是「点相册入口 → 选 12 MP 照片 → 发送」（q3、q4），目录里没有该动作；按规则不允许用 teamily.sendMessage 发一条文本消息顶替。",
+      "R4": "无法落位：现象发生在「发送」这一步之后、并且是在上传对象上（q1、q5），现有 ① 观察读不到上传对象的尺寸/字节数，所以 phenomenon expect 无处可放；计划里 actions 为空，没有用轮末检查糊弄。",
+      "R5": "不可评：没有可写的检查。若强行用 text 检查屏幕文字，菜单/气泡文字与压缩无关，正常与有毛病时读数相同，无区分度，故不写。",
+      "R6": "不可评：本版本没有任何会改变状态的轮内动作，无复位对象。",
+      "R7": "未满足：Issue 的对照是 Web/桌面端上传原文件（q8），本次执行端固定为 android-app，跨端对照无法执行；Android 上的替代对照（「文件」入口不压缩，q9）也没有对应的 DocumentPicker 积木。",
+      "R8": "已按规则明说：feasibility.status = needs-block，missing 列出 4 项（发图 Node、上传对象元数据观察、原图开关元素、相册原图前置），每项都引用了片段编号，未用近似积木顶替。",
+      "R9": "执行端为 android-app，而 Issue 的主证据是 iOS 生产（q2），Android 只是「按代码同一路径」（q10）。即便将来补齐积木能复现，Android 上的具体形态可能不同：压缩库 auto 模式的 inSampleSize 解码再放大到 2560、拍照入口多一次 JPEG 0.85（图文里写明），命中的像素上限可能是 2560 而不是 iOS 的 1280 回落值，「糊」的表现也不同；「原图」开关在所有端都不存在这一点两端应当一致。",
+      "R10": "ok：未使用任何 Node 之外的动作，循环里不发消息、不做社交动作，未触碰允许清单以外的会话。",
+      "R11": "ok：标题用本 Issue 的对象与现象命名（App 从相册发图 / 上传的是压缩副本还是原图 / 有无原图开关）。",
+      "R12": "ok：quotes 全部逐字摘自原文（q1–q10），targets、setup 与 oracle 都引用了片段编号或注明 executor 理由。"
+    },
+    "risks": [
+      "本版本判为 needs-block，actions 为空，不能进预热与循环；需要先补「相册选图并发送」的 Node 才能出可执行版本。",
+      "缺少读取图片消息元数据（sourcePicture/bigPicture 尺寸与字节数，或下载对象做比对）的观察，Issue 的核心量化现象目前无法判定。",
+      "设备相册里是否装有已知规格的 12 MP / 3–5 MB 原图，执行器侧需人工保证；没有它就无法界定「原图」。",
+      "「原图」开关不存在这一点本身是缺陷的一部分：需要先在发送界面上标定出该开关的元素（若产品已加上），否则无法用 element 观察断言其存在与否。",
+      "以 android-app 替代 iOS：命中的像素上限与压缩形态可能与 Issue 里 iOS 的 1280 px / 270–370 KB 证据不同，报告时不能直接把 iOS 数值套到 Android 结果上。",
+      "Issue 提到的对照（Web/桌面端上传原文件、文件入口不压缩）在本执行端都无法执行，缺少跨端与原文件路径的对照证据。"
+    ]
+  },
+  "planVersion": 1,
+  "modelCalls": 1,
+  "status": "needs-block",
+  "reason": "缺积木：node「一个「从相册/相机选图并发送图片消息」的 Node（打开聊天页的图片入口 → 在系统相册里选中指定照片 → 发出图片消息，可带或不带文字）。现有 Node 里只有 teamily.sendMessage，且它只支持 'plain' 和 'markdown-link' 两种纯文本形态，完全没有附图能力；没有这个 Node，Issue 的触发动作（q3、q4）根本无法执行，也不能用发一条文本消息顶替。」；observation「读取已发出图片消息的服务端对象元数据（sourcePicture / bigPicture / snapshotPicture 的像素尺寸与字节数，或把该对象下载下来与本地原图做字节/分辨率比对）的观察。现有的 text / visual-region / element / crash 等观察只能读无障碍文本和区域存在性，读不到图片对象的分辨率与文件大小；而 Issue 的核心现象正是「上传的是压缩副本、长边 1280 px、270–370 KB」（q1、q2、q5），用屏幕文字或区域都判不出来。」；element「图片发送流程里「原图（Original）」开关的元素 id，用来断言它应该存在。目录里没有任何图片发送界面/相册选择界面/原图开关的固定元素；「没有原图开关」本身是缺陷的一部分（q7），但缺少元素就无法用 element/region 观察把它写成可判定的检查。」；precondition「能把一张已知规格的原图放进测试设备相册（12 MP、3–5 MB、已知原始像素与字节数），并在测试机上记录这份原图作为比对基准。没有它就无法界定「原图」是什么，也就无法判断上传对象是否被压缩（q4、q5）。」",
+  "subcases": [],
+  "designMs": 42171,
+  "issueFile": "D:\\projects\\Tools\\multi-test-agent\\issues\\2485.md",
+  "hash": "69855b5f8dcf6262",
+  "issueHash": "4fb3d226b9a1e6e1",
+  "env": "prod",
+  "version": 1
+}

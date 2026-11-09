@@ -1,0 +1,2028 @@
+{
+  "issue": {
+    "id": "2669",
+    "title": "The chat composer's draft feature stops working once the draft is long: after pasting a large block of text and switching to another conversation and back, the ",
+    "severity": "High",
+    "frequency": "Always",
+    "platforms": [],
+    "summary": "The chat composer's draft feature stops working once the draft is long: after pasting a large block of text and switching to another conversation and back, the draft is gone. Short drafts survive the same round-trip, so the failure is length-dependent rather than a blanket 'drafts unsupported' defect. Data-loss class from the user's point of view — the user loses an already-composed long message purely by navigating between conversations.",
+    "steps": [
+      "Open a conversation and click into the message input box.",
+      "Paste a long block of text as a draft (do NOT send) — use the reproduction text in the body.",
+      "Without sending, switch to a different conversation.",
+      "Switch back to the original conversation.",
+      "Observe whether the draft is still in the input box. Control: repeat with a short draft, which is expected to survive."
+    ],
+    "expected": "A draft must be preserved and correctly restored regardless of its length. Switching conversations is navigation, not a discard action. If a hard storage limit exists, surface it explicitly instead of silently dropping the content.",
+    "actual": "When the draft content is large, switching to another conversation and back loses the draft. Short drafts are unaffected, so the behaviour is length-dependent.",
+    "featureArea": "IM / Chat composer / Draft persistence",
+    "context": "- **Feature area**: IM / Chat composer / Draft persistence\r\n\r\n---",
+    "environment": "- **Platform / OS / Browser**: Not specified — please confirm (Web / Desktop / Mobile)",
+    "empty": false,
+    "images": []
+  },
+  "classification": {
+    "category": "bug-always",
+    "surfaces": [],
+    "reason": "Frequency: Always",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "The chat composer's draft feature stops working once the draft is long: after pasting a large block of text and switching to another conversation and back, the draft is gone."
+      },
+      {
+        "id": "q2",
+        "text": "Short drafts survive the same round-trip, so the failure is length-dependent"
+      },
+      {
+        "id": "q3",
+        "text": "Open a conversation and click into the message input box."
+      },
+      {
+        "id": "q4",
+        "text": "3. Without sending, switch to a different conversation."
+      },
+      {
+        "id": "q5",
+        "text": "4. Switch back to the original conversation."
+      },
+      {
+        "id": "q6",
+        "text": "5. Observe whether the draft is still in the input box."
+      },
+      {
+        "id": "q7",
+        "text": "A draft must be preserved and correctly restored regardless of its length."
+      },
+      {
+        "id": "q8",
+        "text": "Use the reproduction text in the code block below"
+      },
+      {
+        "id": "q9",
+        "text": "Always (for drafts above the failing length; the exact threshold is not yet measured)"
+      },
+      {
+        "id": "q10",
+        "text": "that case is expected to survive, which is what makes this length-dependent"
+      },
+      {
+        "id": "q11",
+        "text": "When the draft content is large, switching to another conversation and back loses the draft — the input box no longer holds the text."
+      }
+    ],
+    "understanding": {
+      "subject": "原会话（会话 A）消息输入框 chat.composer 里的一段未发送长草稿",
+      "trigger": "不发送，切到另一个会话，再切回原会话",
+      "phenomenon": "切回后输入框不再有该长文本，草稿丢失（静默、无提示）",
+      "expected": "草稿按会话保留，切回后原样恢复；若确有存储上限应显式提示而不是丢弃",
+      "frequency": "always",
+      "control": "同一流程用短草稿（几个字），预期能保留",
+      "basis": [
+        "q1",
+        "q2",
+        "q7",
+        "q9",
+        "q10",
+        "q11"
+      ]
+    },
+    "feasibility": {
+      "status": "plannable",
+      "missing": []
+    },
+    "subcases": [
+      {
+        "sub": "main",
+        "oracle": {
+          "at": "actions[4]",
+          "hit": "切到另一个会话再切回会话 A 之后，会话 A 的输入框里读不到本次运行标记 {token}（长草稿开头就是 {token}，读不到即草稿丢失）",
+          "normal": "切回后输入框仍包含 {token}，草稿被完整恢复，检查通过（预热第 2 步已证明这里在正常时会通过）",
+          "canFail": "{token} 位于长草稿最开头，界面自身不会产生它；草稿被整段丢弃（输入框空）时读不到 {token}，检查必然失败。切回动作由 openConversation 完成，该 Node 会等到输入框出现再返回，读不到不会只是因为页面没渲染出来",
+          "baseline": "每轮触发前：会话 A 的聊天页已打开（chat.composer 存在）、输入框不含 {token}、整屏含标题锚点 黄悦龙Aaron；三项分别对应 baseline[0]/[1]/[2]，任一不成立即本轮的偏离，不计有效尝试"
+        },
+        "plan": {
+          "title": "长草稿切到别的会话再切回：输入框是否仍保留草稿",
+          "targets": [
+            {
+              "id": "convA",
+              "kind": "conversation",
+              "guidance": "会话列表里标题为 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" 的会话（允许清单内的会话）",
+              "afterPrepare": false,
+              "must": {
+                "sender": "any",
+                "content": "any",
+                "contains": "aaron+test2"
+              }
+            },
+            {
+              "id": "convB",
+              "kind": "other-conversation",
+              "guidance": "会话列表里除 convA 之外的任意另一个会话（优先取列表中最靠前、标题明显不同于 convA 的会话，只用于切换，不发送任何内容）",
+              "afterPrepare": false,
+              "must": {
+                "sender": "any",
+                "content": "any"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "convA"
+                }
+              },
+              "delayAfterMs": 800,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "region": "element:chat.composer",
+                  "want": "present",
+                  "expect": "会话 A 的输入框已出现"
+                }
+              }
+            }
+          ],
+          "prepare": [],
+          "baseline": [
+            {
+              "kind": "visual-region",
+              "region": "element:chat.composer",
+              "want": "present",
+              "expect": "会话 A 的聊天页已打开（输入框存在）"
+            },
+            {
+              "kind": "text",
+              "scope": "composer",
+              "match": {
+                "contains": "{token}"
+              },
+              "want": "absent",
+              "expect": "触发前输入框为空，没有上一轮残留的草稿"
+            },
+            {
+              "kind": "text",
+              "scope": "screen",
+              "match": {
+                "contains": "黄悦龙Aaron"
+              },
+              "want": "present",
+              "expect": "当前停在会话 A（标题含 黄悦龙Aaron），不是别的会话"
+            }
+          ],
+          "actions": [
+            {
+              "type": "type",
+              "element": "chat.composer",
+              "value": "{token} 11:35 群里 Teamily Agent 发出兜底消息：原因是撤回消息触发了\"失败兜底\" 结论 Teamily Agent 并没有出错。 Noumena-lynn 撤回了那条 @BugBuddy 的消息，后端随即主动停止了对应的 run（message.revoked）。但群 Super Agent 的收尾逻辑把所有非 completed 的状态都当成失败处理，于是往群里发了一条随机挑选的兜底消息 \"Whoops—my circuits got tangled…\"。 被撤回的消息本来就不该再有回复，更不该回一句\"请重试\"。这是后端的 bug。 Trace - Run：9f76361a-df2e-49ed-b72f-fff109d27189，thread e9c48440-e998-4385-b1be-e310d1d27835，群 3894463492（Teamily用户反馈群）。角色是 gsa_brain，模型 tensoropera/deepseek-v4.1-flash。 - 时间线（UTC，北京时间加 8 小时）： 03:35:16.0 Noumena-lynn 回复 BugBuddy 的任务卡片：\"@BugBuddy 团队内容已反馈\"，run 启动 约 03:35:20 她撤回了这条消息，系统发出 STOP:message.revoked 03:35:20.67 run 状态变为 stopped，error 为 Stopped: message.revoked (via stop_request) 同一时刻 GSA 收尾逻辑往群里发了兜底文案（截图里 11:35 那条） 03:35:21.8 模型这一轮的输出（call_agent → BugBuddy）在停止后才写入数据库，但工具没有执行，BugBuddy 没有被调起 之后她重新发了一条\"@BugBuddy 客服团队评论内容已反馈用户…\"，BugBuddy 正常回复了，所以真正的业务流程没有受影响。受影响的只是群里多出一条莫名其妙的报错。 根因（AgentSwarm origin/main c49dca2e3） 在 backend/run_agent_background.py 的 handle_group_agent_responses 里： # Only send error message on failure - tools handle all success cases if (final_status not in [\"completed\", \"running\"] and not await _superseded_stop(stop_signal_checker_state)): await send_response_to_group(..., content=_sanitize_error(error_message)) - 只要状态是 stopped 就会发错误消息。唯一的豁免是 _superseded_stop，只覆盖\"run 被新实例接管\"（claim_lost 加 generation 前进）这一种情况，没有排除用户主动停止，也没有排除撤回。 - _sanitize_error（core/asn/message_handlers.py:46）只有在错误里带 credit 或 insufficient 时才会原样展示，其他情况一律从 ERROR_MESSAGE_OPTIONS 里随机挑一句\"请重试\"。所以 Stopped: message.revoked 最后变成了 \"Whoops…\"。 - 单聊 Brain（SCB）同一个函数里大约 973 行有相同的判断，单聊里撤回消息应该也会触发同样的兜底。这一点我是读代码推断的，还没有拉 trace 确认。 影响面（过去 24 小时，被撤回或手动停止的 run） run_role 原因 次数 是否走这段兜底逻辑 gsa_brain message.revoked 3 是，本次就是其中之一 scb_brain message.revoked 10 大概率是（同样的代码） delegated / lite / studio user.manual、message.revoked 600+ 走的是另一条路径，本次没有核实 数量不大，但每次都发生在用户主动撤回之后，体验很怪：看起来像是 agent 在回应一条已经不存在的消息，还让用户重试。",
+              "delayAfterMs": 1000,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "scope": "composer",
+                  "match": {
+                    "contains": "{token}"
+                  },
+                  "want": "present",
+                  "expect": "长草稿已进入输入框（未发送）"
+                }
+              }
+            },
+            {
+              "type": "tap",
+              "element": "chat.back",
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "region": "element:chat.composer",
+                  "want": "absent",
+                  "expect": "已从会话 A 的聊天页回到会话列表"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "convB"
+                }
+              },
+              "delayAfterMs": 1000,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "scope": "composer",
+                  "match": {
+                    "contains": "{token}"
+                  },
+                  "want": "absent",
+                  "expect": "已切到另一个会话，输入框里没有本次的草稿"
+                }
+              }
+            },
+            {
+              "type": "tap",
+              "element": "chat.back",
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "region": "element:chat.composer",
+                  "want": "absent",
+                  "expect": "又从另一个会话回到会话列表"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "convA"
+                }
+              },
+              "delayAfterMs": 1000,
+              "expect": {
+                "role": "phenomenon",
+                "check": {
+                  "kind": "text",
+                  "scope": "composer",
+                  "match": {
+                    "contains": "{token}"
+                  },
+                  "want": "present",
+                  "expect": "切回原会话后，长草稿仍在输入框里"
+                }
+              }
+            }
+          ],
+          "checks": [
+            {
+              "kind": "crash",
+              "want": "absent",
+              "expect": "整轮没有闪退 / ANR / 页面崩溃"
+            },
+            {
+              "kind": "visual-region",
+              "region": "element:chat.composer",
+              "want": "present",
+              "expect": "整轮结束时停在会话 A 的聊天页（输入框存在）"
+            }
+          ],
+          "afterCheck": [
+            {
+              "type": "tap",
+              "element": "chat.back",
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "region": "element:chat.composer",
+                  "want": "absent",
+                  "expect": "复位第 1 步：回到会话列表"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "convA"
+                }
+              },
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "region": "element:chat.composer",
+                  "want": "present",
+                  "expect": "复位第 2 步：确认重新进入会话 A 的聊天页"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.clearComposer"
+              },
+              "delayAfterMs": 600,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "scope": "composer",
+                  "match": {
+                    "contains": "{token}"
+                  },
+                  "want": "absent",
+                  "expect": "复位第 3 步：输入框已清空，下一轮从空输入框开始"
+                }
+              }
+            }
+          ]
+        },
+        "trace": [
+          {
+            "at": "targets.convA",
+            "basis": [
+              "q3",
+              "executor:允许清单指定的会话"
+            ]
+          },
+          {
+            "at": "targets.convB",
+            "basis": [
+              "q4"
+            ]
+          },
+          {
+            "at": "setup[0]",
+            "basis": [
+              "q3",
+              "executor:进入场景"
+            ]
+          },
+          {
+            "at": "baseline[0]",
+            "basis": [
+              "executor:确认在会话 A 的聊天页"
+            ]
+          },
+          {
+            "at": "baseline[1]",
+            "basis": [
+              "q7",
+              "executor:基线无残留草稿"
+            ]
+          },
+          {
+            "at": "baseline[2]",
+            "basis": [
+              "executor:确认复位停在会话 A，避免切到别的会话后误判命中"
+            ]
+          },
+          {
+            "at": "actions[0]",
+            "basis": [
+              "q3",
+              "q8",
+              "q1"
+            ]
+          },
+          {
+            "at": "actions[1]",
+            "basis": [
+              "q4"
+            ]
+          },
+          {
+            "at": "actions[2]",
+            "basis": [
+              "q4",
+              "q2"
+            ]
+          },
+          {
+            "at": "actions[3]",
+            "basis": [
+              "q5"
+            ]
+          },
+          {
+            "at": "actions[4]",
+            "basis": [
+              "q1",
+              "q5",
+              "q6"
+            ]
+          },
+          {
+            "at": "checks[0]",
+            "basis": [
+              "executor:排除崩溃导致的读数异常"
+            ]
+          },
+          {
+            "at": "checks[1]",
+            "basis": [
+              "q6"
+            ]
+          },
+          {
+            "at": "afterCheck[0]",
+            "basis": [
+              "executor:复位"
+            ]
+          },
+          {
+            "at": "afterCheck[1]",
+            "basis": [
+              "executor:复位"
+            ]
+          },
+          {
+            "at": "afterCheck[2]",
+            "basis": [
+              "executor:复位"
+            ]
+          }
+        ]
+      },
+      {
+        "sub": "control",
+        "oracle": {
+          "at": "actions[4]",
+          "hit": "对照组不应命中：若短草稿在同样的切换往返后也读不到 {token}，说明失败与长度无关或检查无区分度，该结果不计为 Issue 命中，需人工复核",
+          "normal": "切回后输入框仍包含 {token}，检查通过 —— 这正是 Issue 说的「短草稿能保留」（q2、q10），也证明检查在正常时会通过",
+          "canFail": "只有当短草稿同样被丢弃时才会失败；{token} 是本次运行标记，界面本身不会产生它",
+          "baseline": "与 main 相同：会话 A 已打开、输入框不含 {token}、整屏含标题锚点 黄悦龙Aaron"
+        },
+        "plan": {
+          "title": "对照：短草稿切到别的会话再切回是否保留",
+          "targets": [
+            {
+              "id": "convA",
+              "kind": "conversation",
+              "guidance": "会话列表里标题为 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" 的会话（允许清单内的会话）",
+              "afterPrepare": false,
+              "must": {
+                "sender": "any",
+                "content": "any",
+                "contains": "aaron+test2"
+              }
+            },
+            {
+              "id": "convB",
+              "kind": "other-conversation",
+              "guidance": "会话列表里除 convA 之外的任意另一个会话（与 main 取同一个会话，保证两组只有草稿长度不同；只用于切换，不发送任何内容）",
+              "afterPrepare": false,
+              "must": {
+                "sender": "any",
+                "content": "any"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "convA"
+                }
+              },
+              "delayAfterMs": 800,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "region": "element:chat.composer",
+                  "want": "present",
+                  "expect": "会话 A 的输入框已出现"
+                }
+              }
+            }
+          ],
+          "prepare": [],
+          "baseline": [
+            {
+              "kind": "visual-region",
+              "region": "element:chat.composer",
+              "want": "present",
+              "expect": "会话 A 的聊天页已打开（输入框存在）"
+            },
+            {
+              "kind": "text",
+              "scope": "composer",
+              "match": {
+                "contains": "{token}"
+              },
+              "want": "absent",
+              "expect": "触发前输入框为空，没有上一轮残留的草稿"
+            },
+            {
+              "kind": "text",
+              "scope": "screen",
+              "match": {
+                "contains": "黄悦龙Aaron"
+              },
+              "want": "present",
+              "expect": "当前停在会话 A（标题含 黄悦龙Aaron），不是别的会话"
+            }
+          ],
+          "actions": [
+            {
+              "type": "type",
+              "element": "chat.composer",
+              "value": "短草稿 {token} 测试用",
+              "delayAfterMs": 1000,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "scope": "composer",
+                  "match": {
+                    "contains": "{token}"
+                  },
+                  "want": "present",
+                  "expect": "短草稿已进入输入框（未发送）"
+                }
+              }
+            },
+            {
+              "type": "tap",
+              "element": "chat.back",
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "region": "element:chat.composer",
+                  "want": "absent",
+                  "expect": "已从会话 A 的聊天页回到会话列表"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "convB"
+                }
+              },
+              "delayAfterMs": 1000,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "scope": "composer",
+                  "match": {
+                    "contains": "{token}"
+                  },
+                  "want": "absent",
+                  "expect": "已切到另一个会话，输入框里没有本次的短草稿"
+                }
+              }
+            },
+            {
+              "type": "tap",
+              "element": "chat.back",
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "region": "element:chat.composer",
+                  "want": "absent",
+                  "expect": "又从另一个会话回到会话列表"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "convA"
+                }
+              },
+              "delayAfterMs": 1000,
+              "expect": {
+                "role": "phenomenon",
+                "check": {
+                  "kind": "text",
+                  "scope": "composer",
+                  "match": {
+                    "contains": "{token}"
+                  },
+                  "want": "present",
+                  "expect": "切回原会话后，短草稿仍在输入框里（对照应通过）"
+                }
+              }
+            }
+          ],
+          "checks": [
+            {
+              "kind": "crash",
+              "want": "absent",
+              "expect": "整轮没有闪退 / ANR / 页面崩溃"
+            },
+            {
+              "kind": "visual-region",
+              "region": "element:chat.composer",
+              "want": "present",
+              "expect": "整轮结束时停在会话 A 的聊天页（输入框存在）"
+            }
+          ],
+          "afterCheck": [
+            {
+              "type": "tap",
+              "element": "chat.back",
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "region": "element:chat.composer",
+                  "want": "absent",
+                  "expect": "复位第 1 步：回到会话列表"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "convA"
+                }
+              },
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "region": "element:chat.composer",
+                  "want": "present",
+                  "expect": "复位第 2 步：确认重新进入会话 A 的聊天页"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.clearComposer"
+              },
+              "delayAfterMs": 600,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "scope": "composer",
+                  "match": {
+                    "contains": "{token}"
+                  },
+                  "want": "absent",
+                  "expect": "复位第 3 步：输入框已清空，下一轮从空输入框开始"
+                }
+              }
+            }
+          ]
+        },
+        "trace": [
+          {
+            "at": "targets.convA",
+            "basis": [
+              "q3",
+              "q10"
+            ]
+          },
+          {
+            "at": "targets.convB",
+            "basis": [
+              "q4",
+              "q10"
+            ]
+          },
+          {
+            "at": "setup[0]",
+            "basis": [
+              "executor:进入场景"
+            ]
+          },
+          {
+            "at": "baseline[0]",
+            "basis": [
+              "executor:确认在会话 A 的聊天页"
+            ]
+          },
+          {
+            "at": "baseline[1]",
+            "basis": [
+              "executor:基线无残留草稿"
+            ]
+          },
+          {
+            "at": "baseline[2]",
+            "basis": [
+              "executor:确认复位停在会话 A"
+            ]
+          },
+          {
+            "at": "actions[0]",
+            "basis": [
+              "q2",
+              "q10"
+            ]
+          },
+          {
+            "at": "actions[1]",
+            "basis": [
+              "q4",
+              "q10"
+            ]
+          },
+          {
+            "at": "actions[2]",
+            "basis": [
+              "q4",
+              "q10"
+            ]
+          },
+          {
+            "at": "actions[3]",
+            "basis": [
+              "q5",
+              "q10"
+            ]
+          },
+          {
+            "at": "actions[4]",
+            "basis": [
+              "q4",
+              "q5",
+              "q10"
+            ]
+          },
+          {
+            "at": "checks[0]",
+            "basis": [
+              "executor:排除崩溃导致的读数异常"
+            ]
+          },
+          {
+            "at": "checks[1]",
+            "basis": [
+              "q6"
+            ]
+          },
+          {
+            "at": "afterCheck[0]",
+            "basis": [
+              "executor:复位"
+            ]
+          },
+          {
+            "at": "afterCheck[1]",
+            "basis": [
+              "executor:复位"
+            ]
+          },
+          {
+            "at": "afterCheck[2]",
+            "basis": [
+              "executor:复位"
+            ]
+          }
+        ]
+      }
+    ],
+    "revision": {
+      "from": "v2",
+      "evidence": [
+        "预热第 1 步：type 写入短草稿后 precondition 成立 —— composer has text containing \"rbe2099\" (accessibility)；说明 type 进 chat.composer 可用、composer 文本可读",
+        "预热第 2 步：switchConversation 后 phenomenon 成立 —— composer has text containing \"rbe2099\" — now \"短草稿 rbe2099 测试用\"；说明短草稿确实被保留，检查在正常时会通过",
+        "第 1 轮 actions[1]（phenomenon）：读不出：composer not readable — 未验证；switchConversation 一步完成「切走+切回」后立刻读 composer 读不到，说明该节点返回时聊天页/输入框还没就绪",
+        "第 2–11 轮 baseline[1] 连续 10 次不成立 —— composer has text containing \"rbe2099\" — now \"短草稿 rbe2099 测试用\"；上一轮的草稿一直留在输入框里没被清掉，每轮开局即偏离",
+        "11 轮 0 有效尝试、0 命中、偏离 11，偏离率 100% > 30%（触发未稳定生效），停止原因「操作偏离过多（>10 次）」"
+      ],
+      "diagnosis": "导航与复位都做成了「一步到位」的复合动作，缺少对所在页面的确认：(a) switchConversation 一步完成切走与切回，返回时聊天页尚未就绪，紧接着读 composer 读不到（evidence 3）；(b) afterCheck 直接 clearComposer，没有先确认已回到会话 A 的聊天页，上一轮的长文本草稿留在输入框里，从第 2 轮起 baseline 就不成立（evidence 4）。检查本身在正常时会通过（evidence 2），对象、触发语义、观察位置与区分度都没有暴露问题，需要改的是导航与复位的确定性。",
+      "changes": [
+        "把 switchConversation 一步拆成分步导航：chat.back（回会话列表）→ openConversation convB（进另一个会话）→ chat.back → openConversation convA（切回原会话）；现象 expect 挂在最后一步 openConversation convA 上（该 Node 自带「等待输入框出现」），对应 evidence 3",
+        "新增 actions[2] 的 precondition「进入另一个会话后输入框里没有本次 {token}」：既证明真的切换了会话，又能在出发点不是会话 A 时先暴露为偏离而不是误判命中，对应 evidence 3、5",
+        "afterCheck 改为三步且每步加 precondition expect：chat.back（回列表）→ openConversation convA（确认回到会话 A 聊天页）→ clearComposer（输入框无 {token}），对应 evidence 4",
+        "baseline 增加第三项「整屏含 黄悦龙Aaron」，确认复位停在会话 A 而不是漂到别的会话，对应 evidence 4",
+        "main 与 control 同步做以上四处修改；标题、target.must、现象语义（composer 里读不到 {token} = 命中）、crash 检查、复位后用空输入框开局的思路保持不变 —— 预热没有暴露它们的问题（对应 evidence 1、2）"
+      ]
+    },
+    "selfCheck": {
+      "R1": "ok：只用目录内的动作 type / tap / node、固定元素 chat.composer / chat.back、Node teamily.openConversation / teamily.clearComposer 与 text / visual-region / crash 观察；无坐标、无代码",
+      "R2": "ok：触发作用在会话 A（titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"）输入框里的未发送草稿，target.must.contains=aaron+test2 对应 q3，与 understanding.subject 一致；convB 是 other-conversation",
+      "R3": "ok：触发序列就是 q4+q5 的「切到另一个会话再切回」，由 actions[1..4] 的 chat.back / openConversation convB / chat.back / openConversation convA 逐步执行，没有用后续操作顶替",
+      "R4": "ok：现象发生在切回原会话之后，phenomenon expect 就挂在「切回会话 A」的 openConversation 上（actions[4]），oracle.at 指向它",
+      "R5": "ok：① 草稿丢失则 composer 读不到 {token} → 失败，正常则含 {token} → 通过（预热第 2 步已验证正常时通过）；② 范围取最窄的 composer，identity 才用 screen；③ 匹配内容是本次运行标记 {token}，界面自身不会产生；④ 草稿属留存状态，baseline[1] 明确检查输入框无 {token}",
+      "R6": "ok：afterCheck 三步复位（chat.back → openConversation convA → clearComposer）各带 precondition expect，把状态拉回「会话 A 聊天页 + 空输入框」",
+      "R7": "ok：control 子用例用短草稿走完全相同的流程（q2、q10），既是对照也证明检查在正常时会通过",
+      "R8": "ok：所需积木齐全，feasibility.status=plannable；目录里没有 paste 原语，改用 type 写入同长度文本，见 risks",
+      "R9": "ok：Issue 端为 unknown（Environment 未指定），在 android-app 上替代执行；Android 端草稿可能存本地 DB / SharedPreferences 而非 localStorage，失效长度阈值与失败形态（整段丢失 vs 被截断 vs 部分恢复）可能与 Web 不同；若该端短草稿也不保留，对照组会同样命中，需换端复核",
+      "R10": "ok：循环内只用 phase: any 的 Node；prepare 为空；全程不发任何消息、不做社交动作，只对允许清单会话内的输入框操作；delayAfterMs ≤ 1000",
+      "R11": "ok：标题「长草稿切到别的会话再切回：输入框是否仍保留草稿」用的就是本 Issue 的对象与现象",
+      "R12": "ok：targets / baseline / actions / checks / afterCheck 每一项都在 trace 里引用 q1–q10 或 executor:<理由>"
+    },
+    "risks": [
+      "长中文草稿靠 type 写入：v2 只验证过短草稿（预热第 1 步），长文本若走按键注入 / adb input text 可能输不进去或极慢，前置 expect 失败会记为偏离；v4 可改为分块输入或剪贴板粘贴。",
+      "分步导航比 v2 的 switchConversation 多 3 个动作，偏离点变多；若某个 precondition 频繁失败，按证据回退到 switchConversation 并加大等待。",
+      "openConversation 点击的是准备阶段冻结的会话坐标：若会话列表因新消息重排导致坐标漂移，可能进入别的会话；actions[2] 的「输入框没有 {token}」会把它暴露为偏离，baseline[2] 的标题锚点再兜一层。",
+      "无障碍对超长 EditText 可能只暴露部分文本：标记放在草稿开头可降低读不到的风险；若前置仍失败，v4 在开头和结尾各放一个标记。",
+      "若 App 输入框有 maxLength，长文本可能在输入阶段被截断，而前置（标记在开头）仍通过 —— 命中时会同时包含「被截断」这一形态，证据复核时需看截图区分「整段丢失」与「只恢复一部分」。",
+      "复位第 1 步的 chat.back 假设当前在聊天页；若某轮在会话列表就中断，这一步会多记一次偏离，但后两步仍能把状态拉回会话 A 并清空输入框。",
+      "若 clearComposer（全选 + 删除）在 Android 上不生效，baseline[1] 会连续偏离，届时改为重建会话页复位或发送后复位。",
+      "对照组命中（短草稿也丢）说明与长度无关或检查无区分度，不计为 Issue 命中，需人工复核。",
+      "Issue 端 unknown：若 Android 端属于「草稿整体不保留」，main 与 control 会同时命中，需换 Web / 桌面端复跑确认长度相关性。"
+    ]
+  },
+  "planVersion": 3,
+  "modelCalls": 1,
+  "status": "plannable",
+  "reason": "计划 v3：原会话（会话 A）消息输入框 chat.composer 里的一段未发送长草稿 — 切回后输入框不再有该长文本，草稿丢失（静默、无提示）",
+  "subcases": [
+    {
+      "sub": "main",
+      "title": "长草稿切到别的会话再切回：输入框是否仍保留草稿",
+      "surface": "android-app",
+      "substitution": {
+        "from": "unknown",
+        "to": "android-app",
+        "reason": "unknown 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 unknown 端。",
+        "alternatives": [
+          "android-app",
+          "mobile-web"
+        ]
+      },
+      "plan": {
+        "id": "2669-android-app-v3",
+        "issueRef": "2669",
+        "title": "长草稿切到别的会话再切回：输入框是否仍保留草稿",
+        "category": "bug-always",
+        "surface": "android-app",
+        "issueSurfaces": [],
+        "substitution": {
+          "from": "unknown",
+          "to": "android-app",
+          "reason": "unknown 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 unknown 端。"
+        },
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "convA",
+            "kind": "conversation",
+            "guidance": "会话列表里标题为 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" 的会话（允许清单内的会话）",
+            "afterPrepare": false,
+            "must": {
+              "sender": "any",
+              "content": "any",
+              "contains": "aaron+test2"
+            }
+          },
+          {
+            "id": "convB",
+            "kind": "other-conversation",
+            "guidance": "会话列表里除 convA 之外的任意另一个会话（优先取列表中最靠前、标题明显不同于 convA 的会话，只用于切换，不发送任何内容）",
+            "afterPrepare": false,
+            "must": {
+              "sender": "any",
+              "content": "any"
+            }
+          }
+        ],
+        "setup": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "convA"
+              }
+            },
+            "delayAfterMs": 800,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "region": "element:chat.composer",
+                "expect": "会话 A 的输入框已出现",
+                "want": "present"
+              }
+            }
+          }
+        ],
+        "prepare": [],
+        "prepareChecks": [],
+        "baseline": [
+          {
+            "kind": "visual-region",
+            "region": "element:chat.composer",
+            "expect": "会话 A 的聊天页已打开（输入框存在）",
+            "want": "present"
+          },
+          {
+            "kind": "text",
+            "expect": "触发前输入框为空，没有上一轮残留的草稿",
+            "want": "absent",
+            "match": {
+              "contains": "{token}"
+            },
+            "scope": "composer"
+          },
+          {
+            "kind": "text",
+            "expect": "当前停在会话 A（标题含 黄悦龙Aaron），不是别的会话",
+            "want": "present",
+            "match": {
+              "contains": "黄悦龙Aaron"
+            },
+            "scope": "screen"
+          }
+        ],
+        "actions": [
+          {
+            "type": "type",
+            "element": "chat.composer",
+            "value": "{token} 11:35 群里 Teamily Agent 发出兜底消息：原因是撤回消息触发了\"失败兜底\" 结论 Teamily Agent 并没有出错。 Noumena-lynn 撤回了那条 @BugBuddy 的消息，后端随即主动停止了对应的 run（message.revoked）。但群 Super Agent 的收尾逻辑把所有非 completed 的状态都当成失败处理，于是往群里发了一条随机挑选的兜底消息 \"Whoops—my circuits got tangled…\"。 被撤回的消息本来就不该再有回复，更不该回一句\"请重试\"。这是后端的 bug。 Trace - Run：9f76361a-df2e-49ed-b72f-fff109d27189，thread e9c48440-e998-4385-b1be-e310d1d27835，群 3894463492（Teamily用户反馈群）。角色是 gsa_brain，模型 tensoropera/deepseek-v4.1-flash。 - 时间线（UTC，北京时间加 8 小时）： 03:35:16.0 Noumena-lynn 回复 BugBuddy 的任务卡片：\"@BugBuddy 团队内容已反馈\"，run 启动 约 03:35:20 她撤回了这条消息，系统发出 STOP:message.revoked 03:35:20.67 run 状态变为 stopped，error 为 Stopped: message.revoked (via stop_request) 同一时刻 GSA 收尾逻辑往群里发了兜底文案（截图里 11:35 那条） 03:35:21.8 模型这一轮的输出（call_agent → BugBuddy）在停止后才写入数据库，但工具没有执行，BugBuddy 没有被调起 之后她重新发了一条\"@BugBuddy 客服团队评论内容已反馈用户…\"，BugBuddy 正常回复了，所以真正的业务流程没有受影响。受影响的只是群里多出一条莫名其妙的报错。 根因（AgentSwarm origin/main c49dca2e3） 在 backend/run_agent_background.py 的 handle_group_agent_responses 里： # Only send error message on failure - tools handle all success cases if (final_status not in [\"completed\", \"running\"] and not await _superseded_stop(stop_signal_checker_state)): await send_response_to_group(..., content=_sanitize_error(error_message)) - 只要状态是 stopped 就会发错误消息。唯一的豁免是 _superseded_stop，只覆盖\"run 被新实例接管\"（claim_lost 加 generation 前进）这一种情况，没有排除用户主动停止，也没有排除撤回。 - _sanitize_error（core/asn/message_handlers.py:46）只有在错误里带 credit 或 insufficient 时才会原样展示，其他情况一律从 ERROR_MESSAGE_OPTIONS 里随机挑一句\"请重试\"。所以 Stopped: message.revoked 最后变成了 \"Whoops…\"。 - 单聊 Brain（SCB）同一个函数里大约 973 行有相同的判断，单聊里撤回消息应该也会触发同样的兜底。这一点我是读代码推断的，还没有拉 trace 确认。 影响面（过去 24 小时，被撤回或手动停止的 run） run_role 原因 次数 是否走这段兜底逻辑 gsa_brain message.revoked 3 是，本次就是其中之一 scb_brain message.revoked 10 大概率是（同样的代码） delegated / lite / studio user.manual、message.revoked 600+ 走的是另一条路径，本次没有核实 数量不大，但每次都发生在用户主动撤回之后，体验很怪：看起来像是 agent 在回应一条已经不存在的消息，还让用户重试。",
+            "delayAfterMs": 1000,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "长草稿已进入输入框（未发送）",
+                "want": "present",
+                "match": {
+                  "contains": "{token}"
+                },
+                "scope": "composer"
+              }
+            }
+          },
+          {
+            "type": "tap",
+            "element": "chat.back",
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "region": "element:chat.composer",
+                "expect": "已从会话 A 的聊天页回到会话列表",
+                "want": "absent"
+              }
+            }
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "convB"
+              }
+            },
+            "delayAfterMs": 1000,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "已切到另一个会话，输入框里没有本次的草稿",
+                "want": "absent",
+                "match": {
+                  "contains": "{token}"
+                },
+                "scope": "composer"
+              }
+            }
+          },
+          {
+            "type": "tap",
+            "element": "chat.back",
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "region": "element:chat.composer",
+                "expect": "又从另一个会话回到会话列表",
+                "want": "absent"
+              }
+            }
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "convA"
+              }
+            },
+            "delayAfterMs": 1000,
+            "expect": {
+              "role": "phenomenon",
+              "check": {
+                "kind": "text",
+                "expect": "切回原会话后，长草稿仍在输入框里",
+                "want": "present",
+                "match": {
+                  "contains": "{token}"
+                },
+                "scope": "composer"
+              }
+            }
+          }
+        ],
+        "checks": [
+          {
+            "kind": "crash",
+            "expect": "整轮没有闪退 / ANR / 页面崩溃",
+            "want": "absent"
+          },
+          {
+            "kind": "visual-region",
+            "region": "element:chat.composer",
+            "expect": "整轮结束时停在会话 A 的聊天页（输入框存在）",
+            "want": "present"
+          }
+        ],
+        "afterCheck": [
+          {
+            "type": "tap",
+            "element": "chat.back",
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "region": "element:chat.composer",
+                "expect": "复位第 1 步：回到会话列表",
+                "want": "absent"
+              }
+            }
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "convA"
+              }
+            },
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "region": "element:chat.composer",
+                "expect": "复位第 2 步：确认重新进入会话 A 的聊天页",
+                "want": "present"
+              }
+            }
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.clearComposer",
+              "input": {}
+            },
+            "delayAfterMs": 600,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "复位第 3 步：输入框已清空，下一轮从空输入框开始",
+                "want": "absent",
+                "match": {
+                  "contains": "{token}"
+                },
+                "scope": "composer"
+              }
+            }
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 15,
+          "maxIntervalMs": 1000,
+          "maxRounds": 30,
+          "untilBudget": true
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "audit": {
+          "version": 3,
+          "sub": "main",
+          "quotes": [
+            {
+              "id": "q1",
+              "text": "The chat composer's draft feature stops working once the draft is long: after pasting a large block of text and switching to another conversation and back, the draft is gone."
+            },
+            {
+              "id": "q2",
+              "text": "Short drafts survive the same round-trip, so the failure is length-dependent"
+            },
+            {
+              "id": "q3",
+              "text": "Open a conversation and click into the message input box."
+            },
+            {
+              "id": "q4",
+              "text": "3. Without sending, switch to a different conversation."
+            },
+            {
+              "id": "q5",
+              "text": "4. Switch back to the original conversation."
+            },
+            {
+              "id": "q6",
+              "text": "5. Observe whether the draft is still in the input box."
+            },
+            {
+              "id": "q7",
+              "text": "A draft must be preserved and correctly restored regardless of its length."
+            },
+            {
+              "id": "q8",
+              "text": "Use the reproduction text in the code block below"
+            },
+            {
+              "id": "q9",
+              "text": "Always (for drafts above the failing length; the exact threshold is not yet measured)"
+            },
+            {
+              "id": "q10",
+              "text": "that case is expected to survive, which is what makes this length-dependent"
+            },
+            {
+              "id": "q11",
+              "text": "When the draft content is large, switching to another conversation and back loses the draft — the input box no longer holds the text."
+            }
+          ],
+          "understanding": {
+            "subject": "原会话（会话 A）消息输入框 chat.composer 里的一段未发送长草稿",
+            "trigger": "不发送，切到另一个会话，再切回原会话",
+            "phenomenon": "切回后输入框不再有该长文本，草稿丢失（静默、无提示）",
+            "expected": "草稿按会话保留，切回后原样恢复；若确有存储上限应显式提示而不是丢弃",
+            "frequency": "always",
+            "control": "同一流程用短草稿（几个字），预期能保留",
+            "basis": [
+              "q1",
+              "q2",
+              "q7",
+              "q9",
+              "q10",
+              "q11"
+            ]
+          },
+          "feasibility": {
+            "status": "plannable",
+            "missing": []
+          },
+          "oracle": {
+            "at": "actions[4]",
+            "hit": "切到另一个会话再切回会话 A 之后，会话 A 的输入框里读不到本次运行标记 {token}（长草稿开头就是 {token}，读不到即草稿丢失）",
+            "normal": "切回后输入框仍包含 {token}，草稿被完整恢复，检查通过（预热第 2 步已证明这里在正常时会通过）",
+            "canFail": "{token} 位于长草稿最开头，界面自身不会产生它；草稿被整段丢弃（输入框空）时读不到 {token}，检查必然失败。切回动作由 openConversation 完成，该 Node 会等到输入框出现再返回，读不到不会只是因为页面没渲染出来",
+            "baseline": "每轮触发前：会话 A 的聊天页已打开（chat.composer 存在）、输入框不含 {token}、整屏含标题锚点 黄悦龙Aaron；三项分别对应 baseline[0]/[1]/[2]，任一不成立即本轮的偏离，不计有效尝试"
+          },
+          "trace": [
+            {
+              "at": "targets.convA",
+              "basis": [
+                "q3",
+                "executor:允许清单指定的会话"
+              ]
+            },
+            {
+              "at": "targets.convB",
+              "basis": [
+                "q4"
+              ]
+            },
+            {
+              "at": "setup[0]",
+              "basis": [
+                "q3",
+                "executor:进入场景"
+              ]
+            },
+            {
+              "at": "baseline[0]",
+              "basis": [
+                "executor:确认在会话 A 的聊天页"
+              ]
+            },
+            {
+              "at": "baseline[1]",
+              "basis": [
+                "q7",
+                "executor:基线无残留草稿"
+              ]
+            },
+            {
+              "at": "baseline[2]",
+              "basis": [
+                "executor:确认复位停在会话 A，避免切到别的会话后误判命中"
+              ]
+            },
+            {
+              "at": "actions[0]",
+              "basis": [
+                "q3",
+                "q8",
+                "q1"
+              ]
+            },
+            {
+              "at": "actions[1]",
+              "basis": [
+                "q4"
+              ]
+            },
+            {
+              "at": "actions[2]",
+              "basis": [
+                "q4",
+                "q2"
+              ]
+            },
+            {
+              "at": "actions[3]",
+              "basis": [
+                "q5"
+              ]
+            },
+            {
+              "at": "actions[4]",
+              "basis": [
+                "q1",
+                "q5",
+                "q6"
+              ]
+            },
+            {
+              "at": "checks[0]",
+              "basis": [
+                "executor:排除崩溃导致的读数异常"
+              ]
+            },
+            {
+              "at": "checks[1]",
+              "basis": [
+                "q6"
+              ]
+            },
+            {
+              "at": "afterCheck[0]",
+              "basis": [
+                "executor:复位"
+              ]
+            },
+            {
+              "at": "afterCheck[1]",
+              "basis": [
+                "executor:复位"
+              ]
+            },
+            {
+              "at": "afterCheck[2]",
+              "basis": [
+                "executor:复位"
+              ]
+            }
+          ],
+          "selfCheck": {
+            "R1": "ok：只用目录内的动作 type / tap / node、固定元素 chat.composer / chat.back、Node teamily.openConversation / teamily.clearComposer 与 text / visual-region / crash 观察；无坐标、无代码",
+            "R2": "ok：触发作用在会话 A（titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"）输入框里的未发送草稿，target.must.contains=aaron+test2 对应 q3，与 understanding.subject 一致；convB 是 other-conversation",
+            "R3": "ok：触发序列就是 q4+q5 的「切到另一个会话再切回」，由 actions[1..4] 的 chat.back / openConversation convB / chat.back / openConversation convA 逐步执行，没有用后续操作顶替",
+            "R4": "ok：现象发生在切回原会话之后，phenomenon expect 就挂在「切回会话 A」的 openConversation 上（actions[4]），oracle.at 指向它",
+            "R5": "ok：① 草稿丢失则 composer 读不到 {token} → 失败，正常则含 {token} → 通过（预热第 2 步已验证正常时通过）；② 范围取最窄的 composer，identity 才用 screen；③ 匹配内容是本次运行标记 {token}，界面自身不会产生；④ 草稿属留存状态，baseline[1] 明确检查输入框无 {token}",
+            "R6": "ok：afterCheck 三步复位（chat.back → openConversation convA → clearComposer）各带 precondition expect，把状态拉回「会话 A 聊天页 + 空输入框」",
+            "R7": "ok：control 子用例用短草稿走完全相同的流程（q2、q10），既是对照也证明检查在正常时会通过",
+            "R8": "ok：所需积木齐全，feasibility.status=plannable；目录里没有 paste 原语，改用 type 写入同长度文本，见 risks",
+            "R9": "ok：Issue 端为 unknown（Environment 未指定），在 android-app 上替代执行；Android 端草稿可能存本地 DB / SharedPreferences 而非 localStorage，失效长度阈值与失败形态（整段丢失 vs 被截断 vs 部分恢复）可能与 Web 不同；若该端短草稿也不保留，对照组会同样命中，需换端复核",
+            "R10": "ok：循环内只用 phase: any 的 Node；prepare 为空；全程不发任何消息、不做社交动作，只对允许清单会话内的输入框操作；delayAfterMs ≤ 1000",
+            "R11": "ok：标题「长草稿切到别的会话再切回：输入框是否仍保留草稿」用的就是本 Issue 的对象与现象",
+            "R12": "ok：targets / baseline / actions / checks / afterCheck 每一项都在 trace 里引用 q1–q10 或 executor:<理由>"
+          },
+          "risks": [
+            "长中文草稿靠 type 写入：v2 只验证过短草稿（预热第 1 步），长文本若走按键注入 / adb input text 可能输不进去或极慢，前置 expect 失败会记为偏离；v4 可改为分块输入或剪贴板粘贴。",
+            "分步导航比 v2 的 switchConversation 多 3 个动作，偏离点变多；若某个 precondition 频繁失败，按证据回退到 switchConversation 并加大等待。",
+            "openConversation 点击的是准备阶段冻结的会话坐标：若会话列表因新消息重排导致坐标漂移，可能进入别的会话；actions[2] 的「输入框没有 {token}」会把它暴露为偏离，baseline[2] 的标题锚点再兜一层。",
+            "无障碍对超长 EditText 可能只暴露部分文本：标记放在草稿开头可降低读不到的风险；若前置仍失败，v4 在开头和结尾各放一个标记。",
+            "若 App 输入框有 maxLength，长文本可能在输入阶段被截断，而前置（标记在开头）仍通过 —— 命中时会同时包含「被截断」这一形态，证据复核时需看截图区分「整段丢失」与「只恢复一部分」。",
+            "复位第 1 步的 chat.back 假设当前在聊天页；若某轮在会话列表就中断，这一步会多记一次偏离，但后两步仍能把状态拉回会话 A 并清空输入框。",
+            "若 clearComposer（全选 + 删除）在 Android 上不生效，baseline[1] 会连续偏离，届时改为重建会话页复位或发送后复位。",
+            "对照组命中（短草稿也丢）说明与长度无关或检查无区分度，不计为 Issue 命中，需人工复核。",
+            "Issue 端 unknown：若 Android 端属于「草稿整体不保留」，main 与 control 会同时命中，需换 Web / 桌面端复跑确认长度相关性。"
+          ],
+          "revision": {
+            "from": "v2",
+            "evidence": [
+              "预热第 1 步：type 写入短草稿后 precondition 成立 —— composer has text containing \"rbe2099\" (accessibility)；说明 type 进 chat.composer 可用、composer 文本可读",
+              "预热第 2 步：switchConversation 后 phenomenon 成立 —— composer has text containing \"rbe2099\" — now \"短草稿 rbe2099 测试用\"；说明短草稿确实被保留，检查在正常时会通过",
+              "第 1 轮 actions[1]（phenomenon）：读不出：composer not readable — 未验证；switchConversation 一步完成「切走+切回」后立刻读 composer 读不到，说明该节点返回时聊天页/输入框还没就绪",
+              "第 2–11 轮 baseline[1] 连续 10 次不成立 —— composer has text containing \"rbe2099\" — now \"短草稿 rbe2099 测试用\"；上一轮的草稿一直留在输入框里没被清掉，每轮开局即偏离",
+              "11 轮 0 有效尝试、0 命中、偏离 11，偏离率 100% > 30%（触发未稳定生效），停止原因「操作偏离过多（>10 次）」"
+            ],
+            "diagnosis": "导航与复位都做成了「一步到位」的复合动作，缺少对所在页面的确认：(a) switchConversation 一步完成切走与切回，返回时聊天页尚未就绪，紧接着读 composer 读不到（evidence 3）；(b) afterCheck 直接 clearComposer，没有先确认已回到会话 A 的聊天页，上一轮的长文本草稿留在输入框里，从第 2 轮起 baseline 就不成立（evidence 4）。检查本身在正常时会通过（evidence 2），对象、触发语义、观察位置与区分度都没有暴露问题，需要改的是导航与复位的确定性。",
+            "changes": [
+              "把 switchConversation 一步拆成分步导航：chat.back（回会话列表）→ openConversation convB（进另一个会话）→ chat.back → openConversation convA（切回原会话）；现象 expect 挂在最后一步 openConversation convA 上（该 Node 自带「等待输入框出现」），对应 evidence 3",
+              "新增 actions[2] 的 precondition「进入另一个会话后输入框里没有本次 {token}」：既证明真的切换了会话，又能在出发点不是会话 A 时先暴露为偏离而不是误判命中，对应 evidence 3、5",
+              "afterCheck 改为三步且每步加 precondition expect：chat.back（回列表）→ openConversation convA（确认回到会话 A 聊天页）→ clearComposer（输入框无 {token}），对应 evidence 4",
+              "baseline 增加第三项「整屏含 黄悦龙Aaron」，确认复位停在会话 A 而不是漂到别的会话，对应 evidence 4",
+              "main 与 control 同步做以上四处修改；标题、target.must、现象语义（composer 里读不到 {token} = 命中）、crash 检查、复位后用空输入框开局的思路保持不变 —— 预热没有暴露它们的问题（对应 evidence 1、2）"
+            ]
+          }
+        },
+        "provenance": {
+          "generatedBy": "model",
+          "skillVersion": "2026.10.30-1"
+        },
+        "contract": {
+          "issueRef": "2669",
+          "sub": "main",
+          "preconditions": [
+            {
+              "id": "logged-in",
+              "text": "已登录",
+              "establish": "executor"
+            }
+          ],
+          "trigger": {
+            "semantics": "model",
+            "text": "不发送，切到另一个会话，再切回原会话",
+            "params": {}
+          },
+          "observable": {
+            "observation": "text",
+            "text": "草稿按会话保留，切回后原样恢复；若确有存储上限应显式提示而不是丢弃",
+            "phenomenon": "切回后输入框不再有该长文本，草稿丢失（静默、无提示）"
+          },
+          "provenance": {
+            "by": "model",
+            "skillVersion": "2026.10.30-1",
+            "model": "deepseek-flash"
+          }
+        }
+      },
+      "planErrors": [],
+      "contract": {
+        "issueRef": "2669",
+        "sub": "main",
+        "preconditions": [
+          {
+            "id": "logged-in",
+            "text": "已登录",
+            "establish": "executor"
+          }
+        ],
+        "trigger": {
+          "semantics": "model",
+          "text": "不发送，切到另一个会话，再切回原会话",
+          "params": {}
+        },
+        "observable": {
+          "observation": "text",
+          "text": "草稿按会话保留，切回后原样恢复；若确有存储上限应显式提示而不是丢弃",
+          "phenomenon": "切回后输入框不再有该长文本，草稿丢失（静默、无提示）"
+        },
+        "provenance": {
+          "by": "model",
+          "skillVersion": "2026.10.30-1",
+          "model": "deepseek-flash"
+        }
+      }
+    },
+    {
+      "sub": "control",
+      "title": "对照：短草稿切到别的会话再切回是否保留",
+      "surface": "android-app",
+      "substitution": {
+        "from": "unknown",
+        "to": "android-app",
+        "reason": "unknown 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 unknown 端。",
+        "alternatives": [
+          "android-app",
+          "mobile-web"
+        ]
+      },
+      "plan": {
+        "id": "2669-control-android-app-v3",
+        "issueRef": "2669",
+        "title": "对照：短草稿切到别的会话再切回是否保留",
+        "category": "bug-always",
+        "surface": "android-app",
+        "issueSurfaces": [],
+        "substitution": {
+          "from": "unknown",
+          "to": "android-app",
+          "reason": "unknown 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 unknown 端。"
+        },
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "convA",
+            "kind": "conversation",
+            "guidance": "会话列表里标题为 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" 的会话（允许清单内的会话）",
+            "afterPrepare": false,
+            "must": {
+              "sender": "any",
+              "content": "any",
+              "contains": "aaron+test2"
+            }
+          },
+          {
+            "id": "convB",
+            "kind": "other-conversation",
+            "guidance": "会话列表里除 convA 之外的任意另一个会话（与 main 取同一个会话，保证两组只有草稿长度不同；只用于切换，不发送任何内容）",
+            "afterPrepare": false,
+            "must": {
+              "sender": "any",
+              "content": "any"
+            }
+          }
+        ],
+        "setup": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "convA"
+              }
+            },
+            "delayAfterMs": 800,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "region": "element:chat.composer",
+                "expect": "会话 A 的输入框已出现",
+                "want": "present"
+              }
+            }
+          }
+        ],
+        "prepare": [],
+        "prepareChecks": [],
+        "baseline": [
+          {
+            "kind": "visual-region",
+            "region": "element:chat.composer",
+            "expect": "会话 A 的聊天页已打开（输入框存在）",
+            "want": "present"
+          },
+          {
+            "kind": "text",
+            "expect": "触发前输入框为空，没有上一轮残留的草稿",
+            "want": "absent",
+            "match": {
+              "contains": "{token}"
+            },
+            "scope": "composer"
+          },
+          {
+            "kind": "text",
+            "expect": "当前停在会话 A（标题含 黄悦龙Aaron），不是别的会话",
+            "want": "present",
+            "match": {
+              "contains": "黄悦龙Aaron"
+            },
+            "scope": "screen"
+          }
+        ],
+        "actions": [
+          {
+            "type": "type",
+            "element": "chat.composer",
+            "value": "短草稿 {token} 测试用",
+            "delayAfterMs": 1000,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "短草稿已进入输入框（未发送）",
+                "want": "present",
+                "match": {
+                  "contains": "{token}"
+                },
+                "scope": "composer"
+              }
+            }
+          },
+          {
+            "type": "tap",
+            "element": "chat.back",
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "region": "element:chat.composer",
+                "expect": "已从会话 A 的聊天页回到会话列表",
+                "want": "absent"
+              }
+            }
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "convB"
+              }
+            },
+            "delayAfterMs": 1000,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "已切到另一个会话，输入框里没有本次的短草稿",
+                "want": "absent",
+                "match": {
+                  "contains": "{token}"
+                },
+                "scope": "composer"
+              }
+            }
+          },
+          {
+            "type": "tap",
+            "element": "chat.back",
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "region": "element:chat.composer",
+                "expect": "又从另一个会话回到会话列表",
+                "want": "absent"
+              }
+            }
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "convA"
+              }
+            },
+            "delayAfterMs": 1000,
+            "expect": {
+              "role": "phenomenon",
+              "check": {
+                "kind": "text",
+                "expect": "切回原会话后，短草稿仍在输入框里（对照应通过）",
+                "want": "present",
+                "match": {
+                  "contains": "{token}"
+                },
+                "scope": "composer"
+              }
+            }
+          }
+        ],
+        "checks": [
+          {
+            "kind": "crash",
+            "expect": "整轮没有闪退 / ANR / 页面崩溃",
+            "want": "absent"
+          },
+          {
+            "kind": "visual-region",
+            "region": "element:chat.composer",
+            "expect": "整轮结束时停在会话 A 的聊天页（输入框存在）",
+            "want": "present"
+          }
+        ],
+        "afterCheck": [
+          {
+            "type": "tap",
+            "element": "chat.back",
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "region": "element:chat.composer",
+                "expect": "复位第 1 步：回到会话列表",
+                "want": "absent"
+              }
+            }
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "convA"
+              }
+            },
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "region": "element:chat.composer",
+                "expect": "复位第 2 步：确认重新进入会话 A 的聊天页",
+                "want": "present"
+              }
+            }
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.clearComposer",
+              "input": {}
+            },
+            "delayAfterMs": 600,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "复位第 3 步：输入框已清空，下一轮从空输入框开始",
+                "want": "absent",
+                "match": {
+                  "contains": "{token}"
+                },
+                "scope": "composer"
+              }
+            }
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 15,
+          "maxIntervalMs": 1000,
+          "maxRounds": 30,
+          "untilBudget": true
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "audit": {
+          "version": 3,
+          "sub": "control",
+          "quotes": [
+            {
+              "id": "q1",
+              "text": "The chat composer's draft feature stops working once the draft is long: after pasting a large block of text and switching to another conversation and back, the draft is gone."
+            },
+            {
+              "id": "q2",
+              "text": "Short drafts survive the same round-trip, so the failure is length-dependent"
+            },
+            {
+              "id": "q3",
+              "text": "Open a conversation and click into the message input box."
+            },
+            {
+              "id": "q4",
+              "text": "3. Without sending, switch to a different conversation."
+            },
+            {
+              "id": "q5",
+              "text": "4. Switch back to the original conversation."
+            },
+            {
+              "id": "q6",
+              "text": "5. Observe whether the draft is still in the input box."
+            },
+            {
+              "id": "q7",
+              "text": "A draft must be preserved and correctly restored regardless of its length."
+            },
+            {
+              "id": "q8",
+              "text": "Use the reproduction text in the code block below"
+            },
+            {
+              "id": "q9",
+              "text": "Always (for drafts above the failing length; the exact threshold is not yet measured)"
+            },
+            {
+              "id": "q10",
+              "text": "that case is expected to survive, which is what makes this length-dependent"
+            },
+            {
+              "id": "q11",
+              "text": "When the draft content is large, switching to another conversation and back loses the draft — the input box no longer holds the text."
+            }
+          ],
+          "understanding": {
+            "subject": "原会话（会话 A）消息输入框 chat.composer 里的一段未发送长草稿",
+            "trigger": "不发送，切到另一个会话，再切回原会话",
+            "phenomenon": "切回后输入框不再有该长文本，草稿丢失（静默、无提示）",
+            "expected": "草稿按会话保留，切回后原样恢复；若确有存储上限应显式提示而不是丢弃",
+            "frequency": "always",
+            "control": "同一流程用短草稿（几个字），预期能保留",
+            "basis": [
+              "q1",
+              "q2",
+              "q7",
+              "q9",
+              "q10",
+              "q11"
+            ]
+          },
+          "feasibility": {
+            "status": "plannable",
+            "missing": []
+          },
+          "oracle": {
+            "at": "actions[4]",
+            "hit": "对照组不应命中：若短草稿在同样的切换往返后也读不到 {token}，说明失败与长度无关或检查无区分度，该结果不计为 Issue 命中，需人工复核",
+            "normal": "切回后输入框仍包含 {token}，检查通过 —— 这正是 Issue 说的「短草稿能保留」（q2、q10），也证明检查在正常时会通过",
+            "canFail": "只有当短草稿同样被丢弃时才会失败；{token} 是本次运行标记，界面本身不会产生它",
+            "baseline": "与 main 相同：会话 A 已打开、输入框不含 {token}、整屏含标题锚点 黄悦龙Aaron"
+          },
+          "trace": [
+            {
+              "at": "targets.convA",
+              "basis": [
+                "q3",
+                "q10"
+              ]
+            },
+            {
+              "at": "targets.convB",
+              "basis": [
+                "q4",
+                "q10"
+              ]
+            },
+            {
+              "at": "setup[0]",
+              "basis": [
+                "executor:进入场景"
+              ]
+            },
+            {
+              "at": "baseline[0]",
+              "basis": [
+                "executor:确认在会话 A 的聊天页"
+              ]
+            },
+            {
+              "at": "baseline[1]",
+              "basis": [
+                "executor:基线无残留草稿"
+              ]
+            },
+            {
+              "at": "baseline[2]",
+              "basis": [
+                "executor:确认复位停在会话 A"
+              ]
+            },
+            {
+              "at": "actions[0]",
+              "basis": [
+                "q2",
+                "q10"
+              ]
+            },
+            {
+              "at": "actions[1]",
+              "basis": [
+                "q4",
+                "q10"
+              ]
+            },
+            {
+              "at": "actions[2]",
+              "basis": [
+                "q4",
+                "q10"
+              ]
+            },
+            {
+              "at": "actions[3]",
+              "basis": [
+                "q5",
+                "q10"
+              ]
+            },
+            {
+              "at": "actions[4]",
+              "basis": [
+                "q4",
+                "q5",
+                "q10"
+              ]
+            },
+            {
+              "at": "checks[0]",
+              "basis": [
+                "executor:排除崩溃导致的读数异常"
+              ]
+            },
+            {
+              "at": "checks[1]",
+              "basis": [
+                "q6"
+              ]
+            },
+            {
+              "at": "afterCheck[0]",
+              "basis": [
+                "executor:复位"
+              ]
+            },
+            {
+              "at": "afterCheck[1]",
+              "basis": [
+                "executor:复位"
+              ]
+            },
+            {
+              "at": "afterCheck[2]",
+              "basis": [
+                "executor:复位"
+              ]
+            }
+          ],
+          "selfCheck": {
+            "R1": "ok：只用目录内的动作 type / tap / node、固定元素 chat.composer / chat.back、Node teamily.openConversation / teamily.clearComposer 与 text / visual-region / crash 观察；无坐标、无代码",
+            "R2": "ok：触发作用在会话 A（titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"）输入框里的未发送草稿，target.must.contains=aaron+test2 对应 q3，与 understanding.subject 一致；convB 是 other-conversation",
+            "R3": "ok：触发序列就是 q4+q5 的「切到另一个会话再切回」，由 actions[1..4] 的 chat.back / openConversation convB / chat.back / openConversation convA 逐步执行，没有用后续操作顶替",
+            "R4": "ok：现象发生在切回原会话之后，phenomenon expect 就挂在「切回会话 A」的 openConversation 上（actions[4]），oracle.at 指向它",
+            "R5": "ok：① 草稿丢失则 composer 读不到 {token} → 失败，正常则含 {token} → 通过（预热第 2 步已验证正常时通过）；② 范围取最窄的 composer，identity 才用 screen；③ 匹配内容是本次运行标记 {token}，界面自身不会产生；④ 草稿属留存状态，baseline[1] 明确检查输入框无 {token}",
+            "R6": "ok：afterCheck 三步复位（chat.back → openConversation convA → clearComposer）各带 precondition expect，把状态拉回「会话 A 聊天页 + 空输入框」",
+            "R7": "ok：control 子用例用短草稿走完全相同的流程（q2、q10），既是对照也证明检查在正常时会通过",
+            "R8": "ok：所需积木齐全，feasibility.status=plannable；目录里没有 paste 原语，改用 type 写入同长度文本，见 risks",
+            "R9": "ok：Issue 端为 unknown（Environment 未指定），在 android-app 上替代执行；Android 端草稿可能存本地 DB / SharedPreferences 而非 localStorage，失效长度阈值与失败形态（整段丢失 vs 被截断 vs 部分恢复）可能与 Web 不同；若该端短草稿也不保留，对照组会同样命中，需换端复核",
+            "R10": "ok：循环内只用 phase: any 的 Node；prepare 为空；全程不发任何消息、不做社交动作，只对允许清单会话内的输入框操作；delayAfterMs ≤ 1000",
+            "R11": "ok：标题「长草稿切到别的会话再切回：输入框是否仍保留草稿」用的就是本 Issue 的对象与现象",
+            "R12": "ok：targets / baseline / actions / checks / afterCheck 每一项都在 trace 里引用 q1–q10 或 executor:<理由>"
+          },
+          "risks": [
+            "长中文草稿靠 type 写入：v2 只验证过短草稿（预热第 1 步），长文本若走按键注入 / adb input text 可能输不进去或极慢，前置 expect 失败会记为偏离；v4 可改为分块输入或剪贴板粘贴。",
+            "分步导航比 v2 的 switchConversation 多 3 个动作，偏离点变多；若某个 precondition 频繁失败，按证据回退到 switchConversation 并加大等待。",
+            "openConversation 点击的是准备阶段冻结的会话坐标：若会话列表因新消息重排导致坐标漂移，可能进入别的会话；actions[2] 的「输入框没有 {token}」会把它暴露为偏离，baseline[2] 的标题锚点再兜一层。",
+            "无障碍对超长 EditText 可能只暴露部分文本：标记放在草稿开头可降低读不到的风险；若前置仍失败，v4 在开头和结尾各放一个标记。",
+            "若 App 输入框有 maxLength，长文本可能在输入阶段被截断，而前置（标记在开头）仍通过 —— 命中时会同时包含「被截断」这一形态，证据复核时需看截图区分「整段丢失」与「只恢复一部分」。",
+            "复位第 1 步的 chat.back 假设当前在聊天页；若某轮在会话列表就中断，这一步会多记一次偏离，但后两步仍能把状态拉回会话 A 并清空输入框。",
+            "若 clearComposer（全选 + 删除）在 Android 上不生效，baseline[1] 会连续偏离，届时改为重建会话页复位或发送后复位。",
+            "对照组命中（短草稿也丢）说明与长度无关或检查无区分度，不计为 Issue 命中，需人工复核。",
+            "Issue 端 unknown：若 Android 端属于「草稿整体不保留」，main 与 control 会同时命中，需换 Web / 桌面端复跑确认长度相关性。"
+          ],
+          "revision": {
+            "from": "v2",
+            "evidence": [
+              "预热第 1 步：type 写入短草稿后 precondition 成立 —— composer has text containing \"rbe2099\" (accessibility)；说明 type 进 chat.composer 可用、composer 文本可读",
+              "预热第 2 步：switchConversation 后 phenomenon 成立 —— composer has text containing \"rbe2099\" — now \"短草稿 rbe2099 测试用\"；说明短草稿确实被保留，检查在正常时会通过",
+              "第 1 轮 actions[1]（phenomenon）：读不出：composer not readable — 未验证；switchConversation 一步完成「切走+切回」后立刻读 composer 读不到，说明该节点返回时聊天页/输入框还没就绪",
+              "第 2–11 轮 baseline[1] 连续 10 次不成立 —— composer has text containing \"rbe2099\" — now \"短草稿 rbe2099 测试用\"；上一轮的草稿一直留在输入框里没被清掉，每轮开局即偏离",
+              "11 轮 0 有效尝试、0 命中、偏离 11，偏离率 100% > 30%（触发未稳定生效），停止原因「操作偏离过多（>10 次）」"
+            ],
+            "diagnosis": "导航与复位都做成了「一步到位」的复合动作，缺少对所在页面的确认：(a) switchConversation 一步完成切走与切回，返回时聊天页尚未就绪，紧接着读 composer 读不到（evidence 3）；(b) afterCheck 直接 clearComposer，没有先确认已回到会话 A 的聊天页，上一轮的长文本草稿留在输入框里，从第 2 轮起 baseline 就不成立（evidence 4）。检查本身在正常时会通过（evidence 2），对象、触发语义、观察位置与区分度都没有暴露问题，需要改的是导航与复位的确定性。",
+            "changes": [
+              "把 switchConversation 一步拆成分步导航：chat.back（回会话列表）→ openConversation convB（进另一个会话）→ chat.back → openConversation convA（切回原会话）；现象 expect 挂在最后一步 openConversation convA 上（该 Node 自带「等待输入框出现」），对应 evidence 3",
+              "新增 actions[2] 的 precondition「进入另一个会话后输入框里没有本次 {token}」：既证明真的切换了会话，又能在出发点不是会话 A 时先暴露为偏离而不是误判命中，对应 evidence 3、5",
+              "afterCheck 改为三步且每步加 precondition expect：chat.back（回列表）→ openConversation convA（确认回到会话 A 聊天页）→ clearComposer（输入框无 {token}），对应 evidence 4",
+              "baseline 增加第三项「整屏含 黄悦龙Aaron」，确认复位停在会话 A 而不是漂到别的会话，对应 evidence 4",
+              "main 与 control 同步做以上四处修改；标题、target.must、现象语义（composer 里读不到 {token} = 命中）、crash 检查、复位后用空输入框开局的思路保持不变 —— 预热没有暴露它们的问题（对应 evidence 1、2）"
+            ]
+          }
+        },
+        "provenance": {
+          "generatedBy": "model",
+          "skillVersion": "2026.10.30-1"
+        },
+        "contract": {
+          "issueRef": "2669",
+          "sub": "control",
+          "preconditions": [
+            {
+              "id": "logged-in",
+              "text": "已登录",
+              "establish": "executor"
+            }
+          ],
+          "trigger": {
+            "semantics": "model",
+            "text": "不发送，切到另一个会话，再切回原会话",
+            "params": {}
+          },
+          "observable": {
+            "observation": "text",
+            "text": "草稿按会话保留，切回后原样恢复；若确有存储上限应显式提示而不是丢弃",
+            "phenomenon": "切回后输入框不再有该长文本，草稿丢失（静默、无提示）"
+          },
+          "provenance": {
+            "by": "model",
+            "skillVersion": "2026.10.30-1",
+            "model": "deepseek-flash"
+          }
+        }
+      },
+      "planErrors": [],
+      "contract": {
+        "issueRef": "2669",
+        "sub": "control",
+        "preconditions": [
+          {
+            "id": "logged-in",
+            "text": "已登录",
+            "establish": "executor"
+          }
+        ],
+        "trigger": {
+          "semantics": "model",
+          "text": "不发送，切到另一个会话，再切回原会话",
+          "params": {}
+        },
+        "observable": {
+          "observation": "text",
+          "text": "草稿按会话保留，切回后原样恢复；若确有存储上限应显式提示而不是丢弃",
+          "phenomenon": "切回后输入框不再有该长文本，草稿丢失（静默、无提示）"
+        },
+        "provenance": {
+          "by": "model",
+          "skillVersion": "2026.10.30-1",
+          "model": "deepseek-flash"
+        }
+      }
+    }
+  ],
+  "designMs": 134416,
+  "history": [
+    {
+      "version": 1,
+      "planIds": [
+        "2669-control-android-app-v1"
+      ],
+      "taskIds": [
+        "t-20261109035821-kd7l"
+      ],
+      "validated": true,
+      "warmup": "failed",
+      "driftRate": 0,
+      "valid": 0,
+      "hits": 0,
+      "conclusion": "计划不可执行",
+      "diagnosis": "观察位置选错、前置判定过严：v1 用「点输入框 → 软键盘弹出」来证明已进入输入状态，但 Android 上键盘是否弹出取决于设备输入法设置与这次无障碍点击能否真正聚焦 EditText；本轮点击后屏幕 Δ0px，点击根本没生效，键盘自然不弹。键盘状态与 Issue 的现象（切回会话后草稿是否还在）无关，不应作为判定前置。改为直接用 type 动作把草稿写进 chat.composer，并以「输入框文本含 {token}」作为前置成立条件 —— 这才是草稿真的落进输入框的确定性证据。"
+    },
+    {
+      "version": 2,
+      "planIds": [
+        "2669-control-android-app-v2"
+      ],
+      "taskIds": [
+        "t-20261109041346-3nnq"
+      ],
+      "validated": true,
+      "warmup": "passed",
+      "driftRate": 1,
+      "valid": 0,
+      "hits": 0,
+      "wilson": [
+        0,
+        1
+      ],
+      "conclusion": "执行失败",
+      "diagnosis": "导航与复位都做成了「一步到位」的复合动作，缺少对所在页面的确认：(a) switchConversation 一步完成切走与切回，返回时聊天页尚未就绪，紧接着读 composer 读不到（evidence 3）；(b) afterCheck 直接 clearComposer，没有先确认已回到会话 A 的聊天页，上一轮的长文本草稿留在输入框里，从第 2 轮起 baseline 就不成立（evidence 4）。检查本身在正常时会通过（evidence 2），对象、触发语义、观察位置与区分度都没有暴露问题，需要改的是导航与复位的确定性。"
+    },
+    {
+      "version": 3,
+      "planIds": [
+        "2669-android-app-v3"
+      ],
+      "taskIds": [
+        "t-20261109045302-49uf"
+      ],
+      "validated": true,
+      "warmup": "failed",
+      "driftRate": 0,
+      "valid": 0,
+      "hits": 0,
+      "conclusion": "计划不可执行",
+      "attribution": "plan"
+    }
+  ],
+  "issueFile": "D:\\projects\\Tools\\multi-test-agent\\issues\\2669.md",
+  "hash": "f8f3bc0951a5e341",
+  "issueHash": "6814c5ad0cedc63d",
+  "env": "prod",
+  "version": 4,
+  "warmupFailures": [
+    {
+      "planId": "2669-control-android-app-v3",
+      "at": "2026-11-09T04:30:28.749Z",
+      "detail": "计划不可执行（预热第 3 步：teamily.openConversation 预期 参考区域 chat/composer 出现 未出现 — expect（前置）不成立：composer not readable — 未验证）"
+    },
+    {
+      "planId": "2669-android-app-v3",
+      "at": "2026-11-09T05:00:17.599Z",
+      "detail": "计划不可执行（预热第 8 步：复位（afterCheck） 预期 复位后的 expect 成立 未出现 — afterCheck[0] not met: region /element:chat.composer: no reference, anchors not found; vision says true）"
+    }
+  ]
+}

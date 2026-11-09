@@ -3,7 +3,7 @@ import { decodePng, dHash, encodePng, hamming, type Rgba, regionDiffFraction } f
 import { classifyLogLine } from '../../drivers/android';
 import { opsSrt } from '../recorder/bundle';
 import { firstDeviation } from '../recorder/replay';
-import { applyApproval, splitSubcases, substitutionOptions, templateFor } from '../../issue/planner';
+import { applyApproval, substitutionOptions } from '../../issue/planner';
 import { validatePlan } from '../../issue/validate';
 import { regionMatch } from '../checks';
 import { ruleChoice } from './targets';
@@ -107,20 +107,9 @@ describe('preparation rules', () => {
 });
 
 describe('planner', () => {
-  it('splits (1)(2)(3) sub-cases', () => {
-    const s = splitSubcases({ summary: 'Issues: (1) like gives no feedback; (2) link jumps to old message; (3) keyboard needs two taps.' } as any);
-    expect(s.map((x) => x.sub)).toEqual(['s1', 's2', 's3']);
-  });
   it('iOS → substitution options with a reason; web → none', () => {
     expect(substitutionOptions(['ios'])?.alternatives).toEqual(['android-app', 'mobile-web']);
     expect(substitutionOptions(['web'])).toBeUndefined();
-  });
-  it('templates validate against the SKILL vocabulary', () => {
-    for (const [text, cat] of [['typing @ picker does not open', 'bug-intermittent'], ['three separate bell notification entries', 'feature'], ['mention aggregated list @', 'feature'], ['keyboard needs a tap', 'bug-intermittent'], ['like not shown', 'bug-intermittent']] as const) {
-      const t = templateFor(text, cat, 'desktop-web');
-      const plan = { id: 'x', issueRef: '1', title: t.title, category: cat, surface: 'desktop-web', issueSurfaces: ['web'], env: 'prod', targets: t.targets, setup: t.setup, actions: t.actions, checks: t.checks, acceptance: t.acceptance, limits: { maxSteps: 1000, maxMinutes: 30, maxIntervalMs: 1000 }, verdictRule: { anyHit: true }, provenance: { generatedBy: 'rules', skillVersion: 'x' } };
-      expect(validatePlan(plan).errors, text).toEqual([]);
-    }
   });
   it('approval keeps only ticked sub-cases and records the substitution', () => {
     const plan: any = { id: '1329-s1-android-app-v1', surface: 'android-app', title: 't', targets: [], setup: [], actions: [], checks: [], provenance: { generatedBy: 'rules', skillVersion: 'x' } };

@@ -25,19 +25,20 @@ describe('issue parsing', () => {
   });
 });
 
-describe('classification of the sample issues', () => {
+describe('classification of the sample issues (W3-1 K4: Frequency + manual overrides only)', () => {
   const expected: Record<string, string> = {
     '1329': 'bug-intermittent',
     '1426': 'deferred', // platform/issue-overrides.yaml (W2-2: classify + contract only)
     '1594': 'bug-intermittent',
-    '1614': 'server-side',
+    '1614': 'bug-always', // keywords no longer make it server-side: the model reads what can be observed
     '1903': 'bug-always',
     '1918': 'deferred', // platform/issue-overrides.yaml (W2-2: Agent reply content cannot be constructed)
     '1922': 'bug-intermittent', // rule A3 (2026-11-03): the old "refuse" override is gone
     '2044': 'bug-always',
-    '2122': 'feature',
-    '2235': 'multi-account',
-    '2336': 'feature',
+    '2063': 'bug-always',
+    '2122': 'bug-always', // was 'feature' by keyword; feature / misuse no longer decide the skeleton
+    '2235': 'bug-always', // multi-client: designed on the App with alternating logins (override removed 2026-11-09)
+    '2336': 'bug-always',
   };
   for (const f of readdirSync('fixtures/issues').filter((x) => x.endsWith('.md'))) {
     const id = f.replace('.md', '');
@@ -47,7 +48,7 @@ describe('classification of the sample issues', () => {
     expect(surfacesFor(load('1329').platforms)).toEqual([]);
     expect(surfacesFor(['web'])).toEqual(['desktop-web']);
   });
-  it('2122 is a feature with a deferred multi-account part', () => expect(classifyRules(load('2122')).partialMultiAccount).toBe(true));
+  it('no keyword categories: an Issue without a Frequency is intermittent (weak)', () => expect(classifyRules({ ...load('2122'), id: 'x', frequency: '' })).toMatchObject({ category: 'bug-intermittent', strength: 'weak' }));
   it('1426 / 1918 are deferred with the precondition that blocks them (W2-2 §1)', () => {
     expect(classifyRules(load('1426')).blockedBy).toBe('partial-selection-clipboard');
     expect(classifyRules(load('1918')).blockedBy).toBe('agent-reply-with-formula');

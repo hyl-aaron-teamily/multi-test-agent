@@ -1,4 +1,5 @@
-# Manual pre-classification overrides (applied before rules / LLM). Each entry records who decided and why.
+# Manual pre-classification overrides (applied before the rules; W3-1 K4: rules read Frequency / platforms only,
+# so a reviewed override is the one way an Issue skips model authoring). Each entry records who decided and why.
 # 1426 / 1918: W2-2 §1 (user decision 2026-10-28) — a precondition the black box cannot build: no plan, a one-page
 #             report says why (rule E18). 1922's "refuse" override was removed 2026-11-03 (rule A3: no Issue is refused).
 "1426":

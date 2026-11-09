@@ -62,7 +62,7 @@ export async function chatJson(system: string, user: string, timeoutMs = 90_000)
       body: JSON.stringify({ model: c.model, temperature: 0.1, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] }),
       signal: AbortSignal.timeout(timeoutMs),
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text().catch(() => '')).replace(/\s+/g, ' ').slice(0, 300)}`);
     const body = (await res.json()) as { choices?: { message?: { content?: string } }[] };
     return extractJson(body.choices?.[0]?.message?.content ?? '');
   } catch (err) {

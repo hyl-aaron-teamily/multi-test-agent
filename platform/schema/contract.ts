@@ -1,6 +1,5 @@
-// Intent contract (W2-1 §5.1): the semi-formal middle layer between an Issue and a TestPlan.
-// Stage 1 (understanding) fills it from the Issue; stage 2 (composition) compiles it into a plan. It
-// references the SKILL libraries by id (preconditions / trigger patterns / observations) or 'unmapped'.
+// Intent contract (W2-1 §5.1). Since W3-1 it is derived from the model's audit.understanding (issue/author.ts)
+// and kept for older readers (report lead, evidence review phenomenon, multi-account deferral).
 import { z } from 'zod';
 
 export const EstablishZ = z.enum(['executor', 'existing-data', 'construct', 'unconstructible']);
@@ -22,8 +21,6 @@ export const IssueContractZ = z.object({
     semantics: z.string(),
     /** What is done, how often / how fast. */
     text: z.string(),
-    /** Pattern id when the trigger maps to one; empty = composed by the model. */
-    pattern: z.string().optional(),
     params: z.record(z.string(), z.unknown()).default({}),
   }),
   observable: z.object({

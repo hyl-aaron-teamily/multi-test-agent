@@ -31,7 +31,9 @@ export async function loadDraft(ref: string, env: 'test' | 'prod', useModel = tr
   const text = await readFile(f, 'utf8');
   const saved = redraft ? undefined : loadSavedDraft(id, text, env);
   if (saved) return saved;
-  return saveDraft(await draftIssue(parseIssue(id, text), { env, useModel }), text, env);
+  const d = await draftIssue(parseIssue(id, text), { env, useModel, raw: text });
+  d.issueFile = f;
+  return saveDraft(d, text, env);
 }
 
 /** Human-readable confirmation sheet. */
@@ -41,19 +43,21 @@ export function confirmationSheet(d: Draft): string {
   for (const k of d.contracts ?? []) out.push(`  契约：前置条件 ${k.preconditions.map((p) => `${p.text}[${p.establish}]`).join('；')}`);
   if (d.deferredPart) out.push(`未覆盖部分: ${d.deferredPart}`);
   for (const w of d.warmupFailures ?? []) out.push(`⚠ 上次预热失败 ${w.planId}（${w.at}）：${w.detail}`);
+  if (d.stale) out.push(`⚠ 待重写（${d.stale.at}）：${d.stale.reason}`);
+  const env = d.envelope;
+  if (env) {
+    out.push(`计划 v${d.planVersion ?? 1}（模型从原文设计）`, `  理解：${env.understanding.subject}在「${env.understanding.trigger}」之后出现「${env.understanding.phenomenon}」；正常应为「${env.understanding.expected}」〔${env.understanding.basis.join(', ')}〕`);
+    for (const q of env.quotes) out.push(`    ${q.id}: "${q.text.slice(0, 140)}"`);
+    if (env.feasibility.missing.length) out.push(`  缺积木：${env.feasibility.missing.map((m) => `${m.kind}「${m.need}」〔${m.basis.join(', ')}〕`).join('；')}`);
+    if (env.revision) out.push(`  修订（自 ${env.revision.from}）：诊断 ${env.revision.diagnosis}`, ...env.revision.changes.map((c) => `    改动：${c}`));
+    for (const r of env.risks) out.push(`  风险：${r}`);
+  }
+  for (const e of d.errors ?? []) out.push(`  校验错误：${e}`);
   for (const s of d.subcases) {
-    out.push(`  [${s.substitution ? ' ' : 'x'}] ${s.sub}: ${s.plan.title} — ${s.title}`);
+    out.push(`  [${s.substitution ? ' ' : 'x'}] ${s.sub}: ${s.plan.title}`);
     if (s.substitution) out.push(`      替代: ${s.substitution.from} → ${s.substitution.alternatives.join(' | ')}（默认 ${s.surface}）`, `      理由: ${s.substitution.reason}`);
-    if (s.contract) {
-      const k = s.contract;
-      out.push(
-        `      契约（${k.provenance.by}）：前置条件 ${k.preconditions.map((p) => `${p.text}[${p.establish}]`).join('；')}`,
-        `        触发：${k.trigger.semantics} — ${k.trigger.text.slice(0, 100)}`,
-        `        可观察后置条件：${k.observable.observation} — 现象「${k.observable.phenomenon.slice(0, 120)}」`,
-        ...(k.suspectedMechanism ? [`        推测机制（仅提示，不执行）：${k.suspectedMechanism}`] : []),
-        `        计划：${s.plan.provenance.pattern ? `模式 ${s.plan.provenance.pattern}` : s.plan.provenance.generatedBy === 'model' ? '模型组合' : '通用模板'}；${s.plan.coverage === 'not-covered' ? '⚠ 计划未覆盖 Issue 现象，结论仅说明无崩溃' : '覆盖 Issue 现象'}`,
-      );
-    }
+    const o = s.plan.audit?.oracle;
+    if (o) out.push(`      判定：命中 = ${o.hit}；正常 = ${o.normal}；为何一定失败 = ${o.canFail}；基线 = ${o.baseline}（观察点 ${o.at}${o.atReason ? `，${o.atReason}` : ''}）`);
     if (s.planErrors.length) out.push(`      计划校验问题: ${s.planErrors.join('; ')}`);
   }
   return out.join('\n');
@@ -99,7 +103,7 @@ export async function savePlans(plans: TestPlan[]): Promise<string[]> {
 
 export async function planCmd(args: string[]): Promise<number> {
   const ref = args.find((a) => !a.startsWith('--'));
-  if (!ref) throw new Error('usage: autotest plan issues/<id>.md [--env prod] [--json] [--no-model]');
+  if (!ref) throw new Error('usage: autotest plan issues/<id>.md [--env prod] [--json]  (the model designs the case from the Issue text)');
   const env = (flag(args, 'env') ?? 'prod') as 'test' | 'prod';
   // `plan` always drafts anew (that is its job); `run` reuses the confirmed draft.
   const d = await loadDraft(ref, env, !has(args, 'no-model'), true);

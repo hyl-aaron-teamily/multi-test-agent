@@ -21,30 +21,314 @@
     "featureArea": "Notification / Unified notification entry (UI)",
     "context": "- **Feature area**: Notification / Unified notification entry (UI)\r\n- Reporter: yara (QA, im_user_id 7204801031210562) in Teamily group 3617548693 on 2026-10-16 (UTC+8), with three screenshots.\r\n- Current state — the three known 🔔 entries, each verified against yara's screenshots: (1) Profile page header, top-right, between the community icon and the share icon — carries an unread badge ('9'). (2) Artifacts module page header, top-right of the main content area, right of the grid/list toggle and left of '筛选' (Filter) — no badge. (3) CloudDoc / deliverable document top-right header, between the Help (?) icon and the avatar — no badge. They are three independent components with three independent unread states.\r\n- Problem: the notification entries are scattered and repeat each other, and their unread states are maintained separately. Notifications are therefore easy to miss, and the counts/red-dots disagree between surfaces (see #2334).\r\n- Expected: one unified notification center — a single entry point plus a single shared unread state (see Expected result for the concrete proposal to be confirmed with product).\r\n- Impact / scope: all signed-in Web users (and, wherever the same modules exist, other clients). Touches notification discovery, unread-badge/red-dot consistency, and the notification entry component itself. Affected surfaces seen so far: profile, Artifacts, CloudDoc/deliverable.\r\n- Inventory caveat: a bell also appears in the CloudDoc / site builder editor, and #970/#1363 concern CloudDoc mention notifications being routed to an existing notification list. Please confirm the FULL inventory of bell entries (and where each notification type is produced) during design, so the consolidated center is complete from day one.\r\n- Duplicate check (Teamily-Inc/teamily-ai-all — local full-repo index of 2,334 issues, open + closed, issues only (PRs excluded), judged by ROOT CAUSE / ASK rather than wording; keywords: 通知/notification, 铃铛/🔔/bell, 未读/unread, 角标/红点/badge, notification center/通知中心/消息中心, 整合/统一/收敛/unify/consolidate/unified entry, sidebar/侧边栏, plus module terms artifacts/CloudDoc/profile/Discover): NOT a duplicate. No issue — open or closed — asks to CONSOLIDATE the multiple notification entries or to build a unified notification center; that ask is new. Closest matches, all read in full (body + comments): #2334 (OPEN, Bug) is the SYMPTOM of this feature's root cause — 'the Artifacts in-page bell shows unread while the left-sidebar Artifacts entry shows no badge — the two unread states are out of sync' — but it is scoped to ONE module's badge sync, whereas this Feature asks for cross-module consolidation; keep both and cross-reference (this Feature removes the structural root cause of #2334). #1363 (OPEN) asks for CloudDoc mention notifications to go into the EXISTING notification list — same direction for one module, narrower; a candidate to fold into the unified center. #874 / #555 / #603 (all CLOSED) are defects INSIDE the existing notification center/panel (panel does not auto-close; deleted posts still listed; Web-vs-RN button parity) — not the consolidation ask. #2122 (OPEN, Feature) / #1578 (OPEN, Feature) / #2281 (OPEN) concern new-message indicators and Mentions/unread-badge behaviour in the IM surface — a different surface. #1899 / #1276 (both CLOSED) are single-module badge defects. No 统一入口 / consolidation / unified-notification-center request exists in the repo.\r\n- Related (NOT duplicates): #2334 — Artifacts sidebar badge vs in-page bell out of sync (the concrete bug of this feature's root cause); #1363 — CloudDoc mention notification should go to the existing notification list; #1899 and #1276 — same unread-badge-sync family.\r\n\r\n---",
     "environment": "- **Platform / OS / Browser**: Web / desktop (screenshots are desktop web)",
-    "empty": false
+    "empty": false,
+    "images": [
+      "https://github.com/Teamily-Inc/bug-screenshots/blob/main/issue-2336-ae2e4fde.png?raw=true",
+      "https://github.com/Teamily-Inc/bug-screenshots/blob/main/issue-2336-dd177bff.png?raw=true",
+      "https://github.com/Teamily-Inc/bug-screenshots/blob/main/issue-2336-1c46ea21.png?raw=true"
+    ]
   },
   "classification": {
-    "category": "feature",
+    "category": "bug-always",
     "surfaces": [
       "desktop-web"
     ],
-    "reason": "需求类：按 Expected/AC 一次性验收",
+    "reason": "Frequency: Always",
     "strength": "strong",
-    "by": "rules",
-    "partialMultiAccount": false
+    "by": "rules"
   },
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "Teamily exposes at least three separate 🔔 notification entries, each with its own independent unread state, so a user has to check several places to see all notifications and easily misses them."
+      },
+      {
+        "id": "q2",
+        "text": "Open the profile page (e.g. /profile) — a 🔔 bell sits in the header top-right, between the community icon and the share icon, and carries an unread badge."
+      },
+      {
+        "id": "q3",
+        "text": "Open the Artifacts page — a separate 🔔 bell sits at the top-right of the main content area"
+      },
+      {
+        "id": "q4",
+        "text": "with its own (empty) unread state."
+      },
+      {
+        "id": "q5",
+        "text": "Open a CloudDoc / deliverable document — a third 🔔 bell sits in the top-right header, between the Help icon and the avatar."
+      },
+      {
+        "id": "q6",
+        "text": "Compare the three entries: each is an independent entry point with its own unread state, and no single place lists all notifications."
+      },
+      {
+        "id": "q7",
+        "text": "One consolidated notification entry: a single notification center, reachable from one consistent location, that aggregates notifications from every module under a SINGLE shared unread state (badge / count) kept in sync everywhere."
+      },
+      {
+        "id": "q8",
+        "text": "If module-level entries are kept, they must read from the same unread state instead of maintaining independent ones — so the badge can never disagree between surfaces."
+      },
+      {
+        "id": "q9",
+        "text": "At least three separate 🔔 entries exist, each with an independent unread state: (1) the profile page header, (2) the Artifacts page header, and (3) the CloudDoc / deliverable document header."
+      },
+      {
+        "id": "q10",
+        "text": "**Frequency**: Always"
+      },
+      {
+        "id": "q11",
+        "text": "Web / desktop (screenshots are desktop web)"
+      },
+      {
+        "id": "q12",
+        "text": "a bell also appears in the CloudDoc / site builder editor"
+      }
+    ],
+    "understanding": {
+      "subject": "三个彼此独立的 🔔 通知入口组件：个人主页头部右上角铃铛、Artifacts 页主内容区右上角铃铛、CloudDoc / 交付物文档头部右上角铃铛",
+      "trigger": "分别打开个人主页（/profile）、Artifacts 页面、CloudDoc 文档（从 Artifacts 卡片进入），读取每个页面头部右上角的 🔔 入口",
+      "phenomenon": "三处各自独立存在的 🔔 通知入口在同一账号下并存，每处维护自己的未读状态，没有任何一个位置能集中列出全部通知",
+      "expected": "只保留一个统一通知入口（如全局左栏的「通知」），聚合各模块通知并共用同一份未读状态；若保留模块级入口，也必须读取同一份未读状态，使各处角标永不互相矛盾",
+      "frequency": "always",
+      "control": "",
+      "basis": [
+        "q1",
+        "q2",
+        "q3",
+        "q5",
+        "q6",
+        "q9"
+      ]
+    },
+    "feasibility": {
+      "status": "plannable",
+      "missing": []
+    },
+    "subcases": [
+      {
+        "sub": "main",
+        "oracle": {
+          "at": "actions[0]",
+          "hit": "同一轮内依次读到：个人主页头部右上角有 🔔 入口（actions[0]）、Artifacts 页主内容区右上角另有独立 🔔 入口（actions[1]）、CloudDoc 文档头部右上角还有第三个 🔔 入口（actions[4]）——三处入口并存即命中 Issue 所述「至少三处各自独立的通知入口」",
+          "normal": "按 Issue 的预期（q7/q8），入口收敛为一个统一通知中心并共用同一份未读状态，模块级铃铛不再各自独立存在（被移除，或改造为读取统一状态）。此时三处元素存在性检查至少一处不再成立——例如 Artifacts 页头部或 CloudDoc 文档头部不再有独立铃铛，对应元素的 visual-region 读不到",
+          "canFail": "当前构建中三个铃铛是三个独立组件，分别静态渲染在三个页面头部（q2/q3/q5，Issue 三张截图逐一核对过），不依赖任何随机数据；因此每次进入对应页面都能读到该元素存在，三处并存的现象必然出现。反之在首页基线状态下这三个元素都读不到，说明检查对「是否进入该模块页面」有区分度",
+          "baseline": "每轮开始停在已登录首页：左栏「我」(nav.me) 入口可见，此时 profile.bell / artifacts.bell / clouddoc.bell 三个元素均不在屏幕上，即现象尚未发生（用 baseline[0] 确认起点，三个铃铛检查在首页读不到）"
+        },
+        "plan": {
+          "title": "个人主页 / Artifacts / CloudDoc 三处独立 🔔 通知入口并存",
+          "targets": [],
+          "setup": [],
+          "prepare": [],
+          "baseline": [
+            {
+              "kind": "visual-region",
+              "region": "element:nav.me",
+              "expect": "起点为已登录首页：左栏「我」(nav.me) 入口存在，尚未进入个人主页 / Artifacts / CloudDoc 任一页面"
+            }
+          ],
+          "actions": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openPage",
+                "input": {
+                  "page": "profile"
+                }
+              },
+              "delayAfterMs": 800,
+              "expect": {
+                "role": "phenomenon",
+                "check": {
+                  "kind": "visual-region",
+                  "region": "element:profile.bell",
+                  "expect": "个人主页头部右上角（社群图标与分享图标之间）存在它自己的 🔔 通知入口"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openPage",
+                "input": {
+                  "page": "artifacts"
+                }
+              },
+              "delayAfterMs": 800,
+              "expect": {
+                "role": "phenomenon",
+                "check": {
+                  "kind": "visual-region",
+                  "region": "element:artifacts.bell",
+                  "expect": "Artifacts 页主内容区右上角（网格/列表切换右侧、筛选按钮左侧）存在另一个独立的 🔔 通知入口"
+                }
+              }
+            },
+            {
+              "type": "idle",
+              "value": "500",
+              "delayAfterMs": 0,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "region": "element:artifacts.firstCard",
+                  "expect": "Artifacts 网格第一个卡片位可点（这一轮才有文档可以打开，否则本轮偏离）"
+                }
+              }
+            },
+            {
+              "type": "tap",
+              "element": "artifacts.firstCard",
+              "delayAfterMs": 1000
+            },
+            {
+              "type": "idle",
+              "value": "2000",
+              "delayAfterMs": 0,
+              "expect": {
+                "role": "phenomenon",
+                "check": {
+                  "kind": "visual-region",
+                  "region": "element:clouddoc.bell",
+                  "expect": "CloudDoc / 交付物文档头部右上角（帮助图标与头像之间）存在第三个 🔔 通知入口"
+                }
+              }
+            }
+          ],
+          "checks": [],
+          "afterCheck": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openPage",
+                "input": {
+                  "page": "chat"
+                }
+              },
+              "delayAfterMs": 800,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "region": "element:nav.me",
+                  "expect": "复位回到首页（聊天页），左栏导航可见，下一轮从首页基线重新开始"
+                }
+              }
+            }
+          ]
+        },
+        "trace": [
+          {
+            "at": "plan.title",
+            "basis": [
+              "q1",
+              "q9"
+            ]
+          },
+          {
+            "at": "baseline[0]",
+            "basis": [
+              "executor:确认每轮起点为已登录首页"
+            ]
+          },
+          {
+            "at": "actions[0]",
+            "basis": [
+              "q2"
+            ]
+          },
+          {
+            "at": "actions[1]",
+            "basis": [
+              "q3",
+              "q4"
+            ]
+          },
+          {
+            "at": "actions[2]",
+            "basis": [
+              "executor:确认 Artifacts 页有卡片可打开，避免打不开文档被判成未命中"
+            ]
+          },
+          {
+            "at": "actions[3]",
+            "basis": [
+              "q5"
+            ]
+          },
+          {
+            "at": "actions[4]",
+            "basis": [
+              "q5",
+              "q12"
+            ]
+          },
+          {
+            "at": "afterCheck[0]",
+            "basis": [
+              "executor:复位"
+            ]
+          },
+          {
+            "at": "oracle.hit",
+            "basis": [
+              "q1",
+              "q6",
+              "q9"
+            ]
+          },
+          {
+            "at": "oracle.normal",
+            "basis": [
+              "q7",
+              "q8"
+            ]
+          }
+        ]
+      }
+    ],
+    "revision": null,
+    "selfCheck": {
+      "R1": "ok：只用积木目录里的 id——node teamily.openPage、固定元素 profile.bell / artifacts.bell / clouddoc.bell / artifacts.firstCard / nav.me、观察 visual-region（region 写成 element:<固定元素 id>）；无坐标、无代码。",
+      "R2": "ok：三个被观察的对象就是 vocab 里定义的三个铃铛元素，位置说明与 q2（个人主页头部右上角）、q3（Artifacts 主内容区右上角）、q5（CloudDoc 头部帮助与头像之间）逐字对应；本计划不使用动态 targets，所以不涉及 target.must。",
+      "R3": "ok：动作序列就是 Issue 的复现步骤本身——打开 profile、打开 artifacts、从 Artifacts 卡片打开 CloudDoc；没有用下游操作代替触发。",
+      "R4": "ok：每条铃铛存在性检查都挂在「打开该页面」的那一步上（actions[0]/[1] 用 expect phenomenon）；CloudDoc 由新标签页加载，超出 delayAfterMs≤1000 的读取窗口，因此在 actions[3] 之后用一个 idle 2000ms 动作承载 expect（actions[4]），并把理由写进 trace 与 risks。",
+      "R5": "ok：① 检查范围最窄，每条只绑单一元素（element:<id>），不用整屏文字、不依赖触发界面自带内容；② 当前构建中三个铃铛静态独立渲染，存在性检查必然读到，而首页基线状态下三个元素都读不到，因此检查能区分「是否已进入该模块页面」；③ 现象是「入口存在」而非「缺失」，判定方向已写进 oracle.hit / oracle.normal（检查通过 = 三处并存成立 = 命中）；④ 本计划不产生留存状态（未读、草稿、反应都不改），故不需要额外的 baseline 复位。",
+      "R6": "ok：本轮只做只读导航，不改任何数据；afterCheck 仍用 teamily.openPage page=chat 回到首页，并带 role:precondition 的 nav.me 存在性检查，保证下一轮从基线状态开始。",
+      "R7": "na：Issue 没有给出「正常对照对象」（三处铃铛是同一现象的三份证据，三者之间不构成对照），故不设 control 子用例。",
+      "R8": "ok：本计划需要的积木都存在，无缺失项。无法用 ① 确定性观察判定的「三处是否共用同一份未读状态 / 角标数值是否一致」（q1、q8，#2334 症状）没有被硬塞进检查，写进 risks 说明。",
+      "R9": "na：执行端就是 Issue 报告的 Web / desktop（q11），没有做端替代。",
+      "R10": "ok：循环里只用 phase:any 的 node（teamily.openPage）；没有 prepare-only 的 node；不发消息、不做社交动作；delayAfterMs 依次为 800/800/0/1000/0，均 ≤1000（等待页面加载用 idle 的 value，不是 delayAfterMs）。",
+      "R11": "ok：标题「个人主页 / Artifacts / CloudDoc 三处独立 🔔 通知入口并存」用的就是本 Issue 的对象（三处铃铛）和现象（并存）。",
+      "R12": "ok：每条动作、检查、基线、复位都在 trace 里引用了 q1–q12 或写了 executor:<理由>；quotes 里的每一段都能在 Issue 原文中逐字找到。"
+    },
+    "risks": [
+      "CloudDoc 由 artifacts.firstCard 在新标签页打开，若执行器不自动切到新标签页，actions[4] 的第三个铃铛检查会落空，这一轮判为偏离。",
+      "Artifacts 网格第一个卡片位可能不是 DOC 文档（可能是文件夹或其他类型），导致打不开 CloudDoc；actions[2] 的 precondition 只能确认「有卡片」，不能确认「是文档」。",
+      "判定依赖 vocab 里 profile.bell / artifacts.bell / clouddoc.bell 三处标定；产品改版动了头部布局时元素会失效，需要重新标定后才能继续复现。",
+      "「三处未读状态各自独立 / 角标互相矛盾」（q1、q8，#2334 症状）无法用 ① 确定性观察判定，角标数值还随账号未读数据变化，本计划只验证「三处入口并存」这一结构性现象，不判定角标一致性。",
+      "若产品按「保留模块级入口但共用同一份未读状态」落地（q8 允许的形态），三个铃铛会继续存在，本计划的存在性检查会把修复后的版本误判为命中；修订时需加入统一入口是否存在、以及跨面角标一致性的观察能力。",
+      "Issue 提到 CloudDoc / 建站编辑器里还有第四个铃铛（q12），本计划未覆盖，整合后的清单完整性需另行核对。"
+    ]
+  },
+  "planVersion": 1,
+  "modelCalls": 1,
   "status": "plannable",
-  "reason": "需求类：按 Expected/AC 一次性验收",
+  "reason": "计划 v1：三个彼此独立的 🔔 通知入口组件：个人主页头部右上角铃铛、Artifacts 页主内容区右上角铃铛、CloudDoc / 交付物文档头部右上角铃铛 — 三处各自独立存在的 🔔 通知入口在同一账号下并存，每处维护自己的未读状态，没有任何一个位置能集中列出全部通知",
   "subcases": [
     {
       "sub": "main",
-      "title": "yara (QA) reports that Teamily exposes at least three separate 🔔 notification e",
+      "title": "个人主页 / Artifacts / CloudDoc 三处独立 🔔 通知入口并存",
       "surface": "desktop-web",
       "plan": {
         "id": "2336-desktop-web-v1",
         "issueRef": "2336",
-        "title": "通知入口盘点（一次性验收）",
-        "category": "feature",
+        "title": "个人主页 / Artifacts / CloudDoc 三处独立 🔔 通知入口并存",
+        "category": "bug-always",
         "surface": "desktop-web",
         "issueSurfaces": [
           "web",
@@ -55,148 +339,294 @@
         "targets": [],
         "setup": [],
         "prepare": [],
-        "actions": [],
+        "baseline": [
+          {
+            "kind": "visual-region",
+            "region": "element:nav.me",
+            "expect": "起点为已登录首页：左栏「我」(nav.me) 入口存在，尚未进入个人主页 / Artifacts / CloudDoc 任一页面",
+            "want": "present"
+          }
+        ],
+        "actions": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openPage",
+              "input": {
+                "page": "profile"
+              }
+            },
+            "delayAfterMs": 800,
+            "expect": {
+              "role": "phenomenon",
+              "check": {
+                "kind": "visual-region",
+                "region": "element:profile.bell",
+                "expect": "个人主页头部右上角（社群图标与分享图标之间）存在它自己的 🔔 通知入口",
+                "want": "present"
+              }
+            }
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openPage",
+              "input": {
+                "page": "artifacts"
+              }
+            },
+            "delayAfterMs": 800,
+            "expect": {
+              "role": "phenomenon",
+              "check": {
+                "kind": "visual-region",
+                "region": "element:artifacts.bell",
+                "expect": "Artifacts 页主内容区右上角（网格/列表切换右侧、筛选按钮左侧）存在另一个独立的 🔔 通知入口",
+                "want": "present"
+              }
+            }
+          },
+          {
+            "type": "idle",
+            "value": "500",
+            "delayAfterMs": 0,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "region": "element:artifacts.firstCard",
+                "expect": "Artifacts 网格第一个卡片位可点（这一轮才有文档可以打开，否则本轮偏离）",
+                "want": "present"
+              }
+            }
+          },
+          {
+            "type": "tap",
+            "element": "artifacts.firstCard",
+            "delayAfterMs": 1000
+          },
+          {
+            "type": "idle",
+            "value": "2000",
+            "delayAfterMs": 0,
+            "expect": {
+              "role": "phenomenon",
+              "check": {
+                "kind": "visual-region",
+                "region": "element:clouddoc.bell",
+                "expect": "CloudDoc / 交付物文档头部右上角（帮助图标与头像之间）存在第三个 🔔 通知入口",
+                "want": "present"
+              }
+            }
+          }
+        ],
         "checks": [],
-        "afterCheck": [],
-        "acceptance": [
+        "afterCheck": [
           {
-            "id": "no-separate-bell-profile",
-            "text": "个人主页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
-            "actions": [
-              {
-                "type": "node",
-                "node": {
-                  "name": "teamily.openPage",
-                  "input": {
-                    "page": "profile"
-                  }
-                },
-                "delayAfterMs": 1000
-              },
-              {
-                "type": "wait",
-                "value": "1000",
-                "delayAfterMs": 1000
+            "type": "node",
+            "node": {
+              "name": "teamily.openPage",
+              "input": {
+                "page": "chat"
               }
-            ],
-            "check": {
-              "kind": "visual-region",
-              "page": "profile",
-              "region": "element:profile.bell",
-              "expect": "profile 页头部仍有独立 🔔",
-              "want": "absent"
-            }
-          },
-          {
-            "id": "no-separate-bell-artifacts",
-            "text": "Artifacts 页不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
-            "actions": [
-              {
-                "type": "node",
-                "node": {
-                  "name": "teamily.openPage",
-                  "input": {
-                    "page": "artifacts"
-                  }
-                },
-                "delayAfterMs": 1000
-              },
-              {
-                "type": "wait",
-                "value": "1000",
-                "delayAfterMs": 1000
+            },
+            "delayAfterMs": 800,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "region": "element:nav.me",
+                "expect": "复位回到首页（聊天页），左栏导航可见，下一轮从首页基线重新开始",
+                "want": "present"
               }
-            ],
-            "check": {
-              "kind": "visual-region",
-              "page": "artifacts",
-              "region": "element:artifacts.bell",
-              "expect": "artifacts 页头部仍有独立 🔔",
-              "want": "absent"
-            }
-          },
-          {
-            "id": "no-separate-bell-clouddoc",
-            "text": "CloudDoc / 交付物文档头部不再有独立维护未读状态的 🔔 入口（统一到单一通知中心）",
-            "actions": [
-              {
-                "type": "node",
-                "node": {
-                  "name": "teamily.openPage",
-                  "input": {
-                    "page": "artifacts"
-                  }
-                },
-                "delayAfterMs": 1000
-              },
-              {
-                "type": "wait",
-                "value": "1000",
-                "delayAfterMs": 1000
-              },
-              {
-                "type": "tap",
-                "element": "artifacts.firstCard",
-                "delayAfterMs": 1000
-              },
-              {
-                "type": "wait",
-                "value": "1000",
-                "delayAfterMs": 1000
-              },
-              {
-                "type": "wait",
-                "value": "1000",
-                "delayAfterMs": 1000
-              },
-              {
-                "type": "wait",
-                "value": "1000",
-                "delayAfterMs": 1000
-              }
-            ],
-            "check": {
-              "kind": "visual-region",
-              "page": "clouddoc",
-              "region": "element:clouddoc.bell",
-              "expect": "CloudDoc 头部仍有独立 🔔",
-              "want": "absent"
-            }
-          },
-          {
-            "id": "single-center",
-            "text": "存在一个汇总所有模块通知、共享同一未读状态的通知中心入口",
-            "actions": [
-              {
-                "type": "back",
-                "delayAfterMs": 1000
-              },
-              {
-                "type": "node",
-                "node": {
-                  "name": "teamily.openPage",
-                  "input": {
-                    "page": "chat"
-                  }
-                },
-                "delayAfterMs": 1000
-              }
-            ],
-            "check": {
-              "kind": "ai",
-              "expect": "The far-left global navigation rail (the narrow icon column at the left edge) contains a bell-shaped (🔔) notification icon. Answer false if no bell-shaped icon is in that rail; gift, memory, download or other icons do not count",
-              "want": "present",
-              "onlyOnAnomaly": false
             }
           }
         ],
         "limits": {
           "maxSteps": 1000,
           "maxMinutes": 15,
-          "maxIntervalMs": 1000
+          "maxIntervalMs": 1000,
+          "maxRounds": 30,
+          "untilBudget": true
         },
         "verdictRule": {
           "anyHit": true
+        },
+        "audit": {
+          "version": 1,
+          "sub": "main",
+          "quotes": [
+            {
+              "id": "q1",
+              "text": "Teamily exposes at least three separate 🔔 notification entries, each with its own independent unread state, so a user has to check several places to see all notifications and easily misses them."
+            },
+            {
+              "id": "q2",
+              "text": "Open the profile page (e.g. /profile) — a 🔔 bell sits in the header top-right, between the community icon and the share icon, and carries an unread badge."
+            },
+            {
+              "id": "q3",
+              "text": "Open the Artifacts page — a separate 🔔 bell sits at the top-right of the main content area"
+            },
+            {
+              "id": "q4",
+              "text": "with its own (empty) unread state."
+            },
+            {
+              "id": "q5",
+              "text": "Open a CloudDoc / deliverable document — a third 🔔 bell sits in the top-right header, between the Help icon and the avatar."
+            },
+            {
+              "id": "q6",
+              "text": "Compare the three entries: each is an independent entry point with its own unread state, and no single place lists all notifications."
+            },
+            {
+              "id": "q7",
+              "text": "One consolidated notification entry: a single notification center, reachable from one consistent location, that aggregates notifications from every module under a SINGLE shared unread state (badge / count) kept in sync everywhere."
+            },
+            {
+              "id": "q8",
+              "text": "If module-level entries are kept, they must read from the same unread state instead of maintaining independent ones — so the badge can never disagree between surfaces."
+            },
+            {
+              "id": "q9",
+              "text": "At least three separate 🔔 entries exist, each with an independent unread state: (1) the profile page header, (2) the Artifacts page header, and (3) the CloudDoc / deliverable document header."
+            },
+            {
+              "id": "q10",
+              "text": "**Frequency**: Always"
+            },
+            {
+              "id": "q11",
+              "text": "Web / desktop (screenshots are desktop web)"
+            },
+            {
+              "id": "q12",
+              "text": "a bell also appears in the CloudDoc / site builder editor"
+            }
+          ],
+          "understanding": {
+            "subject": "三个彼此独立的 🔔 通知入口组件：个人主页头部右上角铃铛、Artifacts 页主内容区右上角铃铛、CloudDoc / 交付物文档头部右上角铃铛",
+            "trigger": "分别打开个人主页（/profile）、Artifacts 页面、CloudDoc 文档（从 Artifacts 卡片进入），读取每个页面头部右上角的 🔔 入口",
+            "phenomenon": "三处各自独立存在的 🔔 通知入口在同一账号下并存，每处维护自己的未读状态，没有任何一个位置能集中列出全部通知",
+            "expected": "只保留一个统一通知入口（如全局左栏的「通知」），聚合各模块通知并共用同一份未读状态；若保留模块级入口，也必须读取同一份未读状态，使各处角标永不互相矛盾",
+            "frequency": "always",
+            "control": "",
+            "basis": [
+              "q1",
+              "q2",
+              "q3",
+              "q5",
+              "q6",
+              "q9"
+            ]
+          },
+          "feasibility": {
+            "status": "plannable",
+            "missing": []
+          },
+          "oracle": {
+            "at": "actions[0]",
+            "hit": "同一轮内依次读到：个人主页头部右上角有 🔔 入口（actions[0]）、Artifacts 页主内容区右上角另有独立 🔔 入口（actions[1]）、CloudDoc 文档头部右上角还有第三个 🔔 入口（actions[4]）——三处入口并存即命中 Issue 所述「至少三处各自独立的通知入口」",
+            "normal": "按 Issue 的预期（q7/q8），入口收敛为一个统一通知中心并共用同一份未读状态，模块级铃铛不再各自独立存在（被移除，或改造为读取统一状态）。此时三处元素存在性检查至少一处不再成立——例如 Artifacts 页头部或 CloudDoc 文档头部不再有独立铃铛，对应元素的 visual-region 读不到",
+            "canFail": "当前构建中三个铃铛是三个独立组件，分别静态渲染在三个页面头部（q2/q3/q5，Issue 三张截图逐一核对过），不依赖任何随机数据；因此每次进入对应页面都能读到该元素存在，三处并存的现象必然出现。反之在首页基线状态下这三个元素都读不到，说明检查对「是否进入该模块页面」有区分度",
+            "baseline": "每轮开始停在已登录首页：左栏「我」(nav.me) 入口可见，此时 profile.bell / artifacts.bell / clouddoc.bell 三个元素均不在屏幕上，即现象尚未发生（用 baseline[0] 确认起点，三个铃铛检查在首页读不到）"
+          },
+          "trace": [
+            {
+              "at": "plan.title",
+              "basis": [
+                "q1",
+                "q9"
+              ]
+            },
+            {
+              "at": "baseline[0]",
+              "basis": [
+                "executor:确认每轮起点为已登录首页"
+              ]
+            },
+            {
+              "at": "actions[0]",
+              "basis": [
+                "q2"
+              ]
+            },
+            {
+              "at": "actions[1]",
+              "basis": [
+                "q3",
+                "q4"
+              ]
+            },
+            {
+              "at": "actions[2]",
+              "basis": [
+                "executor:确认 Artifacts 页有卡片可打开，避免打不开文档被判成未命中"
+              ]
+            },
+            {
+              "at": "actions[3]",
+              "basis": [
+                "q5"
+              ]
+            },
+            {
+              "at": "actions[4]",
+              "basis": [
+                "q5",
+                "q12"
+              ]
+            },
+            {
+              "at": "afterCheck[0]",
+              "basis": [
+                "executor:复位"
+              ]
+            },
+            {
+              "at": "oracle.hit",
+              "basis": [
+                "q1",
+                "q6",
+                "q9"
+              ]
+            },
+            {
+              "at": "oracle.normal",
+              "basis": [
+                "q7",
+                "q8"
+              ]
+            }
+          ],
+          "selfCheck": {
+            "R1": "ok：只用积木目录里的 id——node teamily.openPage、固定元素 profile.bell / artifacts.bell / clouddoc.bell / artifacts.firstCard / nav.me、观察 visual-region（region 写成 element:<固定元素 id>）；无坐标、无代码。",
+            "R2": "ok：三个被观察的对象就是 vocab 里定义的三个铃铛元素，位置说明与 q2（个人主页头部右上角）、q3（Artifacts 主内容区右上角）、q5（CloudDoc 头部帮助与头像之间）逐字对应；本计划不使用动态 targets，所以不涉及 target.must。",
+            "R3": "ok：动作序列就是 Issue 的复现步骤本身——打开 profile、打开 artifacts、从 Artifacts 卡片打开 CloudDoc；没有用下游操作代替触发。",
+            "R4": "ok：每条铃铛存在性检查都挂在「打开该页面」的那一步上（actions[0]/[1] 用 expect phenomenon）；CloudDoc 由新标签页加载，超出 delayAfterMs≤1000 的读取窗口，因此在 actions[3] 之后用一个 idle 2000ms 动作承载 expect（actions[4]），并把理由写进 trace 与 risks。",
+            "R5": "ok：① 检查范围最窄，每条只绑单一元素（element:<id>），不用整屏文字、不依赖触发界面自带内容；② 当前构建中三个铃铛静态独立渲染，存在性检查必然读到，而首页基线状态下三个元素都读不到，因此检查能区分「是否已进入该模块页面」；③ 现象是「入口存在」而非「缺失」，判定方向已写进 oracle.hit / oracle.normal（检查通过 = 三处并存成立 = 命中）；④ 本计划不产生留存状态（未读、草稿、反应都不改），故不需要额外的 baseline 复位。",
+            "R6": "ok：本轮只做只读导航，不改任何数据；afterCheck 仍用 teamily.openPage page=chat 回到首页，并带 role:precondition 的 nav.me 存在性检查，保证下一轮从基线状态开始。",
+            "R7": "na：Issue 没有给出「正常对照对象」（三处铃铛是同一现象的三份证据，三者之间不构成对照），故不设 control 子用例。",
+            "R8": "ok：本计划需要的积木都存在，无缺失项。无法用 ① 确定性观察判定的「三处是否共用同一份未读状态 / 角标数值是否一致」（q1、q8，#2334 症状）没有被硬塞进检查，写进 risks 说明。",
+            "R9": "na：执行端就是 Issue 报告的 Web / desktop（q11），没有做端替代。",
+            "R10": "ok：循环里只用 phase:any 的 node（teamily.openPage）；没有 prepare-only 的 node；不发消息、不做社交动作；delayAfterMs 依次为 800/800/0/1000/0，均 ≤1000（等待页面加载用 idle 的 value，不是 delayAfterMs）。",
+            "R11": "ok：标题「个人主页 / Artifacts / CloudDoc 三处独立 🔔 通知入口并存」用的就是本 Issue 的对象（三处铃铛）和现象（并存）。",
+            "R12": "ok：每条动作、检查、基线、复位都在 trace 里引用了 q1–q12 或写了 executor:<理由>；quotes 里的每一段都能在 Issue 原文中逐字找到。"
+          },
+          "risks": [
+            "CloudDoc 由 artifacts.firstCard 在新标签页打开，若执行器不自动切到新标签页，actions[4] 的第三个铃铛检查会落空，这一轮判为偏离。",
+            "Artifacts 网格第一个卡片位可能不是 DOC 文档（可能是文件夹或其他类型），导致打不开 CloudDoc；actions[2] 的 precondition 只能确认「有卡片」，不能确认「是文档」。",
+            "判定依赖 vocab 里 profile.bell / artifacts.bell / clouddoc.bell 三处标定；产品改版动了头部布局时元素会失效，需要重新标定后才能继续复现。",
+            "「三处未读状态各自独立 / 角标互相矛盾」（q1、q8，#2334 症状）无法用 ① 确定性观察判定，角标数值还随账号未读数据变化，本计划只验证「三处入口并存」这一结构性现象，不判定角标一致性。",
+            "若产品按「保留模块级入口但共用同一份未读状态」落地（q8 允许的形态），三个铃铛会继续存在，本计划的存在性检查会把修复后的版本误判为命中；修订时需加入统一入口是否存在、以及跨面角标一致性的观察能力。",
+            "Issue 提到 CloudDoc / 建站编辑器里还有第四个铃铛（q12），本计划未覆盖，整合后的清单完整性需另行核对。"
+          ],
+          "revision": null
+        },
+        "provenance": {
+          "generatedBy": "model",
+          "skillVersion": "2026.10.30-1"
         },
         "contract": {
           "issueRef": "2336",
@@ -209,27 +639,21 @@
             }
           ],
           "trigger": {
-            "semantics": "open-pages-inventory",
-            "text": "yara (QA) reports that Teamily exposes at least three separate 🔔 notification entries, each with its own independent unread state, so a user has to check several places to see all notifications and easily misses them. Evidence: three screenshots showing the bell in (1) the profile page header (top-",
-            "pattern": "notification-inventory",
+            "semantics": "model",
+            "text": "分别打开个人主页（/profile）、Artifacts 页面、CloudDoc 文档（从 Artifacts 卡片进入），读取每个页面头部右上角的 🔔 入口",
             "params": {}
           },
           "observable": {
             "observation": "element",
-            "text": "One consolidated notification entry: a single notification center, reachable from one consistent location, that aggregates notifications from every module under a SINGLE shared unread state (badge / count) kept in sync everywhere. Reading or clearing a notification updates the unified state. If module-level entries are kept, they must read from the same unread state instead of maintaining independent ones — so the badge can never disagree between surfaces. Concrete proposal to confirm with product: an aggregated 'Notifications' entry in the global navigation (e.g. the left icon rail) that show",
-            "phenomenon": "At least three separate 🔔 entries exist, each with an independent unread state: (1) the profile page header, (2) the Artifacts page header, and (3) the CloudDoc / deliverable document header. A user must visit each module separately to check notifications, and the unread badges disagree between surfaces — e.g. on the Artifacts page the in-page bell reports unread while the left-sidebar Artifacts entry reports none (#2334)."
+            "text": "只保留一个统一通知入口（如全局左栏的「通知」），聚合各模块通知并共用同一份未读状态；若保留模块级入口，也必须读取同一份未读状态，使各处角标永不互相矛盾",
+            "phenomenon": "三处各自独立存在的 🔔 通知入口在同一账号下并存，每处维护自己的未读状态，没有任何一个位置能集中列出全部通知"
           },
           "provenance": {
-            "by": "rules",
-            "skillVersion": "2026.10.21-1"
+            "by": "model",
+            "skillVersion": "2026.10.30-1",
+            "model": "deepseek-flash"
           }
-        },
-        "provenance": {
-          "generatedBy": "rules",
-          "skillVersion": "2026.10.21-1",
-          "pattern": "notification-inventory"
-        },
-        "coverage": "covered"
+        }
       },
       "planErrors": [],
       "contract": {
@@ -243,24 +667,25 @@
           }
         ],
         "trigger": {
-          "semantics": "open-pages-inventory",
-          "text": "yara (QA) reports that Teamily exposes at least three separate 🔔 notification entries, each with its own independent unread state, so a user has to check several places to see all notifications and easily misses them. Evidence: three screenshots showing the bell in (1) the profile page header (top-",
-          "pattern": "notification-inventory",
+          "semantics": "model",
+          "text": "分别打开个人主页（/profile）、Artifacts 页面、CloudDoc 文档（从 Artifacts 卡片进入），读取每个页面头部右上角的 🔔 入口",
           "params": {}
         },
         "observable": {
           "observation": "element",
-          "text": "One consolidated notification entry: a single notification center, reachable from one consistent location, that aggregates notifications from every module under a SINGLE shared unread state (badge / count) kept in sync everywhere. Reading or clearing a notification updates the unified state. If module-level entries are kept, they must read from the same unread state instead of maintaining independent ones — so the badge can never disagree between surfaces. Concrete proposal to confirm with product: an aggregated 'Notifications' entry in the global navigation (e.g. the left icon rail) that show",
-          "phenomenon": "At least three separate 🔔 entries exist, each with an independent unread state: (1) the profile page header, (2) the Artifacts page header, and (3) the CloudDoc / deliverable document header. A user must visit each module separately to check notifications, and the unread badges disagree between surfaces — e.g. on the Artifacts page the in-page bell reports unread while the left-sidebar Artifacts entry reports none (#2334)."
+          "text": "只保留一个统一通知入口（如全局左栏的「通知」），聚合各模块通知并共用同一份未读状态；若保留模块级入口，也必须读取同一份未读状态，使各处角标永不互相矛盾",
+          "phenomenon": "三处各自独立存在的 🔔 通知入口在同一账号下并存，每处维护自己的未读状态，没有任何一个位置能集中列出全部通知"
         },
         "provenance": {
-          "by": "rules",
-          "skillVersion": "2026.10.21-1"
+          "by": "model",
+          "skillVersion": "2026.10.30-1",
+          "model": "deepseek-flash"
         }
       }
     }
   ],
-  "hash": "14e0534117739a8e",
+  "hash": "0e2c493dc1628219",
   "issueHash": "3687362a43ac598f",
-  "env": "prod"
+  "env": "prod",
+  "version": 2
 }

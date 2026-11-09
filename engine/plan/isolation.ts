@@ -55,7 +55,16 @@ export async function cleanStart(c: RunCtx): Promise<string[]> {
 /** Recover from a drifted round: re-enter the plan's start only when the chat page is gone (re-running the
  *  setup on the chat page would tap a conversation-list point inside the chat). */
 export async function recoverAfterDrift(c: RunCtx): Promise<void> {
-  if (await onChat(c)) return;
+  if (await onChat(c)) {
+    // A draft left in the composer by the drifted round would make every later round drift too (2026-11-09:
+    // 1903 / 2669 lost whole runs to one unsent draft). Clearing it is a user action, between rounds.
+    const t = await composerText(c.sess.inner).catch(() => null);
+    if (t && t.trim()) {
+      c.log(`drift recovery: clearing the composer draft "${t.trim().slice(0, 40)}"`);
+      await c.exec({ type: 'node', node: { name: 'teamily.clearComposer', input: {} }, delayAfterMs: 300 });
+    }
+    return;
+  }
   // Re-entry taps frozen targets again: checked first (between rounds, never inside one).
   await (c.guard ? c.guard.during('re-entry', () => redoSetup(c)) : redoSetup(c));
 }
@@ -80,6 +89,12 @@ export async function teardown(c: RunCtx): Promise<string[]> {
   if (c.plan.surface !== 'android-app') return [];
   const did: string[] = [];
   const { d, profile } = c.sess;
+  // Alternating logins: the run always ends signed in as its leased account.
+  if (c.signedInAs?.() === 'other') {
+    d.label = 'teardown:relogin';
+    await c.exec({ type: 'node', node: { name: 'teamily.relogin', input: { as: 'self' } }, delayAfterMs: 500 });
+    did.push('切回本次租用的账号');
+  }
   if (await onChat(c)) {
     const t = await composerText(c.sess.inner);
     if (t) {

@@ -3,6 +3,9 @@
 // read of a round's own precondition). Round end: checkpoint, drift handling, evidence review of check-based
 // hits, afterCheck, verdict rule. W2-2 §3.1: a round is a valid attempt only when its precondition held and
 // nothing drifted; drift rounds are counted apart and never decide the verdict.
+// W3-1 §6: the round's baseline is read before its first action; an action with `expect` is observed right
+// after it (phenomenon: failing = the hit; precondition: failing = drift); the restore steps' expects are read
+// before the round is counted (failing = drift); plans with limits.untilBudget run the whole budget.
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { decodePng, dHash } from '../../core/image';
@@ -23,6 +26,10 @@ import { VerdictTracker } from '../verdict';
 import { detect, DETECT_EXPECTED, newDetectState } from '../detect';
 import { snapshot } from '../snapshot';
 import { visionAsk } from '../../core/model/midscene';
+import { readBaseline, readExpect, SAMPLE_EVERY, sampleScreen } from './expect';
+
+/** W3-1 default: a version whose drift rate exceeds this is "触发未稳定生效" and goes to revision. */
+export const DRIFT_THRESHOLD = 0.3;
 
 const WATCHDOG_MS = 20_000;
 
@@ -86,7 +93,15 @@ export async function runLoop(c: RunCtx, lo: LoopOptions = {}): Promise<void> {
     const stepsBefore = stats.steps;
     let roundHitReason = '';
     let drift = '';
-    for (const a of plan.actions) {
+    // W3-1: the phenomenon check of an action that failed (the hit), observed right after that action.
+    let expectHit: { at: string; detail: string; check: NonNullable<(typeof plan.actions)[number]['expect']>['check']; png?: Buffer } | undefined;
+    if (plan.baseline.length && !c.o.hooks?.shouldStop()) {
+      d.label = 'baseline';
+      const b = await readBaseline(c, round);
+      if (b) drift = `baseline not met (${b.at}): ${b.detail}`;
+    }
+    for (const [ai, a] of plan.actions.entries()) {
+      if (drift) break;
       // W2-3 §4.3 L2: a cancel request stops at a step boundary; the run then finishes normally (teardown).
       if (c.o.hooks?.shouldStop()) {
         stop = '已取消（取消请求）';
@@ -106,8 +121,11 @@ export async function runLoop(c: RunCtx, lo: LoopOptions = {}): Promise<void> {
       d.label = actionLabel(a);
       const budget = WATCHDOG_MS + (a.type === 'idle' ? idleMs(a) : 0) + (a.type === 'killApp' || a.type === 'reload' ? 10_000 : 0);
       let err: unknown;
+      // W3-1 §6.1: an action with `expect` is read inside its own delay — run it without the pause, read,
+      // then wait out what is left of delayAfterMs (the next input still starts ≤ 1 s later when the read is fast).
+      const tAct = Date.now();
       const ok = await Promise.race([
-        c.exec(a).then(
+        c.exec(a.expect ? { ...a, delayAfterMs: 0 } : a).then(
           () => true,
           (e) => {
             err = e;
@@ -124,9 +142,23 @@ export async function runLoop(c: RunCtx, lo: LoopOptions = {}): Promise<void> {
       // A step whose input did not land / a round precondition that does not hold: the round is not an attempt.
       if (err instanceof RoundDrift) drift = err.message;
       else if (err) throw err;
+      // W3-1: the action's post-condition, read now (① only, within the action interval).
+      if (!err && a.expect) {
+        const at = `actions[${ai}]`;
+        const r = await readExpect(c, a, at, round);
+        if (r && r.pass !== true) {
+          if (r.role === 'precondition' || r.pass === null) drift = `expect ${at} (${r.role}) ${r.pass === null ? 'unreadable' : 'not met'}: ${r.detail}`;
+          else expectHit = { at, detail: r.detail, check: a.expect.check, png: await d.screenshot().catch(() => undefined) };
+        }
+        if (!expectHit && !drift) await sleep(Math.max(0, Math.min(a.delayAfterMs, 1000) - (Date.now() - tAct)));
+      }
       for (const x of d.drainAnomalies()) {
         stats.anomalyGateTriggers++;
-        if (x.suspect) stats.suspectSignals++;
+        if (x.suspect) {
+          stats.suspectSignals++;
+          // The logcat line itself (revision material), not only the count.
+          if ((res.suspects ??= []).length < 100) res.suspects.push({ round, step: stats.steps, kind: x.kind, detail: x.detail.slice(0, 500) });
+        }
         if (HARD_ANOMALIES.includes(x.kind) && !roundHitReason) {
           roundHitReason = `${x.kind}: ${x.detail.slice(0, 200)}`;
           log(`HIT step ${stats.steps}: ${roundHitReason}`);
@@ -139,7 +171,7 @@ export async function runLoop(c: RunCtx, lo: LoopOptions = {}): Promise<void> {
           }
         }
       }
-      if (roundHitReason || drift) break;
+      if (roundHitReason || drift || expectHit) break;
     }
     if (stop && !roundHitReason && stats.steps === stepsBefore) break;
     const hardHit = !!roundHitReason;
@@ -148,7 +180,14 @@ export async function runLoop(c: RunCtx, lo: LoopOptions = {}): Promise<void> {
     let png: Buffer | undefined;
     let results: Awaited<ReturnType<Checkpoint['evaluate']>> = [];
     let failed: (typeof results)[number] | undefined;
-    if (!drift) {
+    if (!drift && expectHit && !hardHit) {
+      // The phenomenon was observed at its own step: that observation is the round's result (no round-end read).
+      png = expectHit.png ?? (await d.screenshot());
+      stats.checkpointScreenshots++;
+      failed = { check: expectHit.check, pass: false, detail: `${expectHit.at}: ${expectHit.detail}` };
+      results = [failed];
+      if (!(await onChat(c, png))) drift = 'chat page not on screen';
+    } else if (!drift) {
       if (!hardHit && needsScreenshot(plan.checks)) {
         png = await d.screenshot();
         stats.checkpointScreenshots++;
@@ -200,7 +239,7 @@ export async function runLoop(c: RunCtx, lo: LoopOptions = {}): Promise<void> {
         for (const f of c.frames.slice(0, -10)) f.png = undefined;
       }
       let review: { verdict: EvidenceVerdict; note: string } | undefined;
-      if (failed && !hardHit && res.incidents.length < 5 + (res.dismissed?.length ?? 0)) {
+      if (failed && !hardHit && res.incidents.length < (plan.limits.untilBudget ? (plan.limits.maxRounds ?? 30) : 5) + (res.dismissed?.length ?? 0)) {
         const dir = await recordIncident(c, failed.check.kind === 'visual-region' ? 'check-failed' : 'visual-anomaly', roundHitReason, round);
         res.incidents.push(dir);
         // The check only compares pixels / text: before the round counts, the recorded evidence must show
@@ -219,29 +258,56 @@ export async function runLoop(c: RunCtx, lo: LoopOptions = {}): Promise<void> {
         }
       }
       if (roundHitReason) dismissedRun = 0;
-      if (roundHitReason) res.hits.push({ round, step: stats.steps, at: new Date().toISOString(), reason: roundHitReason, review: review?.verdict, reviewNote: review?.note });
-      res.roundLog.push({ round, step: stats.steps, results: results.map((r) => ({ kind: r.check.kind, pass: r.pass, detail: r.detail })) });
-      if (tracker.record(!!roundHitReason, round)) stop = '判定规则满足（命中 1 次）';
+      // Restore before the round is counted: a restore whose expect does not hold leaves the next round on a
+      // wrong state — a round without a hit then counts as drift (W3-1 §6.4).
+      let resetFail = '';
+      if (!stop && !hardHit) resetFail = await restore(c, round);
+      if (resetFail && !roundHitReason) {
+        driftRounds++;
+        stats.drifts++;
+        log(`round ${round}: restore not verified (${resetFail}) — not counted`);
+        res.roundLog.push({ round, step: stats.steps, results: [{ kind: 'drift', pass: null, detail: `restore: ${resetFail}` }] });
+        await recoverAfterDrift(c);
+        if (stats.drifts > 10) stop = '操作偏离过多（>10 次），停止';
+      } else {
+        if (resetFail) await recoverAfterDrift(c);
+        if (roundHitReason) res.hits.push({ round, step: stats.steps, at: new Date().toISOString(), reason: roundHitReason, review: review?.verdict, reviewNote: review?.note });
+        res.roundLog.push({ round, step: stats.steps, results: results.map((r) => ({ kind: r.check.kind, pass: r.pass, detail: r.detail })) });
+        // W3-1: the reproduction rate needs the whole budget — no stop on a hit.
+        if (tracker.record(!!roundHitReason, round) && !plan.limits.untilBudget) stop = '判定规则满足（命中 1 次）';
+      }
     }
     if (res.roundLog.length > 200) res.roundLog.splice(0, 50);
     if (!hardHit && (round === 1 || round % INCIDENTAL_EVERY === 0)) await incidental(round);
+    if (round % SAMPLE_EVERY === 0) await sampleScreen(c, round).catch(() => {});
     stats.rounds = round;
-    if (!stop && !hardHit)
-      for (const a of plan.afterCheck) {
-        d.label = `after:${actionLabel(a)}`;
-        await c.exec(a);
-      }
     if (!stop && maxRounds && tracker.rounds >= maxRounds) stop = `有效尝试上限 ${maxRounds} 轮`;
     if (round % 20 === 0) log(`round ${round}, steps ${stats.steps}, hits ${tracker.hits}, ${Math.round((Date.now() - c.t0) / 1000)}s`);
     if (web) await c.wfr!.rotate(web.context!);
   }
   applyIntervals(stats, d.ops, plan.limits.maxIntervalMs);
   res.attempts = attemptsOf(tracker.rounds, driftRounds, tracker.hits);
+  const driftRate = tracker.rounds + driftRounds ? driftRounds / (tracker.rounds + driftRounds) : 0;
+  res.executability = { validated: true, warmup: res.warmup ? 'passed' : 'not-run', driftRate: Math.round(driftRate * 1000) / 1000, unstable: driftRate > DRIFT_THRESHOLD };
   res.conclusion = tracker.conclusion();
   if (stop.startsWith('自动检查连续') && !tracker.reproduced()) res.conclusion = '执行失败';
   // No valid attempt at all: nothing can be said about the product.
   if (!tracker.rounds && !tracker.reproduced()) res.conclusion = '执行失败';
   if (lo.correctPathOk !== undefined && res.conclusion !== '执行失败') res.conclusion = !lo.correctPathOk ? '转为 bug' : tracker.reproduced() ? '疑似误操作' : '未复现';
-  res.conclusionDetail = `${attemptsText(res.attempts)}；停止原因：${stop}；共 ${stats.rounds} 轮 ${stats.steps} 步${tracker.hits ? `，命中轮次 ${tracker.hitRounds.slice(0, 10).join(', ')}` : ''}${res.dismissed?.length ? `；证据复核排除误报 ${res.dismissed.length} 次` : ''}`;
+  res.conclusionDetail = `${attemptsText(res.attempts)}${res.executability.unstable ? `；偏离率 ${Math.round(driftRate * 100)}% 超过 ${DRIFT_THRESHOLD * 100}%：触发未稳定生效` : ''}；停止原因：${stop}；共 ${stats.rounds} 轮 ${stats.steps} 步${tracker.hits ? `，命中轮次 ${tracker.hitRounds.slice(0, 10).join(', ')}` : ''}${res.dismissed?.length ? `；证据复核排除误报 ${res.dismissed.length} 次` : ''}`;
   if (res.conclusion === '执行失败' && !res.error) res.error = !tracker.rounds ? `0 次有效尝试（${driftRounds} 轮全部偏离：${res.roundLog.at(-1)?.results[0]?.detail ?? stop}）` : stop;
+}
+
+/** Run the plan's restore steps (afterCheck); each step with `expect` is read right after it (a precondition).
+ *  Returns why the restore is not verified ('' = verified / nothing to verify). */
+export async function restore(c: RunCtx, round: number): Promise<string> {
+  const { d } = c.sess;
+  for (const [i, a] of c.plan.afterCheck.entries()) {
+    d.label = `after:${actionLabel(a)}`;
+    await c.exec(a);
+    if (!a.expect) continue;
+    const r = await readExpect(c, a, `afterCheck[${i}]`, round);
+    if (r && r.pass !== true) return `afterCheck[${i}] ${r.pass === null ? 'unreadable' : 'not met'}: ${r.detail}`;
+  }
+  return '';
 }

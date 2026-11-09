@@ -8,7 +8,8 @@ import { join, resolve } from 'node:path';
 import type { Draft } from './planner';
 
 export const PLANS_DIR = resolve('platform/plans');
-export const DRAFTS_DIR = join(PLANS_DIR, 'drafts');
+/** Unit tests point AUTOTEST_DRAFTS_DIR at committed fixtures (issue/__fixtures__/drafts): redrafting (W3-1 R4) replaces the live drafts. */
+export const DRAFTS_DIR = resolve(process.env.AUTOTEST_DRAFTS_DIR ?? join(PLANS_DIR, 'drafts'));
 
 export const sha = (s: string) => createHash('sha256').update(s).digest('hex').slice(0, 16);
 

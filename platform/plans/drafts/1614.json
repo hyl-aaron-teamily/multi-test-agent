@@ -24,207 +24,140 @@
     "images": []
   },
   "classification": {
-    "category": "bug-intermittent",
+    "category": "bug-always",
     "surfaces": [
       "desktop-web"
     ],
-    "reason": "问题发生在服务端 / Agent 发送路径，无用户可见 UI 现象可驱动或观察；仍执行：只观察用户可见的一侧（通用模板）",
+    "reason": "Frequency: Always (100% no notification whenever the @ target is malformed)",
     "strength": "strong",
     "by": "rules"
   },
-  "status": "plannable",
-  "reason": "问题发生在服务端 / Agent 发送路径，无用户可见 UI 现象可驱动或观察；仍执行：只观察用户可见的一侧（通用模板）",
-  "subcases": [
-    {
-      "sub": "main",
-      "title": "On 2026-09-10 16:01:36 (UTC+8) an onboarding sync message was sent into group 22",
-      "surface": "desktop-web",
-      "plan": {
-        "id": "1614-desktop-web-v1",
-        "issueRef": "1614",
-        "title": "@ 成员选择器弹出（切换会话后循环）",
-        "category": "bug-intermittent",
-        "surface": "desktop-web",
-        "issueSurfaces": [
-          "web",
-          "desktop"
-        ],
-        "env": "prod",
-        "launch": "once",
-        "targets": [
-          {
-            "id": "group",
-            "kind": "group-conversation",
-            "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
-          },
-          {
-            "id": "other",
-            "kind": "other-conversation",
-            "guidance": "与目标群不同的任意会话（用于切换会话再切回）"
-          }
-        ],
-        "setup": [
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.openConversation",
-              "input": {
-                "target": "group"
-              }
-            },
-            "delayAfterMs": 800
-          }
-        ],
-        "prepare": [],
-        "actions": [
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.clearComposer",
-              "input": {}
-            },
-            "delayAfterMs": 200
-          },
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.openConversation",
-              "input": {
-                "target": "other"
-              }
-            },
-            "delayAfterMs": 500
-          },
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.openConversation",
-              "input": {
-                "target": "group"
-              }
-            },
-            "delayAfterMs": 700
-          },
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.typeMention",
-              "input": {}
-            },
-            "delayAfterMs": 700
-          }
-        ],
-        "checks": [
-          {
-            "kind": "visual-region",
-            "page": "mention-picker",
-            "region": "picker",
-            "expect": "输入 @ 后成员/智能体选择器弹出",
-            "want": "present",
-            "onlyOnAnomaly": true,
-            "requires": {
-              "composerHas": "@"
-            }
-          },
-          {
-            "kind": "page-error",
-            "expect": "无崩溃 / 页面错误",
-            "want": "absent"
-          }
-        ],
-        "afterCheck": [],
-        "limits": {
-          "maxSteps": 1000,
-          "maxMinutes": 15,
-          "maxIntervalMs": 1000
-        },
-        "verdictRule": {
-          "anyHit": true
-        },
-        "contract": {
-          "issueRef": "1614",
-          "sub": "main",
-          "preconditions": [
-            {
-              "id": "logged-in",
-              "text": "已登录",
-              "establish": "executor"
-            },
-            {
-              "id": "group-conversation",
-              "text": "存在成员 ≥3 的群聊",
-              "establish": "existing-data"
-            },
-            {
-              "id": "other-conversation",
-              "text": "存在另一个会话（切换用）",
-              "establish": "existing-data"
-            }
-          ],
-          "trigger": {
-            "semantics": "repeat-switch-and-mention",
-            "text": "On 2026-09-10 16:01:36 (UTC+8) an onboarding sync message was sent into group 2213724931 (Session Replay & Onboarding) whose mention segment read @12236097754431223609775443 — a 26-digit string equal to 1223609775443 concatenated twice. That string matches no member of the group, so it could not be ",
-            "pattern": "mention-picker",
-            "params": {}
-          },
-          "observable": {
-            "observation": "region",
-            "text": "When the @ target userID is malformed or matches no group member, the sender should get a clear error or a degraded-mode notice (e.g. mention target invalid — sent as plain text) instead of a plain success. Ideally the send path should validate the target (digit-only + expected length) and verify membership before sending, then either reject the send or auto-correct it.",
-            "phenomenon": "The message is sent successfully with no warning at all, but the @ does not take effect and the mentioned member receives no notification; the sender has no feedback and no way to detect the failure."
-          },
-          "provenance": {
-            "by": "rules",
-            "skillVersion": "2026.10.30-1"
-          }
-        },
-        "provenance": {
-          "generatedBy": "rules",
-          "skillVersion": "2026.10.30-1",
-          "pattern": "mention-picker"
-        },
-        "coverage": "covered"
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "send a message whose @ segment contains a malformed userID, e.g. @12236097754431223609775443 (26 digits, i.e. 1223609775443 repeated twice)"
       },
-      "planErrors": [],
-      "contract": {
-        "issueRef": "1614",
-        "sub": "main",
-        "preconditions": [
-          {
-            "id": "logged-in",
-            "text": "已登录",
-            "establish": "executor"
-          },
-          {
-            "id": "group-conversation",
-            "text": "存在成员 ≥3 的群聊",
-            "establish": "existing-data"
-          },
-          {
-            "id": "other-conversation",
-            "text": "存在另一个会话（切换用）",
-            "establish": "existing-data"
-          }
-        ],
-        "trigger": {
-          "semantics": "repeat-switch-and-mention",
-          "text": "On 2026-09-10 16:01:36 (UTC+8) an onboarding sync message was sent into group 2213724931 (Session Replay & Onboarding) whose mention segment read @12236097754431223609775443 — a 26-digit string equal to 1223609775443 concatenated twice. That string matches no member of the group, so it could not be ",
-          "pattern": "mention-picker",
-          "params": {}
-        },
-        "observable": {
-          "observation": "region",
-          "text": "When the @ target userID is malformed or matches no group member, the sender should get a clear error or a degraded-mode notice (e.g. mention target invalid — sent as plain text) instead of a plain success. Ideally the send path should validate the target (digit-only + expected length) and verify membership before sending, then either reject the send or auto-correct it.",
-          "phenomenon": "The message is sent successfully with no warning at all, but the @ does not take effect and the mentioned member receives no notification; the sender has no feedback and no way to detect the failure."
-        },
-        "provenance": {
-          "by": "rules",
-          "skillVersion": "2026.10.30-1"
-        }
+      {
+        "id": "q2",
+        "text": "it is sent successfully and returns a message ID (observed: ced731ead7421943e571e779f65689d6 in group 2213724931)"
+      },
+      {
+        "id": "q3",
+        "text": "Check the member who should have been mentioned (real userID 1223609773775443, 16 digits) — no @ notification is received at all"
+      },
+      {
+        "id": "q4",
+        "text": "Control: re-send the same message with the correct userID 1223609773775443 — the send succeeds (message ID 6c89fcacfd11b4546adad721c1a9d708), confirming the group and the agent send permission are fine"
+      },
+      {
+        "id": "q5",
+        "text": "the sender should get a clear error or a degraded-mode notice (e.g. mention target invalid — sent as plain text) instead of a plain success"
+      },
+      {
+        "id": "q6",
+        "text": "The message is sent successfully with no warning at all, but the @ does not take effect and the mentioned member receives no notification"
+      },
+      {
+        "id": "q7",
+        "text": "possible aggravating factor — an agent-side send path that builds the mention by string concatenation instead of populating the structured atUserList field"
+      },
+      {
+        "id": "q8",
+        "text": "sender is an agent account posting into group 2213724931 (Session Replay & Onboarding)"
+      },
+      {
+        "id": "q9",
+        "text": "Always (100% no notification whenever the @ target is malformed)"
       }
-    }
-  ],
-  "hash": "715795ba0ed884e2",
+    ],
+    "understanding": {
+      "subject": "群聊消息里的 @ 提及段落（@ 目标的 userID），由 agent 发送路径构造",
+      "trigger": "发送一条 @ 段落为非法 userID 的消息（@12236097754431223609775443，26 位拼接串，不对应群内任何成员）",
+      "phenomenon": "消息照常发送成功并返回消息 ID，发送端没有任何报错或降级提示；@ 未生效，本应被提及的成员收不到任何 @ 通知",
+      "expected": "发送端应给出明确报错或降级提示（如「提及目标无效，已按普通文本发送」），或在发送前校验 userID 格式与成员存在性并拒绝发送或自动纠正，而不是直接返回成功",
+      "frequency": "always",
+      "control": "同群、同 agent 身份，把 @ 目标换成正确 userID 1223609773775443 重发，发送成功（message ID 6c89fcacfd11b4546adad721c1a9d708），证明群可用、agent 有发消息权限",
+      "basis": [
+        "q1",
+        "q2",
+        "q3",
+        "q4",
+        "q5",
+        "q6",
+        "q7",
+        "q8",
+        "q9"
+      ]
+    },
+    "feasibility": {
+      "status": "needs-block",
+      "missing": [
+        {
+          "kind": "node",
+          "need": "一个能以「任意给定 userID 字符串」构造结构化 @ 提及并发送的积木（例如 teamily.sendMention(userId, text)，或直接走 agent 发送 API 并写入 atUserList）。现有目录里 sendMessage 只能发纯文本 / Markdown 链接；typeMention 与 freezeMention 只能从成员选择器里选真实群成员，选择器里根本不存在非法 userID 这一行；tapSend / quoteReply 只是把输入框里已有的内容发出。也就是说：本 Issue 的触发（@ 段落 = 非法 userID 的结构化提及）在积木目录里无法构造。",
+          "basis": [
+            "q1",
+            "q2",
+            "q7"
+          ]
+        },
+        {
+          "kind": "precondition",
+          "need": "目标群 2213724931（Session Replay & Onboarding）与被提及成员 Tmly Quan（userID 1223609773775443）都不在本次执行环境的可构造范围内：允许发消息的会话只有 \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"，且该成员不在其中。因此既无法在原始群复现主用例，也无法复现对照（用正确 userID 提及同一成员）。",
+          "basis": [
+            "q4",
+            "q8"
+          ]
+        },
+        {
+          "kind": "observation",
+          "need": "读取被提及成员（他人账号）的通知/推送收件箱，确认「收不到任何 @ 通知」。发送端能看到的只有自己的界面；profile.bell 打开的是本账号自己的通知，无法观测他人的通知是否到达。",
+          "basis": [
+            "q3",
+            "q6"
+          ]
+        },
+        {
+          "kind": "observation",
+          "need": "读取发送链路的服务端回执（消息 ID 返回、是否有错误码/告警、被丢弃的 @ 是否被记录）。q2 的现象「发送成功并返回消息 ID」是 API 层的返回，UI 端看不到这条回执，也无法判断「静默成功」与「降级提示」的差别。",
+          "basis": [
+            "q2",
+            "q5"
+          ]
+        }
+      ]
+    },
+    "subcases": [],
+    "revision": null,
+    "selfCheck": {
+      "R1": "ok：未提交任何 plan，因此没有引用目录外的 id，也没有坐标或代码。",
+      "R2": "不适用（未提交 plan）：Issue 的对象是「@ 段落为非法 userID 的结构化提及」，目录内没有任何积木能选中/构造这种对象，已按 R8 记入 missing。",
+      "R3": "不适用（未提交 plan）：触发动作是 agent 发送路径写入结构化 atUserList 后发送；UI 侧只能经由成员选择器产生提及，无法用下游操作代替该触发，故不构造。",
+      "R4": "不适用（未提交 plan）：现象发生在「发送完成」这一刻（发送端无报错、被提及人无通知），需要发送回执与他人通知两处观察，均不可得，已记入 missing。",
+      "R5": "不适用（未提交 plan）。特别说明：用 type 把字面串 \"@12236097754431223609775443\" 敲进输入框再发送，看似重现同一条消息文本，但它不是结构化提及、修复后也不会触发校验提示，检查在正常版本上同样会「命中」，没有区分度，因此按 R8 不作为替代方案。",
+      "R6": "不适用（未提交 plan）。",
+      "R7": "不适用（未提交 plan）：Issue 给了对照（正确 userID 重发），但对照对象所在群/成员不在可构造范围，已在 missing 中说明。",
+      "R8": "触发：feasibility.status = needs-block，missing 列出 node（任意 userID 构造提及发送）、precondition（原群与原成员不可用）、observation（他人通知收件箱、发送回执）四项，并各自引用片段。",
+      "R9": "不适用（未提交 plan）：本次没有做替代执行；执行端 desktop-web 与 Issue 所述 Web/桌面客户端一致。",
+      "R10": "ok：未提交任何会发消息的步骤，不存在向允许清单外会话发消息或打扰他人的风险。",
+      "R11": "不适用（未提交 plan，未命名）：若补上积木，标题将写成「群聊发送 @ 非法 userID 的消息：发送端是否给出报错/降级提示」。",
+      "R12": "ok：quotes 中 9 段均逐字摘自 Issue 原文；understanding 与 feasibility 的每条都标注了 basis。"
+    },
+    "risks": [
+      "本 Issue 的触发位于 agent 发送链路（结构化 atUserList 被非法 userID 填充或干脆用字符串拼接），属 API/服务端行为；执行环境只提供 UI 级积木，无法构造该触发，故判 needs-block 而非勉强出计划。",
+      "「被提及人收不到通知」这一核心现象需要他人账号的收件箱或推送通道，单账号 UI 执行环境原理上观测不到。",
+      "原群 2213724931 与成员 userID 1223609773775443 不在允许构造范围内，即使补上「任意 userID 提及」积木，也需要把复现迁移到允许清单里的群，并向执行器确认该群里可用的真实成员 userID 作为对照。",
+      "建议补的积木：teamily.sendMention(userId, text)【phase: any，仅允许清单会话】，以及一个可读取指定账号通知的观察（observation: notifications-of <account>）与读取发送回执的观察（observation: send-receipt），补齐后本用例可直接落成 main + control 两个子用例。"
+    ]
+  },
+  "planVersion": 1,
+  "modelCalls": 1,
+  "status": "needs-block",
+  "reason": "缺积木：node「一个能以「任意给定 userID 字符串」构造结构化 @ 提及并发送的积木（例如 teamily.sendMention(userId, text)，或直接走 agent 发送 API 并写入 atUserList）。现有目录里 sendMessage 只能发纯文本 / Markdown 链接；typeMention 与 freezeMention 只能从成员选择器里选真实群成员，选择器里根本不存在非法 userID 这一行；tapSend / quoteReply 只是把输入框里已有的内容发出。也就是说：本 Issue 的触发（@ 段落 = 非法 userID 的结构化提及）在积木目录里无法构造。」；precondition「目标群 2213724931（Session Replay & Onboarding）与被提及成员 Tmly Quan（userID 1223609773775443）都不在本次执行环境的可构造范围内：允许发消息的会话只有 \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"，且该成员不在其中。因此既无法在原始群复现主用例，也无法复现对照（用正确 userID 提及同一成员）。」；observation「读取被提及成员（他人账号）的通知/推送收件箱，确认「收不到任何 @ 通知」。发送端能看到的只有自己的界面；profile.bell 打开的是本账号自己的通知，无法观测他人的通知是否到达。」；observation「读取发送链路的服务端回执（消息 ID 返回、是否有错误码/告警、被丢弃的 @ 是否被记录）。q2 的现象「发送成功并返回消息 ID」是 API 层的返回，UI 端看不到这条回执，也无法判断「静默成功」与「降级提示」的差别。」",
+  "subcases": [],
+  "hash": "28ab781127bbe339",
   "issueHash": "b8ffa5670c5a8a7b",
   "env": "prod",
-  "version": 2
+  "version": 3
 }

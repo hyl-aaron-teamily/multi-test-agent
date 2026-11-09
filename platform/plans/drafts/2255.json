@@ -1,0 +1,148 @@
+{
+  "issue": {
+    "id": "2255",
+    "title": "Image messages received in chat are consistently blurry / low-resolution and hard to read, and there is no way to open the original-resolution image.",
+    "severity": "Medium",
+    "frequency": "Always",
+    "platforms": [],
+    "summary": "Image messages received in chat are consistently blurry / low-resolution and hard to read, and there is no way to open the original-resolution image. Roxie asked for a 'view original image' capability. Split out of #2159, whose remaining scope is the CloudDoc pasted-screenshot size problem, because this half is the IM image pipeline / image viewer, not CloudDoc.",
+    "steps": [
+      "In any chat, receive an image message (e.g. a screenshot containing text).",
+      "Open the image and check sharpness; look for a 'view original' action."
+    ],
+    "expected": "Received images open at full resolution, or the viewer offers a 'view original' action.",
+    "actual": "Received images stay blurry / low-resolution and there is no original-image view.",
+    "featureArea": "IM image message rendering / image viewer",
+    "context": "- **Feature area**: IM image message rendering / image viewer\r\n- Reported by Roxie in group 'Web-Mobile-Desktop Dev' on 2026-10-07 09:02 (Beijing): \"是的，图片消息每次收到也都比较模糊，看不清。看看可不可以加个原图显示功能？\"\r\n- Split from #2159 by QA (yara) on 2026-10-12; #2159 keeps the CloudDoc pasted-screenshot part (owner Cola).\r\n- The closed avatar-blur issues #1940 / #1941 are a different surface.\r\n\r\n---",
+    "environment": "- **Platform / OS / Browser**: Not specified - Roxie's image messages, possibly mobile; please confirm",
+    "empty": false,
+    "images": []
+  },
+  "classification": {
+    "category": "bug-always",
+    "surfaces": [],
+    "reason": "Frequency: Always",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "Image messages received in chat are consistently blurry / low-resolution and hard to read, and there is no way to open the original-resolution image."
+      },
+      {
+        "id": "q2",
+        "text": "In any chat, receive an image message (e.g. a screenshot containing text)."
+      },
+      {
+        "id": "q3",
+        "text": "Open the image and check sharpness; look for a 'view original' action."
+      },
+      {
+        "id": "q4",
+        "text": "Received images open at full resolution, or the viewer offers a 'view original' action."
+      },
+      {
+        "id": "q5",
+        "text": "Received images stay blurry / low-resolution and there is no original-image view."
+      },
+      {
+        "id": "q6",
+        "text": "- **Frequency**: Always"
+      },
+      {
+        "id": "q7",
+        "text": "**Platform / OS / Browser**: Not specified - Roxie's image messages, possibly mobile; please confirm"
+      },
+      {
+        "id": "q8",
+        "text": "是的，图片消息每次收到也都比较模糊，看不清。看看可不可以加个原图显示功能？"
+      }
+    ],
+    "understanding": {
+      "subject": "聊天里收到的一条图片消息（由对方发来、内容形态为图片）",
+      "trigger": "点开这条图片消息，在图片查看器里看清晰度，并找『查看原图』入口",
+      "phenomenon": "收到的图片始终模糊 / 低分辨率、文字看不清，且查看器里没有任何「查看原图」入口",
+      "expected": "图片以原始分辨率打开，或查看器提供「查看原图」（`view original`）操作",
+      "frequency": "always",
+      "control": "",
+      "basis": [
+        "q1",
+        "q3",
+        "q4",
+        "q5",
+        "q6",
+        "q8"
+      ]
+    },
+    "feasibility": {
+      "status": "needs-block",
+      "missing": [
+        {
+          "kind": "precondition",
+          "need": "允许清单会话里必须先存在一条『别人发来的图片消息』作为被操作对象，且要能由计划保证它存在。prepare 阶段只有 teamily.sendMessage（plain / markdown-link）和 teamily.quoteReply 两种发文方式，目录里没有任何发送图片 / 附件的积木，所以这张收件图片无法自己构造，只能碰运气等群里现成数据；一旦选不到，预热与目标核对必然失败。",
+          "basis": [
+            "q2",
+            "q8"
+          ]
+        },
+        {
+          "kind": "observation",
+          "need": "能确定性地读到图片消息实际展示的分辨率 / 清晰度（例如渲染尺寸、像素宽度，或「显示的是缩略图而非原图」这一可读状态）。目录里没有这类 ① 观察，visual-question / ai 只能给出「看起来模糊」的主观结论，且无法与原始分辨率做对比，不能作为命中的判定依据。",
+          "basis": [
+            "q1",
+            "q5",
+            "q8"
+          ]
+        },
+        {
+          "kind": "element",
+          "need": "图片查看器的稳定锚点（查看器页面标识 / 返回按钮 / 工具栏区域），用来在点开图片后先确认「已进入图片查看器」，再检查是否有原图入口。现在没有这个锚点，『原图入口不存在』在查看器根本没打开的情况下同样成立，检查会假命中，区分度不成立。",
+          "basis": [
+            "q3",
+            "q5"
+          ]
+        },
+        {
+          "kind": "target",
+          "need": "`others-image-message` 这类动态目标（对方发来的图片气泡 / 缩略图）：目录里「别人发的消息」只有 others-text-message，定义中明确排除图片与卡片；通用 message 目标在图片气泡上往往没有可用的文字锚点，无法稳定 freeze 成目标并核对 must.content=image。",
+          "basis": [
+            "q2"
+          ]
+        }
+      ]
+    },
+    "subcases": [],
+    "revision": null,
+    "selfCheck": {
+      "R1": "ok：本版没有输出任何 plan 动作，未使用目录外的 id",
+      "R2": "blocked：对象『别人发来的图片消息』无法稳定冻结为目标，见 missing[0] 与 missing[3]",
+      "R3": "blocked：触发是「点开图片看清晰度、找原图入口」，但前置的这条图片消息无法构造，见 missing[0]（q2）",
+      "R4": "blocked：现象要在打开图片查看器之后观察，而目录里没有查看器锚点先确认已进入查看器，见 missing[2]",
+      "R5": "blocked：① 区分度不成立——查看器没打开时『无原图入口』会假命中；② 范围取最窄需要消息锚点，图片气泡没有文字锚点；④ 本 Issue 无会留存的状态，不需要 baseline",
+      "R6": "不适用：本版没有执行轮次，不存在需要复位的状态",
+      "R7": "Issue 未给对照：#1940 / #1941 头像模糊与 #2159 云文档贴图在原文里被点名为不同 surface，不构成对照",
+      "R8": "needs-block：missing 四条，分别缺前置构造、确定性清晰度观察、查看器锚点、图片消息目标",
+      "R9": "Issue 端未指定（q7），本应替代到 android-app：图片查看器与『查看原图』入口的形态、文案可能与 Roxie 所在端不同，模糊现象也可能只在某些端出现；替代执行时必须重新标定查看器与入口",
+      "R10": "不适用：本版没有循环动作、没有发消息、没有社交动作",
+      "R11": "未出计划（needs-block），不涉及标题",
+      "R12": "ok：每条 missing 都带 basis 片段编号，quotes 均为原文逐字片段"
+    },
+    "risks": [
+      "Issue 未给端（q7），若 Roxie 实际用的是 Web / 移动 Web，图片查看器与「原图」入口的形态可以完全不同，android-app 上的结论不能直接外推（R9）。",
+      "「模糊 / 低分辨率」本身是相对原始文件的视觉判断，即使有 ai 观察也只能给出主观结论，无法作为命中定论；需要能读到图片的渲染尺寸或缩略图/原图状态。",
+      "「查看原图」入口的确切文案未知（查看原图 / Original / 保存原图 / 长按菜单项），即使补齐查看器锚点，文字检查也需要先标定真实文案。",
+      "如果现场能人工往允许清单会话里预置一张带文字的截图、并由执行端确认查看器锚点与入口文案，那么『没有原图入口』这一半就可以用确定性 text 检查复现；『模糊』那一半仍需分辨率类的观察积木。"
+    ]
+  },
+  "planVersion": 1,
+  "modelCalls": 1,
+  "status": "needs-block",
+  "reason": "缺积木：precondition「允许清单会话里必须先存在一条『别人发来的图片消息』作为被操作对象，且要能由计划保证它存在。prepare 阶段只有 teamily.sendMessage（plain / markdown-link）和 teamily.quoteReply 两种发文方式，目录里没有任何发送图片 / 附件的积木，所以这张收件图片无法自己构造，只能碰运气等群里现成数据；一旦选不到，预热与目标核对必然失败。」；observation「能确定性地读到图片消息实际展示的分辨率 / 清晰度（例如渲染尺寸、像素宽度，或「显示的是缩略图而非原图」这一可读状态）。目录里没有这类 ① 观察，visual-question / ai 只能给出「看起来模糊」的主观结论，且无法与原始分辨率做对比，不能作为命中的判定依据。」；element「图片查看器的稳定锚点（查看器页面标识 / 返回按钮 / 工具栏区域），用来在点开图片后先确认「已进入图片查看器」，再检查是否有原图入口。现在没有这个锚点，『原图入口不存在』在查看器根本没打开的情况下同样成立，检查会假命中，区分度不成立。」；target「`others-image-message` 这类动态目标（对方发来的图片气泡 / 缩略图）：目录里「别人发的消息」只有 others-text-message，定义中明确排除图片与卡片；通用 message 目标在图片气泡上往往没有可用的文字锚点，无法稳定 freeze 成目标并核对 must.content=image。」",
+  "subcases": [],
+  "hash": "fdf1ff3294ef8d76",
+  "issueHash": "6c3c347928b14b09",
+  "env": "prod",
+  "version": 1
+}

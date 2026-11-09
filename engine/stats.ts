@@ -98,8 +98,6 @@ export interface Attempts {
   rate: number;
   /** Wilson 95% interval of the per-round hit rate. */
   wilson: [number, number];
-  /** 0 hits: rule-of-three 95% upper bound of the per-round reproduction probability (3/n). */
-  upper95?: number;
 }
 
 /** Pure: Wilson score interval (95% by default) for k successes in n trials. */
@@ -116,17 +114,17 @@ export function wilson(k: number, n: number, z = 1.959964): [number, number] {
 
 /** Pure: attempts record from round counts. */
 export function attemptsOf(valid: number, drift: number, hits: number): Attempts {
-  const a: Attempts = { rounds: valid + drift, valid, drift, hits, rate: valid ? Math.round((hits / valid) * 10_000) / 10_000 : 0, wilson: wilson(hits, valid) };
-  if (!hits && valid) a.upper95 = Math.round(Math.min(1, 3 / valid) * 10_000) / 10_000;
-  return a;
+  return { rounds: valid + drift, valid, drift, hits, rate: valid ? Math.round((hits / valid) * 10_000) / 10_000 : 0, wilson: wilson(hits, valid) };
 }
 
 const pct = (x: number) => `${(x * 100).toFixed(1).replace(/\.0$/, '')}%`;
 
-/** Pure: one-line statement of the attempts (report / conclusion detail). Facts only: no "fixed". */
+/** Pure: one-line statement of the attempts (report / conclusion detail). Facts only: no "fixed", and no
+ *  upper bound on the product's reproduction probability when nothing hit (W3-1 K3: local Issues are known
+ *  to reproduce — a miss says the plan did not reproduce it). */
 export function attemptsText(a: Attempts): string {
   const drift = a.drift ? `；另有 ${a.drift} 轮操作偏离（不计入）` : '';
   if (!a.valid) return `0 次有效尝试（共 ${a.rounds} 轮，全部偏离）——无法得出复现结论`;
-  if (!a.hits) return `${a.valid} 次有效尝试未复现；单次复现概率 95% 上界 ≈ ${pct(a.upper95 ?? 1)}（3/n）${drift}`;
+  if (!a.hits) return `${a.valid} 次有效尝试，命中 0 次${drift}`;
   return `${a.valid} 次有效尝试中命中 ${a.hits} 次；单轮命中率 ${pct(a.rate)}（Wilson 95% 区间 ${pct(a.wilson[0])}–${pct(a.wilson[1])}）${drift}`;
 }

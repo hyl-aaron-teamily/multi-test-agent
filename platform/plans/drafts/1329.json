@@ -19,7 +19,10 @@
     "featureArea": "Messaging / UI",
     "context": "- **Feature area**: Messaging / UI\r\n\r\n---",
     "environment": "- **Platform / OS / Browser**: iOS (iPhone)",
-    "empty": false
+    "empty": false,
+    "images": [
+      "https://github.com/Teamily-Inc/bug-screenshots/blob/main/issue-1329-57aedca6.jpg?raw=true"
+    ]
   },
   "classification": {
     "category": "bug-intermittent",
@@ -28,551 +31,237 @@
     "strength": "strong",
     "by": "rules"
   },
-  "status": "plannable",
-  "reason": "Frequency: Intermittent",
-  "subcases": [
-    {
-      "sub": "s1",
-      "title": "tapping like on a message gives no visible feedback - the like is not displayed",
-      "surface": "android-app",
-      "substitution": {
-        "from": "ios",
-        "to": "android-app",
-        "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。",
-        "alternatives": [
-          "android-app",
-          "mobile-web"
-        ]
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "tapping like on a message gives no visible feedback - the like is not displayed"
       },
-      "plan": {
-        "id": "1329-s1-android-app-v1",
-        "issueRef": "1329",
-        "title": "点赞后立即可见",
-        "category": "bug-intermittent",
-        "surface": "android-app",
-        "issueSurfaces": [
-          "ios"
-        ],
-        "env": "prod",
-        "launch": "once",
-        "targets": [
-          {
-            "id": "conv",
-            "kind": "group-conversation",
-            "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
-          },
-          {
-            "id": "msg",
-            "kind": "others-text-message",
-            "guidance": "别人发的普通文本消息（不是图片/卡片/系统消息，也不是链接/URL——点到链接会打开浏览器），点赞类问题用它"
-          },
-          {
-            "id": "like",
-            "kind": "like-action",
-            "guidance": "长按消息后出现的点赞 \"👍\" 表情按钮"
-          }
-        ],
-        "setup": [
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.openConversation",
-              "input": {
-                "target": "conv"
-              }
-            },
-            "delayAfterMs": 800
-          }
-        ],
-        "prepare": [],
-        "actions": [
-          {
-            "type": "longPress",
-            "element": "target.msg",
-            "delayAfterMs": 900
-          },
-          {
-            "type": "tap",
-            "element": "target.like",
-            "delayAfterMs": 1000
-          }
-        ],
-        "checks": [
-          {
-            "kind": "text",
-            "expect": "The liked message shows a like / 👍 reaction under it",
-            "want": "present",
-            "match": {
-              "exact": "👍"
-            },
-            "scope": {
-              "target": "msg",
-              "within": 160
-            }
-          }
-        ],
-        "afterCheck": [
-          {
-            "type": "longPress",
-            "element": "target.msg",
-            "delayAfterMs": 900
-          },
-          {
-            "type": "tap",
-            "element": "target.like",
-            "delayAfterMs": 1000
-          }
-        ],
-        "limits": {
-          "maxSteps": 1000,
-          "maxMinutes": 15,
-          "maxIntervalMs": 1000
-        },
-        "verdictRule": {
-          "anyHit": true
-        },
-        "contract": {
-          "issueRef": "1329",
-          "sub": "s1",
-          "preconditions": [
-            {
-              "id": "logged-in",
-              "text": "已登录",
-              "establish": "executor"
-            },
-            {
-              "id": "group-conversation",
-              "text": "存在成员 ≥3 的群聊",
-              "establish": "existing-data"
-            },
-            {
-              "id": "others-text-message",
-              "text": "会话里有别人发的普通文本消息",
-              "establish": "existing-data"
-            }
-          ],
-          "trigger": {
-            "semantics": "like-message",
-            "text": "tapping like on a message gives no visible feedback - the like is not displayed ",
-            "pattern": "like-visible",
-            "params": {}
-          },
-          "observable": {
-            "observation": "visual-question",
-            "text": "Likes should display immediately after tapping; message location should jump to the target message; the keyboard should auto-populate when the input box is focused.",
-            "phenomenon": "tapping like on a message gives no visible feedback - the like is not displayed "
-          },
-          "provenance": {
-            "by": "rules",
-            "skillVersion": "2026.10.30-1"
-          }
-        },
-        "provenance": {
-          "generatedBy": "rules",
-          "skillVersion": "2026.10.30-1",
-          "pattern": "like-visible"
-        },
-        "coverage": "covered"
+      {
+        "id": "q2",
+        "text": "on the latest version, tapping a message location link often jumps to a very old message instead of the target"
       },
-      "planErrors": [],
-      "contract": {
-        "issueRef": "1329",
-        "sub": "s1",
-        "preconditions": [
-          {
-            "id": "logged-in",
-            "text": "已登录",
-            "establish": "executor"
-          },
-          {
-            "id": "group-conversation",
-            "text": "存在成员 ≥3 的群聊",
-            "establish": "existing-data"
-          },
-          {
-            "id": "others-text-message",
-            "text": "会话里有别人发的普通文本消息",
-            "establish": "existing-data"
-          }
-        ],
-        "trigger": {
-          "semantics": "like-message",
-          "text": "tapping like on a message gives no visible feedback - the like is not displayed ",
-          "pattern": "like-visible",
-          "params": {}
-        },
-        "observable": {
-          "observation": "visual-question",
-          "text": "Likes should display immediately after tapping; message location should jump to the target message; the keyboard should auto-populate when the input box is focused.",
-          "phenomenon": "tapping like on a message gives no visible feedback - the like is not displayed "
-        },
-        "provenance": {
-          "by": "rules",
-          "skillVersion": "2026.10.30-1"
-        }
+      {
+        "id": "q3",
+        "text": "the keyboard does not auto-populate - the user must tap the input box once before the keyboard appears"
+      },
+      {
+        "id": "q4",
+        "text": "Tap the input box - the keyboard does not appear automatically; a second tap is required (inferred)"
+      },
+      {
+        "id": "q5",
+        "text": "Likes should display immediately after tapping; message location should jump to the target message; the keyboard should auto-populate when the input box is focused."
+      },
+      {
+        "id": "q6",
+        "text": "Tap the like/reaction button on a message - no reaction or feedback appears (inferred)"
+      },
+      {
+        "id": "q7",
+        "text": "Tap a message location link to jump to a specific message - the app jumps to a very old message instead (inferred)"
+      },
+      {
+        "id": "q8",
+        "text": "iOS (iPhone)"
+      },
+      {
+        "id": "q9",
+        "text": "Intermittent"
       }
+    ],
+    "understanding": {
+      "subject": "聊天页的消息输入框（chat.composer）；同一 Issue 还报了同页消息的点赞反馈与消息定位链接跳转",
+      "trigger": "点击输入框一次，不进行第二次点击",
+      "phenomenon": "第一次点击后键盘不自动弹出，必须再点一次输入框才会出现；点赞无任何可见反馈；定位链接跳到很旧的消息",
+      "expected": "输入框被聚焦后键盘立即弹出；点赞立即显示；定位跳到目标消息",
+      "frequency": "intermittent",
+      "control": "",
+      "basis": [
+        "q1",
+        "q2",
+        "q3",
+        "q4",
+        "q5",
+        "q6",
+        "q7",
+        "q9"
+      ]
     },
-    {
-      "sub": "s2",
-      "title": "on the latest version, tapping a message location link often jumps to a very old",
-      "surface": "android-app",
-      "substitution": {
-        "from": "ios",
-        "to": "android-app",
-        "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。",
-        "alternatives": [
-          "android-app",
-          "mobile-web"
-        ]
-      },
-      "plan": {
-        "id": "1329-s2-android-app-v1",
-        "issueRef": "1329",
-        "title": "点引用定位应稳定跳到被引用消息",
-        "category": "bug-intermittent",
-        "surface": "android-app",
-        "issueSurfaces": [
-          "ios"
-        ],
-        "env": "prod",
-        "launch": "once",
-        "targets": [
-          {
-            "id": "conv",
-            "kind": "group-conversation",
-            "guidance": "the conversation titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" (titles may be cut short with …)"
-          },
-          {
-            "id": "link",
-            "kind": "quote-card",
-            "guidance": "会话底部最近的一条引用回复里的引用块（左侧竖线 + 原发送人 + 原文；引用的是普通文字，不是链接 / URL）",
-            "afterPrepare": true
-          }
-        ],
-        "setup": [
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.openConversation",
-              "input": {
-                "target": "conv"
-              }
-            },
-            "delayAfterMs": 1000
-          }
-        ],
-        "prepare": [
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.sendMessage",
-              "input": {
-                "text": "autotest-quote-source 1329 {token}"
-              }
-            },
-            "delayAfterMs": 1000
-          },
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.quoteReply",
-              "input": {
-                "quote": "autotest-quote-source 1329 {token}",
-                "text": "autotest-quote-reply 1329 {token}"
-              }
-            },
-            "delayAfterMs": 1000
-          }
-        ],
-        "actions": [
-          {
-            "type": "tap",
-            "element": "target.link",
-            "delayAfterMs": 1000
-          },
-          {
-            "type": "wait",
-            "value": "1000",
-            "delayAfterMs": 1000
-          }
-        ],
-        "checks": [
-          {
-            "kind": "baseline",
-            "expect": "点引用块后跳到被引用的原消息（每轮落在同一位置）",
-            "want": "present"
-          }
-        ],
-        "afterCheck": [
-          {
-            "type": "tap",
-            "element": "chat.back",
-            "delayAfterMs": 900
-          },
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.openConversation",
-              "input": {
-                "target": "conv"
-              }
-            },
-            "delayAfterMs": 1000
-          },
-          {
-            "type": "wait",
-            "value": "1000",
-            "delayAfterMs": 1000
-          }
-        ],
-        "limits": {
-          "maxSteps": 1000,
-          "maxMinutes": 15,
-          "maxIntervalMs": 1000
+    "feasibility": {
+      "status": "needs-block",
+      "missing": [
+        {
+          "kind": "node",
+          "need": "一个能在消息操作菜单里选中「点赞 / 👍」并点击的 Node（例如 teamily.tapReaction：长按目标消息 → 按文字定位菜单里的 👍 / 点赞项 → 点击 → 收起菜单）。积木目录里既没有 reaction/点赞项的固定元素，也没有可冻结的「菜单项」目标，且不允许写坐标，因此 q1/q6 的「点赞后应显示反馈」无法触发。",
+          "basis": [
+            "q1",
+            "q6"
+          ]
         },
-        "verdictRule": {
-          "anyHit": true
-        },
-        "contract": {
-          "issueRef": "1329",
-          "sub": "s2",
-          "preconditions": [
-            {
-              "id": "logged-in",
-              "text": "已登录",
-              "establish": "executor"
-            },
-            {
-              "id": "group-conversation",
-              "text": "存在成员 ≥3 的群聊",
-              "establish": "existing-data"
-            },
-            {
-              "id": "quote-reply-exists",
-              "text": "会话里有一条引用回复（在允许清单会话中构造）",
-              "establish": "construct"
-            }
-          ],
-          "trigger": {
-            "semantics": "tap-quote",
-            "text": "on the latest version, tapping a message location link often jumps to a very old message instead of the target ",
-            "pattern": "quote-jump",
-            "params": {
-              "conversation": "黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2"
-            }
-          },
-          "observable": {
-            "observation": "quoted-original",
-            "text": "Likes should display immediately after tapping; message location should jump to the target message; the keyboard should auto-populate when the input box is focused.",
-            "phenomenon": "on the latest version, tapping a message location link often jumps to a very old message instead of the target "
-          },
-          "provenance": {
-            "by": "rules",
-            "skillVersion": "2026.10.30-1"
-          }
-        },
-        "provenance": {
-          "generatedBy": "rules",
-          "skillVersion": "2026.10.30-1",
-          "pattern": "quote-jump"
-        },
-        "coverage": "covered"
-      },
-      "planErrors": [],
-      "contract": {
-        "issueRef": "1329",
-        "sub": "s2",
-        "preconditions": [
-          {
-            "id": "logged-in",
-            "text": "已登录",
-            "establish": "executor"
-          },
-          {
-            "id": "group-conversation",
-            "text": "存在成员 ≥3 的群聊",
-            "establish": "existing-data"
-          },
-          {
-            "id": "quote-reply-exists",
-            "text": "会话里有一条引用回复（在允许清单会话中构造）",
-            "establish": "construct"
-          }
-        ],
-        "trigger": {
-          "semantics": "tap-quote",
-          "text": "on the latest version, tapping a message location link often jumps to a very old message instead of the target ",
-          "pattern": "quote-jump",
-          "params": {
-            "conversation": "黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2"
-          }
-        },
-        "observable": {
-          "observation": "quoted-original",
-          "text": "Likes should display immediately after tapping; message location should jump to the target message; the keyboard should auto-populate when the input box is focused.",
-          "phenomenon": "on the latest version, tapping a message location link often jumps to a very old message instead of the target "
-        },
-        "provenance": {
-          "by": "rules",
-          "skillVersion": "2026.10.30-1"
+        {
+          "kind": "target",
+          "need": "「消息定位链接」的构造与观察手段：需要一个能发出带消息定位（location）链接的消息的 Node（sendMessage 只支持 plain / markdown-link），以及一个能读到「最终落在哪条消息」的观察（现有 quoted-original 只适用于引用块）。因此 q2/q7 的「跳到很旧的消息」无法复现。",
+          "basis": [
+            "q2",
+            "q7"
+          ]
         }
-      }
+      ]
     },
-    {
-      "sub": "s3",
-      "title": "the keyboard does not auto-populate - the user must tap the input box once befor",
-      "surface": "android-app",
-      "substitution": {
-        "from": "ios",
-        "to": "android-app",
-        "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。",
-        "alternatives": [
-          "android-app"
-        ]
-      },
-      "plan": {
-        "id": "1329-s3-android-app-v1",
-        "issueRef": "1329",
-        "title": "点一次输入框键盘即弹出",
-        "category": "bug-intermittent",
-        "surface": "android-app",
-        "issueSurfaces": [
-          "ios"
-        ],
-        "env": "prod",
-        "launch": "once",
-        "targets": [
-          {
-            "id": "conv",
-            "kind": "group-conversation",
-            "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
-          }
-        ],
-        "setup": [
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.openConversation",
-              "input": {
-                "target": "conv"
-              }
-            },
-            "delayAfterMs": 800
-          }
-        ],
-        "prepare": [],
-        "actions": [
-          {
-            "type": "tap",
-            "element": "chat.back",
-            "delayAfterMs": 700
-          },
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.openConversation",
-              "input": {
-                "target": "conv"
-              }
-            },
-            "delayAfterMs": 900
-          },
-          {
-            "type": "tap",
-            "element": "chat.composer",
-            "delayAfterMs": 900
-          }
-        ],
-        "checks": [
-          {
-            "kind": "keyboard",
-            "expect": "The on-screen keyboard is shown after a single tap on the message input",
-            "want": "present"
-          }
-        ],
-        "afterCheck": [],
-        "limits": {
-          "maxSteps": 1000,
-          "maxMinutes": 15,
-          "maxIntervalMs": 1000
+    "subcases": [
+      {
+        "sub": "main",
+        "oracle": {
+          "at": "actions[0]",
+          "hit": "点击输入框一次后，keyboard 观察仍读到 absent（软键盘在 0.9 s 内没有弹出）即命中",
+          "normal": "一次点击后软键盘弹出，keyboard = present，检查通过，不计命中",
+          "canFail": "若 App 首次点击只让输入框获得焦点而不弹键盘（Issue 描述的「需再点一次」），键盘不会出现，keyboard 观察读到 absent，该检查必然失败",
+          "baseline": "触发前键盘处于收起状态（baseline keyboard = absent）：由 setup 打开会话（不聚焦输入框）以及上一轮 afterCheck 的发送动作（发送时 App 收起键盘）共同保证；baseline 不成立即判这一轮偏离"
         },
-        "verdictRule": {
-          "anyHit": true
-        },
-        "contract": {
-          "issueRef": "1329",
-          "sub": "s3",
-          "preconditions": [
+        "plan": {
+          "title": "点一次输入框后键盘是否自动弹出（iOS 反馈需二次点击）",
+          "targets": [
             {
-              "id": "logged-in",
-              "text": "已登录",
-              "establish": "executor"
-            },
-            {
-              "id": "group-conversation",
-              "text": "存在成员 ≥3 的群聊",
-              "establish": "existing-data"
+              "id": "conv",
+              "kind": "conversation",
+              "guidance": "titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"",
+              "must": {
+                "sender": "any",
+                "content": "any"
+              }
             }
           ],
-          "trigger": {
-            "semantics": "tap-composer-once",
-            "text": "the keyboard does not auto-populate - the user must tap the input box once before the keyboard appears ",
-            "pattern": "keyboard-single-tap",
-            "params": {}
-          },
-          "observable": {
-            "observation": "keyboard-shown",
-            "text": "Likes should display immediately after tapping; message location should jump to the target message; the keyboard should auto-populate when the input box is focused.",
-            "phenomenon": "the keyboard does not auto-populate - the user must tap the input box once before the keyboard appears "
-          },
-          "provenance": {
-            "by": "rules",
-            "skillVersion": "2026.10.30-1"
-          }
+          "setup": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "conv"
+                }
+              },
+              "delayAfterMs": 500
+            }
+          ],
+          "prepare": [],
+          "baseline": [
+            {
+              "kind": "keyboard",
+              "expect": "触发前软键盘收起（输入框未聚焦）",
+              "want": "absent"
+            }
+          ],
+          "actions": [
+            {
+              "type": "tap",
+              "element": "chat.composer",
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "phenomenon",
+                "check": {
+                  "kind": "keyboard",
+                  "expect": "点一次输入框后软键盘自动弹出",
+                  "want": "present"
+                }
+              }
+            }
+          ],
+          "checks": [],
+          "afterCheck": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.sendMessage",
+                "input": {
+                  "text": "kb-probe-{token}-r{round}"
+                }
+              },
+              "delayAfterMs": 500,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "keyboard",
+                  "expect": "发送后键盘收起，输入框回到未聚焦状态",
+                  "want": "absent"
+                }
+              }
+            }
+          ]
         },
-        "provenance": {
-          "generatedBy": "rules",
-          "skillVersion": "2026.10.30-1",
-          "pattern": "keyboard-single-tap"
-        },
-        "coverage": "covered"
-      },
-      "planErrors": [],
-      "contract": {
-        "issueRef": "1329",
-        "sub": "s3",
-        "preconditions": [
+        "trace": [
           {
-            "id": "logged-in",
-            "text": "已登录",
-            "establish": "executor"
+            "at": "targets.conv",
+            "basis": [
+              "executor:进入允许清单里的会话；键盘现象与具体消息内容无关"
+            ]
           },
           {
-            "id": "group-conversation",
-            "text": "存在成员 ≥3 的群聊",
-            "establish": "existing-data"
+            "at": "setup[0]",
+            "basis": [
+              "executor:进入聊天页，停在输入框可见的会话里"
+            ]
+          },
+          {
+            "at": "baseline[0]",
+            "basis": [
+              "q3",
+              "q4"
+            ]
+          },
+          {
+            "at": "actions[0]",
+            "basis": [
+              "q3",
+              "q4"
+            ]
+          },
+          {
+            "at": "actions[0].expect",
+            "basis": [
+              "q4",
+              "q5"
+            ]
+          },
+          {
+            "at": "afterCheck[0]",
+            "basis": [
+              "executor:复位键盘状态并核实（R6）"
+            ]
           }
-        ],
-        "trigger": {
-          "semantics": "tap-composer-once",
-          "text": "the keyboard does not auto-populate - the user must tap the input box once before the keyboard appears ",
-          "pattern": "keyboard-single-tap",
-          "params": {}
-        },
-        "observable": {
-          "observation": "keyboard-shown",
-          "text": "Likes should display immediately after tapping; message location should jump to the target message; the keyboard should auto-populate when the input box is focused.",
-          "phenomenon": "the keyboard does not auto-populate - the user must tap the input box once before the keyboard appears "
-        },
-        "provenance": {
-          "by": "rules",
-          "skillVersion": "2026.10.30-1"
-        }
+        ]
       }
-    }
-  ],
-  "hash": "de0bb355062140d9",
+    ],
+    "revision": null,
+    "selfCheck": {
+      "R1": "ok：只用了动作原语 tap / node，固定元素 chat.composer，Node teamily.openConversation / teamily.sendMessage（均 phase: any），观察 kind=keyboard；没有坐标、没有代码",
+      "R2": "ok：可执行子用例的作用对象是 Issue 所说的「输入框」chat.composer（q3/q4），会话目标 conv 只作容器、不承载现象，must 为 sender=any / content=any，与 understanding.subject 一致",
+      "R3": "ok：actions[0] 就是 Issue 的触发本身——点击输入框一次，没有用第二次点击或发送动作代替触发",
+      "R4": "ok：现象发生在「点完输入框」的那一刻，故直接在 actions[0] 上挂 expect(role: phenomenon, kind: keyboard)，oracle.at = actions[0]",
+      "R5": "ok：① 键盘弹出是确定性系统状态，正常 present、二次点击缺陷时 absent，区分度足够；② 范围取最窄（只看键盘状态，不看整屏视觉）；③ 不依赖任何界面自带文字；④ 键盘属会留存的输入态，baseline 写明 keyboard absent",
+      "R6": "ok：afterCheck 用 teamily.sendMessage 收起键盘并清空输入框，带 expect(role: precondition, keyboard absent) 核实复位成功",
+      "R7": "ok：Issue 没有给出对照（未描述某端/某种操作正常），因此不加 control 子用例",
+      "R8": "ok：点赞（q1/q6）缺可选中点赞项的 Node、定位链接（q2/q7）缺构造与落点观察，已写进 feasibility.missing，未用近似积木顶替，status=needs-block",
+      "R9": "ok：本次以 android-app 替代 iOS 执行；Android 上键盘弹出时机、输入框焦点行为与 iOS 不同，点赞交互与消息定位链接的呈现也可能不同，现象在新端未必复现",
+      "R10": "ok：循环里只用 phase: any 的 Node（openConversation / sendMessage）；发消息只发到允许清单会话「黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2」；无社交动作；delayAfterMs 最大 900",
+      "R11": "ok：标题「点一次输入框后键盘是否自动弹出（iOS 反馈需二次点击）」用了 Issue 的对象（输入框）和现象（点一次不弹）",
+      "R12": "ok：targets / setup / baseline / actions / expect / afterCheck 都有 trace；quotes 全部为原文逐字片段（q1–q9）"
+    },
+    "risks": [
+      "以 android-app 替代 iOS 执行（R9）：键盘弹出行为、输入框焦点策略与 iOS 不同，Issue 的「二次点击才弹键盘」在新端可能不复现，复现率需按新端解释。",
+      "键盘是否弹出受真机软键盘可用性影响（外接键盘 / 模拟器设置会关闭软键盘），需在软键盘可用的设备上执行。",
+      "若 App 打开会话时自动聚焦输入框，第 1 轮 baseline（keyboard absent）会不成立，该轮判偏离、不计有效尝试。",
+      "afterCheck 每轮向允许清单会话发一条 kb-probe 消息，会话内会累积测试消息。",
+      "点赞与「跳到旧消息」两项因缺积木未纳入本轮计划，本计划的命中只覆盖键盘子问题。"
+    ]
+  },
+  "planVersion": 1,
+  "modelCalls": 1,
+  "status": "needs-block",
+  "reason": "缺积木：node「一个能在消息操作菜单里选中「点赞 / 👍」并点击的 Node（例如 teamily.tapReaction：长按目标消息 → 按文字定位菜单里的 👍 / 点赞项 → 点击 → 收起菜单）。积木目录里既没有 reaction/点赞项的固定元素，也没有可冻结的「菜单项」目标，且不允许写坐标，因此 q1/q6 的「点赞后应显示反馈」无法触发。」；target「「消息定位链接」的构造与观察手段：需要一个能发出带消息定位（location）链接的消息的 Node（sendMessage 只支持 plain / markdown-link），以及一个能读到「最终落在哪条消息」的观察（现有 quoted-original 只适用于引用块）。因此 q2/q7 的「跳到很旧的消息」无法复现。」",
+  "subcases": [],
+  "hash": "87aeaf9bfb07faa1",
   "issueHash": "24a4cc92ff5b388b",
   "env": "prod",
-  "version": 2
+  "version": 3
 }

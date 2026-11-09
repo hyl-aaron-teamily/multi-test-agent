@@ -22,169 +22,159 @@
     "featureArea": "Messaging / Notification & Mention routing / Unread badge / Mentions inbox",
     "context": "- **Feature area**: Messaging / Notification & Mention routing / Unread badge / Mentions inbox\r\n- Priority: P0 (set by Aiden). Schedule: key iteration right after the National Day holiday (from 2026-10-08). No milestone assigned — please attach one at sprint planning.\r\n- Proposer: Aiden (Teamily userID 6296335850356299). Original feedback: Ellery Wang (Teamily userID 6226891335107934). Source: Teamily Product Team group chat (group 3106444614), 2026-09-29.\r\n- Acceptance criteria AC1 — Muted group + direct @me: conversation shows a new-message indicator and unread badge; global badge (Chats tab / top-right / app icon) increments by the number of unread @me messages; verified on Web, macOS, Windows, iOS, Android.\r\n- AC2 — Muted group + ordinary (non-@) message: behaviour unchanged (no badge contribution, no push), so #263 (muted messages must not inflate the badge) does not regress.\r\n- AC3 — Muted group + @me: a system / push notification is delivered (mentions break through mute), consistent across Web and App; product to decide and document whether @All/@Everyone also breaks through mute.\r\n- AC4 — Opening the conversation or reading the mentioned message clears the @ badge on every client (multi-device read sync); counts never get stuck.\r\n- AC5 — A 'Mentions / @Me' entry exists on every client (e.g. sidebar / Activity tab on desktop & web, top-level entry on mobile) listing all messages that @-mention me across conversations, newest first, showing sender, conversation, time, preview and unread state, with its own unread count.\r\n- AC6 — Tapping a Mentions item jumps to and highlights the exact message in its conversation (including history that needs loading); read state syncs back to the list.\r\n- AC7 — The list supports mark-as-read / mark-all-read and pagination, and includes mentions from muted groups, @All/@Everyone (clearly distinguished) and, if in scope, CloudDoc mentions (see #1363).\r\n- Duplicate check: indexed all 2,117 issues (titles + bodies) in Teamily-Inc/teamily-ai-all on 2026-09-29 for mention / @me / Mentions list / mute / 免打扰 / 角标 / badge / unread. No existing 'Mentions / @Me' list request. Related but NOT duplicates: #1821 (muted group suppresses @ notifications; closed as completed with comment '设计如此' / by design — this request deliberately changes that design), #263 (iOS muted-group messages inflating the badge; closed — the opposite direction, must not regress, see AC2), #1363 (CloudDoc mention notifications should go to the notification list; open — candidate content for the Mentions list), #1180 (multi-device sync lag / missed @; closed, different root cause).\r\n- Reference patterns: WeChat (@ in a muted group still shows '[有人@我]' + badge), Slack (Activity → Mentions & reactions).\r\n\r\n---",
     "environment": "- **Platform / OS / Browser**: All clients — Web, macOS, Windows, iOS, Android (plus push notification channel)",
-    "empty": false
+    "empty": false,
+    "images": []
   },
   "classification": {
-    "category": "feature",
+    "category": "bug-always",
     "surfaces": [
       "android-app",
       "desktop-web"
     ],
-    "reason": "需求类：单账号可验部分一次性验收；需要他人 @ 我的部分需第二账号，暂缓",
+    "reason": "Frequency: Always",
     "strength": "strong",
-    "by": "rules",
-    "partialMultiAccount": true
+    "by": "rules"
   },
-  "status": "plannable",
-  "reason": "需求类：单账号可验部分一次性验收；需要他人 @ 我的部分需第二账号，暂缓",
-  "subcases": [
-    {
-      "sub": "main",
-      "title": "Improvement request raised by Aiden (P0, scheduled as a key iteration right afte",
-      "surface": "desktop-web",
-      "plan": {
-        "id": "2122-desktop-web-v1",
-        "issueRef": "2122",
-        "title": "@我 聚合入口 / 免打扰群 @ 提示（单账号可验部分）",
-        "category": "feature",
-        "surface": "desktop-web",
-        "issueSurfaces": [
-          "ios",
-          "android",
-          "web",
-          "desktop"
-        ],
-        "env": "prod",
-        "launch": "once",
-        "targets": [
-          {
-            "id": "mutedGroup",
-            "kind": "muted-group",
-            "guidance": "会话列表里带免打扰（划线铃铛）图标、且预览中出现 “@” 的群"
-          }
-        ],
-        "setup": [],
-        "prepare": [],
-        "actions": [],
-        "checks": [],
-        "afterCheck": [],
-        "acceptance": [
-          {
-            "id": "mentions-entry",
-            "text": "存在 “@我 / Mentions” 聚合入口（列出所有 @ 我的消息）",
-            "actions": [
-              {
-                "type": "node",
-                "node": {
-                  "name": "teamily.openPage",
-                  "input": {
-                    "page": "chat"
-                  }
-                },
-                "delayAfterMs": 1000
-              }
-            ],
-            "check": {
-              "kind": "ai",
-              "expect": "There is a visible entry named like \"@我\", \"Mentions\" or \"提及\" that lists messages mentioning the user",
-              "want": "present",
-              "onlyOnAnomaly": false
-            }
-          },
-          {
-            "id": "muted-mention-badge",
-            "text": "免打扰群被 @ 时，会话列表有显著提示（角标/徽标，而不只是小号绿色 “[有人@你]” 文本）",
-            "actions": [],
-            "check": {
-              "kind": "ai",
-              "expect": "In the conversation list, the muted group row that mentions the user shows a prominent badge (a count or @ badge on the avatar or at the right side), not only small green preview text",
-              "want": "present",
-              "onlyOnAnomaly": false
-            }
-          }
-        ],
-        "limits": {
-          "maxSteps": 1000,
-          "maxMinutes": 15,
-          "maxIntervalMs": 1000
-        },
-        "verdictRule": {
-          "anyHit": true
-        },
-        "contract": {
-          "issueRef": "2122",
-          "sub": "main",
-          "preconditions": [
-            {
-              "id": "logged-in",
-              "text": "已登录",
-              "establish": "executor"
-            },
-            {
-              "id": "muted-group-with-mention",
-              "text": "有一个免打扰且被 @ 的群",
-              "establish": "existing-data"
-            }
-          ],
-          "trigger": {
-            "semantics": "view-mention-aggregation",
-            "text": "Improvement request raised by Aiden (P0, scheduled as a key iteration right after the China National Day holiday, i.e. from 2026-10-08). Today, when a user is @-mentioned in a muted (DND) group, the only cue is a small green '[@ mentioned]' text in the conversation-list preview. There is no new-mess",
-            "pattern": "mention-aggregation",
-            "params": {}
-          },
-          "observable": {
-            "observation": "visual-question",
-            "text": "(1) Any @-mention addressed to me (direct @me; @All/@Everyone per product rule) always shows a new-message indicator and increments the conversation's unread badge and the global (tab / top-right / app-icon) badge, even when the group is muted — matching WeChat. Muted groups' ordinary (non-@) messages keep the current silent behaviour. (2) A 'Mentions / @Me' list (Slack-style) aggregates every message that @-mentions me, newest first, with sender, group, time, message preview and read/unread state; tapping an item jumps to that message in context.",
-            "phenomenon": "In a muted group an @-mention only renders a green '[@ mentioned]' text hint in the conversation preview. No new-message indicator, no conversation unread badge, no top-right / tab / app-icon badge count. There is no aggregated view of messages that mention me, so users miss them."
-          },
-          "provenance": {
-            "by": "rules",
-            "skillVersion": "2026.10.21-1"
-          }
-        },
-        "provenance": {
-          "generatedBy": "rules",
-          "skillVersion": "2026.10.21-1",
-          "pattern": "mention-aggregation"
-        },
-        "coverage": "covered"
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "Today, when a user is @-mentioned in a muted (DND) group, the only cue is a small green '[@ mentioned]' text in the conversation-list preview."
       },
-      "planErrors": [],
-      "contract": {
-        "issueRef": "2122",
-        "sub": "main",
-        "preconditions": [
-          {
-            "id": "logged-in",
-            "text": "已登录",
-            "establish": "executor"
-          },
-          {
-            "id": "muted-group-with-mention",
-            "text": "有一个免打扰且被 @ 的群",
-            "establish": "existing-data"
-          }
-        ],
-        "trigger": {
-          "semantics": "view-mention-aggregation",
-          "text": "Improvement request raised by Aiden (P0, scheduled as a key iteration right after the China National Day holiday, i.e. from 2026-10-08). Today, when a user is @-mentioned in a muted (DND) group, the only cue is a small green '[@ mentioned]' text in the conversation-list preview. There is no new-mess",
-          "pattern": "mention-aggregation",
-          "params": {}
-        },
-        "observable": {
-          "observation": "visual-question",
-          "text": "(1) Any @-mention addressed to me (direct @me; @All/@Everyone per product rule) always shows a new-message indicator and increments the conversation's unread badge and the global (tab / top-right / app-icon) badge, even when the group is muted — matching WeChat. Muted groups' ordinary (non-@) messages keep the current silent behaviour. (2) A 'Mentions / @Me' list (Slack-style) aggregates every message that @-mentions me, newest first, with sender, group, time, message preview and read/unread state; tapping an item jumps to that message in context.",
-          "phenomenon": "In a muted group an @-mention only renders a green '[@ mentioned]' text hint in the conversation preview. No new-message indicator, no conversation unread badge, no top-right / tab / app-icon badge count. There is no aggregated view of messages that mention me, so users miss them."
-        },
-        "provenance": {
-          "by": "rules",
-          "skillVersion": "2026.10.21-1"
-        }
+      {
+        "id": "q2",
+        "text": "There is no new-message indicator, no unread badge on the conversation, and no count on the top-right / tab / app-icon badge, so users routinely miss messages addressed to them."
+      },
+      {
+        "id": "q3",
+        "text": "1. Mute (DND) a group chat on any client (Web / macOS / Windows / iOS / Android)."
+      },
+      {
+        "id": "q4",
+        "text": "2. Have another member @-mention me in that muted group."
+      },
+      {
+        "id": "q5",
+        "text": "(1) Any @-mention addressed to me (direct @me; @All/@Everyone per product rule) always shows a new-message indicator and increments the conversation's unread badge and the global (tab / top-right / app-icon) badge, even when the group is muted — matching WeChat. Muted groups' ordinary (non-@) messages keep the current silent behaviour."
+      },
+      {
+        "id": "q6",
+        "text": "(2) A 'Mentions / @Me' list (Slack-style) aggregates every message that @-mentions me, newest first, with sender, group, time, message preview and read/unread state; tapping an item jumps to that message in context."
+      },
+      {
+        "id": "q7",
+        "text": "In a muted group an @-mention only renders a green '[@ mentioned]' text hint in the conversation preview. No new-message indicator, no conversation unread badge, no top-right / tab / app-icon badge count. There is no aggregated view of messages that mention me, so users miss them."
+      },
+      {
+        "id": "q8",
+        "text": "AC2 — Muted group + ordinary (non-@) message: behaviour unchanged (no badge contribution, no push), so #263 (muted messages must not inflate the badge) does not regress."
+      },
+      {
+        "id": "q9",
+        "text": "**Frequency**: Always"
+      },
+      {
+        "id": "q10",
+        "text": "**Platform / OS / Browser**: All clients — Web, macOS, Windows, iOS, Android (plus push notification channel)"
+      },
+      {
+        "id": "q11",
+        "text": "AC5 — A 'Mentions / @Me' entry exists on every client (e.g. sidebar / Activity tab on desktop & web, top-level entry on mobile) listing all messages that @-mention me across conversations, newest first, showing sender, conversation, time, preview and unread state, with its own unread count."
       }
-    }
-  ],
-  "deferredPart": "需要第二账号 @ 我才能产生的角标/推送部分：暂缓（账号池多账号调度后执行）",
-  "hash": "207c25d10c99a64d",
+    ],
+    "understanding": {
+      "subject": "免打扰（mute / DND）群会话中别人发给我的一条「@我」消息，以及该群会话在会话列表里的未读角标、会话预览、Tab / 右上角 / App 图标全局角标；附带「@我的 / Mentions」聚合入口",
+      "trigger": "把某个群设为免打扰后，由群内另一位成员在该群里发一条 @ 到我（@me）的消息（q3、q4）",
+      "phenomenon": "被 @ 后会话预览只多出一条绿色「[有人@我]」文字提示；没有新消息提示、没有该会话的未读角标，Tab / 右上角 / App 图标也没有角标计数；同时没有任何「@我的」聚合入口，导致经常漏看 @ 自己的消息（q1、q2、q7）",
+      "expected": "任何 @ 到我（直接 @me，@所有人 按产品规则）都必然产生新消息提示，并使该会话未读角标与全局角标（Tab / 右上角 / App 图标）按未读 @我 条数累加，即使群处于免打扰；免打扰群的普通（非 @）消息保持静默、不计角标；另外提供按时间倒序聚合所有 @我 消息的「@我的 / Mentions」列表，点击可跳转到原消息（q5、q6、q11）",
+      "frequency": "always",
+      "control": "免打扰群内的普通（非 @）消息：行为不变，不计入角标、不推送（AC2 / q8）",
+      "basis": [
+        "q1",
+        "q2",
+        "q3",
+        "q4",
+        "q5",
+        "q6",
+        "q7",
+        "q8",
+        "q9",
+        "q10",
+        "q11"
+      ]
+    },
+    "feasibility": {
+      "status": "needs-block",
+      "missing": [
+        {
+          "kind": "precondition",
+          "need": "把某个群会话置为免打扰（DND / mute）的能力，以及能断言「该会话当前处于免打扰」的观察。固定元素里没有任何 mute 开关 / 会话设置项，动作原语里也没有 mute 动作，targets[].must 也无法表达「已免打扰」，因此 q3 的前置条件无法构造，也无法在预热里核对它成立。",
+          "basis": [
+            "q3",
+            "q5"
+          ]
+        },
+        {
+          "kind": "node",
+          "need": "由另一个测试账号（aaron+test2）在群里发出**真正 @ 到我**的消息的 Node。现有积木不可替代：teamily.typeMention 只键入「@」打开选择器、不选人、不发送；teamily.freezeMention 是 prepare-only 且输入完会关闭选择器并清空；teamily.sendMessage 只支持 plain / markdown-link 纯文本，发出去的字面「@aaron+test2」不会形成真实的 mention 实体。缺这个 Node，就无法构造 q4 的触发，也就无法让被测端产生「被 @」这一事件。",
+          "basis": [
+            "q4",
+            "q5"
+          ]
+        },
+        {
+          "kind": "observation",
+          "need": "会话未读角标 / 会话列表「新消息提示」/ Tab 角标 / App 图标角标的确定性观察。REGIONS 只有 home/nav、chat/composer、rewrite-confirm/dialog、mention-picker/picker，没有会话列表行或底部 Tab 的参考区域；element / text 观察读不到数字角标，App 图标角标在 android-app 上完全不可读。q2、q5、q7 的核心断言（角标是否出现、计数是否累加、@ 与普通消息是否区分）没有 ① 通道可判，用 ai 去「看有没有角标」沒有区分度（同一条灰色行样式差异极小，且菜单/预览样式本身会干扰）。",
+          "basis": [
+            "q2",
+            "q5",
+            "q7"
+          ]
+        },
+        {
+          "kind": "element",
+          "need": "移动端「@我的 / Mentions」一级入口的固定元素 id（以及打开后列表页的锚点元素 / 参考区域），用于 AC5 的存在性检查与 AC6 的跳转高亮检查。vocab.ELEMENTS 里 android-app 只有 nav.chat / nav.me / chatlist.search / chat.composer / chat.send / chat.rewrite / chat.rewriteCancel / chat.back，没有该入口；也没有可挂载它的页面（openPage 只支持 profile / artifacts / chat）。",
+          "basis": [
+            "q6",
+            "q7",
+            "q11"
+          ]
+        }
+      ]
+    },
+    "subcases": [],
+    "revision": null,
+    "selfCheck": {
+      "R1": "ok：本版不提交任何计划，未写出任何不在积木目录里的 id、Node、元素、观察或坐标；missing 里只描述「缺什么」，不假装它们存在。",
+      "R2": "阻塞：Issue 的对象是「别人在免打扰群里 @ 我」的一条消息，而构造该对象的唯一途径（另一账号发出真实 @mention）没有积木支持（见 missing[1]），也不存在可选的近似目标；按 R2/R8 不选近似对象凑数。",
+      "R3": "阻塞：触发动作是「另一位成员 @ 我」（q4）本身，不是它的下游操作；现有 Node 只能以纯文本发送或只打开 @ 选择器，无法完成该触发，故不写计划。",
+      "R4": "n/a：未提交计划，因此不存在需要挂 expect(phenomenon) 的动作；若强行把检查放到轮末（会话列表、Tab 角标）就会违反 R4，所以不做。",
+      "R5": "阻塞：唯一能拿到的信号是会话预览里的绿色「[有人@我]」文字，而它正是触发界面自带的内容（违反 R5③），不能用来判命中；角标计数只能用 ai 目测，正常/异常两种状态下无法保证「有毛病一定失败、正常一定通过」（违反 R5①），故不写成检查。",
+      "R6": "n/a：未提交计划；需要指出的是，即使提交，@ 产生的未读角标是留存状态，清除它需要打开会话并读消息（AC4），当前也没有可复位并核实的观察。",
+      "R7": "阻塞：对照子用例（免打扰群 + 普通非 @ 消息，AC2 / q8）与主用例共用同一个不可构造的 mute 前置（missing[0]），并且同样需要「另一账号在群里发消息后保持未读」，无法构造对照组。",
+      "R8": "ok：feasibility.status = needs-block，missing 逐条写了缺什么、为什么需要、引用片段编号，共 4 项（mute 前置、@mention 发送 Node、角标观察、@我的 入口元素）。",
+      "R9": "n/a（本次不换端执行，仍为 android-app）。需留意：Issue 要求 Web / macOS / Windows / iOS / Android 全端验证并与 App 图标角标一致（q10），单 android-app 端本身就覆盖不了其中大部分；若将来补齐积木，仍须在报告中说明「App 图标角标 + 多端已读同步（AC4）」在单端不可验证。",
+      "R10": "ok：本版没有任何循环动作，不会向任何人发打扰消息；也未使用 prepare-only Node。",
+      "R11": "n/a：未提交计划，故无标题；预留标题应为「免打扰群被 @：会话列表与全局角标是否出现」（对应 q1/q2/q7）。",
+      "R12": "ok：quotes 的 11 段均逐字取自 Issue 原文（q1/q2/q7 取自 Summary 与 Actual result，q3/q4 取自 Steps to reproduce，q5/q6 取自 Expected result，q8/q11 取自 Acceptance criteria，q9/q10 取自 Severity 与 Environment）；understanding.basis 与 missing[].basis 全部指向这些片段，没有无法追溯的断言。"
+    },
+    "risks": [
+      "本 Issue 的两条核心路径在 android-app 上都无法构造触发：一是没有 mute 开关（前置），二是没有「以另一账号发出真实 @mention」的 Node（触发）；这属于 R8 的缺积木，不是产品无问题，因此不提交近似计划，避免得到「0 复现」的假结论。",
+      "即使补上 mute 与发 @ 的积木，角标计数在 android-app 上仍缺确定性观察：会话行未读数字、底部「聊天」Tab 角标、App 图标角标都不在无障碍树里，也没有对应参考区域；需要执行端提供角标相关的 element / region（或 App 图标角标的读取通道），否则 AC1 只能靠 ai 目测，区分度不足。",
+      "「@我的 / Mentions」入口（AC5/AC6/AC7）在 android-app 上没有固定元素，且产品尚未确认移动端命名（可能是「@我」「Mentions」「提及」「Activity」之一）；在命名定型并加进 vocab 之前，任何「列表/入口不存在」的文本 absent 检查都可能在修复后仍然通过，形成误命中。",
+      "单端（android-app）无法验证 AC3 的 push 通道、AC4 的多端已读同步和 q10 要求的 Web / macOS / Windows / iOS 全端一致性；这些条目要么另开多端计划的 Issue，要么在报告中明确标为未覆盖。",
+      "建议补积木清单（供执行端评估）：① 会话/群设置里的 mute 开关元素 + 「该会话已免打扰」的 baseline 观察；② teamily.sendMention {member, text}（relogin as other 后在允许清单会话里 @ 到指定成员并发送）；③ 会话行未读角标与底部 Tab 角标的 region/element；④ 移动端「@我的」入口元素及其列表页锚点。补齐后可按本 Issue 的 q3→q4→观察角标（expect: phenomenon）→打开会话复位（afterCheck）的结构出 v2。"
+    ]
+  },
+  "planVersion": 1,
+  "modelCalls": 1,
+  "status": "needs-block",
+  "reason": "缺积木：precondition「把某个群会话置为免打扰（DND / mute）的能力，以及能断言「该会话当前处于免打扰」的观察。固定元素里没有任何 mute 开关 / 会话设置项，动作原语里也没有 mute 动作，targets[].must 也无法表达「已免打扰」，因此 q3 的前置条件无法构造，也无法在预热里核对它成立。」；node「由另一个测试账号（aaron+test2）在群里发出**真正 @ 到我**的消息的 Node。现有积木不可替代：teamily.typeMention 只键入「@」打开选择器、不选人、不发送；teamily.freezeMention 是 prepare-only 且输入完会关闭选择器并清空；teamily.sendMessage 只支持 plain / markdown-link 纯文本，发出去的字面「@aaron+test2」不会形成真实的 mention 实体。缺这个 Node，就无法构造 q4 的触发，也就无法让被测端产生「被 @」这一事件。」；observation「会话未读角标 / 会话列表「新消息提示」/ Tab 角标 / App 图标角标的确定性观察。REGIONS 只有 home/nav、chat/composer、rewrite-confirm/dialog、mention-picker/picker，没有会话列表行或底部 Tab 的参考区域；element / text 观察读不到数字角标，App 图标角标在 android-app 上完全不可读。q2、q5、q7 的核心断言（角标是否出现、计数是否累加、@ 与普通消息是否区分）没有 ① 通道可判，用 ai 去「看有没有角标」沒有区分度（同一条灰色行样式差异极小，且菜单/预览样式本身会干扰）。」；element「移动端「@我的 / Mentions」一级入口的固定元素 id（以及打开后列表页的锚点元素 / 参考区域），用于 AC5 的存在性检查与 AC6 的跳转高亮检查。vocab.ELEMENTS 里 android-app 只有 nav.chat / nav.me / chatlist.search / chat.composer / chat.send / chat.rewrite / chat.rewriteCancel / chat.back，没有该入口；也没有可挂载它的页面（openPage 只支持 profile / artifacts / chat）。」",
+  "subcases": [],
+  "designMs": 61230,
+  "issueFile": "D:\\projects\\Tools\\multi-test-agent\\fixtures\\issues\\2122.md",
+  "hash": "31681035f0de6220",
   "issueHash": "da3f5c7dcf6c53c3",
-  "env": "prod"
+  "env": "prod",
+  "version": 2
 }

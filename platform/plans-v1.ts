@@ -5,6 +5,7 @@ import { join } from 'node:path';
 import { canonical, DRAFTS_DIR, sha } from '../issue/drafts';
 import { issuePath } from '../issue/paths';
 import { applyApproval, type Draft } from '../issue/planner';
+import { validatePlan } from '../issue/validate';
 import { SKILL_VERSION } from '../skills/teamily/vocab';
 import { CodedError } from './lifecycle/status';
 import type { Surface, TestPlan } from './schema/test-plan';
@@ -38,7 +39,8 @@ export function planIdsOf(d: Draft): string[] {
 
 /** Pure: content hash of a frozen plan (confirmation time excluded). */
 export function planHash(p: TestPlan): string {
-  return sha(canonical({ ...p, provenance: { ...p.provenance, confirmedAt: undefined } }));
+  // W3-1 defaults (an empty baseline) stay out of the hash: plans approved before W3-1 keep their hash.
+  return sha(canonical({ ...p, baseline: p.baseline?.length ? p.baseline : undefined, prepareChecks: p.prepareChecks?.length ? p.prepareChecks : undefined, provenance: { ...p.provenance, confirmedAt: undefined } }));
 }
 
 export interface ResolvedPlan {
@@ -55,6 +57,7 @@ export function resolvePlan(id: string): ResolvedPlan {
   const d = savedDraft(ref.issue);
   if (!d) throw new CodedError('NOT_FOUND', `Issue ${ref.issue} 还没有草稿`, `先执行 autotest draft create ${ref.issue}`);
   if ((d.version ?? 1) !== ref.version) throw new CodedError('PLAN_STALE', `计划 ${id} 已被草稿 v${d.version ?? 1} 取代`, `用 ${planIdOf({ ...ref, version: d.version ?? 1 })}`);
+  if (d.stale) throw new CodedError('PLAN_NOT_EXECUTABLE', `Issue ${ref.issue} 的草稿待重写：${d.stale.reason}`, `重新起草：autotest draft create ${ref.issue}`);
   if (d.status !== 'plannable') throw new CodedError('PLAN_NOT_EXECUTABLE', `Issue ${ref.issue} 的草稿状态为 ${d.status}：${d.reason}`);
   const sc = d.subcases.find((s) => s.sub === ref.sub);
   if (!sc) throw new CodedError('NOT_FOUND', `草稿里没有子用例 ${ref.sub}`, `可选：${d.subcases.map((s) => s.sub).join(', ')}`);
@@ -63,6 +66,11 @@ export function resolvePlan(id: string): ResolvedPlan {
   if (allowed.includes('mobile-web')) allowed.push('android-web');
   if (!allowed.includes(ref.surface)) throw new CodedError('NOT_FOUND', `子用例 ${ref.sub} 不能在 ${ref.surface} 上执行`, `可选：${allowed.join(', ')}`);
   const plan = applyApproval(d, [{ sub: ref.sub, surface: ref.surface }])[0];
+  // A plan moved to another surface keeps its steps (no template rebuilds it): it must still validate there.
+  if (ref.surface !== sc.surface) {
+    const v = validatePlan(plan);
+    if (!v.ok) throw new CodedError('PLAN_NOT_EXECUTABLE', `子用例 ${ref.sub} 在 ${ref.surface} 上不成立：${v.errors.slice(0, 3).join('；')}`, `在 ${sc.surface} 上执行，或重新起草`);
+  }
   const unfit = surfaceUnfit(plan);
   if (unfit) throw new CodedError('PLAN_NOT_EXECUTABLE', unfit, '换一个端执行（例如 android-app 或 mobile-web）');
   return { id, ref, draft: d, plan, hash: planHash(plan) };

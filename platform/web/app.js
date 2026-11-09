@@ -9,7 +9,7 @@ const GLOSSARY = {
   有效尝试: '一轮的前提（例如输入框里确有刚键入的文字）成立，才算一次有效尝试；不成立的轮叫“偏离”，不计入。',
   偏离: '操作没有落到预期位置（例如键入的文字没进输入框）：这一轮不算尝试，也不算命中。',
   'Wilson 区间': '按命中次数 / 有效尝试数算出的单轮命中率 95% 置信区间；尝试越多区间越窄。',
-  '3/n 上界': '0 次命中时，单次复现概率的 95% 上界约为 3 ÷ 有效尝试数。',
+  '复现率': '命中次数 ÷ 有效尝试次数（只算证据复核认定一致的命中），附 Wilson 95% 区间。',
   替代执行: 'Issue 所在的端（如 iOS）没有执行端时，换一个相近的端（如 Android App）执行；结论不能直接代表原端。',
   环境不合格: '开跑前检查发现环境不能用（锁屏、离线、未登录…）：不操作 App，不给产品结论。',
   证据复核: '命中后让视觉模型对照 Issue 描述看现场截图：一致才算复现，不一致或无法判断都会标出来。',
@@ -51,7 +51,7 @@ function fileLink(p, label) {
 const time = (iso) => (iso ? esc(String(iso).slice(0, 19).replace('T', ' ')) : '-');
 const hm = (iso) => (iso ? esc(String(iso).slice(11, 19)) : '');
 const pill = (cls, text) => `<span class="pill ${esc(cls)}">${esc(text)}</span>`;
-const card = (q, title, body, d = 0) => `<section class="card" style="--d:${d}ms">${q ? `<div class="q">${esc(q)}</div>` : ''}${title ? `<h2>${title}</h2>` : ''}${body}</section>`;
+const card = (q, title, body, d = 0, id = '') => `<section class="card"${id ? ` id="${id}"` : ''} style="--d:${d}ms">${q ? `<div class="q">${esc(q)}</div>` : ''}${title ? `<h2>${title}</h2>` : ''}${body}</section>`;
 const failMsg = (r) => `<p class="bad"><b>${esc(r.code)}</b>：${esc(r.summary)}</p>${r.error?.hint ? `<p class="muted">提示：${linkify(r.error.hint)}</p>` : ''}`;
 /** Hints may carry a console URL: make it a link. */
 const linkify = (s) => esc(s).replace(/https?:\/\/[^\s]+/g, (u) => `<a href="${u.replace(/^https?:\/\/[^/]+/, '')}">${u.replace(/^https?:\/\/[^/]+/, '')}</a>`);
@@ -64,6 +64,8 @@ const KIND = { issue: 'Issue 计划', series: 'Issue 系列', explore: '自然�
 
 let timers = [];
 let stream;
+/** Live pages render their frame once and set this to refill the cards; buttons call it instead of route(). */
+let redraw;
 function clearLive() {
   for (const t of timers) clearInterval(t);
   timers = [];
@@ -72,6 +74,48 @@ function clearLive() {
 }
 function every(ms, fn) {
   timers.push(setInterval(fn, ms));
+}
+const refresh = () => (redraw ?? route)();
+
+/** Replace a slot's content only when it changed (keeps hover / button state across idle refreshes). */
+function put(id, html) {
+  const el = document.getElementById(id);
+  if (el && el._html !== html) el.innerHTML = el._html = html;
+}
+
+/** Keyed list in `id`: [key, html] in display order; only new or changed items are rebuilt (images stay loaded). */
+function putList(id, items) {
+  const box = document.getElementById(id);
+  if (!box) return;
+  const old = new Map([...box.children].map((el) => [el.dataset.key, el]));
+  let prev = null;
+  for (const [key, html] of items) {
+    let el = old.get(key);
+    old.delete(key);
+    if (!el || el._html !== html) {
+      const t = document.createElement('template');
+      t.innerHTML = html.trim();
+      const fresh = t.content.firstElementChild;
+      fresh.dataset.key = key;
+      fresh._html = html;
+      if (el) el.replaceWith(fresh);
+      el = fresh;
+    }
+    if (el.previousElementSibling !== prev || el.parentNode !== box) (prev ? prev.after(el) : box.prepend(el));
+    prev = el;
+  }
+  for (const el of old.values()) el.remove();
+}
+
+/** Show the latest screen in <img id>: the new picture is loaded off-screen first, so the old one never blanks. */
+function swapImage(id, url) {
+  const img = document.getElementById(id);
+  if (!img || !url) return;
+  const next = new Image();
+  next.onload = () => {
+    if (img.isConnected) img.src = next.src;
+  };
+  next.src = `${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`;
 }
 
 async function shell(active) {
@@ -107,6 +151,7 @@ function hashQuery() {
 
 async function route() {
   clearLive();
+  redraw = undefined;
   const h = location.hash.split('?')[0] || '#/';
   for (const [re, fn] of ROUTES) {
     const m = h.match(re);
@@ -125,28 +170,75 @@ window.addEventListener('hashchange', route);
 
 // ---------------------------------------------------------------- 总览
 
+// The page frame renders once; the timer only refills each card's body, so cards don't replay their entrance
+// animation. Refresh choice (on/off, 30 s / 60 s) is kept in localStorage.
+const REFRESH_KEY = 'autotest.home.refresh';
+function refreshPref() {
+  let p = {};
+  try {
+    p = JSON.parse(localStorage.getItem(REFRESH_KEY)) ?? {};
+  } catch {}
+  return { on: p.on !== false, sec: p.sec === 60 ? 60 : 30 };
+}
+
 async function home() {
   await shell('home');
-  const draw = async () => {
-    const [envs, tasks, devices] = await Promise.all([api('GET', '/envs'), api('GET', '/tasks?limit=40'), fetch('/api/devices').then((r) => r.json()).catch(() => ({ devices: [] }))]);
-    if (envs.code === 'PLATFORM_DOWN') return ($('#view').innerHTML = card('', '平台服务未启动', failMsg(envs)));
-    const ts = tasks.data ?? [];
-    const live = ts.filter((t) => !t.finishedAt);
-    const done = ts.filter((t) => t.finishedAt).slice(0, 20);
-    const locked = (envs.data ?? []).filter((e) => e.state === 'unfit' && /锁屏/.test(e.reason ?? ''));
-    $('#view').innerHTML = `
-      <div class="page-head"><h1>总览<small>哪些环境能用、正在跑什么、刚跑完什么。</small></h1>
-        <div class="row"><a class="btn primary" href="#/new">新建任务</a></div></div>
-      ${locked.length ? `<section class="card" style="border-color:var(--clay)"><div class="q">下一步（需要人）</div><p class="lead">手机已锁屏：请在手机上输入 PIN 解锁，然后点该环境的「重新检查」。</p><p class="muted">${locked.map((e) => esc(e.id)).join('、')}</p></section>` : ''}
-      <div class="grid two">
-        ${card('正在做什么', `运行中的任务 <span class="faint">${live.length}</span>`, live.length ? taskTable(live) : '<p class="empty">没有运行中的任务。</p>', 40)}
-        ${card('设备', '手机与浏览器', deviceList(devices.devices ?? []), 80)}
-      </div>
-      ${card('环境', '环境（端 × 设备 × 服务环境）', `<div class="envs">${(envs.data ?? []).map(envTile).join('') || '<p class="empty">没有登记的环境。</p>'}</div>`, 120)}
-      ${card('结果', '最近结束的任务', done.length ? taskTable(done) : '<p class="empty">还没有结束的任务。</p>', 160)}`;
-  };
-  await draw();
-  every(4000, draw);
+  const pref = refreshPref();
+  $('#view').innerHTML = `
+    <div class="page-head"><h1>总览<small>哪些环境能用、正在跑什么、刚跑完什么。</small></h1>
+      <div class="row">
+        <label><input type="checkbox" id="refreshOn" ${pref.on ? 'checked' : ''} onchange="setRefresh()"> 自动刷新</label>
+        <span class="seg">${[30, 60].map((s) => `<label><input type="radio" name="refreshSec" value="${s}" ${pref.sec === s ? 'checked' : ''} onchange="setRefresh()"><span>${s} 秒</span></label>`).join('')}</span>
+        <a class="btn primary" href="#/new">新建任务</a></div></div>
+    <div id="homeLocked"></div>
+    <div class="grid two">
+      ${card('正在做什么', '运行中的任务 <span class="faint" id="homeLiveN"></span>', '<div id="homeLive"></div>', 40)}
+      ${card('设备', '手机与浏览器', '<div id="homeDevices"></div>', 80)}
+    </div>
+    ${card('环境', '环境（端 × 设备 × 服务环境）', '<div class="envs" id="homeEnvs"></div>', 120)}
+    ${card('结果', '最近结束的任务', '<div id="homeDone"></div>', 160)}`;
+  redraw = refreshHome;
+  await refreshHome();
+  scheduleRefresh(pref);
+}
+
+function refreshHome() {
+  return Promise.all([drawEnvs(), drawDevices(), drawTasks()]);
+}
+
+function scheduleRefresh(pref) {
+  clearLive();
+  if (pref.on) every(pref.sec * 1000, refreshHome);
+}
+
+function setRefresh() {
+  const pref = { on: $('#refreshOn').checked, sec: Number($('input[name=refreshSec]:checked').value) };
+  localStorage.setItem(REFRESH_KEY, JSON.stringify(pref));
+  scheduleRefresh(pref);
+}
+
+async function drawEnvs() {
+  const envs = await api('GET', '/envs');
+  if (envs.code === 'PLATFORM_DOWN') return put('homeEnvs', failMsg(envs));
+  const locked = (envs.data ?? []).filter((e) => e.state === 'unfit' && /锁屏/.test(e.reason ?? ''));
+  put('homeLocked', locked.length ? `<section class="card" style="border-color:var(--clay);margin-bottom:18px"><div class="q">下一步（需要人）</div><p class="lead">手机已锁屏：请在手机上输入 PIN 解锁，然后点该环境的「重新检查」。</p><p class="muted">${locked.map((e) => esc(e.id)).join('、')}</p></section>` : '');
+  put('homeEnvs', (envs.data ?? []).map(envTile).join('') || '<p class="empty">没有登记的环境。</p>');
+}
+
+async function drawDevices() {
+  const devices = await fetch('/api/devices').then((r) => r.json()).catch(() => ({ devices: [] }));
+  put('homeDevices', deviceList(devices.devices ?? []));
+}
+
+async function drawTasks() {
+  const tasks = await api('GET', '/tasks?limit=40');
+  if (tasks.code === 'PLATFORM_DOWN') return put('homeLive', failMsg(tasks));
+  const ts = tasks.data ?? [];
+  const live = ts.filter((t) => !t.finishedAt);
+  const done = ts.filter((t) => t.finishedAt).slice(0, 20);
+  put('homeLiveN', String(live.length));
+  put('homeLive', live.length ? taskTable(live) : '<p class="empty">没有运行中的任务。</p>');
+  put('homeDone', done.length ? taskTable(done) : '<p class="empty">还没有结束的任务。</p>');
 }
 
 function deviceList(ds) {
@@ -174,8 +266,13 @@ async function recheck(id, btn) {
     btn.textContent = '检查中…';
   }
   const r = await api('POST', `/envs/${enc(id)}/check`);
-  if (btn) btn.textContent = r.summary.slice(0, 40);
-  setTimeout(route, 800);
+  if (btn) {
+    btn.textContent = r.summary.slice(0, 40);
+    // The button was changed by hand: let the next refill redraw its slot even if the data did not change.
+    const slot = btn.closest('[id]');
+    if (slot) slot._html = undefined;
+  }
+  setTimeout(refresh, 800);
 }
 
 const OUTCOME_CLASS = { NOT_REPRODUCED: 'good', IMPLEMENTED: 'good', EXPLORE_DONE: 'good', SERIES_DONE: 'info', REPRODUCED: 'bad', NOT_IMPLEMENTED: 'bad', PARTIAL: 'bad', EXPLORE_FINDINGS: 'bad', CANCELLED: 'offline', INTERRUPTED: 'offline' };
@@ -233,16 +330,89 @@ async function submitExplore(dryRun) {
   $('#msg').innerHTML = r.code === 'OK' ? `<p class="ok">${esc(r.summary)}</p>` : failMsg(r);
 }
 
+const DRAFT_STATE = { plannable: ['good', '可执行'], unplannable: ['warn', '无法生成计划'], 'needs-block': ['warn', '缺积木'] };
+
 async function issueList() {
-  const r = await api('GET', '/issues');
+  const [r, gh] = await Promise.all([api('GET', '/issues'), api('GET', '/github')]);
   if (!r.data) return ($('#tab').innerHTML = card('', '', failMsg(r)));
-  $('#tab').innerHTML = card('要做什么', `Issue <span class="faint">${r.data.length}</span>`, `
-    <p class="muted">每个 Issue 先生成草稿（规则 + 模型），草稿里每个子用例是一份计划；点开计划看步骤、影响和审批，再运行。不能生成计划的 Issue 会说明原因和怎样才能执行。</p>
+  $('#tab').innerHTML = importCard(gh.data) + card('要做什么', `Issue <span class="faint">${r.data.length}</span>`, `
+    <p class="muted">每个 Issue 由模型读原文、只用积木从零设计测试用例（不套模板）；草稿里每个子用例是一份计划。点开计划看理解、判定依据、步骤、影响和审批，再运行。缺积木或无法生成计划的 Issue 会写明原因。</p>
     <table><tr><th>Issue</th><th>类别</th><th>草稿</th><th>计划（点开审核、运行）</th></tr>${r.data
-      .map((i) => `<tr><td><b>${esc(i.id)}</b><br><span class="muted">${esc(i.title.slice(0, 90))}</span></td><td>${esc(i.category)}</td>
-        <td>${i.draft ? `v${i.draft.version} ${pill(i.draft.status === 'plannable' ? 'good' : 'warn', i.draft.status === 'plannable' ? '可执行' : '无法生成计划')}${i.draft.status !== 'plannable' ? `<br><span class="muted">${esc((i.draft.reason ?? '').slice(0, 80))}</span>` : ''}` : '<span class="faint">无</span>'}<br><button class="btn small" onclick="makeDraft('${esc(i.id)}', this)">${i.draft ? '重新生成' : '生成草稿'}</button></td>
-        <td>${i.plans.map((p) => `<a href="#/plan/${enc(p.id)}">${esc(p.id)}</a> <span class="faint">${esc(p.approval)}</span>`).join('<br>') || '<span class="faint">-</span>'}</td></tr>`)
-      .join('')}</table>`);
+      .map((i) => {
+        const st = DRAFT_STATE[i.draft?.status] ?? ['warn', i.draft?.status ?? ''];
+        const draft = i.draft
+          ? `v${esc(i.draft.version)}${i.draft.planVersion ? ` · 计划 v${esc(i.draft.planVersion)}` : ''} ${i.draft.stale ? pill('bad', '待重写') : pill(st[0], st[1])}${i.draft.stale ? `<br><span class="muted">${esc(i.draft.stale.reason.slice(0, 90))}</span>` : i.draft.status !== 'plannable' ? `<br><span class="muted">${esc((i.draft.reason ?? '').slice(0, 90))}</span>` : ''}`
+          : '<span class="faint">无</span>';
+        return `<tr><td><b>${esc(i.id)}</b><br><span class="muted">${esc(i.title.slice(0, 90))}</span></td><td>${esc(i.category)}</td>
+        <td>${draft}<br><button class="btn small" onclick="makeDraft('${esc(i.id)}', this)">${i.draft ? '重新生成' : '生成草稿'}</button></td>
+        <td>${i.plans.map((p) => `<a href="#/plan/${enc(p.id)}">${esc(p.id)}</a> <span class="faint">${esc(p.approval)}</span>`).join('<br>') || '<span class="faint">-</span>'}</td></tr>`;
+      })
+      .join('')}</table>`, 60);
+}
+
+/** W3-1 P6 / P7: import an Issue — a GitHub link, or a Markdown file (choose / drop / paste); preview first. */
+function importCard(gh) {
+  const ghLine = !gh ? '' : gh.configured ? `<span class="faint">GitHub：${esc(gh.login ?? '已配置')}${gh.repos?.some((x) => !x.ok) ? ` · ${esc(gh.repos.filter((x) => !x.ok).map((x) => `${x.repo} 不可读`).join('，'))}` : ''}</span>` : '<span class="faint">GitHub 未配置 token（.env 的 GITHUB_TOKEN 或 platform/secrets/github.token）：只能上传 / 粘贴</span>';
+  return card('从哪来', '导入 Issue', `
+    <div class="row"><input id="imp-url" type="url" placeholder="https://github.com/Teamily-Inc/teamily-ai-all/issues/2063" style="flex:1">${ghLine}</div>
+    <div id="imp-drop" class="drop" ondragover="event.preventDefault()" ondrop="dropIssue(event)">
+      <textarea id="imp-md" placeholder="粘贴 Issue 的 Markdown（任意格式），或把 .md 文件拖到这里"></textarea>
+      <div class="row"><label class="btn small">选择文件<input id="imp-file" type="file" accept=".md,.markdown,.txt" hidden onchange="pickIssueFile(this)"></label><span id="imp-name" class="faint"></span>
+        <label>Issue id <input id="imp-id" placeholder="自动"></label></div>
+    </div>
+    <div class="row"><button class="btn" onclick="importIssue('preview')">预览</button></div>
+    <div id="imp-msg" class="msg"></div>`);
+}
+
+function importBody(extra) {
+  const url = $('#imp-url').value.trim();
+  const md = $('#imp-md').value;
+  return { ...(md.trim() ? { markdown: md, filename: $('#imp-name').textContent || undefined } : url ? { url } : {}), id: $('#imp-id').value.trim() || undefined, ...extra };
+}
+
+async function pickIssueFile(input) {
+  const f = input.files?.[0];
+  if (!f) return;
+  $('#imp-md').value = await f.text();
+  $('#imp-name').textContent = f.name;
+}
+
+async function dropIssue(ev) {
+  ev.preventDefault();
+  const f = ev.dataTransfer?.files?.[0];
+  if (!f) return;
+  $('#imp-md').value = await f.text();
+  $('#imp-name').textContent = f.name;
+}
+
+async function importIssue(what, overwrite = false) {
+  const body = importBody(what === 'preview' ? { dryRun: true } : { overwrite });
+  if (!body.markdown && !body.url) return ($('#imp-msg').innerHTML = '<p class="bad">先填 GitHub 链接，或粘贴 / 选择 Markdown。</p>');
+  $('#imp-msg').innerHTML = '<p class="faint">处理中…</p>';
+  const r = await api('POST', '/issues/import', body);
+  if (r.code !== 'OK') return ($('#imp-msg').innerHTML = failMsg(r));
+  const v = r.data;
+  const imgs = (v.images ?? []).map((x) => `<li>${x.error ? `<span class="bad">✗</span> ${esc(x.url.slice(0, 100))} — ${esc(x.error)}（保留原链接）` : `<span class="ok">✓</span> ${esc(x.url.slice(0, 100))}`}</li>`).join('');
+  const head = `<table><tr><th>id</th><td><b>${esc(v.id)}</b>${v.exists ? ` ${pill(v.same ? 'good' : 'warn', v.same ? '已存在，内容相同' : '已存在，内容不同')}` : ` ${pill('good', '新 Issue')}`}</td></tr>
+    <tr><th>标题</th><td>${esc(v.title)}</td></tr><tr><th>端</th><td>${esc((v.platforms ?? []).join(', ') || '（未声明）')}</td></tr><tr><th>频率</th><td>${esc(v.frequency || '（未声明）')}</td></tr>
+    ${v.source ? `<tr><th>来源</th><td>${esc(v.source)}</td></tr>` : ''}<tr><th>截图</th><td>${imgs ? `<ul>${imgs}</ul>` : '<span class="faint">无</span>'}</td></tr></table>`;
+  if (what !== 'preview') {
+    $('#imp-msg').innerHTML = `<p class="ok">${esc(r.summary)}</p>${head}`;
+    if (what === 'draft') {
+      $('#imp-msg').innerHTML += '<p class="faint">生成草稿中（模型读原文设计用例）…</p>';
+      const d = await api('POST', `/drafts/${enc(v.id)}`, { env: 'prod' });
+      $('#imp-msg').innerHTML += d.code === 'OK' ? `<p class="ok">${esc(d.summary)}</p>` : failMsg(d);
+    }
+    return issueListRefresh();
+  }
+  const need = v.exists && !v.same;
+  $('#imp-msg').innerHTML = `${head}<div class="row">${v.same ? '<span class="faint">内容相同，无需保存</span>' : `<button class="btn" onclick="importIssue('save', ${need})">${need ? '覆盖保存（旧草稿失效）' : '保存'}</button><button class="btn primary" onclick="importIssue('draft', ${need})">${need ? '覆盖并生成草稿' : '保存并生成草稿'}</button>`}</div>`;
+}
+
+async function issueListRefresh() {
+  const msg = $('#imp-msg')?.innerHTML;
+  await issueList();
+  if (msg && $('#imp-msg')) $('#imp-msg').innerHTML = msg;
 }
 
 async function makeDraft(id, btn) {
@@ -282,6 +452,7 @@ async function taskPage(id) {
   const first = await api('GET', `/tasks/${enc(id)}`);
   if (!first.data) return ($('#view').innerHTML = card('', `任务 ${esc(id)}`, failMsg(first)));
   const steps = await api('GET', `/tasks/${enc(id)}/steps`);
+  taskFrame(first.data);
   drawTask(first.data, steps.data);
   if (!first.data.finishedAt) {
     stream = new EventSource(`/api/v1/tasks/${enc(id)}/stream`);
@@ -299,44 +470,68 @@ async function taskPage(id) {
   }
 }
 
-function drawTask(t, s) {
-  if (!t) return;
-  const p = t.progress ?? {};
+const LIVE = '<span class="live-mark" aria-label="任务进行中">进行中</span>';
+
+/** The task page frame, rendered once; drawTask refills the cards on every progress event. Cards that change
+ *  while the task runs carry `.is-live` (a pending mark in the top-right corner) until it finishes. */
+function taskFrame(t) {
   const what = t.explore
     ? `<p class="lead">${t.explore.mode === 'explore' ? '探索' : '任务'}：「${esc(t.explore.goal)}」</p><p class="muted">${t.explore.writable ? '<b class="warn">可写</b>' : '只读'} · ${esc(KIND.explore)}</p>`
     : t.planId.startsWith('sync:')
       ? `<p class="lead">多端同步：${esc(t.planId.slice(5).split('+').map((x) => SURFACE[x] ?? x).join(' + '))}</p>`
       : `<p class="lead">计划 <a href="#/plan/${enc(t.planId)}">${esc(t.planId)}</a></p>`;
+  const inject = t.explore && !t.finishedAt
+    ? card('', '追加指令', `<p class="muted">下一步开始时交给模型；只读规则照常生效。任务结束后不再接受。</p><div class="row"><input id="inject" maxlength="500" placeholder="例如：先看看设置页，再回到首页" style="flex:1"><button class="btn" onclick="injectTask('${esc(t.id)}')">发送给 agent</button></div><div id="taskInstr"></div>`, 0, 'taskInject')
+    : '';
+  $('#view').innerHTML = `
+    <div class="page-head"><h1>任务 <span class="mono" style="font-size:22px">${esc(t.id)}</span><small>${esc(KIND[t.explore ? 'explore' : t.planId.startsWith('sync:') ? 'sync' : 'issue'])} · ${esc([t.envId, ...(t.envIds ?? [])].join(' + '))} · 创建于 ${time(t.createdAt)}</small></h1>
+      <div class="row" id="taskActions"></div></div>
+    <div class="grid two">
+      ${card('要做什么', '', what)}
+      ${card('正在做什么', '', `${LIVE}<div id="taskNow"></div>`, 40, 'taskNowCard')}
+    </div>
+    ${inject}
+    ${card('正在做什么', '<span id="taskShotsTitle"></span>', `${LIVE}<div id="taskShots"></div>`, 80, 'taskShotsCard')}
+    <div class="grid two">
+      ${card('可信吗', '副作用记录', `${LIVE}<div id="taskLedger"></div>`, 120, 'taskLedgerCard')}
+      ${card('', '时间线', `${LIVE}<ul class="timeline" id="taskTimeline"></ul>`, 160, 'taskTimelineCard')}
+    </div>`;
+}
+
+function drawTask(t, s) {
+  if (!t || !$('#taskNow')) return;
+  const p = t.progress ?? {};
+  for (const id of ['taskNowCard', 'taskShotsCard', 'taskLedgerCard', 'taskTimelineCard']) document.getElementById(id)?.classList.toggle('is-live', !t.finishedAt);
+  put('taskActions', t.finishedAt ? `<a class="btn primary" href="#/result/${enc(t.id)}">查看结果 →</a>` : `<button class="btn danger" onclick="cancelTask('${esc(t.id)}')">取消</button>`);
   const now = t.finishedAt
     ? `<p>${pill(t.state, t.stateText)} 结束于 ${time(t.finishedAt)}${t.endedBy ? `，方式：${esc(t.endedBy)}` : ''}${t.endedAt ? `，停在 ${esc(t.endedAt)}` : ''}</p><p class="lead">${esc(t.outcome?.summary ?? '')}</p>`
     : `<p>${pill(t.state, t.stateText)} ${esc(p.phaseText ?? '')}${p.round !== undefined ? ` · 第 ${p.round} 轮` : ''}${p.step !== undefined ? ` · 第 ${p.step} 步` : ''}</p>${p.summary ? `<p class="mono">${esc(p.summary)}</p>` : ''}<p class="faint">更新于 ${time(p.at)}${t.cancelRequested ? ' · 已请求取消' : ''}</p>`;
-  // The page is redrawn on every progress event: keep a half-typed instruction.
-  const draft = $('#inject')?.value ?? '';
-  const typing = document.activeElement?.id === 'inject';
-  const inject = t.explore && !t.finishedAt
-    ? card('', '追加指令', `<p class="muted">下一步开始时交给模型；只读规则照常生效。任务结束后不再接受。</p><div class="row"><input id="inject" maxlength="500" placeholder="例如：先看看设置页，再回到首页" style="flex:1"><button class="btn" onclick="injectTask('${esc(t.id)}')">发送给 agent</button></div>${(t.instructions ?? []).length ? `<ul>${t.instructions.map((x) => `<li><span class="faint">${hm(x.at)}</span> ${esc(x.text)}</li>`).join('')}</ul>` : ''}`)
-    : '';
-  const stepCards = (s?.steps ?? []).slice().reverse().slice(0, 60).map((x) => `<div class="step ${x.blocked ? 'blocked' : ''} ${x.finding ? 'finding' : ''}">
+  put('taskNow', now + (t.partial ? `<p class="bad">部分结果：${terms('有效尝试')} ${t.partial.valid}，命中 ${t.partial.hits}（${esc(t.partial.note)}）</p>` : ''));
+  if (t.finishedAt) $('#taskInject')?.remove();
+  else put('taskInstr', (t.instructions ?? []).length ? `<ul>${t.instructions.map((x) => `<li><span class="faint">${hm(x.at)}</span> ${esc(x.text)}</li>`).join('')}</ul>` : '');
+  drawShots(s);
+  put('taskLedger', `<table><tr><th>进入会话</th><td>${t.ledger.entered.map(esc).join('、') || '-'}</td></tr><tr><th>键入过的会话</th><td>${t.ledger.typedInto.map(esc).join('、') || '-'}</td></tr><tr><th>发送消息</th><td>${t.ledger.sent} 条（不删除、不撤回）</td></tr><tr><th>手机设置</th><td>${t.ledger.settings.map(esc).join('；') || '-'}</td></tr></table>`);
+  put('taskTimeline', t.timeline.map((e) => `<li><time>${hm(e.at)}</time><span>${e.state ? `状态 → ${esc(e.state)}` : `阶段 → ${esc(e.phase)}`}</span></li>`).join(''));
+}
+
+/** Steps (exploration: newest first, at most 60, rebuilt one by one) or the latest screen; hidden when neither. */
+function drawShots(s) {
+  const steps = s?.steps ?? [];
+  const cardEl = $('#taskShotsCard');
+  if (!cardEl) return;
+  cardEl.hidden = !steps.length && !s?.latest;
+  if (steps.length) {
+    put('taskShotsTitle', `步骤 <span class="faint">${steps.length}</span>`);
+    if (!$('#taskSteps')) put('taskShots', '<p class="muted" id="taskStepsNote"></p><div class="steps" id="taskSteps"></div>');
+    put('taskStepsNote', `每一步的截图、动作和模型的思路（最新在前${steps.length > 60 ? '，只显示最近 60 步' : ''}）。`);
+    putList('taskSteps', steps.slice().reverse().slice(0, 60).map((x) => [String(x.step), `<div class="step ${x.blocked ? 'blocked' : ''} ${x.finding ? 'finding' : ''}">
       ${x.thumb ? `<a href="${esc(x.thumb)}" target="_blank"><img loading="lazy" src="${esc(x.thumb)}" alt="第 ${x.step} 步截图"></a>` : ''}
       <div class="step__body"><div><b>#${x.step}</b> <span class="faint">${hm(x.at)}</span> ${x.blocked ? pill('warn', '已拦截') : ''}${x.finding ? pill('bad', '发现') : ''}</div>
-      <div class="step__act">${esc(x.action)}</div><div class="step__why">${esc(x.thought ?? '')}</div>${x.blocked ? `<div class="warn">${esc(x.blocked)}</div>` : ''}${x.finding ? `<div class="bad">${esc(x.finding.slice(0, 160))}</div>` : ''}</div></div>`);
-  $('#view').innerHTML = `
-    <div class="page-head"><h1>任务 <span class="mono" style="font-size:22px">${esc(t.id)}</span><small>${esc(KIND[t.explore ? 'explore' : t.planId.startsWith('sync:') ? 'sync' : 'issue'])} · ${esc([t.envId, ...(t.envIds ?? [])].join(' + '))} · 创建于 ${time(t.createdAt)}</small></h1>
-      <div class="row">${t.finishedAt ? `<a class="btn primary" href="#/result/${enc(t.id)}">查看结果 →</a>` : `<button class="btn danger" onclick="cancelTask('${esc(t.id)}')">取消</button>`}</div></div>
-    <div class="grid two">
-      ${card('要做什么', '', what)}
-      ${card('正在做什么', '', now + (t.partial ? `<p class="bad">部分结果：${terms('有效尝试')} ${t.partial.valid}，命中 ${t.partial.hits}（${esc(t.partial.note)}）</p>` : ''), 40)}
-    </div>
-    ${inject}
-    ${stepCards.length ? card('正在做什么', `步骤 <span class="faint">${s.steps.length}</span>`, `<p class="muted">每一步的截图、动作和模型的思路（最新在前${s.steps.length > 60 ? '，只显示最近 60 步' : ''}）。</p><div class="steps">${stepCards.join('')}</div>`, 80) : s?.latest ? card('正在做什么', '最新截图', `<img class="screen" src="${esc(s.latest)}?t=${Date.now()}" alt="最新截图">`, 80) : ''}
-    <div class="grid two">
-      ${card('可信吗', '副作用记录', `<table><tr><th>进入会话</th><td>${t.ledger.entered.map(esc).join('、') || '-'}</td></tr><tr><th>键入过的会话</th><td>${t.ledger.typedInto.map(esc).join('、') || '-'}</td></tr><tr><th>发送消息</th><td>${t.ledger.sent} 条（不删除、不撤回）</td></tr><tr><th>手机设置</th><td>${t.ledger.settings.map(esc).join('；') || '-'}</td></tr></table>`, 120)}
-      ${card('', '时间线', `<ul class="timeline">${t.timeline.map((e) => `<li><time>${hm(e.at)}</time><span>${e.state ? `状态 → ${esc(e.state)}` : `阶段 → ${esc(e.phase)}`}</span></li>`).join('')}</ul>`, 160)}
-    </div>`;
-  const box = $('#inject');
-  if (box) {
-    box.value = draft;
-    if (typing) box.focus();
+      <div class="step__act">${esc(x.action)}</div><div class="step__why">${esc(x.thought ?? '')}</div>${x.blocked ? `<div class="warn">${esc(x.blocked)}</div>` : ''}${x.finding ? `<div class="bad">${esc(x.finding.slice(0, 160))}</div>` : ''}</div></div>`]));
+  } else if (s?.latest) {
+    put('taskShotsTitle', '最新截图');
+    if (!$('#taskScreen')) put('taskShots', `<img class="screen" id="taskScreen" src="${esc(s.latest)}" alt="最新截图">`);
+    else swapImage('taskScreen', s.latest);
   }
 }
 
@@ -366,6 +561,9 @@ async function resultPage(id) {
   const hit = ['REPRODUCED', 'EXPLORE_FINDINGS', 'NOT_IMPLEMENTED', 'PARTIAL'].includes(v.code);
   const parts = [];
   parts.push(`<div class="page-head"><h1>结果<small>任务 <a class="mono" href="#/task/${enc(v.taskId)}">${esc(v.taskId)}</a></small></h1></div>`);
+  // W3-1 P0: an invalidated conclusion is kept but cannot be read as a result.
+  if (v.invalidated) parts.push(`<section class="card banner-bad"><h2>本结论已作废</h2><p>${esc(v.invalidated.reason)}</p><p class="faint">${esc(v.invalidated.by)} · ${time(v.invalidated.at)}</p></section>`);
+  if (v.revision) parts.push(card('下一步', '修订', `<p>${esc(v.revision.note)}</p>${v.revision.planId ? `<p><a href="#/plan/${enc(v.revision.planId)}">新版本计划 ${esc(v.revision.planId)} →</a>${v.revision.next ? ` · <a href="#/task/${enc(v.revision.next)}">已排队任务 ${esc(v.revision.next)}</a>` : ''}</p>` : ''}`, 20));
   parts.push(card('结果', '', `<p class="lead">${terms(v.sentence)}</p><p>${pill(good ? 'good' : hit ? 'bad' : 'warn', `${v.code} · ${v.status}`)} ${v.complete ? '' : pill('warn', '不完整，不给结论')}</p>${!v.complete && v.ended ? `<p class="muted">结束方式：${esc(v.ended.by ?? '')}${v.ended.at ? `，${esc(v.ended.at)}` : ''}</p>` : ''}`));
   if (v.series) parts.push(card('结果', '系列', `<div class="stats">${stat(v.series.runs, '次运行')}${stat(v.series.reachedLoop, '进入循环')}${stat(`${v.series.reproducedRuns}/${v.series.validRuns}`, '复现的次数')}${stat(v.series.valid, '有效尝试')}${stat(v.series.hits, '命中')}</div>`, 40));
   v.runs.forEach((x, i) => parts.push(runCard(x, v.taskId, i)));
@@ -450,7 +648,7 @@ function nextSteps(v) {
   const out = [];
   if (!v.complete) out.push('任务没有完整跑完（取消 / 中断 / 环境问题），不给结论：处理环境后重新运行。');
   if (v.code === 'REPRODUCED') out.push('打开现场包看录像和日志；把现场包链接附到 Issue 上。');
-  if (v.code === 'NOT_REPRODUCED') out.push('未复现不等于已修复：可加轮数或换端再跑，或补充复现条件。');
+  if (v.code === 'NOT_REPRODUCED') out.push('本地 Issue 都是可复现的问题：未复现首先说明计划没抓住它。看修订结果（各版计划的诊断），或带着运行证据再修订一版。');
   if (v.explore?.findings.some((f) => f.counted)) out.push('把发现转成 Issue，再用 Issue 主线复现（给出带分母的结论）。');
   if (v.explore && !v.explore.findings.length) out.push('没有发现：看覆盖的界面数是否够；可换一句目标或放宽上限再探索。');
   if (v.sync && v.sync.deliveries.missed) out.push('有端没看到消息：对照报告里该轮该端的截图确认，再决定是否提 Issue。');
@@ -461,7 +659,22 @@ function nextSteps(v) {
 
 // ---------------------------------------------------------------- 计划
 
-const STAGE = { setup: '开始', prepare: '准备', warmup: '预热', loop: '每轮', check: '每轮检查', after: '检查后', epilogue: '结束前', acceptance: '验收' };
+const STAGE = { setup: '开始', prepare: '准备', warmup: '预热', baseline: '触发前', loop: '每轮', check: '每轮检查', after: '检查后', epilogue: '结束前', acceptance: '验收' };
+
+/** W3-1 §7.6: understanding with its quotes, the oracle, missing blocks, version and revision. */
+function auditCard(a) {
+  if (!a) return '';
+  const u = a.understanding;
+  const o = a.oracle;
+  return card('为什么这样测', `计划 v${esc(a.version)} <span class="faint">子用例 ${esc(a.sub)} · 模型从原文设计</span>`, `
+    <table>
+      <tr><th>理解</th><td><b>${esc(u.subject)}</b> 在「${esc(u.trigger)}」之后出现「${esc(u.phenomenon)}」；正常应为「${esc(u.expected)}」${u.control ? `<br><span class="muted">对照：${esc(u.control)}</span>` : ''}
+        ${u.quotes.length ? `<ul class="quotes">${u.quotes.map((q) => `<li><span class="faint">${esc(q.id)}</span> <q>${esc(q.text)}</q></li>`).join('')}</ul>` : ''}</td></tr>
+      <tr><th>判定依据</th><td>命中 = ${esc(o.hit)}<br>正常时看到：${esc(o.normal)}<br>有毛病时一定失败，因为：${esc(o.canFail)}<br>基线：${esc(o.baseline)}<br><span class="faint">观察点 ${esc(o.at)}${o.atReason ? `：${esc(o.atReason)}` : ''}</span></td></tr>
+      ${a.missing.length ? `<tr><th>缺积木</th><td><ul>${a.missing.map((m) => `<li>${esc(m.kind)}「${esc(m.need)}」<span class="faint">${esc(m.basis.join(', '))}</span></li>`).join('')}</ul></td></tr>` : ''}
+      ${a.revision ? `<tr><th>修订（自 ${esc(a.revision.from)}）</th><td>${esc(a.revision.diagnosis)}<ul>${a.revision.changes.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>${a.revision.evidence.length ? `<details><summary class="faint">证据 ${a.revision.evidence.length} 条</summary><ul>${a.revision.evidence.map((e) => `<li>${esc(e)}</li>`).join('')}</ul></details>` : ''}</td></tr>` : ''}
+    </table>`);
+}
 const CAT = { default: '默认允许（只操作被测软件）', sensitive: '敏感计划：需要你按按钮同意', refused: '触及硬约束：拒绝执行' };
 
 async function planPage(id) {
@@ -481,8 +694,9 @@ async function planPage(id) {
       <div class="row"><button class="btn primary" onclick="runPlan('${esc(v.id)}')">运行</button></div></div>
     <div id="msg"></div>
     ${card('要做什么', '', `<p class="lead">${esc(v.purpose)}</p><p class="muted">${esc(v.title)}</p>`)}
+    ${auditCard(v.audit)}
     <div class="grid two">
-      ${card('要做什么', '步骤', `<ol class="plan-steps">${v.steps.map((s, i) => `<li><span class="stage">${STAGE[s.stage] ?? s.stage}</span>${markOf.has(i + 1) ? `<b class="bad">[${i + 1}]</b> ` : ''}${terms(s.text)}${s.byModel ? ' <b>（运行时由模型选）</b>' : ''}</li>`).join('')}</ol>
+      ${card('要做什么', '步骤', `<ol class="plan-steps">${v.steps.map((s, i) => `<li${s.basis ? ` title="${esc(s.basis.join('\n'))}" class="traced"` : ''}><span class="stage">${STAGE[s.stage] ?? s.stage}</span>${markOf.has(i + 1) ? `<b class="bad">[${i + 1}]</b> ` : ''}${terms(s.text)}${s.byModel ? ' <b>（运行时由模型选）</b>' : ''}</li>`).join('')}</ol>
         <h3>怎样算复现</h3><ul>${v.verdict.map((x) => `<li>${terms(x)}</li>`).join('')}</ul>`, 40)}
       ${card('要做什么', '步骤落在屏幕哪里', shot, 80)}
     </div>
@@ -526,22 +740,33 @@ async function runPlan(id) {
 
 async function envPage(id) {
   await shell('');
-  const draw = async () => {
-    const r = await api('GET', `/envs/${enc(id)}`);
-    if (!r.data) return ($('#view').innerHTML = card('', `环境 ${esc(id)}`, failMsg(r)));
-    const e = r.data;
+  const r = await api('GET', `/envs/${enc(id)}`);
+  if (!r.data) return ($('#view').innerHTML = card('', `环境 ${esc(id)}`, failMsg(r)));
+  // Frame once; the 5 s refresh only refills the cards.
+  $('#view').innerHTML = `
+    <div class="page-head"><h1>${esc(SURFACE[surfaceOf(r.data.id)] ?? r.data.id)}<small class="mono">${esc(r.data.id)}</small></h1>
+      <div class="row" id="envActions"></div></div>
+    <div id="envMsg"></div>
+    <div class="grid two">
+      ${card('正在做什么', '', '<div id="envNow"></div>')}
+      ${card('可信吗', '上次检查 <span class="faint" id="envCheckAt"></span>', '<div id="envCheck"></div>', 40)}
+    </div>
+    ${card('下一步', '环境配置项（为可测而做的系统改动，注册时同意一次）', '<div id="envConfig"></div>', 80)}`;
+  const draw = async (data) => {
+    const res = data ? { data } : await api('GET', `/envs/${enc(id)}`);
+    put('envMsg', res.data ? '' : card('', '', failMsg(res)));
+    if (!res.data) return;
+    const e = res.data;
     const locked = e.state === 'unfit' && /锁屏/.test(e.reason ?? '');
-    $('#view').innerHTML = `
-      <div class="page-head"><h1>${esc(SURFACE[surfaceOf(e.id)] ?? e.id)}<small class="mono">${esc(e.id)}</small></h1>
-        <div class="row">${e.state !== 'leased' ? `<button class="btn" onclick="recheck('${esc(e.id)}', this)">重新检查</button>` : ''}</div></div>
-      <div class="grid two">
-        ${card('正在做什么', '', `<p>${pill(e.state, e.stateText)} 自 ${time(e.since)}</p>${e.reason ? `<p>原因：${terms(e.reason)}</p>` : ''}${locked ? '<p class="lead bad">手机已锁屏：请在手机上输入 PIN 解锁，然后点「重新检查」。</p>' : ''}${e.suggestion ? `<p><b>下一步：</b>${esc(e.suggestion)}</p>` : ''}${e.lease ? `<p>租约：任务 <a href="#/task/${enc(e.lease.taskId)}">${esc(e.lease.taskId)}</a>（pid ${esc(e.lease.pid ?? '-')}，自 ${time(e.lease.at)}）</p>` : ''}<p class="faint">设备 ${esc(e.device)} · 账号 ${esc(e.account ?? '-')} · App ${esc(e.appVersion ?? '-')}</p>`)}
-        ${card('可信吗', `上次检查 <span class="faint">${time(e.check?.at)}</span>`, `<table><tr><th>项</th><th>结果</th><th>说明</th></tr>${(e.check?.items ?? []).map((i) => `<tr><td>${esc(i.id)}</td><td>${i.ok ? '<span class="ok">通过</span>' : '<span class="bad">未通过</span>'}</td><td>${esc(i.detail)}</td></tr>`).join('') || '<tr><td colspan="3" class="empty">还没检查过</td></tr>'}</table>${e.check?.did?.length ? `<p class="muted">检查时做了：${e.check.did.map(esc).join('；')}</p>` : ''}`, 40)}
-      </div>
-      ${card('下一步', '环境配置项（为可测而做的系统改动，注册时同意一次）', configTable(e), 80)}`;
+    put('envActions', e.state !== 'leased' ? `<button class="btn" onclick="recheck('${esc(e.id)}', this)">重新检查</button>` : '');
+    put('envNow', `<p>${pill(e.state, e.stateText)} 自 ${time(e.since)}</p>${e.reason ? `<p>原因：${terms(e.reason)}</p>` : ''}${locked ? '<p class="lead bad">手机已锁屏：请在手机上输入 PIN 解锁，然后点「重新检查」。</p>' : ''}${e.suggestion ? `<p><b>下一步：</b>${esc(e.suggestion)}</p>` : ''}${e.lease ? `<p>租约：任务 <a href="#/task/${enc(e.lease.taskId)}">${esc(e.lease.taskId)}</a>（pid ${esc(e.lease.pid ?? '-')}，自 ${time(e.lease.at)}）</p>` : ''}<p class="faint">设备 ${esc(e.device)} · 账号 ${esc(e.account ?? '-')} · App ${esc(e.appVersion ?? '-')}</p>`);
+    put('envCheckAt', time(e.check?.at));
+    put('envCheck', `<table><tr><th>项</th><th>结果</th><th>说明</th></tr>${(e.check?.items ?? []).map((i) => `<tr><td>${esc(i.id)}</td><td>${i.ok ? '<span class="ok">通过</span>' : '<span class="bad">未通过</span>'}</td><td>${esc(i.detail)}</td></tr>`).join('') || '<tr><td colspan="3" class="empty">还没检查过</td></tr>'}</table>${e.check?.did?.length ? `<p class="muted">检查时做了：${e.check.did.map(esc).join('；')}</p>` : ''}`);
+    put('envConfig', configTable(e));
   };
-  await draw();
-  every(5000, draw);
+  redraw = () => draw();
+  await draw(r.data);
+  every(5000, redraw);
 }
 
 function configTable(e) {
@@ -551,7 +776,7 @@ function configTable(e) {
 async function consent(env, item) {
   const r = await api('POST', `/envs/${enc(env)}/consent`, { item });
   if (r.code !== 'OK') alert(r.summary);
-  route();
+  refresh();
 }
 
 // ---------------------------------------------------------------- 审批

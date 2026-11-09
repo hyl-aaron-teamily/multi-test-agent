@@ -16,7 +16,7 @@ import { consentConfig, type EnvRecord, getEnv, listEnvs, unconsented } from './
 import { STATUS, type Code, CodedError, apiError, outcome } from './lifecycle/status';
 import { readAudit, writeJsonAtomic } from './lifecycle/store';
 import type { Supervisor } from './lifecycle/supervisor';
-import { createTask, getTask, isTerminal, listTasks, newTaskId, readEvents, readLedger, readResult, taskDir, type TaskRecord } from './lifecycle/task';
+import { createTask, getTask, isTerminal, listTasks, newTaskId, readEvents, readLedger, readResult, taskDir, type TaskRecord, updateTask } from './lifecycle/task';
 import { parsePlanId, planIdOf, planIdsOf, resolvePlan, savedDraft, staleFacts, versionFacts } from './plans-v1';
 import { envView, exploreSummary, syncSummary, planText, planView, resultText, resultView, taskView, type ResultView } from './views';
 import { EXPLORE_LIMITS } from './schema/test-plan';
@@ -55,7 +55,7 @@ function issueSummary(id: string) {
   const c = classifyRules(i);
   const d = savedDraft(id);
   const plans = d && d.status === 'plannable' ? planIdsOf(d) : [];
-  return { id, title: i.title, frequency: i.frequency, platforms: i.platforms, category: c.category, reason: c.reason, draft: d ? { version: d.version ?? 1, hash: d.hash, status: d.status, reason: d.reason } : undefined, plans: plans.map((p) => ({ id: p, approval: approvalState(p) })) };
+  return { id, title: i.title, frequency: i.frequency, platforms: i.platforms, category: c.category, reason: c.reason, draft: d ? { version: d.version ?? 1, planVersion: d.planVersion, hash: d.hash, status: d.status, reason: d.reason, stale: d.stale } : undefined, plans: d?.stale ? [] : plans.map((p) => ({ id: p, approval: approvalState(p) })) };
 }
 
 function approvalState(planId: string): string {
@@ -90,10 +90,10 @@ function resultOf(t: TaskRecord): ResultView {
     const a = readResult<{ code?: Code; agent?: AgentResult; report?: string; runDir?: string }>(t.id);
     return resultView(t, [], t.outcome?.code ?? a?.code ?? 'STILL_RUNNING', { report: a?.report, runDir: a?.runDir, explore: a?.agent && exploreSummary(a.agent) });
   }
-  const res = readResult<{ code?: Code; runs?: RunResult[]; report?: string; runDir?: string; series?: { counted: number; reachedLoop: number; reproducedRuns: number; validRuns: number; pooled: { valid: number; hits: number } } }>(t.id);
+  const res = readResult<{ code?: Code; runs?: RunResult[]; report?: string; runDir?: string; invalidated?: ResultView['invalidated']; series?: { counted: number; reachedLoop: number; reproducedRuns: number; validRuns: number; pooled: { valid: number; hits: number } } }>(t.id);
   const code: Code = t.outcome?.code ?? res?.code ?? 'STILL_RUNNING';
   const s = res?.series;
-  return resultView(t, res?.runs ?? [], code, { report: res?.report, runDir: res?.runDir, series: s && { runs: s.counted, reachedLoop: s.reachedLoop, reproducedRuns: s.reproducedRuns, validRuns: s.validRuns, valid: s.pooled.valid, hits: s.pooled.hits } });
+  return resultView(t, res?.runs ?? [], code, { report: res?.report, runDir: res?.runDir, invalidated: res?.invalidated, series: s && { runs: s.counted, reachedLoop: s.reachedLoop, reproducedRuns: s.reproducedRuns, validRuns: s.validRuns, valid: s.pooled.valid, hits: s.pooled.hits } });
 }
 
 /** Absolute path under midscene_run/ → its /files/ URL (else undefined). */
@@ -383,22 +383,60 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
       const list = issueIds().map((id) => issueSummary(id));
       return ok('OK', `${list.length} 个 Issue`, list, list.map((i) => `${i.id.padEnd(6)} ${i.category.padEnd(18)} ${i.draft ? `草稿 v${i.draft.version} ${i.draft.status}` : '无草稿'}  ${i.plans.map((x) => `${x.id} [${x.approval}]`).join(', ')}`).join('\n'));
     }
+    if (M === 'POST' && seg[0] === 'issues' && seg[1] === 'import') {
+      const { importIssue } = await import('../issue/import');
+      const b = q.body ?? {};
+      if (typeof b.markdown !== 'string' && typeof b.url !== 'string') return fail('BAD_INPUT', '需要 markdown（Issue 文本）或 url（GitHub Issue 链接）');
+      const pv = await importIssue({ markdown: b.markdown, filename: b.filename, id: b.id, url: b.url, dryRun: !!b.dryRun, overwrite: !!b.overwrite });
+      const failed = pv.images.filter((x) => x.error);
+      const imgs = `截图 ${pv.images.length - failed.length}/${pv.images.length}${failed.length ? `（${failed.length} 张下载失败，保留原链接）` : ''}`;
+      if (b.dryRun) return ok('OK', `预览 Issue ${pv.id}：${pv.exists ? (pv.same ? '已存在且内容相同' : '已存在，内容不同（保存需 overwrite）') : '新 Issue'}；${imgs}`, pv);
+      return ok('OK', pv.same ? `Issue ${pv.id} 已存在且内容相同，未改动` : `Issue ${pv.id} 已${pv.exists ? '覆盖（旧草稿已失效）' : '导入'}：${pv.file}；${imgs}`, { ...pv, summary: issueSummary(pv.id) });
+    }
+    if (M === 'GET' && seg[0] === 'github') {
+      const { githubStatus } = await import('../issue/github');
+      const v = await githubStatus(fetch, q.query.get('fresh') === '1');
+      const repos = v.repos.map((r) => `${r.repo} ${r.ok ? '✓' : `✗ ${r.detail}`}`).join('；');
+      return ok('OK', v.configured ? `GitHub：${v.login ?? '(未识别账号)'}（${v.source}）；${repos}${v.error ? `；${v.error}` : ''}` : 'GitHub：未配置 token（.env GITHUB_TOKEN 或 platform/secrets/github.token）', v);
+    }
     if (M === 'GET' && seg[0] === 'issues' && seg[1]) {
       if (!issueExists(seg[1])) return fail('NOT_FOUND', `没有 Issue ${seg[1]}`);
       const s = issueSummary(seg[1]);
       return ok('OK', `Issue ${s.id}：${s.category}；${s.draft ? `草稿 v${s.draft.version}（${s.draft.status}）` : '无草稿'}`, s, [`Issue ${s.id}：${s.title.slice(0, 120)}`, `类别：${s.category} — ${s.reason}`, s.draft ? `草稿 v${s.draft.version} ${s.draft.hash}（${s.draft.status}）` : '无草稿（autotest draft create）', ...s.plans.map((x) => `计划 ${x.id} [${x.approval}]`)].join('\n'));
     }
+    if (M === 'POST' && seg[0] === 'drafts' && seg[1] && seg[2] === 'stale') {
+      const { markDraftStale } = await import('./invalidate');
+      const reason = String(q.body.reason ?? '').trim();
+      if (!reason) return fail('BAD_INPUT', '标记待重写需要写明原因（--reason）');
+      const d = markDraftStale(seg[1], reason);
+      if (!d) return fail('NOT_FOUND', `Issue ${seg[1]} 没有草稿`);
+      return ok('OK', `Issue ${seg[1]} 的草稿已标为待重写：${reason}`, { issue: seg[1], stale: d.stale });
+    }
+    if (M === 'POST' && seg[0] === 'drafts' && seg[1] && seg[2] === 'revise') {
+      // W3-1 §8.2 by hand: the next plan version from a finished task's run evidence.
+      const t = getTask(String(q.body.taskId ?? ''));
+      if (!t || t.issue !== seg[1]) return fail('NOT_FOUND', `Issue ${seg[1]} 没有任务 ${q.body.taskId ?? '(未给出)'}`, '--task <任务 id>');
+      const run = readResult<{ runs?: RunResult[] }>(t.id)?.runs?.at(-1);
+      if (!run) return fail('NOT_FOUND', `任务 ${t.id} 没有运行结果`);
+      const { reviseAfterRun } = await import('../issue/revise');
+      const out = await reviseAfterRun(run, t.id, parsePlanId(t.planId).sub);
+      updateTask(t.id, (x) => void (x.revision = { note: out.note, planId: out.planId }));
+      return ok('OK', out.note, { note: out.note, planId: out.planId, version: out.draft?.planVersion });
+    }
     if (seg[0] === 'drafts' && seg[1]) {
       if (!issueExists(seg[1])) return fail('NOT_FOUND', `没有 Issue ${seg[1]}`);
       if (M === 'POST') {
+        const { modelConfigured } = await import('../core/model/llm');
+        // W3-1 K1: plans are designed by the model from the Issue text; there is no rule template to fall back on.
+        if (q.body.model === false || !modelConfigured()) return fail('PLAN_NOT_EXECUTABLE', '无法起草：计划由模型从原文设计（W3-1），当前未配置模型或指定了 --no-model', '在 .env 配置模型后重试');
         const { loadDraft } = await import('../scripts/issue-cli');
-        const d = await loadDraft(seg[1], (q.body.env ?? 'prod') as 'test' | 'prod', q.body.model !== false, q.body.redraft !== false);
+        const d = await loadDraft(seg[1], (q.body.env ?? 'prod') as 'test' | 'prod', true, q.body.redraft !== false);
         const plans = d.status === 'plannable' ? planIdsOf(d) : [];
         return ok('OK', `草稿 v${d.version ?? 1}（${d.status}）：${plans.length ? plans.join(', ') : d.reason}`, { issue: d.issue.id, version: d.version ?? 1, hash: d.hash, status: d.status, reason: d.reason, plans });
       }
       const d = savedDraft(seg[1]);
       if (!d) return fail('NOT_FOUND', `Issue ${seg[1]} 还没有草稿`, `autotest draft create ${seg[1]}`);
-      const plans = d.status === 'plannable' ? planIdsOf(d) : [];
+      const plans = d.status === 'plannable' && !d.stale ? planIdsOf(d) : [];
       const views = plans.filter((x) => parsePlanId(x).surface === d.subcases.find((s) => s.sub === parsePlanId(x).sub)?.surface).map((x) => explain(x).view);
       return ok('OK', `草稿 v${d.version ?? 1}（${d.status}）`, { issue: d.issue.id, version: d.version ?? 1, hash: d.hash, status: d.status, reason: d.reason, plans, views }, views.map(planText).join('\n\n') || d.reason);
     }
@@ -487,6 +525,11 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
     if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'issue') return exploreIssue(seg[1], Number(q.body.n));
     if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'inject') return exploreInject(seg[1], q.body.text);
     if (M === 'GET' && seg[0] === 'explore' && seg[1] && seg[2] === 'candidates') return exploreCandidates(seg[1]);
+    if (M === 'POST' && seg[0] === 'results' && seg[1] && seg[2] === 'invalidate') {
+      const { invalidateResult } = await import('./invalidate');
+      const inv = invalidateResult(seg[1], String(q.body.reason ?? ''), q.web ? reviewerName() : 'cli');
+      return ok('OK', `任务 ${seg[1]} 的结论已作废：${inv.reason}`, inv);
+    }
     if (M === 'POST' && seg[0] === 'results' && seg[1] && seg[2] === 'incidental' && seg[3] && seg[4] === 'issue') return incidentalIssue(seg[1], Number(seg[3]), Number(q.body.run ?? 0));
     if (M === 'GET' && seg[0] === 'results' && seg[1]) {
       const t = getTask(seg[1]);

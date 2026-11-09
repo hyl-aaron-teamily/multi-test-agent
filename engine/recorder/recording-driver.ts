@@ -66,6 +66,10 @@ export class RecordingDriver implements Driver {
     const q = this.beforeTap ? await this.beforeTap(p) : p;
     return this.rec('longPress', { point: q, ms }, () => this.inner.longPress(q, ms));
   }
+  typeExact(text: string) {
+    return this.rec('type', { value: '<redacted>' }, () => (this.inner.typeExact ? this.inner.typeExact(text) : this.inner.type(text)));
+  }
+
   type(text: string) {
     return this.rec('type', { value: this.secret ? '<redacted>' : text }, () => this.inner.type(text));
   }

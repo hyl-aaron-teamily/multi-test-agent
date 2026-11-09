@@ -1,0 +1,625 @@
+{
+  "issue": {
+    "id": "2729",
+    "title": "On the Teamily mobile app the settings group **PREFERENCES & SECURITY** does not contain the **Show Link Previews** and **Task completion alerts** toggles that ",
+    "severity": "High",
+    "frequency": "Always",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "summary": "On the Teamily mobile app the settings group **PREFERENCES & SECURITY** does not contain the **Show Link Previews** and **Task completion alerts** toggles that the Web client exposes in that same section. The mobile group offers four navigation rows only (Message folding, Appearance, Privacy Settings, Security) and holds no inline toggle at all, so neither setting is reachable from mobile. Both settings have real user-facing consequences: Show Link Previews governs whether link previews are rendered at all (the Web side treats it as a privacy control), and Task completion alerts governs whether the user is notified when a background agent task finishes. A mobile-only user therefore cannot turn either one on or off. Cross-client parity is broken, and the reporter is a mobile user.",
+    "steps": [
+      "On **Web** open Settings (teamily.ai/settings) and go to the **PREFERENCES & SECURITY** section; record every control in it, including the **Show Link Previews** toggle and the **Task completion alerts** toggle (each with its info (i) tooltip).",
+      "On the **mobile app** open the account menu (the settings list) and scroll to the **PREFERENCES & SECURITY** group.",
+      "Compare entry by entry: the mobile group contains Message folding (Standard), Appearance (Auto), Privacy Settings and Security - four navigation rows, each opening a sub-page.",
+      "Open the Privacy Settings and Security sub-pages and search the whole mobile settings tree for **Show Link Previews** and **Task completion alerts**.",
+      "Confirm the two settings are absent rather than collapsed, truncated, or rendered below the visible area."
+    ],
+    "expected": "The mobile app exposes the same two settings as Web: a **Show Link Previews** toggle and a **Task completion alerts** toggle (renamed to **Task completion notifications** if #2561 ships first), both reachable from the mobile settings tree, with the same default value and the same persisted account state as Web - flipping a toggle on one client is reflected on the other.",
+    "actual": "Neither toggle exists anywhere in the mobile settings tree. The mobile PREFERENCES & SECURITY group renders four navigation rows only - Message folding -> Standard, Appearance -> Auto, Privacy Settings, Security - and contains no inline toggle controls; the sub-pages checked contain neither setting either. The two settings are not implemented or rendered on mobile, so a mobile user has no way to change link-preview rendering or task-completion notifications.",
+    "featureArea": "Mobile client / Settings / Cross-client settings parity",
+    "context": "- **Feature area**: Mobile client / Settings / Cross-client settings parity\r\n- - **Feature area**: Mobile client / Settings / Cross-client settings parity\r\n- **Reporter**: Shawn (source:qa) - raised in the group, cc water (@wcat7) and Cora (@cola-coding)\r\n- **Evidence**: mobile settings screenshot attached (836x1702). Its PREFERENCES & SECURITY group visibly contains only Message folding, Appearance, Privacy Settings and Security - no toggle rows - while SUPPORT & LEGAL sits below it.\r\n- **Structural observation that shapes the fix**: on Web these two settings are rendered as *inline toggles inside* the PREFERENCES & SECURITY section. On mobile the same group contains only *navigation rows to sub-pages*. Adding them is therefore not a copy or icon change: it needs a placement decision (inline in the group, inside Privacy Settings, or a new Notifications entry). Please confirm placement with design instead of assuming the Web layout maps onto mobile.\r\n- **Relationship to #2727** (open, same family, deliberately NOT the same defect): #2727 is 'Mobile menu has drifted from the current Web version' and names three specific divergences - App Connector singular, plug icon instead of puzzle, Agent Connections at top level. None of those are these two settings. The fixes differ in kind: #2727 is label, icon and hierarchy on entries that already exist; this issue is missing controls plus their state wiring and persistence. Filed separately on purpose and cross-referenced so both can be reviewed in one parity sweep.\r\n- **Impact**: a mobile-only user cannot disable link previews or task-completion notifications. This is a functional gap covering both privacy and notification behaviour, not cosmetics.\r\n- **Privacy note to confirm**: please confirm whether the link-preview toggle is a genuine privacy control (outbound URL fetch / preview exposure) or purely a rendering preference - that decides how severe the mobile absence is.\r\n- **Root-cause directions to confirm (dev)**: is the mobile settings screen hand-maintained, so new Web settings are never added? Do these two settings already have account-level storage fields, and are those fields returned to mobile clients by the settings API? Are the toggles behind a feature flag that is off for mobile builds? Is there a product decision that mobile should not expose them - if so, state it and update the design reference, because nothing on mobile currently tells the user these settings exist.\r\n- **Suggested approaches (owner to confirm)**: (1) check first whether the storage fields are shared - if they are, this is mobile-only UI work; (2) if the backend does not expose the fields to mobile, add that first; (3) match Web's default values and label copy, and use the post-#2561 wording ('notifications') if that lands first, so the string is not re-done twice; (4) handle #2727 and this issue in one parity sweep, and add a cross-client settings parity checklist or screenshot diff so the next drift is caught by design review rather than by a user.\r\n- **Open questions**: where should these two controls live on mobile (inline vs. sub-page)? What are the current defaults on Web? Does the settings API already return these two fields for mobile clients? Is this omission unintentional drift or an undocumented product decision?\r\n- **Duplicate check**: searched all 2,727 issues (open + closed, PRs excluded) of Teamily-Inc/teamily-ai-all by title AND body. Decisive exact-string results: 'Show Link Previews' -> 1 hit (#992); 'Task completion alerts' -> 1 hit (#2561); 'PREFERENCES & SECURITY' -> 2 hits (#2561, #1150). Closest hits and why each is not a duplicate: **#2727** (open) same family, different defect - see above. **#2561** (open) '[Settings][Web] Task completion alerts copy should read Task completion notifications' confirms the Web toggle exists and sits in PREFERENCES & SECURITY, but it is a copy/tooltip change on Web, not a mobile omission; cross-referenced so mobile adopts the new wording if it s",
+    "environment": "- **Platform / OS / Browser**: Mobile app (iOS / Android - exact build not specified), compared against the Web client",
+    "empty": false,
+    "images": [
+      "https://github.com/Teamily-Inc/bug-screenshots/blob/main/issue-2729-0e6c2363.png?raw=true"
+    ]
+  },
+  "classification": {
+    "category": "bug-always",
+    "surfaces": [
+      "android-app",
+      "desktop-web"
+    ],
+    "reason": "Frequency: Always",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "The mobile group offers four navigation rows only (Message folding, Appearance, Privacy Settings, Security) and holds no inline toggle at all, so neither setting is reachable from mobile."
+      },
+      {
+        "id": "q2",
+        "text": "Neither toggle exists anywhere in the mobile settings tree."
+      },
+      {
+        "id": "q3",
+        "text": "The mobile PREFERENCES & SECURITY group renders four navigation rows only - Message folding -> Standard, Appearance -> Auto, Privacy Settings, Security - and contains no inline toggle controls; the sub-pages checked contain neither setting either."
+      },
+      {
+        "id": "q4",
+        "text": "Compare entry by entry: the mobile group contains Message folding (Standard), Appearance (Auto), Privacy Settings and Security - four navigation rows, each opening a sub-page."
+      },
+      {
+        "id": "q5",
+        "text": "both reachable from the mobile settings tree, with the same default value and the same persisted account state as Web"
+      },
+      {
+        "id": "q6",
+        "text": "Confirm the two settings are absent rather than collapsed, truncated, or rendered below the visible area."
+      },
+      {
+        "id": "q7",
+        "text": "confirms the Web toggle exists and sits in PREFERENCES & SECURITY"
+      },
+      {
+        "id": "q8",
+        "text": "Its PREFERENCES & SECURITY group visibly contains only Message folding, Appearance, Privacy Settings and Security - no toggle rows"
+      },
+      {
+        "id": "q9",
+        "text": "Please confirm placement with design instead of assuming the Web layout maps onto mobile."
+      }
+    ],
+    "understanding": {
+      "subject": "移动端账号菜单（设置列表）中 PREFERENCES & SECURITY 分组的整屏内容",
+      "trigger": "在移动端从首页「我」入口打开账号菜单（设置列表），停在 PREFERENCES & SECURITY 分组主屏",
+      "phenomenon": "该分组只有 Message folding、Appearance、Privacy Settings、Security 四行跳转条目，整屏没有任何内嵌开关；Show Link Previews 与 Task completion alerts 两个开关在移动端设置树里根本不存在，读不到对应文案",
+      "expected": "分组内应有 Show Link Previews 开关与 Task completion alerts（#2561 后为 Task completion notifications）开关，默认值与账号级持久化状态与 Web 一致",
+      "frequency": "always",
+      "control": "Web 端同一 PREFERENCES & SECURITY 分组内存在这两个内嵌开关（执行端固定为 android-app，无法在同计划内跑 Web 对照）",
+      "basis": [
+        "q1",
+        "q2",
+        "q3",
+        "q7"
+      ]
+    },
+    "feasibility": {
+      "status": "plannable",
+      "missing": []
+    },
+    "subcases": [
+      {
+        "sub": "main",
+        "oracle": {
+          "at": "actions[0]",
+          "hit": "从首页点 nav.me 打开账号菜单、停在 PREFERENCES & SECURITY 分组主屏且基线成立（能读到分组标题与 Message folding 行）之后，actions[0] 的 text 检查读不到「Show Link Previews」，或 actions[1] 的 text 检查读不到「Task completion」，即这两个开关在移动端设置列表里不存在 → 命中。",
+          "normal": "若移动端已按 Web 补齐这两个内嵌开关，无障碍树里会读到这两段文案，contains 匹配成功、两条检查通过，判为不命中。",
+          "canFail": "Issue 说明移动端该分组只有四行跳转条目、整屏没有内嵌开关（q1/q3），整棵设置树也不存在这两项（q2），因此屏上不存在含「Show Link Previews」「Task completion」的文字节点，contains 匹配必然落空，检查必然失败。",
+          "baseline": "起始停在首页会话列表；setup 点 nav.me 后，baseline 必须读到「PREFERENCES」分组标题与既有行「Message folding」。读不到说明没有真正打开设置列表（入口不同或页面未渲染），这一轮偏离、不计有效尝试；读到则说明分组已完整渲染，缺的那一行只可能是被产品漏掉的开关（q6）。"
+        },
+        "plan": {
+          "title": "移动端账号菜单 PREFERENCES & SECURITY 分组：Show Link Previews 与 Task completion alerts 两个开关缺失",
+          "targets": [],
+          "setup": [
+            {
+              "type": "tap",
+              "element": "nav.me",
+              "delayAfterMs": 1000
+            }
+          ],
+          "prepare": [],
+          "baseline": [
+            {
+              "kind": "text",
+              "expect": "账号菜单（设置列表）已打开：PREFERENCES & SECURITY 分组标题在屏",
+              "match": {
+                "contains": "PREFERENCES"
+              },
+              "scope": "screen"
+            },
+            {
+              "kind": "text",
+              "expect": "分组已完整渲染：既有跳转条目 Message folding 在屏（证明列表已加载、读取通道在正常内容上有效）",
+              "match": {
+                "contains": "Message folding"
+              },
+              "scope": "screen"
+            }
+          ],
+          "actions": [
+            {
+              "type": "idle",
+              "value": "600",
+              "expect": {
+                "role": "phenomenon",
+                "check": {
+                  "kind": "text",
+                  "expect": "PREFERENCES & SECURITY 分组内存在 Show Link Previews 开关（正常时应在屏上读到该文案；移动端缺失则检查失败）",
+                  "match": {
+                    "contains": "Show Link Previews"
+                  },
+                  "scope": "screen"
+                }
+              }
+            },
+            {
+              "type": "idle",
+              "value": "400",
+              "expect": {
+                "role": "phenomenon",
+                "check": {
+                  "kind": "text",
+                  "expect": "分组内存在 Task completion 开关（alerts；若 #2561 先合入则为 Task completion notifications），正常时应在屏上读到该文案；移动端缺失则检查失败",
+                  "match": {
+                    "contains": "Task completion"
+                  },
+                  "scope": "screen"
+                }
+              }
+            }
+          ],
+          "checks": [],
+          "afterCheck": [
+            {
+              "type": "tap",
+              "element": "nav.chat",
+              "delayAfterMs": 800,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "page": "home",
+                  "region": "element:nav.chat",
+                  "expect": "已回到会话列表，下一轮从首页开始",
+                  "want": "present"
+                }
+              }
+            }
+          ]
+        },
+        "trace": [
+          {
+            "at": "setup[0]",
+            "basis": [
+              "executor:进入场景，打开账号菜单（设置列表）"
+            ]
+          },
+          {
+            "at": "baseline[0]",
+            "basis": [
+              "q3",
+              "q4"
+            ]
+          },
+          {
+            "at": "baseline[1]",
+            "basis": [
+              "q4",
+              "q8"
+            ]
+          },
+          {
+            "at": "actions[0]",
+            "basis": [
+              "q1",
+              "q2",
+              "q3"
+            ]
+          },
+          {
+            "at": "actions[0].expect",
+            "basis": [
+              "q1",
+              "q7"
+            ]
+          },
+          {
+            "at": "actions[1]",
+            "basis": [
+              "q1",
+              "q2"
+            ]
+          },
+          {
+            "at": "actions[1].expect",
+            "basis": [
+              "q1",
+              "q5"
+            ]
+          },
+          {
+            "at": "afterCheck[0]",
+            "basis": [
+              "executor:复位到会话列表，不改动任何账号状态"
+            ]
+          }
+        ]
+      }
+    ],
+    "revision": null,
+    "selfCheck": {
+      "R1": "ok：只用了积木目录里的 nav.me / nav.chat 两个固定元素，动作只用 tap 与 idle，检查只用 text 与 visual-region，无坐标、无代码。",
+      "R2": "ok：对象是设置列表里的 PREFERENCES & SECURITY 分组，它不是会话/消息类动态目标，catalog 里也没有对应的 target.kind，因此不使用 targets[]，改用文字锚点锁定对象（baseline 读 PREFERENCES 分组标题 + Message folding 行），与 understanding.subject 一致（q3/q4/q8）。",
+      "R3": "ok：触发动作就是 Issue 的触发动作本身——从首页「我」入口打开账号菜单并停在 PREFERENCES & SECURITY 分组（setup[0]），没有用子页、搜索等下游操作代替。",
+      "R4": "ok：现象就在打开设置列表这一步之后读，oracle.at = actions[0]，actions[0]/actions[1] 各带一个 expect(role: phenomenon)，不等到别的动作之后的轮末再检查。",
+      "R5": "ok：① 有毛病时必然失败——移动端无这两个文案节点，contains 落空（q2/q3）；正常时必然通过——开关文案会读进无障碍树；② 范围已取到最窄的可用粒度：对象是整屏设置列表，没有 message 锚点或 target 可用，故 scope=screen，并用 baseline 两项把范围锁在「设置列表已加载且分组已渲染」这一状态；③ 匹配词「Show Link Previews」「Task completion」都不是导航入口自带的内容，该分组四行分别是 Message folding / Appearance / Privacy Settings / Security（q4），不含这两个词；④ 本轮只做只读导航，没有反应、标记、草稿这类会留存的状态，baseline 只做渲染核对。",
+      "R6": "ok：一轮不改变任何账号状态（只读导航），afterCheck 用 nav.chat 回到会话列表并带 expect(role: precondition)。",
+      "R7": "Issue 的对照是 Web 端同分组内的这两个内嵌开关（q7），执行端固定为 android-app，无法在同一计划内跑 Web 对照。因此把「同屏四行既有条目可读」作为正对照放进 baseline（PREFERENCES 分组标题 + Message folding），用来证明读取通道在正常内容上会通过、缺失判断有区分度；跨端一致性的部分记入 risks。",
+      "R8": "ok：核心判定所需积木齐备，未用近似积木顶替。子页（Privacy Settings / Security）与列表滚动的排查没有对应元素/滚动积木，因此不纳入判定，写入 risks，不假装覆盖。",
+      "R9": "替代执行说明：Issue 覆盖 iOS/Android（未指明具体构建），本次在 android-app 上执行。现象中「整屏无内嵌开关、四行跳转条目」的判定依赖同一套设置列表文案，Android 与 iOS 应一致；但 iOS 侧的折叠/截断表现、以及 iOS 的视觉布局差异未在本端验证；跨端（Web ↔ 移动端）同步行为不在本端可验证范围。",
+      "R10": "ok：不使用任何 node（尤其实时发送类），不发消息、不做社交动作，不涉及允许清单会话构造；delayAfterMs 最大 1000，idle 600/400 ms。",
+      "R11": "ok：标题写明了对象（移动端账号菜单 PREFERENCES & SECURITY 分组）与现象（Show Link Previews 与 Task completion alerts 两个开关缺失）。",
+      "R12": "ok：quotes 全部逐字摘自 Issue 原文；setup 标注 executor 理由（进入场景），afterCheck 标注 executor 理由（复位），其余目标/动作/检查/expect 都引用了 q1–q8。"
+    },
+    "risks": [
+      "入口路径假设：nav.me 需要在 Android 上直接打开账号菜单（设置列表）。若「我」页只是个人主页、设置列表还需一次没有积木可用的点击，则 baseline 每轮不成立、有效尝试为 0，此时应补 settings 入口元素并把 feasibility 改为 needs-block。",
+      "渲染时序：setup 后 delayAfterMs 上限 1000 ms，设置列表若首帧渲染较慢，baseline 可能因读不到 PREFERENCES 而判偏离；若偏离率偏高，应加 idle 再读。",
+      "子页与滚动覆盖缺口：Issue 第 4/5 步要求进 Privacy Settings、Security 子页并确认不是折叠/截断/在可视区之外；没有对应元素与可滚动列表积木，本计划只覆盖分组主屏——四行条目同屏可读可支持「分组已完整渲染」的判断，但不等于完成了子页排查。",
+      "文案风险：#2561 若先合入，开关名可能为 Task completion notifications，检查已用 contains「Task completion」兼容；若文案整体改写（改成不含该词组的措辞），检查会失效，需要按新文案更新匹配词。",
+      "跨端一致性（在 Web 上切换后移动端状态同步、默认值一致性，Issue 预期结果的后半段，q5）在单端 android-app 上无法验证；放置方式（内嵌 / 子页 / 新增 Notifications 条目）也仍需设计确认（q9），本计划不对放置方式作判定。",
+      "iOS 表现未覆盖（Issue 覆盖 iOS/Android，本次仅在 Android 上执行）。"
+    ]
+  },
+  "planVersion": 1,
+  "modelCalls": 1,
+  "status": "plannable",
+  "reason": "计划 v1：移动端账号菜单（设置列表）中 PREFERENCES & SECURITY 分组的整屏内容 — 该分组只有 Message folding、Appearance、Privacy Settings、Security 四行跳转条目，整屏没有任何内嵌开关；Show Link Previews 与 Task completion alerts 两个开关在移动端设置树里根本不存在，读不到对应文案",
+  "subcases": [
+    {
+      "sub": "main",
+      "title": "移动端账号菜单 PREFERENCES & SECURITY 分组：Show Link Previews 与 Task completion alerts 两个开关缺失",
+      "surface": "android-app",
+      "plan": {
+        "id": "2729-android-app-v1",
+        "issueRef": "2729",
+        "title": "移动端账号菜单 PREFERENCES & SECURITY 分组：Show Link Previews 与 Task completion alerts 两个开关缺失",
+        "category": "bug-always",
+        "surface": "android-app",
+        "issueSurfaces": [
+          "ios",
+          "android",
+          "web"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [],
+        "setup": [
+          {
+            "type": "tap",
+            "element": "nav.me",
+            "delayAfterMs": 1000
+          }
+        ],
+        "prepare": [],
+        "prepareChecks": [],
+        "baseline": [
+          {
+            "kind": "text",
+            "expect": "账号菜单（设置列表）已打开：PREFERENCES & SECURITY 分组标题在屏",
+            "want": "present",
+            "match": {
+              "contains": "PREFERENCES"
+            },
+            "scope": "screen"
+          },
+          {
+            "kind": "text",
+            "expect": "分组已完整渲染：既有跳转条目 Message folding 在屏（证明列表已加载、读取通道在正常内容上有效）",
+            "want": "present",
+            "match": {
+              "contains": "Message folding"
+            },
+            "scope": "screen"
+          }
+        ],
+        "actions": [
+          {
+            "type": "idle",
+            "value": "600",
+            "delayAfterMs": 300,
+            "expect": {
+              "role": "phenomenon",
+              "check": {
+                "kind": "text",
+                "expect": "PREFERENCES & SECURITY 分组内存在 Show Link Previews 开关（正常时应在屏上读到该文案；移动端缺失则检查失败）",
+                "want": "present",
+                "match": {
+                  "contains": "Show Link Previews"
+                },
+                "scope": "screen"
+              }
+            }
+          },
+          {
+            "type": "idle",
+            "value": "400",
+            "delayAfterMs": 300,
+            "expect": {
+              "role": "phenomenon",
+              "check": {
+                "kind": "text",
+                "expect": "分组内存在 Task completion 开关（alerts；若 #2561 先合入则为 Task completion notifications），正常时应在屏上读到该文案；移动端缺失则检查失败",
+                "want": "present",
+                "match": {
+                  "contains": "Task completion"
+                },
+                "scope": "screen"
+              }
+            }
+          }
+        ],
+        "checks": [],
+        "afterCheck": [
+          {
+            "type": "tap",
+            "element": "nav.chat",
+            "delayAfterMs": 800,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "page": "home",
+                "region": "element:nav.chat",
+                "expect": "已回到会话列表，下一轮从首页开始",
+                "want": "present"
+              }
+            }
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 15,
+          "maxIntervalMs": 1000,
+          "maxRounds": 30,
+          "untilBudget": true
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "audit": {
+          "version": 1,
+          "sub": "main",
+          "quotes": [
+            {
+              "id": "q1",
+              "text": "The mobile group offers four navigation rows only (Message folding, Appearance, Privacy Settings, Security) and holds no inline toggle at all, so neither setting is reachable from mobile."
+            },
+            {
+              "id": "q2",
+              "text": "Neither toggle exists anywhere in the mobile settings tree."
+            },
+            {
+              "id": "q3",
+              "text": "The mobile PREFERENCES & SECURITY group renders four navigation rows only - Message folding -> Standard, Appearance -> Auto, Privacy Settings, Security - and contains no inline toggle controls; the sub-pages checked contain neither setting either."
+            },
+            {
+              "id": "q4",
+              "text": "Compare entry by entry: the mobile group contains Message folding (Standard), Appearance (Auto), Privacy Settings and Security - four navigation rows, each opening a sub-page."
+            },
+            {
+              "id": "q5",
+              "text": "both reachable from the mobile settings tree, with the same default value and the same persisted account state as Web"
+            },
+            {
+              "id": "q6",
+              "text": "Confirm the two settings are absent rather than collapsed, truncated, or rendered below the visible area."
+            },
+            {
+              "id": "q7",
+              "text": "confirms the Web toggle exists and sits in PREFERENCES & SECURITY"
+            },
+            {
+              "id": "q8",
+              "text": "Its PREFERENCES & SECURITY group visibly contains only Message folding, Appearance, Privacy Settings and Security - no toggle rows"
+            },
+            {
+              "id": "q9",
+              "text": "Please confirm placement with design instead of assuming the Web layout maps onto mobile."
+            }
+          ],
+          "understanding": {
+            "subject": "移动端账号菜单（设置列表）中 PREFERENCES & SECURITY 分组的整屏内容",
+            "trigger": "在移动端从首页「我」入口打开账号菜单（设置列表），停在 PREFERENCES & SECURITY 分组主屏",
+            "phenomenon": "该分组只有 Message folding、Appearance、Privacy Settings、Security 四行跳转条目，整屏没有任何内嵌开关；Show Link Previews 与 Task completion alerts 两个开关在移动端设置树里根本不存在，读不到对应文案",
+            "expected": "分组内应有 Show Link Previews 开关与 Task completion alerts（#2561 后为 Task completion notifications）开关，默认值与账号级持久化状态与 Web 一致",
+            "frequency": "always",
+            "control": "Web 端同一 PREFERENCES & SECURITY 分组内存在这两个内嵌开关（执行端固定为 android-app，无法在同计划内跑 Web 对照）",
+            "basis": [
+              "q1",
+              "q2",
+              "q3",
+              "q7"
+            ]
+          },
+          "feasibility": {
+            "status": "plannable",
+            "missing": []
+          },
+          "oracle": {
+            "at": "actions[0]",
+            "hit": "从首页点 nav.me 打开账号菜单、停在 PREFERENCES & SECURITY 分组主屏且基线成立（能读到分组标题与 Message folding 行）之后，actions[0] 的 text 检查读不到「Show Link Previews」，或 actions[1] 的 text 检查读不到「Task completion」，即这两个开关在移动端设置列表里不存在 → 命中。",
+            "normal": "若移动端已按 Web 补齐这两个内嵌开关，无障碍树里会读到这两段文案，contains 匹配成功、两条检查通过，判为不命中。",
+            "canFail": "Issue 说明移动端该分组只有四行跳转条目、整屏没有内嵌开关（q1/q3），整棵设置树也不存在这两项（q2），因此屏上不存在含「Show Link Previews」「Task completion」的文字节点，contains 匹配必然落空，检查必然失败。",
+            "baseline": "起始停在首页会话列表；setup 点 nav.me 后，baseline 必须读到「PREFERENCES」分组标题与既有行「Message folding」。读不到说明没有真正打开设置列表（入口不同或页面未渲染），这一轮偏离、不计有效尝试；读到则说明分组已完整渲染，缺的那一行只可能是被产品漏掉的开关（q6）。"
+          },
+          "trace": [
+            {
+              "at": "setup[0]",
+              "basis": [
+                "executor:进入场景，打开账号菜单（设置列表）"
+              ]
+            },
+            {
+              "at": "baseline[0]",
+              "basis": [
+                "q3",
+                "q4"
+              ]
+            },
+            {
+              "at": "baseline[1]",
+              "basis": [
+                "q4",
+                "q8"
+              ]
+            },
+            {
+              "at": "actions[0]",
+              "basis": [
+                "q1",
+                "q2",
+                "q3"
+              ]
+            },
+            {
+              "at": "actions[0].expect",
+              "basis": [
+                "q1",
+                "q7"
+              ]
+            },
+            {
+              "at": "actions[1]",
+              "basis": [
+                "q1",
+                "q2"
+              ]
+            },
+            {
+              "at": "actions[1].expect",
+              "basis": [
+                "q1",
+                "q5"
+              ]
+            },
+            {
+              "at": "afterCheck[0]",
+              "basis": [
+                "executor:复位到会话列表，不改动任何账号状态"
+              ]
+            }
+          ],
+          "selfCheck": {
+            "R1": "ok：只用了积木目录里的 nav.me / nav.chat 两个固定元素，动作只用 tap 与 idle，检查只用 text 与 visual-region，无坐标、无代码。",
+            "R2": "ok：对象是设置列表里的 PREFERENCES & SECURITY 分组，它不是会话/消息类动态目标，catalog 里也没有对应的 target.kind，因此不使用 targets[]，改用文字锚点锁定对象（baseline 读 PREFERENCES 分组标题 + Message folding 行），与 understanding.subject 一致（q3/q4/q8）。",
+            "R3": "ok：触发动作就是 Issue 的触发动作本身——从首页「我」入口打开账号菜单并停在 PREFERENCES & SECURITY 分组（setup[0]），没有用子页、搜索等下游操作代替。",
+            "R4": "ok：现象就在打开设置列表这一步之后读，oracle.at = actions[0]，actions[0]/actions[1] 各带一个 expect(role: phenomenon)，不等到别的动作之后的轮末再检查。",
+            "R5": "ok：① 有毛病时必然失败——移动端无这两个文案节点，contains 落空（q2/q3）；正常时必然通过——开关文案会读进无障碍树；② 范围已取到最窄的可用粒度：对象是整屏设置列表，没有 message 锚点或 target 可用，故 scope=screen，并用 baseline 两项把范围锁在「设置列表已加载且分组已渲染」这一状态；③ 匹配词「Show Link Previews」「Task completion」都不是导航入口自带的内容，该分组四行分别是 Message folding / Appearance / Privacy Settings / Security（q4），不含这两个词；④ 本轮只做只读导航，没有反应、标记、草稿这类会留存的状态，baseline 只做渲染核对。",
+            "R6": "ok：一轮不改变任何账号状态（只读导航），afterCheck 用 nav.chat 回到会话列表并带 expect(role: precondition)。",
+            "R7": "Issue 的对照是 Web 端同分组内的这两个内嵌开关（q7），执行端固定为 android-app，无法在同一计划内跑 Web 对照。因此把「同屏四行既有条目可读」作为正对照放进 baseline（PREFERENCES 分组标题 + Message folding），用来证明读取通道在正常内容上会通过、缺失判断有区分度；跨端一致性的部分记入 risks。",
+            "R8": "ok：核心判定所需积木齐备，未用近似积木顶替。子页（Privacy Settings / Security）与列表滚动的排查没有对应元素/滚动积木，因此不纳入判定，写入 risks，不假装覆盖。",
+            "R9": "替代执行说明：Issue 覆盖 iOS/Android（未指明具体构建），本次在 android-app 上执行。现象中「整屏无内嵌开关、四行跳转条目」的判定依赖同一套设置列表文案，Android 与 iOS 应一致；但 iOS 侧的折叠/截断表现、以及 iOS 的视觉布局差异未在本端验证；跨端（Web ↔ 移动端）同步行为不在本端可验证范围。",
+            "R10": "ok：不使用任何 node（尤其实时发送类），不发消息、不做社交动作，不涉及允许清单会话构造；delayAfterMs 最大 1000，idle 600/400 ms。",
+            "R11": "ok：标题写明了对象（移动端账号菜单 PREFERENCES & SECURITY 分组）与现象（Show Link Previews 与 Task completion alerts 两个开关缺失）。",
+            "R12": "ok：quotes 全部逐字摘自 Issue 原文；setup 标注 executor 理由（进入场景），afterCheck 标注 executor 理由（复位），其余目标/动作/检查/expect 都引用了 q1–q8。"
+          },
+          "risks": [
+            "入口路径假设：nav.me 需要在 Android 上直接打开账号菜单（设置列表）。若「我」页只是个人主页、设置列表还需一次没有积木可用的点击，则 baseline 每轮不成立、有效尝试为 0，此时应补 settings 入口元素并把 feasibility 改为 needs-block。",
+            "渲染时序：setup 后 delayAfterMs 上限 1000 ms，设置列表若首帧渲染较慢，baseline 可能因读不到 PREFERENCES 而判偏离；若偏离率偏高，应加 idle 再读。",
+            "子页与滚动覆盖缺口：Issue 第 4/5 步要求进 Privacy Settings、Security 子页并确认不是折叠/截断/在可视区之外；没有对应元素与可滚动列表积木，本计划只覆盖分组主屏——四行条目同屏可读可支持「分组已完整渲染」的判断，但不等于完成了子页排查。",
+            "文案风险：#2561 若先合入，开关名可能为 Task completion notifications，检查已用 contains「Task completion」兼容；若文案整体改写（改成不含该词组的措辞），检查会失效，需要按新文案更新匹配词。",
+            "跨端一致性（在 Web 上切换后移动端状态同步、默认值一致性，Issue 预期结果的后半段，q5）在单端 android-app 上无法验证；放置方式（内嵌 / 子页 / 新增 Notifications 条目）也仍需设计确认（q9），本计划不对放置方式作判定。",
+            "iOS 表现未覆盖（Issue 覆盖 iOS/Android，本次仅在 Android 上执行）。"
+          ],
+          "revision": null
+        },
+        "provenance": {
+          "generatedBy": "model",
+          "skillVersion": "2026.10.30-1"
+        },
+        "contract": {
+          "issueRef": "2729",
+          "sub": "main",
+          "preconditions": [
+            {
+              "id": "logged-in",
+              "text": "已登录",
+              "establish": "executor"
+            }
+          ],
+          "trigger": {
+            "semantics": "model",
+            "text": "在移动端从首页「我」入口打开账号菜单（设置列表），停在 PREFERENCES & SECURITY 分组主屏",
+            "params": {}
+          },
+          "observable": {
+            "observation": "text",
+            "text": "分组内应有 Show Link Previews 开关与 Task completion alerts（#2561 后为 Task completion notifications）开关，默认值与账号级持久化状态与 Web 一致",
+            "phenomenon": "该分组只有 Message folding、Appearance、Privacy Settings、Security 四行跳转条目，整屏没有任何内嵌开关；Show Link Previews 与 Task completion alerts 两个开关在移动端设置树里根本不存在，读不到对应文案"
+          },
+          "provenance": {
+            "by": "model",
+            "skillVersion": "2026.10.30-1",
+            "model": "deepseek-flash"
+          }
+        }
+      },
+      "planErrors": [],
+      "contract": {
+        "issueRef": "2729",
+        "sub": "main",
+        "preconditions": [
+          {
+            "id": "logged-in",
+            "text": "已登录",
+            "establish": "executor"
+          }
+        ],
+        "trigger": {
+          "semantics": "model",
+          "text": "在移动端从首页「我」入口打开账号菜单（设置列表），停在 PREFERENCES & SECURITY 分组主屏",
+          "params": {}
+        },
+        "observable": {
+          "observation": "text",
+          "text": "分组内应有 Show Link Previews 开关与 Task completion alerts（#2561 后为 Task completion notifications）开关，默认值与账号级持久化状态与 Web 一致",
+          "phenomenon": "该分组只有 Message folding、Appearance、Privacy Settings、Security 四行跳转条目，整屏没有任何内嵌开关；Show Link Previews 与 Task completion alerts 两个开关在移动端设置树里根本不存在，读不到对应文案"
+        },
+        "provenance": {
+          "by": "model",
+          "skillVersion": "2026.10.30-1",
+          "model": "deepseek-flash"
+        }
+      }
+    }
+  ],
+  "designMs": 106805,
+  "issueFile": "D:\\projects\\Tools\\multi-test-agent\\issues\\2729.md",
+  "hash": "1b0f4218e5c7cb76",
+  "issueHash": "e00d66625f1f45cf",
+  "env": "prod",
+  "version": 2,
+  "warmupFailures": [
+    {
+      "planId": "2729-android-app-v1",
+      "at": "2026-11-09T04:13:24.544Z",
+      "detail": "计划不可执行（预热第 0 步：基线 预期 基线成立 未出现 — baseline[0]: 账号菜单（设置列表）已打开：PREFERENCES & SECURITY 分组标题在屏 — text containing \"PREFERENCES\" not on screen (126 nodes in scope) (accessibility)）"
+    }
+  ],
+  "history": [
+    {
+      "version": 1,
+      "planIds": [
+        "2729-android-app-v1"
+      ],
+      "taskIds": [
+        "t-20261109035822-amh3"
+      ],
+      "validated": true,
+      "warmup": "failed",
+      "driftRate": 0,
+      "valid": 0,
+      "hits": 0,
+      "conclusion": "计划不可执行",
+      "diagnosis": "缺积木（对象不可达）。v1 假设「点 nav.me 会打开账号菜单（设置列表）」，预热实测该步之后屏上 126 个节点里没有 PREFERENCES 分组标题，说明没有走到 Issue 描述的那个设置列表；而积木目录里 android-app 既没有设置入口元素，teamily.openPage 也不含 settings 页，动态目标也没有 settings-group / settings-row 一类，滚动又只能指向不存在的设置列表容器。对象（移动端设置列表里的 PREFERENCES & SECURITY 分组）无法用现有积木到达并定位，触发动作与现象观察都无从执行，因此按 R8 判 needs-block，不再继续修订（SKILL §6：诊断结论为「缺积木」的不再修订）。补充说明：无截图，无法排除「屏幕上其实是设置列表、只是分组标题文案/语言不同」这一可能；这种情况下需要的仍然是设置分组的目标/定位积木，结论不变。",
+      "attribution": "needs-block"
+    }
+  ]
+}

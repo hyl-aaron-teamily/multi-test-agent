@@ -124,7 +124,13 @@ h3 { font-size: 14px; font-weight: 600; margin: 16px 0 6px; color: var(--ink-str
   animation: rise .5s cubic-bezier(.22, .7, .2, 1) both; animation-delay: var(--d, 0ms);
 }
 @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .card { animation: none; } .brand__mark::after { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .card { animation: none; } .brand__mark::after { animation: none; } .live-mark::before { animation: none; } }
+/* 进行中标记：任务运行时，会随进度更新的卡片右上角显示 */
+.card.is-live { position: relative; }
+.live-mark { display: none; }
+.is-live > .live-mark { display: inline-flex; align-items: center; gap: 6px; position: absolute; top: 16px; right: 18px; padding: 2px 10px; border-radius: var(--r-pill); font-size: 12px; font-weight: 500; background: var(--sage-wash); color: var(--sage-deep); }
+.live-mark::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--sage); animation: live-pulse 1.4s ease-out infinite; }
+@keyframes live-pulse { 0% { box-shadow: 0 0 0 0 rgba(111, 156, 106, .55); } 70% { box-shadow: 0 0 0 6px rgba(111, 156, 106, 0); } 100% { box-shadow: 0 0 0 0 rgba(111, 156, 106, 0); } }
 .card + .card { margin-top: 18px; }
 .grid > .card + .card { margin-top: 0; }
 .q { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--ink-faint); margin-bottom: 4px; font-weight: 600; }
@@ -224,3 +230,12 @@ ol.plan-steps li { margin: 4px 0; }
 
 .term { border-bottom: 1px dotted var(--ink-soft); cursor: help; }
 .empty { color: var(--ink-faint); font-style: italic; }
+
+/* W3-1: invalidated result, traced plan steps, Issue import */
+.banner-bad { border-left: 4px solid var(--bad, #c0392b); }
+.banner-bad h2 { color: var(--bad, #c0392b); }
+.plan-steps li.traced { cursor: help; text-decoration: underline dotted rgba(0, 0, 0, .25); text-underline-offset: 3px; }
+ul.quotes { margin: 6px 0 0; padding-left: 18px; }
+ul.quotes q { font-style: italic; }
+.drop { border: 1px dashed rgba(0, 0, 0, .2); border-radius: 10px; padding: 10px; margin: 8px 0; }
+.drop textarea { width: 100%; min-height: 120px; }

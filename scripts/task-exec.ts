@@ -257,7 +257,28 @@ export async function execTask(id: string): Promise<number> {
   if (state === 'done' && cur === 'preflight') advance(id, ['running'], 'run ended');
   if (state === 'done') advance(id, ['finishing'], 'run ended');
   moveTask(id, state, 'task', `run ended: ${code}`, patch);
+  if (n === 1 && last && !cancelled && last.planVersion) await reviseFollowUp(id, t0.envId, plan, last);
   return 0;
+}
+
+/** W3-1 §8.2: after a model-authored plan's run — record the version, revise when it did not reproduce, and
+ *  with full access on queue the next version at once (otherwise it waits for the usual approval). */
+export async function reviseFollowUp(id: string, envId: string, plan: TestPlan, r: RunResult): Promise<void> {
+  const { reviseAfterRun } = await import('../issue/revise');
+  const out = await reviseAfterRun(r, id, plan.audit?.sub ?? 'main').catch((e) => ({ note: `修订失败：${(e as Error).message.split('\n')[0]}`, planId: undefined }));
+  let next: string | undefined;
+  let note = out.note;
+  if (out.planId) {
+    const { getFullAccess } = await import('../platform/approval');
+    if (getFullAccess().on) {
+      const { apiV1 } = await import('../platform/api-v1');
+      const env = await apiV1({ method: 'POST', path: '/api/v1/tasks', query: new URLSearchParams(), body: { planId: out.planId, envId }, web: false }, {});
+      next = (env.data as { id?: string } | undefined)?.id;
+      note += next ? `；已自动排队任务 ${next}（完全授权）` : `；未能自动排队：${env.summary}`;
+    } else note += '；完全授权关闭：新版本走审批后再运行';
+  }
+  updateTask(id, (t) => void (t.revision = { note, planId: out.planId, next }));
+  console.log(`[revise] ${note}`);
 }
 
 if (process.argv[1] && /task-exec\.ts$/.test(process.argv[1])) {

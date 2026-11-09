@@ -4,7 +4,6 @@ import { describe, expect, it } from 'vitest';
 import type { UiNode } from '../../core/ui-tree';
 import { validatePlan } from '../../issue/validate';
 import { DEFAULT_LIMITS } from '../../platform/schema/test-plan';
-import { patternById } from '../../skills/teamily/patterns';
 import { classifyFailure } from '../failure';
 import { messageNodes, scopeNodes, textMatches } from '../observe';
 import { parseDeviceState, taplusWith } from '../preflight';
@@ -20,12 +19,12 @@ describe('attempts (W2-2 §3.1)', () => {
     expect(wilson(0, 0)).toEqual([0, 1]);
     expect(wilson(10, 10)[1]).toBe(1);
   });
-  it('0 hits: 3/n upper bound, no "fixed" wording', () => {
+  it('0 hits: the count only — no upper bound (W3-1 K3), no "fixed" wording', () => {
     const a = attemptsOf(73, 4, 0);
     expect(a).toMatchObject({ rounds: 77, valid: 73, drift: 4, hits: 0, rate: 0 });
-    expect(a.upper95).toBeCloseTo(0.0411, 3);
     const t = attemptsText(a);
-    expect(t).toMatch(/73 次有效尝试未复现；单次复现概率 95% 上界 ≈ 4\.1%/);
+    expect(t).toMatch(/73 次有效尝试，命中 0 次/);
+    expect(t).not.toMatch(/上界|3\/n/);
     expect(t).toMatch(/4 轮操作偏离/);
     expect(t).not.toMatch(/修复/);
   });
@@ -116,25 +115,24 @@ describe('newest message / composer scope', () => {
   });
 });
 
-describe('pattern plans (composer-rewrite / mention-render)', () => {
-  const plan = (id: string, params: Record<string, unknown> = {}) => {
-    const f = patternById(id)!.build('android-app', params);
-    const { maxRounds, ...frag } = f;
-    return { id: `x-${id}`, issueRef: 'x', category: 'bug-always', surface: 'android-app', issueSurfaces: ['ios'], env: 'prod', prepare: [], afterCheck: [], ...frag, limits: { ...DEFAULT_LIMITS, maxRounds }, verdictRule: { consecutiveHits: 3 }, provenance: { generatedBy: 'rules', skillVersion: 'x' } };
-  };
-  it('composer-rewrite validates: require in the loop, exact composer check, 6 rounds', () => {
-    const v = validatePlan(plan('composer-rewrite'));
+describe('loop-precondition plans (require / frozen targets)', () => {
+  const plan = (over: Record<string, unknown> = {}) => ({
+    id: 'x-1', issueRef: 'x', title: 't', category: 'bug-always', surface: 'android-app', issueSurfaces: ['ios'], env: 'prod',
+    targets: [{ id: 'group', kind: 'conversation', guidance: 'titled "G"' }],
+    setup: [{ type: 'node', node: { name: 'teamily.openConversation', input: { target: 'group' } } }],
+    prepare: [{ type: 'node', node: { name: 'teamily.freezeMention', input: { member: 'aaron+test2', as: 'member' } } }],
+    actions: [{ type: 'node', node: { name: 'teamily.clearComposer', input: {} } }, { type: 'type', element: 'chat.composer', value: 'autotest-x {token} {round}' }, { type: 'require', requires: { composerHas: 'autotest-x' } }, { type: 'tap', element: 'target.member' }],
+    checks: [{ kind: 'text', expect: 'exact draft', match: { exact: 'autotest-x {token} {round}' }, scope: 'composer' }],
+    limits: { ...DEFAULT_LIMITS, maxRounds: 6 }, verdictRule: { consecutiveHits: 3 }, provenance: { generatedBy: 'manual', skillVersion: 'x' },
+    ...over,
+  });
+  it('validates: require in the loop, a target frozen by a prepare-only Node is known', () => {
+    const v = validatePlan(plan());
     expect(v.errors).toEqual([]);
     expect(v.plan!.limits.maxRounds).toBe(6);
-    expect(v.plan!.actions.map((a) => a.node?.name ?? a.type)).toEqual(['teamily.clearComposer', 'type', 'require', 'teamily.tapRewrite']);
-  });
-  it('mention-render validates: the frozen member row is a known target', () => {
-    const v = validatePlan(plan('mention-render', { conversation: 'G', member: 'aaron+test2' }));
-    expect(v.errors).toEqual([]);
-    expect(v.plan!.epilogue?.check.scope).toEqual({ message: 'autotest-1903 {token}' });
   });
   it('require outside the loop is rejected', () => {
-    const p: any = plan('composer-rewrite');
+    const p: any = plan();
     p.setup.push({ type: 'require', requires: { composerHas: 'x' }, delayAfterMs: 0 });
     expect(validatePlan(p).errors.join()).toMatch(/loop actions only/);
   });
@@ -158,9 +156,9 @@ describe('series (W2-2 §3.4)', () => {
     expect(md).toMatch(/走到循环 2 \/ 3（67%，目标 ≥ 90%：\*\*未达标\*\*）；环境不合格 1 次/);
     expect(md).toMatch(/\[报告\]\(run-01\/report\.md\)/);
   });
-  it('no hit anywhere: 未复现 with the pooled 3/n bound', () => {
+  it('no hit anywhere: 未复现 with the pooled count, no bound', () => {
     const md = seriesMarkdown({ issue: '1903', sub: 'main', surface: 'android-app', env: 'prod', runs: [1, 2].map((i) => ({ index: i, dir: `d/run-0${i}`, result: mk('未复现', 6, 0) })), dir: 'd', startedAt: 'a', finishedAt: 'b' });
     expect(md).toMatch(/未复现（本系列 12 次有效尝试）/);
-    expect(md).toMatch(/上界 ≈ 25%/);
+    expect(md).not.toMatch(/上界/);
   });
 });

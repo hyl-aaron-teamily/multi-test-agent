@@ -55,7 +55,7 @@ export interface NodeSpec {
   name: string;
   input: Record<string, string>;
   doc: string;
-  phase: 'any' | 'prepare-only';
+  phase: 'any' | 'prepare-only' | 'lifecycle';
 }
 
 /** Node vocabulary for planner and validator (single source: node-specs.ts). */

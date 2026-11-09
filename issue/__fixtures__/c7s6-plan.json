@@ -1,0 +1,137 @@
+{
+  "id": "2063-android-app-v1",
+  "issueRef": "2063",
+  "title": "点赞后立即可见",
+  "category": "bug-always",
+  "surface": "android-app",
+  "issueSurfaces": [
+    "ios"
+  ],
+  "env": "prod",
+  "launch": "once",
+  "targets": [
+    {
+      "id": "conv",
+      "kind": "group-conversation",
+      "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+    },
+    {
+      "id": "msg",
+      "kind": "others-text-message",
+      "guidance": "别人发的普通文本消息（不是图片/卡片/系统消息，也不是链接/URL——点到链接会打开浏览器），点赞类问题用它"
+    },
+    {
+      "id": "like",
+      "kind": "like-action",
+      "guidance": "长按消息后出现的点赞 \"👍\" 表情按钮"
+    }
+  ],
+  "setup": [
+    {
+      "type": "node",
+      "node": {
+        "name": "teamily.openConversation",
+        "input": {
+          "target": "conv"
+        }
+      },
+      "delayAfterMs": 800
+    }
+  ],
+  "prepare": [],
+  "actions": [
+    {
+      "type": "longPress",
+      "element": "target.msg",
+      "delayAfterMs": 900
+    },
+    {
+      "type": "tap",
+      "element": "target.like",
+      "delayAfterMs": 1000
+    }
+  ],
+  "checks": [
+    {
+      "kind": "text",
+      "expect": "The liked message shows a like / 👍 reaction under it",
+      "want": "present",
+      "match": {
+        "exact": "👍"
+      },
+      "scope": {
+        "target": "msg",
+        "within": 160
+      }
+    }
+  ],
+  "afterCheck": [
+    {
+      "type": "longPress",
+      "element": "target.msg",
+      "delayAfterMs": 900
+    },
+    {
+      "type": "tap",
+      "element": "target.like",
+      "delayAfterMs": 1000
+    }
+  ],
+  "limits": {
+    "maxSteps": 1000,
+    "maxMinutes": 15,
+    "maxIntervalMs": 1000
+  },
+  "verdictRule": {
+    "anyHit": true
+  },
+  "contract": {
+    "issueRef": "2063",
+    "sub": "main",
+    "preconditions": [
+      {
+        "id": "logged-in",
+        "text": "已登录",
+        "establish": "executor"
+      },
+      {
+        "id": "group-conversation",
+        "text": "存在成员 ≥3 的群聊",
+        "establish": "existing-data"
+      },
+      {
+        "id": "others-text-message",
+        "text": "会话里有别人发的普通文本消息",
+        "establish": "existing-data"
+      }
+    ],
+    "trigger": {
+      "semantics": "like-message",
+      "text": "On the Teamily iOS app, long-pressing a message whose content is only a link (a URL together with its link preview card, and no accompanying user text - a link-only message) produces no response at all: the message action menu never opens. Because the action menu is the only entry point for acting o",
+      "pattern": "like-visible",
+      "params": {}
+    },
+    "observable": {
+      "observation": "visual-question",
+      "text": "Long-pressing a link-only message should open the same message action menu that text messages get - including at minimum Quote/Reply, Forward, Copy (of the link), Add to My Artifacts, Delete and the emoji reaction row. A link message should not be a second-class citizen in the message action menu.",
+      "phenomenon": "Long-pressing a link-only message produces no response at all - the action menu never opens. No action can therefore be performed on the message, so quoting / replying to a shared link is impossible. The screenshot shows the link-only message and confirms that no menu / action panel is on screen."
+    },
+    "provenance": {
+      "by": "rules",
+      "skillVersion": "2026.10.30-1"
+    }
+  },
+  "provenance": {
+    "generatedBy": "rules",
+    "skillVersion": "2026.10.30-1",
+    "pattern": "like-visible",
+    "confirmedAt": "2026-11-05T08:09:19.254Z",
+    "draftHash": "086c4bdeb8bc7509"
+  },
+  "coverage": "covered",
+  "substitution": {
+    "from": "ios",
+    "to": "android-app",
+    "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。"
+  }
+}

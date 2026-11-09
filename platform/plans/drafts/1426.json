@@ -1,0 +1,75 @@
+{
+  "issue": {
+    "id": "1426",
+    "title": "In the chat window, when a user selects only part of a message's text and right-clicks > 'Copy', the clipboard receives the ENTIRE message text instead of the s",
+    "severity": "Medium",
+    "frequency": "Always",
+    "platforms": [
+      "web"
+    ],
+    "summary": "In the chat window, when a user selects only part of a message's text and right-clicks > 'Copy', the clipboard receives the ENTIRE message text instead of the selected portion. This was found during QA testing of issues #1350/#1316 on 2026-09-01 (chat web, v1.6.7, Edge + Chrome).",
+    "steps": [
+      "1. Open https://chat-test.teamily.ai/chat and log in",
+      "2. Open any conversation (single or group chat) with a message containing long text",
+      "3. Select only PART of the message text (e.g. the first few characters) with the mouse",
+      "4. Right-click on the selected text and click 'Copy' in the context menu",
+      "5. Paste into any editor (Notepad, another chat input) and inspect the copied content"
+    ],
+    "expected": "Only the selected portion of the text is copied to the clipboard.",
+    "actual": "The ENTIRE message text is copied, regardless of the selection range.",
+    "featureArea": "Messaging / Chat UI",
+    "context": "- **Feature area**: Messaging / Chat UI\r\n\r\n---",
+    "environment": "- **Platform / OS / Browser**: Web / v1.6.7 / Microsoft Edge, Chrome",
+    "empty": false,
+    "images": []
+  },
+  "classification": {
+    "category": "deferred",
+    "surfaces": [
+      "desktop-web"
+    ],
+    "reason": "W2-2 只分类 + 契约（用户 2026-10-28）：desktop-web 上需要鼠标拖选部分文字、右键菜单「复制」并读取剪贴板，执行器暂无这些能力，放到以后。",
+    "strength": "strong",
+    "by": "rules",
+    "blockedBy": "partial-selection-clipboard"
+  },
+  "status": "unplannable",
+  "reason": "W2-2 只分类 + 契约（用户 2026-10-28）：desktop-web 上需要鼠标拖选部分文字、右键菜单「复制」并读取剪贴板，执行器暂无这些能力，放到以后。",
+  "subcases": [],
+  "contracts": [
+    {
+      "issueRef": "1426",
+      "sub": "main",
+      "preconditions": [
+        {
+          "id": "logged-in",
+          "text": "已登录",
+          "establish": "executor"
+        },
+        {
+          "id": "partial-selection-clipboard",
+          "text": "鼠标拖选消息的部分文字 → 右键「复制」→ 读取剪贴板（执行器暂无拖选 / 右键菜单 / 剪贴板读取）",
+          "establish": "unconstructible"
+        }
+      ],
+      "trigger": {
+        "semantics": "unmapped",
+        "text": "In the chat window, when a user selects only part of a message's text and right-clicks > 'Copy', the clipboard receives the ENTIRE message text instead of the selected portion. This was found during QA testing of issues #1350/#1316 on 2026-09-01 (chat web, v1.6.7, Edge + Chrome).",
+        "params": {}
+      },
+      "observable": {
+        "observation": "unmapped",
+        "text": "Only the selected portion of the text is copied to the clipboard.",
+        "phenomenon": "The ENTIRE message text is copied, regardless of the selection range."
+      },
+      "provenance": {
+        "by": "rules",
+        "skillVersion": "2026.10.30-1"
+      }
+    }
+  ],
+  "hash": "a7767c3861c1d070",
+  "issueHash": "05fc1ee9955c9767",
+  "env": "prod",
+  "version": 1
+}

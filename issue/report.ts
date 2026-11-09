@@ -23,6 +23,19 @@ const CAT: Record<string, string> = {
 
 /** One page for an Issue no plan could be built for (E18): why, and what would make it plannable. */
 export function unplannableMarkdown(d: Draft): string {
+  if (d.status === 'needs-block' || d.errors?.length) {
+    const env = d.envelope;
+    return [
+      `# Issue ${d.issue.id} — ${d.status === 'needs-block' ? '缺积木，未生成计划' : '无法生成计划'}`,
+      '',
+      `- 原因：${d.reason}`,
+      ...(env ? [`- 模型的理解：${env.understanding.subject}；触发「${env.understanding.trigger}」；现象「${env.understanding.phenomenon}」`] : []),
+      ...(env?.feasibility.missing ?? []).map((m) => `- 缺：${m.kind}「${m.need}」（依据 ${m.basis.join(', ') || '-'}）— 进 backlog，由人补上积木后重新起草`),
+      ...(d.errors ?? []).map((e) => `- 校验错误：${e}`),
+      `- Issue 声明的端：${d.issue.platforms.join(', ') || '（未声明）'}`,
+      '',
+    ].join('\n');
+  }
   const need = d.classification.category === 'multi-account' ? '按原因补上缺的 SKILL 能力后，多端协同计划（两个账号 / 两个端）即可执行。' : d.classification.category === 'not-executable' ? '补充复现步骤与可观察的现象后重新生成草稿。' : '缺少的前置条件黑盒构造不了；具备构造能力后重新生成草稿。';
   return [`# Issue ${d.issue.id} — 无法生成计划`, '', `- 预判类别：**${d.classification.category}**（${CAT[d.classification.category]}，${d.classification.by === 'model' ? '模型' : '规则'}判定）`, `- 原因：${d.reason}`, `- 怎样才能执行：${need}`, `- Issue 声明的端：${d.issue.platforms.join(', ') || '（未声明）'}`, `- 摘要：${d.issue.title || '（空）'}`, ''].join('\n');
 }
@@ -46,7 +59,9 @@ export function runMarkdown(d: Draft, input: RunResult[], runDir: string): strin
   if (subst) lines.push(`> **替代执行**：Issue 端 ${subst.substitution!.from} → 实际 ${results.map((r) => r.surface).join(', ')}。${subst.substitution!.reason}`, '');
   lines.push(`- 预判类别：**${d.classification.category}**（${CAT[d.classification.category]}）— ${d.classification.reason}`, `- 环境：${results[0]?.env ?? '-'}`, `- Issue 摘要：${d.issue.title}`);
   if (d.deferredPart) lines.push(`- 未覆盖部分：${d.deferredPart}`);
+  if (d.stale) lines.push(`- ⚠ 草稿待重写（${d.stale.at}）：${d.stale.reason}`);
   lines.push('');
+  lines.push(...versionTable(d, results), ...auditMarkdown(d));
   for (const r of results) {
     lines.push(`## ${r.planId} — ${r.conclusion}${r.coverage === 'not-covered' ? '（⚠ 计划未覆盖 Issue 现象，仅说明无崩溃）' : ''}`, '');
     // W2-2 §3.2: three separate lines, each with its basis; the mechanism is a guess from the contract.
@@ -75,6 +90,11 @@ export function runMarkdown(d: Draft, input: RunResult[], runDir: string): strin
       for (const a of r.acceptance) lines.push(`| ${a.text} | ${a.pass === null ? '未验证' : a.pass ? '✅ 已实现' : '❌ 缺项'} | ${a.detail}${a.evidence ? ` · [截图](${r.planId}/${a.evidence})` : ''} |`);
       lines.push('');
     }
+    const fails = (r.expectLog ?? []).filter((x) => x.round > 0);
+    if (fails.length) lines.push(`expect / baseline 未成立（${fails.length} 次，最多列 10 条）：`, ...fails.slice(0, 10).map((x) => `- 第 ${x.round} 轮 ${x.at}（${x.role}）：${x.pass === null ? '读不出' : '不成立'} — ${x.detail.slice(0, 200)}`), '');
+    if (r.suspects?.length) lines.push(`可疑信号（logcat 原文，最多列 5 条）：`, ...r.suspects.slice(0, 5).map((x) => `- 第 ${x.round} 轮 / 第 ${x.step} 步 ${x.kind}：\`${x.detail.slice(0, 200).replace(/`/g, "'")}\``), '');
+    if (r.mustLog?.length) lines.push('目标核对（must）不通过：', ...r.mustLog.map((m) => `- ${m.id} 第 ${m.try} 次：${m.detail}`), '');
+    if (r.samples?.length) lines.push(`采样截图（每 10 轮一张，低分辨率）：${r.samples.map((f) => `[${basename(f)}](${relative(runDir, f).replace(/\\/g, '/')})`).join(' · ')}`, '');
     if (r.hits.length) lines.push('命中记录：', ...r.hits.slice(0, 10).map((h) => `- 第 ${h.round} 轮 / 第 ${h.step} 步 ${h.at}：${h.reason}${h.review ? `\n  - 证据复核：${REVIEW_TEXT[h.review]}${h.reviewNote ? ` — ${h.reviewNote}` : ''}` : ''}`), '');
     if (r.dismissed?.length)
       lines.push('证据复核排除（自动检查误报，不计命中）：', ...r.dismissed.slice(0, 10).map((x) => `- 第 ${x.round} 轮 / 第 ${x.step} 步：${x.reason}\n  - 画面所见：${x.observed} · [复核](${relative(runDir, x.incident).replace(/\\/g, '/')}/review/review.md)`), '');
@@ -108,4 +128,33 @@ export async function writeIssueReport(d: Draft, results: RunResult[], runDir: s
 
 export async function readResult(runDir: string): Promise<any> {
   return JSON.parse(await readFile(join(runDir, 'result.json'), 'utf8'));
+}
+
+const pct = (x: number) => `${(x * 100).toFixed(1).replace(/\.0$/, '')}%`;
+
+/** W3-1 §8.4: one row per plan version — executability (validated / warm-up / drift rate) and reproduction rate. */
+export function versionTable(d: Draft, results: RunResult[]): string[] {
+  const rows = [...(d.history ?? [])].map((h) => `| v${h.version} | ${h.validated ? '✅' : '❌'} | ${h.warmup === 'passed' ? '✅' : h.warmup === 'failed' ? '❌' : '—'} | ${h.driftRate === undefined ? '—' : pct(h.driftRate)} | ${h.valid ? `${h.hits}/${h.valid}${h.wilson ? `（${pct(h.wilson[0])}–${pct(h.wilson[1])}）` : ''}` : '—'} | ${h.conclusion} | ${h.diagnosis ?? '-'} |`);
+  for (const r of results.filter((x) => x.planVersion)) {
+    const a = r.attempts;
+    const e = r.executability;
+    rows.push(`| v${r.planVersion} | ✅ | ${e?.warmup === 'passed' ? '✅' : e?.warmup === 'failed' ? '❌' : '—'} | ${e ? pct(e.driftRate) : '—'} | ${a?.valid ? `${a.hits}/${a.valid}（${pct(a.wilson[0])}–${pct(a.wilson[1])}）` : '—'} | ${r.conclusion} | ${r.planId} |`);
+  }
+  if (!rows.length) return [];
+  return ['## 各版计划', '', '| 版本 | 结构校验 | 预热 | 偏离率 | 复现率（Wilson 95%） | 结论 | 诊断 / 计划 |', '|---|---|---|---|---|---|---|', ...rows, ''];
+}
+
+/** W3-1: what the model read and decided (quotes, understanding, oracle, revision). */
+export function auditMarkdown(d: Draft): string[] {
+  const env = d.envelope;
+  if (!env) return [];
+  const out = ['## 用例设计（模型从原文读出）', '', `- 理解：**${env.understanding.subject}** 在「${env.understanding.trigger}」之后出现「${env.understanding.phenomenon}」；正常应为「${env.understanding.expected}」（依据 ${env.understanding.basis.join(', ')}）`];
+  for (const q of env.quotes) out.push(`  - ${q.id}：> ${q.text.slice(0, 200)}`);
+  for (const s of d.subcases) {
+    const o = s.plan.audit?.oracle;
+    if (o) out.push(`- 子用例 ${s.sub}：命中 = ${o.hit}；正常 = ${o.normal}；为什么一定会失败 = ${o.canFail}；基线 = ${o.baseline}（观察点 ${o.at}）`);
+  }
+  if (env.revision) out.push(`- 修订（自 ${env.revision.from}）：诊断 ${env.revision.diagnosis}`, ...env.revision.evidence.map((e) => `  - 证据：${e}`), ...env.revision.changes.map((c) => `  - 改动：${c}`));
+  for (const r of env.risks) out.push(`- 风险：${r}`);
+  return [...out, ''];
 }

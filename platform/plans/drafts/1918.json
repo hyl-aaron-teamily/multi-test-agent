@@ -1,0 +1,80 @@
+{
+  "issue": {
+    "id": "1918",
+    "title": "On the iOS mobile app, in a 1:1 Teamily Agent chat (\"Aiden's Personal AI\"), a math formula in an agent reply inside a message bubble is not converted/rendered —",
+    "severity": "High",
+    "frequency": "Always",
+    "platforms": [
+      "ios",
+      "web",
+      "desktop"
+    ],
+    "summary": "On the iOS mobile app, in a 1:1 Teamily Agent chat (\"Aiden's Personal AI\"), a math formula in an agent reply inside a message bubble is not converted/rendered — the raw LaTeX source is displayed verbatim, including backslash commands, braces and the $$ delimiters (e.g. CPM = \\frac{广告花费}{展示次数} \\times 1000 and the block CPM = \\frac{500}{100000} \\times 1000 = $5). The same message renders correctly on web and macOS, where the display formula is typeset with a proper fraction bar. Reported by Aiden (Teamily CEO) with side-by-side screenshots. Filed separately from #1416 (channel-side Slack/iMessage formula loss) because the root cause here is on the client-side mobile rendering path, not the outbound channel.",
+    "steps": [
+      "Open the Teamily iOS app and enter a 1:1 chat with an agent (reproduced in \"Aiden's Personal AI\").",
+      "Ask the agent a question whose answer contains a math formula — e.g. send \"CPM 是什么\" (inferred).",
+      "Wait for the agent reply, which contains LaTeX formulas — an inline-style formula and a $$-delimited block formula.",
+      "Observe the message bubble: the formula is shown as raw LaTeX source code.",
+      "Open the same conversation on web / macOS and compare — there the formula renders as typeset math."
+    ],
+    "expected": "Formulas in an agent reply should be rendered as typeset math (LaTeX -> layout) inside the message bubble on every client, consistent with web and macOS.",
+    "actual": "On the iOS app the formula is not converted: the raw LaTeX source is shown as plain text inside the message bubble — literal \\frac{...}{...}, \\times, braces and the $$ delimiters are all visible instead of a laid-out formula.",
+    "featureArea": "Message Rendering / Chat Bubble (client — mobile)",
+    "context": "- **Feature area**: Message Rendering / Chat Bubble (client — mobile)\r\n- (inferred) This is the 1:1 Teamily Agent chat displayed as \"Aiden's Personal AI\".\r\n- Affected container is the message bubble (agent reply). The report does not cover document or card surfaces — please confirm the exact surface is chat bubble only.\r\n- \"Instant\" mode was selected in the composer (visible in the screenshot); recorded for completeness, unlikely to matter.\r\n- Related but NOT duplicates: #1416 (channel-side Slack/iMessage formula markers lost — outbound channel rendering); #1903 (iOS: @-mention not rendered in the sent bubble); #771 (RN IM text format loss); #978 (rich-text stripped in sender bubble); #1020 (Android RN markdown table clipped); #1823 (forwarding drops rich-text formatting).\r\n- Requested triage: (1) is the iOS app missing the LaTeX -> layout pipeline, or is the renderer/font not taking effect on mobile; (2) iOS only, or Android too; (3) confirm the surface is message bubble vs document vs card.\r\n- Note: on the macOS screenshot a second $$...$$ block formula still shows raw source, i.e. the block-formula delimiter path differs from the inline one — a sub-case of the same rendering pipeline worth covering.\r\n- Reporter: Aiden (Teamily CEO). cc: Cora.\r\n\r\n---",
+    "environment": "- **Platform / OS / Browser**: iOS app (iPhone; status bar time 14:14) — app version not specified, please confirm. Comparison platforms: web + macOS, both normal.",
+    "empty": false,
+    "images": [
+      "https://github.com/Teamily-Inc/bug-screenshots/blob/main/issue-1918-04b1d3f8.jpg?raw=true",
+      "https://github.com/Teamily-Inc/bug-screenshots/blob/main/issue-1918-519958d1.jpg?raw=true"
+    ]
+  },
+  "classification": {
+    "category": "deferred",
+    "surfaces": [
+      "desktop-web"
+    ],
+    "reason": "W2-2 只分类 + 契约（用户 2026-10-28）：前置条件「Agent 回复含 LaTeX 公式」取决于 Agent 生成的内容，黑盒不可控（unconstructible）。",
+    "strength": "strong",
+    "by": "rules",
+    "blockedBy": "agent-reply-with-formula"
+  },
+  "status": "unplannable",
+  "reason": "W2-2 只分类 + 契约（用户 2026-10-28）：前置条件「Agent 回复含 LaTeX 公式」取决于 Agent 生成的内容，黑盒不可控（unconstructible）。",
+  "subcases": [],
+  "contracts": [
+    {
+      "issueRef": "1918",
+      "sub": "main",
+      "preconditions": [
+        {
+          "id": "logged-in",
+          "text": "已登录",
+          "establish": "executor"
+        },
+        {
+          "id": "agent-reply-with-formula",
+          "text": "Agent 回复中含 LaTeX 公式（回复内容由 Agent 生成，不可控）",
+          "establish": "unconstructible"
+        }
+      ],
+      "trigger": {
+        "semantics": "unmapped",
+        "text": "On the iOS mobile app, in a 1:1 Teamily Agent chat (\"Aiden's Personal AI\"), a math formula in an agent reply inside a message bubble is not converted/rendered — the raw LaTeX source is displayed verbatim, including backslash commands, braces and the $$ delimiters (e.g. CPM = \\frac{广告花费}{展示次数} \\times",
+        "params": {}
+      },
+      "observable": {
+        "observation": "unmapped",
+        "text": "Formulas in an agent reply should be rendered as typeset math (LaTeX -> layout) inside the message bubble on every client, consistent with web and macOS.",
+        "phenomenon": "On the iOS app the formula is not converted: the raw LaTeX source is shown as plain text inside the message bubble — literal \\frac{...}{...}, \\times, braces and the $$ delimiters are all visible instead of a laid-out formula."
+      },
+      "provenance": {
+        "by": "rules",
+        "skillVersion": "2026.10.30-1"
+      }
+    }
+  ],
+  "hash": "250fedbe9ae2ee23",
+  "issueHash": "a4d028a1af914c71",
+  "env": "prod",
+  "version": 1
+}

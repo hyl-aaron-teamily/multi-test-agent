@@ -27,7 +27,11 @@ export const COMMANDS: CommandSpec[] = [
   { command: 'help', doc: 'All commands, their arguments and the status-code table', args: [J], codes: ['OK'] },
   { command: 'issue list', doc: 'Issues with category, draft and plan ids / approval state', args: [J], codes: ['OK'] },
   { command: 'issue show', doc: 'One Issue', args: [{ name: 'id', type: 'string', required: true, positional: true, doc: 'Issue id (issues/<id>.md)' }, J], codes: ['OK', 'NOT_FOUND'] },
-  { command: 'draft create', doc: 'Draft an Issue anew (may call the model); returns its plan ids', args: [{ name: 'id', type: 'string', required: true, positional: true, doc: 'Issue id' }, { name: 'env', type: 'string', doc: 'test | prod (default prod)' }, { name: 'no-model', type: 'boolean', doc: 'rules only' }, J], codes: ['OK', 'NOT_FOUND'] },
+  { command: 'issue import', doc: 'Import an Issue: a Markdown file (any format) or a GitHub Issue link (https://github.com/<owner>/<repo>/issues/<n>; token from .env GITHUB_TOKEN / platform/secrets/github.token). Screenshots are downloaded into issues/assets/<id>/. Same id with different content needs --overwrite (the old draft is then marked for rewrite)', args: [{ name: 'source', type: 'string', required: true, positional: true, doc: 'Markdown file path or GitHub Issue URL' }, { name: 'id', type: 'string', doc: 'Issue id (default: from the link / file name / "#<n>" in the text / upload-<date>-<sha6>)' }, { name: 'overwrite', type: 'boolean', doc: 'replace an existing Issue with different content' }, { name: 'dry-run', type: 'boolean', doc: 'preview only (id, title, platforms, frequency, screenshots, exists / same)' }, J], codes: ['OK', 'BAD_INPUT', 'GITHUB_AUTH', 'TOOL_FAILED'] },
+  { command: 'github status', doc: 'GitHub token state: configured, login, allowed repositories readable, rate limit (cached 5 min). The token itself is never printed', args: [J], codes: ['OK'] },
+  { command: 'draft create', doc: 'Draft an Issue anew: the model reads the Issue text and designs the case from the SKILL blocks (W3-1; no templates). Returns its plan ids, or the status needs-block / unplannable with the reason', args: [{ name: 'id', type: 'string', required: true, positional: true, doc: 'Issue id' }, { name: 'env', type: 'string', doc: 'test | prod (default prod)' }, J], codes: ['OK', 'NOT_FOUND', 'PLAN_NOT_EXECUTABLE'] },
+  { command: 'draft revise', doc: "Next plan version from a finished task's run evidence (W3-1: at most 3 versions; stops on a missing block / environment substitution)", args: [{ name: 'id', type: 'string', required: true, positional: true, doc: 'Issue id' }, { name: 'task', type: 'string', required: true, doc: 'task id whose run evidence is used' }, J], codes: ['OK', 'NOT_FOUND'] },
+  { command: 'draft stale', doc: 'Mark a saved draft for rewrite: its plans stop resolving until the Issue is drafted again', args: [{ name: 'id', type: 'string', required: true, positional: true, doc: 'Issue id' }, { name: 'reason', type: 'string', required: true, doc: 'why' }, J], codes: ['OK', 'NOT_FOUND', 'BAD_INPUT'] },
   { command: 'draft show', doc: 'The saved draft with a PlanView per sub-case', args: [{ name: 'id', type: 'string', required: true, positional: true, doc: 'Issue id' }, J], codes: ['OK', 'NOT_FOUND'] },
   { command: 'plan explain', doc: 'Before running: steps, impact, uncertainty, model calls, duration, approval class (PlanView)', args: [PLAN, { name: 'series', type: 'integer', doc: 'series size the approval would be for' }, { name: 'max-rounds', type: 'integer', doc: 'valid attempts per run' }, J], codes: ['OK', 'NOT_FOUND', 'PLAN_STALE', 'PLAN_NOT_EXECUTABLE'] },
   { command: 'plan approve', doc: 'Approve a default-class plan by its hash (sensitive plans: Web only → 30)', args: [PLAN, { name: 'hash', type: 'string', required: true, doc: 'hash from plan explain' }, { name: 'runs', type: 'integer', doc: 'runs allowed (default 1)' }, { name: 'series', type: 'integer', doc: 'series size allowed' }, J], codes: ['OK', 'APPROVAL_REQUIRED', 'PLAN_HASH_MISMATCH', 'PLAN_NOT_EXECUTABLE'] },
@@ -45,6 +49,7 @@ export const COMMANDS: CommandSpec[] = [
   { command: 'explore issue', doc: 'Exploration finding → Issue draft (issues/explore/<id>.md) for the quick tier: then draft create / plan explain / task run', args: [{ name: 'taskId', type: 'string', required: true, positional: true, doc: 'exploration task id (or its run dir under midscene_run)' }, { name: 'n', type: 'integer', required: true, positional: true, doc: 'finding number from result show' }, J], codes: ['OK', 'NOT_FOUND', 'BAD_INPUT'] },
   { command: 'explore candidates', doc: 'SKILL candidates of an exploration: elements seen again and again with the same text (page, meaning, box, count, screenshot) — for a person to review; never written to a profile', args: [{ name: 'taskId', type: 'string', required: true, positional: true, doc: 'exploration task id (or its run dir under midscene_run)' }, J], codes: ['OK', 'NOT_FOUND', 'BAD_INPUT'] },
   { command: 'explore inject', doc: 'Add an instruction to a running exploration task; the agent gets it at the next step boundary (refused once the task has ended)', args: [{ name: 'taskId', type: 'string', required: true, positional: true, doc: 'running exploration task id' }, { name: 'instruction', type: 'string', required: true, positional: true, doc: 'what to do now, in plain words (1–500 characters)' }, J], codes: ['OK', 'NOT_FOUND', 'BAD_INPUT'] },
+  { command: 'result invalidate', doc: "Declare a finished task's conclusion invalid (kept, shown as 已作废 with the reason)", args: [TASK, { name: 'reason', type: 'string', required: true, doc: 'why the conclusion does not hold' }, J], codes: ['OK', 'NOT_FOUND', 'BAD_INPUT'] },
   { command: 'result show', doc: 'ResultView of a finished task: conclusion sentence, basis, attempts, flags, failure kind, evidence', args: [TASK, J], codes: ['STILL_RUNNING', 'NOT_REPRODUCED', 'REPRODUCED', 'PARTIAL', 'IMPLEMENTED', 'NOT_IMPLEMENTED', 'SERIES_DONE', 'TOOL_FAILED', 'ENV_UNFIT', 'CANCELLED', 'INTERRUPTED', 'TASK_CRASHED'] },
 ];
 
@@ -64,7 +69,7 @@ const positional = (a: string[]) => {
   const out: string[] = [];
   for (let i = 0; i < a.length; i++) {
     if (a[i].startsWith('--')) {
-      if (!['json', 'dry-run', 'no-model', 'non-interactive', 'all', 'fix', 'probe', 'writable'].includes(a[i].slice(2))) i++;
+      if (!['json', 'dry-run', 'no-model', 'non-interactive', 'all', 'fix', 'probe', 'writable', 'overwrite'].includes(a[i].slice(2))) i++;
       continue;
     }
     out.push(a[i]);
@@ -111,8 +116,26 @@ export async function dispatch(obj: string, act: string | undefined, a: string[]
         return call('GET', '/issues');
       case 'issue show':
         return call('GET', `/issues/${enc(need(0, 'issue id'))}`);
+      case 'issue import': {
+        const src = need(0, 'file or GitHub Issue URL');
+        const opts = { id: flag(a, 'id'), overwrite: has(a, 'overwrite'), dryRun: has(a, 'dry-run') };
+        if (/^https?:\/\//.test(src)) return call('POST', '/issues/import', { url: src, ...opts });
+        const { existsSync, readFileSync } = await import('node:fs');
+        if (!existsSync(src)) return bad(`没有文件 ${src}`);
+        const { basename } = await import('node:path');
+        return call('POST', '/issues/import', { markdown: readFileSync(src, 'utf8'), filename: basename(src), ...opts });
+      }
+      case 'github status':
+        return call('GET', '/github');
+      case 'draft revise':
+        if (!flag(a, 'task')) return bad('draft revise 需要 --task <任务 id>');
+        return call('POST', `/drafts/${enc(need(0, 'issue id'))}/revise`, { taskId: flag(a, 'task') });
+      case 'draft stale':
+        return call('POST', `/drafts/${enc(need(0, 'issue id'))}/stale`, { reason: flag(a, 'reason') ?? '' });
+      case 'result invalidate':
+        return call('POST', `/results/${enc(need(0, 'taskId'))}/invalidate`, { reason: flag(a, 'reason') ?? '' });
       case 'draft create':
-        return call('POST', `/drafts/${enc(need(0, 'issue id'))}`, { env: flag(a, 'env') ?? 'prod', model: !has(a, 'no-model') });
+        return call('POST', `/drafts/${enc(need(0, 'issue id'))}`, { env: flag(a, 'env') ?? 'prod' });
       case 'draft show':
         return call('GET', `/drafts/${enc(need(0, 'issue id'))}`);
       case 'plan explain': {

@@ -1,0 +1,213 @@
+{
+  "issue": {
+    "id": "2674",
+    "title": "On the desktop app, the whole **\"Group Chat History\"** (合并转发 / merged-forward) window looks low-resolution — not just the images inside it, but **all of the win",
+    "severity": "Medium → **raised to High** (see rationale)",
+    "frequency": "Always (whenever a merged-forward record is opened on the affected desktop setup)",
+    "platforms": [
+      "web",
+      "desktop"
+    ],
+    "summary": "On the desktop app, the whole **\"Group Chat History\"** (合并转发 / merged-forward) window looks low-resolution — not just the images inside it, but **all of the window's content**: body text, timestamps, sender names, avatars, borders and icons all appear soft / fuzzy, as if the entire dialog were rendered at a low DPI and then upscaled. The same chat-history window opened on the web client is crisp.\r\n\r\n**This is a correction, not a new issue.** The original report (filed on 2026-10-29 from the same reporter) described only *images inside the merged-forward record* as blurry. The reporter has since clarified that the defect is the **entire window**, including text. The title and body below have been rewritten in place; no comment was added. Everything that came from the original filing (screenshot, code路径 findings, duplicate check) is preserved and re-scoped.\r\n\r\nOne correction to the original report's evidence caveat is also recorded honestly: the original body claimed the screenshot renders \"no image pixels at all, only the literal '[Image]'\". **That was half right.** There is indeed no picture rendered — the image position carries the literal string `[Image]` — but the dialog does contain a full block of message text, and that text is measurable. Re-measuring it is what produced the quantitative evidence below.",
+    "steps": [
+      "On the desktop app (Windows-style Teamily AI window, no browser chrome), open a conversation containing a merged-forward (合并转发) chat-history record.",
+      "Click the merged-forward card to open the \"Group Chat History\" dialog.",
+      "Read the body text, the timestamps/sender names, the avatars and the dialog borders — look at the overall softness of everything inside the dialog, not only at any image.",
+      "Open the same record in the web client and compare the same dialog.",
+      "Observe: on the desktop app the whole dialog looks soft/fuzzy; on web the same dialog is crisp."
+    ],
+    "expected": "The chat-history dialog should be rendered at native display resolution on both clients. Text, avatars, borders and icons inside it must be as sharp as the surrounding application chrome. Desktop and web must not disagree on the render resolution of the same record.",
+    "actual": "On the desktop app the entire \"Group Chat History\" window appears low-resolution — text strokes, avatars, borders and icons all look soft, as if rendered at a lower DPI and blown up. The web client shows the same dialog sharp. The user reports the difference as clearly visible in daily use.",
+    "featureArea": "IM / Merged-forward chat history / Dialog rendering (whole-window rasterisation)",
+    "context": "- **Feature area**: IM / Merged-forward chat history / Dialog rendering (whole-window rasterisation)\r\n- Code base searched: `Teamily-Inc/teamily-ai-all` web repo, HEAD `b9189d6e` (2026-03-19). Note this HEAD is older than the build in the screenshot, so line numbers should be re-confirmed against the shipped branch before patching.\r\n- Secondary observation retained from the original filing: inside the dialog the quoted-message preview reads `蒋建骁 tim: [Image] 这个页面提示感觉有问题...` — the literal placeholder `[Image]` produced by `formatMessageByType` (`_utils.ts:207-208`, `case MessageType.PictureMessage` returns `\"[Image]\"`). A quote preview showing text instead of a thumbnail is a separate, lower-severity presentation gap on the same surface, recorded here rather than filed separately.\r\n- Related but distinct: **#2255** (open) — received image messages blurry with no \"view original\" in the *ordinary chat* surface; **#217** (closed) — iOS opened a blurry thumbnail while web was correct; **#2444** (closed) — chat image download saved a 0-byte PNG. None covers whole-window softness of the chat-history dialog, and none makes a desktop-vs-web render-resolution comparison.",
+    "environment": "- **Platform**: Desktop App — Windows-style Teamily AI window (no browser chrome), display scaling **150%** (derived from the screenshot's `pHYs = 144` DPI)\r\n- **Compared against**: Web client, same record\r\n- **Environment**: test (`chat-test.teamily.ai`) — the desktop shell in the screenshot is the packaged app build\r\n- **Reporter's account tier**: ADVANCED (from the original filing; not re-verified in this screenshot)",
+    "empty": false,
+    "images": [
+      "https://github.com/Teamily-Inc/bug-screenshots/blob/main/issue-2674-acb97651.png?raw=true"
+    ]
+  },
+  "classification": {
+    "category": "bug-always",
+    "surfaces": [
+      "desktop-web"
+    ],
+    "reason": "Frequency: Always (whenever a merged-forward record is opened on the affected desktop setup)",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "On the desktop app, the whole **\"Group Chat History\"** (合并转发 / merged-forward) window looks low-resolution — not just the images inside it, but **all of the window's content**: body text, timestamps, sender names, avatars, borders and icons all appear soft / fuzzy, as if the entire dialog were rendered at a low DPI and then upscaled."
+      },
+      {
+        "id": "q2",
+        "text": "The same chat-history window opened on the web client is crisp."
+      },
+      {
+        "id": "q3",
+        "text": "1. On the desktop app (Windows-style Teamily AI window, no browser chrome), open a conversation containing a merged-forward (合并转发) chat-history record."
+      },
+      {
+        "id": "q4",
+        "text": "2. Click the merged-forward card to open the \"Group Chat History\" dialog."
+      },
+      {
+        "id": "q5",
+        "text": "5. Observe: on the desktop app the whole dialog looks soft/fuzzy; on web the same dialog is crisp."
+      },
+      {
+        "id": "q6",
+        "text": "The chat-history dialog should be rendered at native display resolution on both clients. Text, avatars, borders and icons inside it must be as sharp as the surrounding application chrome."
+      },
+      {
+        "id": "q7",
+        "text": "**Frequency**: Always (whenever a merged-forward record is opened on the affected desktop setup)"
+      },
+      {
+        "id": "q8",
+        "text": "The **PNG carries `pHYs` DPI = 144**, i.e. exactly 96 × 1.5 → the machine was running **Windows display scaling at 150%** when the shot was taken."
+      },
+      {
+        "id": "q9",
+        "text": "**Platform**: Desktop App — Windows-style Teamily AI window (no browser chrome), display scaling **150%** (derived from the screenshot's `pHYs = 144` DPI)"
+      },
+      {
+        "id": "q10",
+        "text": "It is **insufficient to prove or disprove** the \"rendered at low DPI then upscaled\" mechanism the reporter describes."
+      },
+      {
+        "id": "q11",
+        "text": "**Text geometry is normal.** Line heights inside (13–16 px) match the chrome outside (14–17 px); nothing was shrunk and then blown up."
+      },
+      {
+        "id": "q12",
+        "text": "**If the desktop shell mishandles composed `transform` layers at 150% scaling, all of these are exposed, not only the merged-forward dialog**"
+      },
+      {
+        "id": "q13",
+        "text": "The repository contains **no desktop client**"
+      },
+      {
+        "id": "q14",
+        "text": "**Compared against**: Web client, same record"
+      },
+      {
+        "id": "q15",
+        "text": "There is indeed no picture rendered — the image position carries the literal string `[Image]` — but the dialog does contain a full block of message text, and that text is measurable."
+      },
+      {
+        "id": "q16",
+        "text": "the dialog's red-outlined box is **750 × 614 physical** = **exactly 500.0 × 409.3 logical px** at 1.5×."
+      }
+    ],
+    "understanding": {
+      "subject": "「合并转发（merged-forward）」记录点开的 “Group Chat History” 聊天记录弹窗的整窗内容：正文文字、时间/发送者名称、头像、边框、图标",
+      "trigger": "在桌面客户端（Windows 风格打包窗口、Windows 显示缩放 150%）里打开含合并转发记录的会话，点击合并转发卡片弹出该弹窗",
+      "phenomenon": "整个弹窗内容发虚/模糊，像按更低 DPI 渲染后整体放大；弹窗外面的界面框架清晰",
+      "expected": "两端都按显示器原生分辨率渲染，弹窗内文字/头像/边框/图标与周围应用界面同样清晰；桌面端与网页端不应在同一条记录上出现渲染分辨率差异",
+      "frequency": "always",
+      "control": "同一条记录在网页端（web client）打开同一个弹窗是清晰的",
+      "basis": [
+        "q1",
+        "q2",
+        "q3",
+        "q4",
+        "q5",
+        "q6",
+        "q7",
+        "q9",
+        "q14"
+      ]
+    },
+    "feasibility": {
+      "status": "needs-block",
+      "missing": [
+        {
+          "kind": "target",
+          "need": "可核对的「合并转发卡片」目标类型：现有 targets[].must 只有 sender / content / contains 三个字段，而 content=card 没有给出读树核对方式（目录只说明了 text/link/image 怎么核对），因此无法保证点开的确实是一条合并转发记录，而不是普通卡片或链接卡片；需要 target 层能核对卡片类型（例如 card=merged-forward / 卡片标题为 Group Chat History）",
+          "basis": [
+            "q3",
+            "q4"
+          ]
+        },
+        {
+          "kind": "node",
+          "need": "生成合并转发记录的组合动作（forward / merge-forward），或明确把「允许清单会话里已存在合并转发记录」作为冻结前置；现有 Node 只能发普通文本、Markdown 链接、@ 与引用回复，无法产出合并转发卡片，而触发动作本身就是「点击合并转发卡片」",
+          "basis": [
+            "q3",
+            "q4"
+          ]
+        },
+        {
+          "kind": "precondition",
+          "need": "可执行端必须能覆盖「桌面客户端（Windows 风格打包窗口，无浏览器边框）+ Windows 显示缩放 150%」。本次执行端是 desktop-web（浏览器里的 web 客户端），而 Issue 明确缺陷只在桌面客户端、web 端同一弹窗是清晰的，且仓库里没有桌面客户端代码可供核对",
+          "basis": [
+            "q1",
+            "q2",
+            "q5",
+            "q8",
+            "q9",
+            "q13",
+            "q14"
+          ]
+        },
+        {
+          "kind": "observation",
+          "need": "像素级光栅化度量观察：平坦块 std、水平游程长度分布、文字处相邻像素最大跳变、墨迹带高度、文字颜色平台值，或至少一份 1:1 设备像素截图并与同图里的界面框架作同图对照。现有观察只有 text / keyboard / process-alive / visual-region / element / crash，以及主观 ai 视觉问答；ai 只能给「看起来糊不糊」的相似度判断，既不能量化，也不能用在 expect 里（expect 只能用 ① 确定性观察）",
+          "basis": [
+            "q1",
+            "q6",
+            "q10",
+            "q11"
+          ]
+        },
+        {
+          "kind": "node",
+          "need": "设置/切换显示缩放或设备像素比的动作（例如把宿主缩放到 150%、读取 devicePixelRatio），用来把「150% 缩放」作为受控触发与对照；当前积木没有任何缩放/DPR 控制，Issue 自己也把这一条列为未证实假设",
+          "basis": [
+            "q8",
+            "q9",
+            "q10",
+            "q12"
+          ]
+        }
+      ]
+    },
+    "subcases": [],
+    "revision": null,
+    "selfCheck": {
+      "R1": "ok：本轮不提交任何 plan，没有出现目录外的 id、坐标或代码；只提交 quotes / understanding / feasibility / risks",
+      "R2": "无法满足：Issue 要求点开的对象是「合并转发卡片」，而 must 没有卡片类型的核对方式（content=card 无读树规则），按 R8 记入 missing（kind=target），不用「任意卡片」近似顶替",
+      "R3": "无法满足：触发就是「点击合并转发卡片」这一步本身，既不能构造该卡片（无 forward Node），也不能在 desktop-web 上等价复现，已记入 missing（kind=node / precondition）",
+      "R4": "无法满足：现象发生在弹窗打开后的渲染结果上，而能判定它的只有像素度量（缺失）或主观 ai（只能放轮末 checks，不能放在弹窗打开那一步的 expect），已记入 missing（kind=observation）",
+      "R5": "无法满足：在 desktop-web 上按 Issue 描述该弹窗本来就清晰（q2/q5），任何在此端可写的检查（文字在/不在、弹窗在/不在、ai「糊不糊」）在基线和异常态下都会给出「通过」，没有区分度；窄范围锚点（{target}/{message}）也不成立，因为目标卡片类型无法核对。记入 missing，不提交无区分度的检查",
+      "R6": "不适用：未提交 plan，没有会被改变的状态；若将来可执行，需要在 afterCheck 里 back 出弹窗并用 visual-region 确认弹窗已不在",
+      "R7": "不适用：Issue 给的对照（网页端清晰，q2/q14）恰好就是本次执行端，缺少可执行的 main 子用例，只交付一个 control 无法构成测试用例，因此按 R8 处理而不是硬凑对照组",
+      "R8": "triggered：status = needs-block，missing 列出 5 项（target / node / precondition / observation / node），每项都引用了片段编号，未用近似积木顶替",
+      "R9": "已写明环境替代：本端是 desktop-web（浏览器内核里的 web 客户端）。若强行替代执行，「整窗发虚」这一现象在新端预期不出现（Issue 说 web 清晰），可替代的只有共享代码线索——所有 IM 弹窗共用 DialogContent 的 zoom-in-95 / zoom-out-95 进出场 transform，理论上若动画被打断可能残留非 1 缩放（q12）；DPI / 150% 缩放 / 离屏合成 / 软件光栅化这部分完全不可替代（q8/q10/q13）",
+      "R10": "不适用：未提交 plan。将来若可执行：循环内只用 phase: any 的 Node，发消息只发到允许清单会话「黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2」，只对测试账号自己的内容做社交动作，delayAfterMs ≤ 1000",
+      "R11": "本交付没有 plan.title；若将来成稿，标题应写成「合并转发 “Group Chat History” 弹窗整窗发虚（桌面客户端 vs 网页端渲染分辨率对比）」",
+      "R12": "ok：quotes 全部逐字摘自 Issue 原文（含中英文混排与标点）；understanding 的每个字段、feasibility.missing 的每一条都带 basis 引用片段编号"
+    },
+    "risks": [
+      "按 Issue 自己的描述（q2/q5/q14），网页端同一弹窗是清晰的，因此在 desktop-web 上执行的任何计划预期复现率为 0；强行进循环只会得到「不可复现」的结论，并触发 §6 里「环境替代导致无法复现」的诊断。",
+      "能用的确定性观察都判定不了「是否按原生分辨率光栅化」：text / element / visual-region 只看内容是否存在，ai 视觉问答给的是主观相似度，Issue 的判定依据是平块 std、游程分布、相邻像素跳变、墨迹带高度这类像素统计（q10/q11），替代不了。放宽 ai 阈值会大量假阳性，收严则永远不命中。",
+      "即使将来有桌面客户端执行端，150% 缩放、GPU 合成开关、是否离屏渲染这些机器状态也不在积木控制范围内；Issue 自己也把 DPI / 软件光栅化列为未证实假设（q10），命中会受具体机器影响，不只是环境替换问题。",
+      "合并转发记录无法构造；若改为在允许清单会话里现场转发原始消息来造卡片，既没有对应积木，也会向他人发出打扰性消息，违反 R10。",
+      "Issue 的同类排查提示所有 IM 弹窗共用 DialogContent 的进出场 transform（q12）：一旦有了桌面端环境，应同时把「打开弹窗动画被打断后是否残留非 1 缩放」和「其它 IM 弹窗是否同样发虚」作为扩展子用例，否则可能只覆盖到合并转发一个界面。",
+      "同一界面还有一个低严重度的独立缺口：引用预览显示字面 `[Image]` 而没有缩略图（q15），本计划不覆盖，不要与整窗发虚混为一谈。",
+      "Issue 的量化证据来自另一台机器、单一缩放、无同步清晰参照的截图（q8/q16/q10），复制到 prod 环境时不能把「截图里没测出整体缩放指纹」当作已排除，也不能把标题平台值 #262626 的对比度不足单独当成根因。"
+    ]
+  },
+  "planVersion": 1,
+  "modelCalls": 1,
+  "status": "needs-block",
+  "reason": "缺积木：target「可核对的「合并转发卡片」目标类型：现有 targets[].must 只有 sender / content / contains 三个字段，而 content=card 没有给出读树核对方式（目录只说明了 text/link/image 怎么核对），因此无法保证点开的确实是一条合并转发记录，而不是普通卡片或链接卡片；需要 target 层能核对卡片类型（例如 card=merged-forward / 卡片标题为 Group Chat History）」；node「生成合并转发记录的组合动作（forward / merge-forward），或明确把「允许清单会话里已存在合并转发记录」作为冻结前置；现有 Node 只能发普通文本、Markdown 链接、@ 与引用回复，无法产出合并转发卡片，而触发动作本身就是「点击合并转发卡片」」；precondition「可执行端必须能覆盖「桌面客户端（Windows 风格打包窗口，无浏览器边框）+ Windows 显示缩放 150%」。本次执行端是 desktop-web（浏览器里的 web 客户端），而 Issue 明确缺陷只在桌面客户端、web 端同一弹窗是清晰的，且仓库里没有桌面客户端代码可供核对」；observation「像素级光栅化度量观察：平坦块 std、水平游程长度分布、文字处相邻像素最大跳变、墨迹带高度、文字颜色平台值，或至少一份 1:1 设备像素截图并与同图里的界面框架作同图对照。现有观察只有 text / keyboard / process-alive / visual-region / element / crash，以及主观 ai 视觉问答；ai 只能给「看起来糊不糊」的相似度判断，既不能量化，也不能用在 expect 里（expect 只能用 ① 确定性观察）」；node「设置/切换显示缩放或设备像素比的动作（例如把宿主缩放到 150%、读取 devicePixelRatio），用来把「150% 缩放」作为受控触发与对照；当前积木没有任何缩放/DPR 控制，Issue 自己也把这一条列为未证实假设」",
+  "subcases": [],
+  "hash": "e77b8f362e5c5d9f",
+  "issueHash": "d6076a55054f9251",
+  "env": "prod",
+  "version": 1
+}

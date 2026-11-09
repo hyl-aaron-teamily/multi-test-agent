@@ -1,16 +1,16 @@
-// Issue → draft (sub-cases, substitution options, TestPlans). LLM first (JSON-schema contract + SKILL
-// vocabulary), validated by rules; on any failure a rule template of the category is used and validated
-// the same way. Templates are generic by feature signal (mention / like / keyboard / notification entry /
-// mention aggregation / generic), not per issue.
-import { DEFAULT_LIMITS, type Surface, type TestPlan, testPlanJsonSchema, verdictRuleFor } from '../platform/schema/test-plan';
-import { type PlanFragment, patternById, patternForText } from '../skills/teamily/patterns';
-import { contractFor, coverageOf, deferredContract } from './contract';
-import { ELEMENTS, NODES, REGIONS, SKILL_VERSION, TARGET_GUIDANCE } from '../skills/teamily/vocab';
+// Issue → draft (W3-1): every Issue is read by the model and its test case designed from scratch with the
+// SKILL building blocks (issue/author.ts); there are no templates and no rule-built plans. Rules only read the
+// structured fields (Frequency, platforms) and reviewed manual overrides (multi-account / deferred).
+import { readFileSync } from 'node:fs';
+import { DEFAULT_LIMITS, type Surface, type TestPlan, verdictRuleFor } from '../platform/schema/test-plan';
+import { deferredContract } from './contract';
+import { SKILL_VERSION } from '../skills/teamily/vocab';
 import { AVAILABLE, type Classification, classify } from './classify';
-import { chatJson, modelConfigured } from '../core/model/llm';
 import type { NormalizedIssue } from './parse';
 import type { IssueContract } from '../platform/schema/contract';
 import { validatePlan } from './validate';
+import { author, type Authored, type AuthorContext, type Envelope, MAX_PLAN_VERSIONS, type RevisionMaterials } from './author';
+import { issuePath } from './paths';
 
 export interface SubCase {
   sub: string;
@@ -25,11 +25,31 @@ export interface SubCase {
   contract?: IssueContract;
 }
 
+/** One plan version's outcome (W3-1 §8.1): executability and reproduction rate, kept across revisions. */
+export interface VersionRecord {
+  version: number;
+  planIds: string[];
+  taskIds: string[];
+  validated: boolean;
+  warmup: 'passed' | 'failed' | 'not-run';
+  /** drift / (valid + drift). */
+  driftRate?: number;
+  valid: number;
+  hits: number;
+  wilson?: [number, number];
+  conclusion: string;
+  /** Why the next version was made (the model's diagnosis), when there is one. */
+  diagnosis?: string;
+  /** Attribution when revisions stopped: plan / missing block / environment substitution. */
+  attribution?: 'plan' | 'needs-block' | 'substitution';
+}
+
 export interface Draft {
   issue: NormalizedIssue;
   classification: Classification;
-  /** Every Issue is taken (rule A3); `unplannable` = no plan could be built, the one-page report says why (E18). */
-  status: 'plannable' | 'unplannable';
+  /** Every Issue is taken (rule A3); `unplannable` = no plan could be built, the one-page report says why (E18);
+   *  `needs-block` = the case needs a building block the SKILL does not have (K5) — no stand-in is used. */
+  status: 'plannable' | 'unplannable' | 'needs-block';
   reason: string;
   subcases: SubCase[];
   /** Part of a plannable Issue that needs another capability (2122: the second-account part). */
@@ -45,24 +65,23 @@ export interface Draft {
   contracts?: IssueContract[];
   /** Warm-up failures fed back from runs (plan not executable on the current UI). */
   warmupFailures?: { planId: string; at: string; detail: string }[];
+  /** The model's delivery this draft was compiled from (fed back on revision). */
+  envelope?: Envelope;
+  /** Plan version (W3-1: 1 = first design, +1 per revision, at most 3). */
+  planVersion?: number;
+  /** Validator errors when no plan could be generated. */
+  errors?: string[];
+  modelCalls?: number;
+  /** The Issue file the draft was made from (issues/, issues/upload/, or a sample path). */
+  issueFile?: string;
+  /** Wall time the model spent designing this version (all calls, incl. the fix-up call), ms. */
+  designMs?: number;
+  /** Results of earlier plan versions of this Issue (revision history). */
+  history?: VersionRecord[];
+  /** Marked for rewrite (W3-1 P0): drafted by a rule template that did not match the Issue. */
+  stale?: { reason: string; at: string };
 }
 
-
-/** Split "(1) … (2) … (3) …" in the summary into sub-cases. */
-export function splitSubcases(i: NormalizedIssue): { sub: string; text: string }[] {
-  const parts = i.summary.split(/\((\d)\)\s*/);
-  if (parts.length < 5) return [{ sub: 'main', text: i.summary }];
-  const out: { sub: string; text: string }[] = [];
-  for (let k = 1; k + 1 < parts.length; k += 2) out.push({ sub: `s${parts[k]}`, text: parts[k + 1].replace(/[;,.]?\s*(and)?\s*$/, '').trim() });
-  return out;
-}
-
-type Template = PlanFragment;
-
-/** Pure: plan fragment of the pattern a (sub-)case text selects (rule path; patterns in skills/teamily/patterns.ts). */
-export function templateFor(text: string, category: TestPlan['category'], surface: Surface): Template {
-  return patternForText(text, category).build(surface);
-}
 
 export function substitutionOptions(issueSurfaces: string[]): { from: string; reason: string; alternatives: Surface[] } | undefined {
   const direct = issueSurfaces.some((p) => p === 'android' || p === 'web' || p === 'desktop');
@@ -75,114 +94,85 @@ export function substitutionOptions(issueSurfaces: string[]): { from: string; re
   };
 }
 
-function basePlan(i: NormalizedIssue, c: Classification, sub: string, surface: Surface, env: 'test' | 'prod', tpl: Template, by: 'model' | 'rules'): TestPlan {
+function basePlan(i: NormalizedIssue, c: Classification, sub: string, surface: Surface, env: 'test' | 'prod', title: string): TestPlan {
   const category = c.category as TestPlan['category'];
-  return {
-    id: `${i.id}${sub === 'main' ? '' : `-${sub}`}-${surface}-v1`,
-    issueRef: i.id,
-    title: tpl.title,
-    category,
-    surface,
-    issueSurfaces: i.platforms,
-    env,
-    launch: /launch|startup|启动|加载/.test(i.summary.toLowerCase()) ? 'each-iteration' : 'once',
-    targets: tpl.targets,
-    setup: tpl.setup,
-    prepare: tpl.prepare ?? [],
-    prepareCheck: tpl.prepareCheck,
-    actions: tpl.actions,
-    checks: tpl.checks,
-    afterCheck: tpl.afterCheck ?? [],
-    acceptance: tpl.acceptance,
-    ...(tpl.epilogue ? { epilogue: tpl.epilogue } : {}),
-    limits: { ...DEFAULT_LIMITS, ...(tpl.maxRounds ? { maxRounds: tpl.maxRounds } : {}) },
-    verdictRule: verdictRuleFor(category),
-    provenance: { generatedBy: by, skillVersion: SKILL_VERSION },
-  };
+  return { id: `${i.id}${sub === 'main' ? '' : `-${sub}`}-${surface}-v1`, issueRef: i.id, title, category, surface, issueSurfaces: i.platforms, env, launch: 'once', targets: [], setup: [], prepare: [], prepareChecks: [], baseline: [], actions: [], checks: [], afterCheck: [], limits: { ...DEFAULT_LIMITS }, verdictRule: verdictRuleFor(category), provenance: { generatedBy: 'manual', skillVersion: SKILL_VERSION } };
 }
 
-const PLAN_SYSTEM = () => `You write black-box UI test plans for the Teamily IM app. Output ONE JSON object with keys
-"title", "targets", "setup", "actions", "checks", and for features "acceptance" — matching this JSON Schema subset:
-${JSON.stringify((testPlanJsonSchema() as any).properties ? Object.fromEntries(['targets', 'setup', 'actions', 'checks', 'acceptance'].map((k) => [k, (testPlanJsonSchema() as any).properties[k]])) : {})}
-Use ONLY these element ids: ${ELEMENTS.map((e) => `${e.id} (${e.meaning}; ${e.surfaces.join('/')})`).join('; ')}.
-Dynamic things (which group, which message) are targets: declare them in "targets" (id, kind, guidance) and reference as element "target.<id>" or as node input. Target kinds: ${Object.entries(TARGET_GUIDANCE).map(([k, v]) => `${k}: ${v}`).join('; ')}.
-Nodes: ${NODES.map((n) => `${n.name}(${Object.keys(n.input).join(', ')}) — ${n.doc}`).join('; ')}.
-visual-region checks may use: ${REGIONS.map((r) => `${r.page}/${r.region}`).join(', ')} or page/<"element:"+element id>.
-Every delayAfterMs ≤ 1000. The loop "actions" repeats; checks run at the end of each round. No coordinates, no code.`;
-
-async function modelTemplate(i: NormalizedIssue, c: Classification, text: string, surface: Surface): Promise<Template | undefined> {
-  if (!modelConfigured()) return undefined;
-  const ans = (await chatJson(PLAN_SYSTEM(), `Category: ${c.category}\nSurface: ${surface}\nIssue ${i.id}: ${text}\nSteps:\n${i.steps.join('\n')}\nExpected: ${i.expected.slice(0, 1500)}`)) as Template | undefined;
-  if (!ans || !Array.isArray(ans.actions)) return undefined;
-  // Models often write a region as "page/region"; split it into the schema's two fields.
-  const fix = (c: any) => (c && !c.page && typeof c.region === 'string' && c.region.includes('/') ? { ...c, page: c.region.split('/')[0], region: c.region.split('/').slice(1).join('/') } : c);
-  // Launch and login are the executor's job (once per Issue, session reuse); drop them from model plans.
-  const unprefix = (x: any) => {
-    if (x?.node?.input) for (const k of ['target', 'from', 'to']) if (typeof x.node.input[k] === 'string') x.node.input[k] = x.node.input[k].replace(/^target\./, '');
-    return x;
-  };
-  const clean = (xs: any[]) => (xs ?? []).filter((x) => x?.type !== 'launch' && x?.node?.name !== 'teamily.login').map(unprefix);
-  return { title: String(ans.title ?? 'model plan'), targets: ans.targets ?? [], setup: clean(ans.setup), actions: clean(ans.actions), checks: (ans.checks ?? []).map(fix), acceptance: ans.acceptance?.map((a: any) => ({ ...a, check: fix(a.check) })) };
-}
-
-export async function draftIssue(i: NormalizedIssue, opts: { env?: 'test' | 'prod'; useModel?: boolean } = {}): Promise<Draft> {
-  const env = opts.env ?? 'prod';
-  const pre = await classify(i);
-  // No Issue is refused (A3). Nothing to read at all, or a precondition the black box cannot build: no plan,
-  // and the one-page report says why (E18). A server-side Issue runs like an intermittent bug on what the user
-  // can see (its report says so).
-  if (pre.category === 'not-executable') return { issue: i, classification: pre, status: 'unplannable', reason: pre.reason, subcases: [] };
-  if (pre.category === 'multi-account') {
-    const s = syncSubcase(i, pre, env);
-    if (typeof s === 'string') return { issue: i, classification: pre, status: 'unplannable', reason: s, subcases: [], contracts: [deferredContract(i, 'multi-account', pre.blockedBy)] };
-    return { issue: i, classification: pre, status: 'plannable', reason: `${pre.reason}：${s.plan.sync!.roles.join(' + ')}，每轮一端发一条、其余端都要看到`, subcases: [s] };
+/** Surface a sub-case runs on by default, and the substitution offered when the Issue's platform has none. */
+export function surfaceOf(i: NormalizedIssue, c: Classification): { surface: Surface; subst?: ReturnType<typeof substitutionOptions> } {
+  // Multi-client Issues (a phone platform and web / desktop): the phone App, other clients by alternating
+  // logins on it (user 2026-11-09: web-surface plans are not run).
+  const phone = i.platforms.some((p) => p === 'ios' || p === 'android');
+  const other = i.platforms.some((p) => p === 'web' || p === 'desktop');
+  if (phone && other && !i.platforms.includes('android')) {
+    const s = substitutionOptions(['ios'])!;
+    return { surface: 'android-app', subst: { ...s, reason: `多端 Issue（${i.platforms.join(' / ')}）在 Android App 上执行，另一端 / 另一账号用交替登录完成；iOS 端由 Android App 替代，结论不能直接代表 iOS 端。`, alternatives: ['android-app'] } };
   }
-  if (pre.category === 'deferred') return { issue: i, classification: pre, status: 'unplannable', reason: pre.reason, subcases: [], contracts: [deferredContract(i, pre.category, pre.blockedBy)] };
-  const c = pre.category === 'server-side' ? { ...pre, category: 'bug-intermittent' as const, reason: `${pre.reason}；仍执行：只观察用户可见的一侧（通用模板）` } : pre;
   const subst = substitutionOptions(i.platforms);
-  const surface: Surface = c.surfaces.find((s) => AVAILABLE.includes(s) && s === 'desktop-web') ?? c.surfaces[0] ?? 'android-app';
-  const subcases: SubCase[] = [];
-  for (const sc of c.category === 'feature' ? [{ sub: 'main', text: `${i.summary} ${i.expected}` }] : splitSubcases(i)) {
-    const surf = subst ? 'android-app' : surface;
-    const text = `${sc.text} ${c.category === 'feature' ? i.featureArea : ''}`;
-    // Stage 1: intent contract (rules where a device-validated pattern applies, the model otherwise).
-    const contract = await contractFor(i, sc.sub, text, c.category as TestPlan['category'], opts.useModel !== false);
-    let plan: TestPlan | undefined;
-    let v: ReturnType<typeof validatePlan> | undefined;
-    if (contract.trigger.pattern) {
-      // Stage 2a: the contract selects a pattern → deterministic compile, no model.
-      plan = { ...basePlan(i, c, sc.sub, surf, env, patternById(contract.trigger.pattern)!.build(surf, contract.trigger.params), 'rules'), contract };
-      plan.provenance.pattern = contract.trigger.pattern;
-      v = validatePlan(plan);
-    } else if (opts.useModel !== false) {
-      // Stage 2b: no pattern → the model composes from the action library (one attempt, validated).
-      const tpl = await modelTemplate(i, c, sc.text, surf);
-      plan = tpl && { ...basePlan(i, c, sc.sub, surf, env, tpl, 'model'), contract };
-      v = plan ? validatePlan(plan) : undefined;
-      if (v && !v.ok) console.warn(`[plan] model plan for ${i.id}/${sc.sub} rejected: ${v.errors.slice(0, 3).join('; ')} — using rule template`);
-    }
-    if (!v?.ok) {
-      // Fallback unchanged (D3): the rule template of the text; coverage tells whether it can observe the Issue.
-      plan = { ...basePlan(i, c, sc.sub, surf, env, templateFor(text, c.category as TestPlan['category'], surf), 'rules'), contract };
-      v = validatePlan(plan);
-    }
-    const final = { ...(v.plan ?? plan!), contract };
-    final.coverage = coverageOf(final, contract);
-    subcases.push({
-      sub: sc.sub,
-      title: `${sc.text.slice(0, 80)}`,
-      surface: surf,
-      // Keyboard behaviour only exists with a real soft keyboard: a browser emulation cannot stand in for it.
-      substitution: subst ? { from: subst.from, to: surf, reason: subst.reason, alternatives: /keyboard|键盘/i.test(sc.text) ? ['android-app'] : subst.alternatives } : undefined,
-      plan: final,
-      planErrors: v.errors,
-      contract,
-    });
+  if (subst) return { surface: 'android-app', subst };
+  // The phone App first when the Issue names Android (the device pool's main surface), the desktop web otherwise.
+  return { surface: c.surfaces.find((s) => AVAILABLE.includes(s) && s === 'android-app') ?? c.surfaces[0] ?? 'android-app' };
+}
+
+/** Pure: the draft of one authored delivery (status, reason, sub-cases). */
+export function draftOf(i: NormalizedIssue, c: Classification, a: Authored, cx: Pick<AuthorContext, 'version' | 'surface'>, subst?: ReturnType<typeof substitutionOptions>): Draft {
+  const base = { issue: i, classification: c, envelope: a.envelope, planVersion: cx.version, modelCalls: a.calls };
+  const env = a.envelope;
+  if (env && env.feasibility.status === 'needs-block')
+    return { ...base, status: 'needs-block', reason: `缺积木：${env.feasibility.missing.map((m) => `${m.kind}「${m.need}」`).join('；') || '（模型未写明）'}`, subcases: [] };
+  if (env && env.feasibility.status === 'unconstructible') return { ...base, status: 'unplannable', reason: `前置条件黑盒无法构造：${env.feasibility.missing.map((m) => m.need).join('；') || env.understanding.phenomenon}`, subcases: [] };
+  if (a.errors.length || !a.subcases.length || a.subcases.some((s) => !s.plan)) return { ...base, status: 'unplannable', reason: `无法生成计划：${(a.errors.length ? a.errors : ['模型没有交付子用例']).slice(0, 6).join('；')}`, errors: a.errors, subcases: [] };
+  const subcases: SubCase[] = a.subcases.map((s) => ({
+    sub: s.sub,
+    title: s.plan!.title,
+    surface: cx.surface,
+    substitution: subst ? { from: subst.from, to: cx.surface, reason: subst.reason, alternatives: subst.alternatives } : undefined,
+    plan: s.plan!,
+    planErrors: [],
+    contract: s.plan!.contract,
+  }));
+  return { ...base, status: 'plannable', reason: `计划 v${cx.version}：${env!.understanding.subject} — ${env!.understanding.phenomenon}`.slice(0, 300), subcases };
+}
+
+/** Issue → draft (W3-1): rules read Frequency / platforms (K4), the model designs the case from the blocks.
+ *  `raw` = the Issue file as is (read from issues/ when omitted). */
+export async function draftIssue(i: NormalizedIssue, opts: { env?: 'test' | 'prod'; useModel?: boolean; raw?: string; ask?: Parameters<typeof author>[2] } = {}): Promise<Draft> {
+  const env = opts.env ?? 'prod';
+  const c = await classify(i);
+  // Nothing to read, or a reviewed manual deferral: no plan, and the one-page report says why (E18).
+  if (c.category === 'not-executable') return { issue: i, classification: c, status: 'unplannable', reason: c.reason, subcases: [] };
+  if (c.category === 'multi-account') {
+    const s = syncSubcase(i, c, env);
+    if (typeof s === 'string') return { issue: i, classification: c, status: 'unplannable', reason: s, subcases: [], contracts: [deferredContract(i, 'multi-account', c.blockedBy)] };
+    return { issue: i, classification: c, status: 'plannable', reason: `${c.reason}：${s.plan.sync!.roles.join(' + ')}，每轮一端发一条、其余端都要看到`, subcases: [s] };
   }
-  const blocked = subcases.filter((s) => s.contract?.preconditions.some((p) => p.establish === 'unconstructible'));
-  if (subcases.length && blocked.length === subcases.length)
-    return { issue: i, classification: c, status: 'unplannable', reason: `前置条件黑盒无法构造：${[...new Set(blocked.flatMap((s) => s.contract!.preconditions.filter((p) => p.establish === 'unconstructible').map((p) => p.text)))].join('；')}`, subcases: [] };
-  return { issue: i, classification: c, status: 'plannable', reason: c.reason, subcases, deferredPart: c.partialMultiAccount ? '需要第二账号 @ 我才能产生的角标 / 推送部分：要用多端协同计划执行' : undefined };
+  if (c.category === 'deferred') return { issue: i, classification: c, status: 'unplannable', reason: c.reason, subcases: [], contracts: [deferredContract(i, c.category, c.blockedBy)] };
+  const cat: TestPlan['category'] = c.category === 'bug-always' ? 'bug-always' : 'bug-intermittent';
+  const cls = { ...c, category: cat };
+  if (opts.useModel === false && !opts.ask) return { issue: i, classification: cls, status: 'unplannable', reason: '无法生成计划：W3-1 起计划由模型从原文设计，--no-model 不再有规则模板可用', subcases: [] };
+  const { surface, subst } = surfaceOf(i, cls);
+  const raw = opts.raw ?? readFileSync(issuePath(i.id), 'utf8');
+  const cx: AuthorContext = { issue: i, raw, surface, env, category: cat, version: 1, substitution: subst ? { from: subst.from, to: surface, reason: subst.reason } : undefined };
+  const t0 = Date.now();
+  const d = draftOf(i, cls, await author(cx, {}, opts.ask), cx, subst);
+  d.designMs = Date.now() - t0;
+  return d;
+}
+
+/** Next plan version from run evidence (W3-1 §8.2). Returns undefined when no revision is allowed. */
+export async function reviseIssue(prev: Draft, m: RevisionMaterials, opts: { raw?: string; ask?: Parameters<typeof author>[2] } = {}): Promise<Draft | undefined> {
+  const version = (prev.planVersion ?? 1) + 1;
+  if (version > MAX_PLAN_VERSIONS || !prev.envelope || prev.status !== 'plannable') return undefined;
+  const i = prev.issue;
+  const { surface, subst } = surfaceOf(i, prev.classification);
+  const raw = opts.raw ?? readFileSync(issuePath(i.id), 'utf8');
+  const cx: AuthorContext = { issue: i, raw, surface, env: (prev.env as 'test' | 'prod') ?? 'prod', category: prev.classification.category as TestPlan['category'], version, substitution: subst ? { from: subst.from, to: surface, reason: subst.reason } : undefined };
+  const t0 = Date.now();
+  const d = draftOf(i, prev.classification, await author(cx, { previous: prev.envelope, materials: m }, opts.ask), cx, subst);
+  d.designMs = Date.now() - t0;
+  d.history = [...(prev.history ?? [])];
+  return d;
 }
 
 /** Issue platform words → the surfaces a multi-role plan uses (iOS → the Android app, desktop client → Edge). */
@@ -196,31 +186,25 @@ export function syncSubcase(i: NormalizedIssue, c: Classification, env: 'test' |
   const roles = [...new Set(i.platforms.flatMap((p) => ROLE_OF.filter(([re]) => re.test(p)).map(([, s]) => s)))];
   for (const s of ['desktop-web', 'android-app'] as Surface[]) if (roles.length < 2 && !roles.includes(s)) roles.push(s);
   const cat = { ...c, category: (/always|必现|100%/i.test(i.frequency) ? 'bug-always' : 'bug-intermittent') as Classification['category'] };
-  const plan: TestPlan = { ...basePlan(i, cat, 'sync', roles[0], env, { title: `多端同步：${roles.join(' + ')}`, targets: [], setup: [], actions: [], checks: [] }, 'rules'), sync: { roles, rounds: 3 } };
+  const plan: TestPlan = { ...basePlan(i, cat, 'sync', roles[0], env, `多端同步：${roles.join(' + ')}`), sync: { roles, rounds: 3 } };
   const v = validatePlan(plan);
   return { sub: 'sync', title: `多端同步（${roles.join(' + ')}）`, surface: roles[0], substitution: i.platforms.some((p) => /ios|iphone/i.test(p)) ? { from: 'ios', to: 'android-app', reason: '没有 iOS 设备，用 Android App 代替', alternatives: ['android-app'] } : undefined, plan: v.plan ?? plan, planErrors: v.errors };
 }
 
-/** Apply the one-time confirmation: chosen sub-cases (and their surfaces) become fixed plans. */
+/** Apply the one-time confirmation: chosen sub-cases (and their surfaces) become fixed plans. A plan moved to
+ *  another surface keeps its steps (no template to rebuild from); resolvePlan validates it there. */
 export function applyApproval(d: Draft, approve: { sub: string; surface?: Surface }[]): TestPlan[] {
   const now = new Date().toISOString();
   return d.subcases
     .filter((s) => approve.some((a) => a.sub === s.sub))
     .map((s) => {
       const surf = approve.find((a) => a.sub === s.sub)?.surface ?? s.surface;
-      // A pattern plan is rebuilt for the approved surface (fragments differ per surface); others are kept.
-      const pat = surf !== s.surface && s.plan.provenance.pattern ? patternById(s.plan.provenance.pattern) : undefined;
-      const built = pat?.build(surf, s.contract?.trigger.params);
-      const tpl = built ? (({ maxRounds, ...f }) => ({ prepare: [], afterCheck: [], ...f, limits: { ...s.plan.limits, ...(maxRounds ? { maxRounds } : {}) } }))(built) : { title: s.plan.title, targets: s.plan.targets, setup: s.plan.setup, prepare: s.plan.prepare, prepareCheck: s.plan.prepareCheck, actions: s.plan.actions, checks: s.plan.checks, afterCheck: s.plan.afterCheck, acceptance: s.plan.acceptance, epilogue: s.plan.epilogue };
-      const plan: TestPlan = {
+      return {
         ...s.plan,
-        ...tpl,
         id: s.plan.id.replace(s.surface, surf),
         surface: surf,
-        substitution: s.substitution ? { from: s.substitution.from, to: surf, reason: s.substitution.reason } : undefined,
+        substitution: s.substitution ? { from: s.substitution.from, to: surf, reason: s.substitution.reason } : s.plan.substitution,
         provenance: { ...s.plan.provenance, confirmedAt: now, draftHash: d.hash },
       };
-      if (plan.contract) plan.coverage = coverageOf(plan, plan.contract);
-      return plan;
     });
 }

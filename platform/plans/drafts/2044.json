@@ -18,214 +18,667 @@
     "featureArea": "Messaging / UI - Quote (reply) block preview, Markdown link rendering",
     "context": "- **Feature area**: Messaging / UI - Quote (reply) block preview, Markdown link rendering\r\n- Reported by Aiden. cc @Diff-Jack (Jack) @cola-coding (Cora).\r\n- Location: the duplication is INSIDE the quote block (quoted preview), not in the reply body. The reply body text renders normally.\r\n- Type of duplication: raw Markdown link syntax '[text](url)' left unparsed (label == url, so the URL shows twice). It is NOT a plain-text URL being copied, and no 'mailto:' link is involved.\r\n- Related: #1896 (message popup renders a URL as duplicated '[link]link'). Same symptom family - Markdown link markup leaking into a read-only display surface - but a different render path: the quote preview appears to build its summary from the raw message content without a Markdown parse/strip step. Suggest fixing both with a shared 'markdown to plain preview text' helper used by quote preview, popup, conversation-list snippet and notifications.\r\n- Evidence screenshot (original): https://teamily-storage.becdn.net/im/images/6296335850356299/773dd378-7d4f-43bc-9280-19f3e2a75770.IMG_8054.jpg\r\n\r\n---",
     "environment": "- **Platform / OS / Browser**: iOS app (confirmed from screenshot); Web / macOS / Android not verified - please check whether the quote preview component is shared",
-    "empty": false
+    "empty": false,
+    "images": [
+      "https://github.com/Teamily-Inc/bug-screenshots/blob/main/issue-2044-46f4f450.jpg?raw=true",
+      "https://teamily-storage.becdn.net/im/images/6296335850356299/773dd378-7d4f-43bc-9280-19f3e2a75770.IMG_8054.jpg"
+    ]
   },
   "classification": {
     "category": "bug-always",
     "surfaces": [],
-    "reason": "Frequency: Always；步骤明确",
+    "reason": "Frequency: Always",
     "strength": "strong",
     "by": "rules"
   },
-  "status": "plannable",
-  "reason": "Frequency: Always；步骤明确",
-  "subcases": [
-    {
-      "sub": "main",
-      "title": "When a message whose content contains a Markdown link is quoted in a reply, the ",
-      "surface": "android-app",
-      "substitution": {
-        "from": "ios",
-        "to": "android-app",
-        "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。",
-        "alternatives": [
-          "android-app",
-          "mobile-web"
-        ]
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "When a message whose content contains a Markdown link is quoted in a reply, the quote block preview on iOS renders the raw Markdown source instead of a parsed link."
       },
-      "plan": {
-        "id": "2044-android-app-v1",
-        "issueRef": "2044",
-        "title": "引用块预览应显示链接文本而不是 Markdown 源码",
-        "category": "bug-always",
-        "surface": "android-app",
-        "issueSurfaces": [
-          "ios"
-        ],
-        "env": "prod",
-        "launch": "once",
-        "targets": [
-          {
-            "id": "conv",
-            "kind": "group-conversation",
-            "guidance": "the conversation titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" (titles may be cut short with …)"
-          }
-        ],
-        "setup": [
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.openConversation",
-              "input": {
-                "target": "conv"
-              }
-            },
-            "delayAfterMs": 1000
-          }
-        ],
-        "prepare": [
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.sendMessage",
-              "input": {
-                "text": "https://github.com/TensorOpera-Inc/chat-web/pull/654",
-                "kind": "markdown-link"
-              }
-            },
-            "delayAfterMs": 1000
-          },
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.quoteReply",
-              "input": {
-                "quote": "github.com/TensorOpera-Inc/chat-web/pull/654",
-                "text": "autotest-2044 {token} quote"
-              }
-            },
-            "delayAfterMs": 1000
-          }
-        ],
-        "prepareCheck": {
-          "kind": "text",
-          "expect": "会话里出现引用了该链接消息的引用块",
-          "want": "present",
-          "match": {
-            "contains": "github.com/TensorOpera-Inc/cha"
-          },
-          "scope": "quote-cards"
+      {
+        "id": "q2",
+        "text": "The link is shown as '[https://github.com/TensorOpera-Inc/chat-web/pull/654](https://github.com/TensorOpera-Inc/chat-web/pull/654)', so the same URL appears twice."
+      },
+      {
+        "id": "q3",
+        "text": "Send a message whose content contains a link that is stored as Markdown link syntax, e.g. a GitHub PR URL"
+      },
+      {
+        "id": "q4",
+        "text": "Long-press that message and choose Quote/Reply, then send a reply"
+      },
+      {
+        "id": "q5",
+        "text": "Open the conversation on the iOS app and look at the quote block shown above the reply bubble."
+      },
+      {
+        "id": "q6",
+        "text": "The quote block preview shows the quoted message as plain display text: the link appears only once"
+      },
+      {
+        "id": "q7",
+        "text": "with no Markdown syntax such as '[', '](' or ')'"
+      },
+      {
+        "id": "q8",
+        "text": "The quote block preview prints the Markdown link source verbatim"
+      },
+      {
+        "id": "q9",
+        "text": "**Frequency**: Always"
+      },
+      {
+        "id": "q10",
+        "text": "Web / macOS / Android not verified - please check whether the quote preview component is shared"
+      },
+      {
+        "id": "q11",
+        "text": "The preview should match how the original message bubble renders the link."
+      },
+      {
+        "id": "q12",
+        "text": "The reply body text renders normally."
+      },
+      {
+        "id": "q13",
+        "text": "raw Markdown link syntax '[text](url)' left unparsed (label == url, so the URL shows twice)"
+      }
+    ],
+    "understanding": {
+      "subject": "回复气泡上方的引用块预览（被引用的那条消息内容是以 Markdown 链接语法存储的链接）",
+      "trigger": "长按该消息 → 选择引用/回复 → 发送回复，然后打开会话查看回复气泡上方的引用块",
+      "phenomenon": "引用块预览原样输出 [url](url) 的 Markdown 源码，同一个 URL 出现两次（label 一次、target 一次），占满预览行并截断真正的引用正文",
+      "expected": "引用块预览只显示一次链接的展示文本，不出现 '['、']('、')' 等 Markdown 语法，且与原消息气泡的链接展示一致",
+      "frequency": "always",
+      "control": "同一条链接消息在原消息气泡里的渲染（引用预览应与气泡一致），以及回复正文本身渲染正常",
+      "basis": [
+        "q1",
+        "q2",
+        "q6",
+        "q7",
+        "q11",
+        "q12",
+        "q13"
+      ]
+    },
+    "feasibility": {
+      "status": "plannable",
+      "missing": []
+    },
+    "subcases": [
+      {
+        "sub": "main",
+        "oracle": {
+          "at": "actions[1]",
+          "hit": "重新进入会话后，引用块预览里出现未解析的 Markdown 标记（'[' + URL，即 [url](url)），使 checks[1] / actions[1].expect 的「无 Markdown 标记」检查判不通过",
+          "normal": "引用块预览只显示一次 URL 的展示文本（或它的 label），文本里没有 '[' + URL 这一段，检查通过",
+          "canFail": "引用预览若直接用原始消息内容拼摘要、缺少 Markdown 解析/剥离步骤，被引用内容本身就是 '[url](url)'，'[' + URL 必然出现在引用块文本里，检查必然失败",
+          "baseline": "触发前：引用块已在会话底部可见并含本次运行标记的链接（baseline 的 present 检查），回复正文含 {token}、无 Markdown 标记"
         },
-        "actions": [
-          {
-            "type": "tap",
-            "element": "chat.back",
-            "delayAfterMs": 900
-          },
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.openConversation",
-              "input": {
-                "target": "conv"
-              }
-            },
-            "delayAfterMs": 1000
-          },
-          {
-            "type": "wait",
-            "value": "1000",
-            "delayAfterMs": 1000
-          }
-        ],
-        "checks": [
-          {
-            "kind": "text",
-            "expect": "引用块预览不出现 Markdown 链接语法 [..](..)（链接只显示一次）",
-            "want": "absent",
-            "match": {
-              "regex": "\\]\\(https?://"
-            },
-            "scope": "quote-cards"
-          }
-        ],
-        "afterCheck": [],
-        "limits": {
-          "maxSteps": 1000,
-          "maxMinutes": 15,
-          "maxIntervalMs": 1000
-        },
-        "verdictRule": {
-          "consecutiveHits": 3
-        },
-        "contract": {
-          "issueRef": "2044",
-          "sub": "main",
-          "preconditions": [
+        "plan": {
+          "title": "引用含 Markdown 链接的消息：引用块预览是否泄漏 [url](url) 原始语法",
+          "targets": [
             {
-              "id": "logged-in",
-              "text": "已登录",
-              "establish": "executor"
+              "id": "conv",
+              "kind": "conversation",
+              "guidance": "titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"",
+              "must": {
+                "sender": "any",
+                "content": "any",
+                "contains": "黄悦龙Aaron"
+              }
             },
             {
-              "id": "quoted-message-with-markdown-link",
-              "text": "一条含 Markdown 链接语法的消息被引用回复",
-              "establish": "construct"
+              "id": "mdMsg",
+              "kind": "message",
+              "afterPrepare": true,
+              "guidance": "准备阶段用 Markdown 链接语法发送的那条消息：会话里最靠近底部、正文是一条 [URL](URL) 语法链接的消息（链接里带本次运行标记）",
+              "must": {
+                "sender": "self",
+                "content": "link",
+                "contains": "654-{token}"
+              }
             }
           ],
-          "trigger": {
-            "semantics": "view-quote-preview",
-            "text": "When a message whose content contains a Markdown link is quoted in a reply, the quote block preview on iOS renders the raw Markdown source instead of a parsed link. The link is shown as '[https://github.com/TensorOpera-Inc/chat-web/pull/654](https://github.com/TensorOpera-Inc/chat-web/pull/654)', so",
-            "pattern": "quote-preview-text",
-            "params": {
-              "conversation": "黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2"
+          "setup": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "conv"
+                }
+              },
+              "delayAfterMs": 1000
             }
+          ],
+          "prepare": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.sendMessage",
+                "input": {
+                  "text": "https://github.com/TensorOpera-Inc/chat-web/pull/654-{token}",
+                  "kind": "markdown-link"
+                }
+              },
+              "delayAfterMs": 800
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.quoteReply",
+                "input": {
+                  "quote": "https://github.com/TensorOpera-Inc/chat-web/pull/654-{token}",
+                  "text": "引用预览复现 {token}"
+                }
+              },
+              "delayAfterMs": 1000
+            }
+          ],
+          "prepareCheck": [
+            {
+              "kind": "text",
+              "expect": "引用回复已发出，回复正文里带本次运行标记",
+              "match": {
+                "contains": "引用预览复现 {token}"
+              },
+              "scope": "screen",
+              "want": "present"
+            },
+            {
+              "kind": "text",
+              "expect": "引用块已出现，里面含被引用的那条链接消息",
+              "match": {
+                "contains": "654-{token}"
+              },
+              "scope": "quote-cards",
+              "want": "present"
+            }
+          ],
+          "baseline": [
+            {
+              "kind": "text",
+              "expect": "触发前引用块在会话里可见，且含本次运行标记的链接消息",
+              "match": {
+                "contains": "654-{token}"
+              },
+              "scope": "quote-cards",
+              "want": "present"
+            }
+          ],
+          "actions": [
+            {
+              "type": "tap",
+              "element": "chat.back",
+              "delayAfterMs": 1000,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "expect": "已回到会话列表，目标会话的消息不再显示在屏幕上",
+                  "match": {
+                    "contains": "引用预览复现 {token}"
+                  },
+                  "scope": "screen",
+                  "want": "absent"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "conv"
+                }
+              },
+              "delayAfterMs": 1000,
+              "expect": {
+                "role": "phenomenon",
+                "check": {
+                  "kind": "text",
+                  "expect": "重新进入会话后，引用块预览只显示链接的展示文本，不出现未解析的 Markdown 标记 '[' + URL",
+                  "match": {
+                    "regex": "\\[https?://"
+                  },
+                  "scope": "quote-cards",
+                  "want": "absent"
+                }
+              }
+            }
+          ],
+          "checks": [
+            {
+              "kind": "text",
+              "expect": "引用块在会话里可见，且含本次运行标记的链接消息",
+              "match": {
+                "contains": "654-{token}"
+              },
+              "scope": "quote-cards",
+              "want": "present"
+            },
+            {
+              "kind": "text",
+              "expect": "引用块预览里没有未解析的 Markdown 链接标记（正常时只剩一次 URL 的展示文本）",
+              "match": {
+                "regex": "\\[https?://"
+              },
+              "scope": "quote-cards",
+              "want": "absent"
+            },
+            {
+              "kind": "crash",
+              "expect": "重新进入会话过程中没有闪退 / ANR",
+              "want": "absent"
+            }
+          ],
+          "afterCheck": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.clearComposer"
+              },
+              "delayAfterMs": 500,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "expect": "复位：输入框为空，没有残留内容",
+                  "match": {
+                    "contains": "引用预览复现 {token}"
+                  },
+                  "scope": "composer",
+                  "want": "absent"
+                }
+              }
+            }
+          ]
+        },
+        "trace": [
+          {
+            "at": "targets.conv",
+            "basis": [
+              "executor:进入允许清单里的会话"
+            ]
           },
-          "observable": {
-            "observation": "text",
-            "text": "The quote block preview shows the quoted message as plain display text: the link appears only once (either the URL or its label, optionally as a link), with no Markdown syntax such as '[', '](' or ')'. The preview should match how the original message bubble renders the link.",
-            "phenomenon": "The quote block preview prints the Markdown link source verbatim: '[https://github.com/TensorOpera-Inc/chat-web/pull/654](https://github.com/TensorOpera-Inc/chat-web/pull/654) 测...'. The URL is displayed twice (once as the label in brackets, once as the target in parentheses), taking two lines of the preview and truncating the actual quoted text."
+          {
+            "at": "targets.mdMsg",
+            "basis": [
+              "q3",
+              "q13"
+            ]
           },
-          "provenance": {
-            "by": "rules",
-            "skillVersion": "2026.10.30-1"
+          {
+            "at": "setup[0]",
+            "basis": [
+              "executor:进入会话"
+            ]
+          },
+          {
+            "at": "prepare[0]",
+            "basis": [
+              "q3"
+            ]
+          },
+          {
+            "at": "prepare[1]",
+            "basis": [
+              "q4",
+              "q13"
+            ]
+          },
+          {
+            "at": "prepareCheck[0]",
+            "basis": [
+              "q4"
+            ]
+          },
+          {
+            "at": "prepareCheck[1]",
+            "basis": [
+              "q5"
+            ]
+          },
+          {
+            "at": "baseline[0]",
+            "basis": [
+              "q5",
+              "executor:触发前确认引用块已渲染"
+            ]
+          },
+          {
+            "at": "actions[0]",
+            "basis": [
+              "executor:离开会话，为重新进入以重渲染引用块"
+            ]
+          },
+          {
+            "at": "actions[0].expect",
+            "basis": [
+              "executor:前置状态核实"
+            ]
+          },
+          {
+            "at": "actions[1]",
+            "basis": [
+              "q5",
+              "q10"
+            ]
+          },
+          {
+            "at": "actions[1].expect",
+            "basis": [
+              "q6",
+              "q7",
+              "q8"
+            ]
+          },
+          {
+            "at": "checks[0]",
+            "basis": [
+              "q5"
+            ]
+          },
+          {
+            "at": "checks[1]",
+            "basis": [
+              "q2",
+              "q6",
+              "q7"
+            ]
+          },
+          {
+            "at": "checks[2]",
+            "basis": [
+              "executor:稳定性核实"
+            ]
+          },
+          {
+            "at": "afterCheck[0]",
+            "basis": [
+              "executor:复位"
+            ]
           }
-        },
-        "provenance": {
-          "generatedBy": "rules",
-          "skillVersion": "2026.10.30-1",
-          "pattern": "quote-preview-text"
-        },
-        "coverage": "covered"
+        ]
       },
-      "planErrors": [],
-      "contract": {
-        "issueRef": "2044",
-        "sub": "main",
-        "preconditions": [
+      {
+        "sub": "control",
+        "oracle": {
+          "at": "actions[1]",
+          "hit": "对照组不用于判定命中：它在同一条消息、同一套检查下必须通过，用来证明「'[' + URL 不存在」这条检查在正常渲染面上确有区分度",
+          "normal": "原消息气泡把 Markdown 链接渲染成解析后的链接文本，气泡里没有 '[' + URL，checks[0] 通过",
+          "canFail": "若检查法本身有误或环境不对（例如气泡也泄漏原始 Markdown、目标框错），这里会判不通过，此时本轮控制结论无效、主用例的命中不能采信",
+          "baseline": "触发前该链接消息气泡在屏幕上，且气泡文本含本次运行标记"
+        },
+        "plan": {
+          "title": "对照：同一条 Markdown 链接消息在原消息气泡里的渲染",
+          "targets": [
+            {
+              "id": "conv",
+              "kind": "conversation",
+              "guidance": "titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"",
+              "must": {
+                "sender": "any",
+                "content": "any",
+                "contains": "黄悦龙Aaron"
+              }
+            },
+            {
+              "id": "mdMsg",
+              "kind": "message",
+              "afterPrepare": true,
+              "guidance": "准备阶段用 Markdown 链接语法发送的那条消息（会话里最靠近底部、含本次运行标记的链接消息）",
+              "must": {
+                "sender": "self",
+                "content": "link",
+                "contains": "654-{token}"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "conv"
+                }
+              },
+              "delayAfterMs": 1000
+            }
+          ],
+          "prepare": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.sendMessage",
+                "input": {
+                  "text": "https://github.com/TensorOpera-Inc/chat-web/pull/654-{token}",
+                  "kind": "markdown-link"
+                }
+              },
+              "delayAfterMs": 800
+            }
+          ],
+          "prepareCheck": [
+            {
+              "kind": "text",
+              "expect": "准备阶段发送的 Markdown 链接消息已在会话里",
+              "match": {
+                "contains": "654-{token}"
+              },
+              "scope": "screen",
+              "want": "present"
+            }
+          ],
+          "baseline": [
+            {
+              "kind": "text",
+              "expect": "触发前该链接消息的气泡在屏幕上且含本次运行标记",
+              "match": {
+                "contains": "654-{token}"
+              },
+              "scope": {
+                "targetBubble": "mdMsg"
+              },
+              "want": "present"
+            }
+          ],
+          "actions": [
+            {
+              "type": "tap",
+              "element": "chat.back",
+              "delayAfterMs": 1000,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "expect": "已回到会话列表，目标会话的消息不再显示在屏幕上",
+                  "match": {
+                    "contains": "654-{token}"
+                  },
+                  "scope": "screen",
+                  "want": "absent"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "conv"
+                }
+              },
+              "delayAfterMs": 1000,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "expect": "已重新进入目标会话，链接消息气泡可见",
+                  "match": {
+                    "contains": "654-{token}"
+                  },
+                  "scope": {
+                    "targetBubble": "mdMsg"
+                  },
+                  "want": "present"
+                }
+              }
+            }
+          ],
+          "checks": [
+            {
+              "kind": "text",
+              "expect": "原消息气泡把 Markdown 链接渲染成解析后的链接文本，不出现未解析的 Markdown 标记 '[' + URL",
+              "match": {
+                "regex": "\\[https?://"
+              },
+              "scope": {
+                "targetBubble": "mdMsg"
+              },
+              "want": "absent"
+            }
+          ],
+          "afterCheck": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.clearComposer"
+              },
+              "delayAfterMs": 500,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "expect": "复位：输入框为空，没有残留内容",
+                  "match": {
+                    "contains": "654-{token}"
+                  },
+                  "scope": "composer",
+                  "want": "absent"
+                }
+              }
+            }
+          ]
+        },
+        "trace": [
           {
-            "id": "logged-in",
-            "text": "已登录",
-            "establish": "executor"
+            "at": "targets.conv",
+            "basis": [
+              "executor:进入允许清单里的会话"
+            ]
           },
           {
-            "id": "quoted-message-with-markdown-link",
-            "text": "一条含 Markdown 链接语法的消息被引用回复",
-            "establish": "construct"
+            "at": "targets.mdMsg",
+            "basis": [
+              "q11"
+            ]
+          },
+          {
+            "at": "setup[0]",
+            "basis": [
+              "executor:进入会话"
+            ]
+          },
+          {
+            "at": "prepare[0]",
+            "basis": [
+              "q3"
+            ]
+          },
+          {
+            "at": "prepareCheck[0]",
+            "basis": [
+              "q3"
+            ]
+          },
+          {
+            "at": "baseline[0]",
+            "basis": [
+              "q11",
+              "executor:触发前确认气泡已渲染"
+            ]
+          },
+          {
+            "at": "actions[0]",
+            "basis": [
+              "executor:离开会话以便重新进入"
+            ]
+          },
+          {
+            "at": "actions[0].expect",
+            "basis": [
+              "executor:前置状态核实"
+            ]
+          },
+          {
+            "at": "actions[1]",
+            "basis": [
+              "q11"
+            ]
+          },
+          {
+            "at": "actions[1].expect",
+            "basis": [
+              "executor:前置状态核实"
+            ]
+          },
+          {
+            "at": "checks[0]",
+            "basis": [
+              "q6",
+              "q7",
+              "q11"
+            ]
+          },
+          {
+            "at": "afterCheck[0]",
+            "basis": [
+              "executor:复位"
+            ]
           }
-        ],
-        "trigger": {
-          "semantics": "view-quote-preview",
-          "text": "When a message whose content contains a Markdown link is quoted in a reply, the quote block preview on iOS renders the raw Markdown source instead of a parsed link. The link is shown as '[https://github.com/TensorOpera-Inc/chat-web/pull/654](https://github.com/TensorOpera-Inc/chat-web/pull/654)', so",
-          "pattern": "quote-preview-text",
-          "params": {
-            "conversation": "黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2"
-          }
-        },
-        "observable": {
-          "observation": "text",
-          "text": "The quote block preview shows the quoted message as plain display text: the link appears only once (either the URL or its label, optionally as a link), with no Markdown syntax such as '[', '](' or ')'. The preview should match how the original message bubble renders the link.",
-          "phenomenon": "The quote block preview prints the Markdown link source verbatim: '[https://github.com/TensorOpera-Inc/chat-web/pull/654](https://github.com/TensorOpera-Inc/chat-web/pull/654) 测...'. The URL is displayed twice (once as the label in brackets, once as the target in parentheses), taking two lines of the preview and truncating the actual quoted text."
-        },
-        "provenance": {
-          "by": "rules",
-          "skillVersion": "2026.10.30-1"
-        }
+        ]
       }
-    }
+    ],
+    "revision": null,
+    "selfCheck": {
+      "R1": "ok：只用目录里的 action（tap / node）、Node（teamily.openConversation / sendMessage / quoteReply / clearComposer）、固定元素 chat.back、观察 text / crash、scope quote-cards / composer / targetBubble；无坐标、无代码",
+      "R2": "ok：targets.mdMsg.must = {sender:self, content:link, contains:654-{token}}，就是 understanding.subject 里那条被引用的 Markdown 链接消息；引用块是它被引用后的预览（q3、q13）",
+      "R3": "ok：触发（长按 → 引用/回复 → 发送回复）由 prepare 里的 teamily.quoteReply 完成——该 Node 是 prepare-only，R10 禁止放进循环；循环里用 chat.back + openConversation 重新进入会话，让引用块重渲染后观察",
+      "R4": "ok：oracle.at = actions[1]（openConversation，带 expect role=phenomenon）；同一现象在 checks[1] 再观察一次作为轮末证据",
+      "R5": "ok：① 有毛病时引用块文本里必然含 '[' + URL，absent 检查必失败；正常时预览只显示一次 URL，检查通过；② 范围取最窄：主用例用 quote-cards（只有引用块），对照组用 targetBubble mdMsg；③ 匹配的是 Markdown 标记 '[' + URL，不是引用菜单或输入框自带的文字；④ 本轮不留存反应/标记/草稿类状态，baseline 只核实「引用块已渲染且含本次标记」",
+      "R6": "ok：本轮只在会话列表与目标会话之间往返，不改变持久状态；afterCheck 仍用 clearComposer 并带 expect(precondition) 核实输入框为空",
+      "R7": "ok：Issue 给了对照（引用预览应与原消息气泡一致，q11），control 子用例用同一套「无 '[' + URL」检查跑原消息气泡，证明检查在正常渲染面上会通过",
+      "R8": "ok：所需积木齐全（quoteReply 造引用回复、text + quote-cards 读引用块预览），feasibility.status = plannable，无 missing",
+      "R9": "ok：iOS → android-app 替代执行：Android 引用预览的行数与截断同 iOS 不一定相同（iOS 截到两行），所以检查只匹配 '[' + URL 前缀、不依赖 '](...' 全长；Android 也可能已修复或走不同组件，未复现不能否定 iOS 的问题；引用方从 Tmly Quan(others) 换成测试账号自己(self)，因为只能引用自己的内容",
+      "R10": "ok：quoteReply 只在 prepare；发消息只发生在允许清单会话 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"；循环里不发消息、只返回列表再进入；所有 delayAfterMs ≤ 1000",
+      "R11": "ok：标题写的是这条 Issue 的对象 + 现象（引用含 Markdown 链接消息的引用块预览，泄漏 [url](url) 原始语法）",
+      "R12": "ok：trace 覆盖两个子用例的 targets / setup / prepare / prepareCheck / baseline / actions / checks / afterCheck，逐条引用 q1–q13 或 executor:<理由>；quotes 全部逐字取自 Issue 原文"
+    },
+    "risks": [
+      "Android 端可能已修复，或引用预览与 iOS 走不同组件：不命中只说明该端未复现，不能否定 iOS 的问题（q10）。",
+      "引用方由他人（Tmly Quan）换成测试账号自己：R10 只允许对自己的内容做社交动作；发送者不同不改变引用预览的 Markdown 渲染路径，但需在证据里注明这一点。",
+      "targets.mdMsg 的 must.content=link 依赖气泡把消息渲染成链接；若气泡本身也泄漏原始 Markdown，目标核对可能连续 3 次不通过而判执行失败。",
+      "引用块的无障碍文本可能被截断：检查只匹配 '[' + URL 前缀以规避截断；若截断发生在 '[' 之前（只剩 URL），需要改用 ai 视觉观察。",
+      "checks[0]（引用块 present）若不成立（例如引用块滚出视野），可能被误判成异常；命中一律经证据复核，确认与 Issue 的现象一致后才计入复现率。"
+    ]
+  },
+  "planVersion": 1,
+  "modelCalls": 2,
+  "status": "unplannable",
+  "reason": "无法生成计划：subcases[control] R4 oracle.at \"actions[1]\": its expect must have role phenomenon",
+  "errors": [
+    "subcases[control] R4 oracle.at \"actions[1]\": its expect must have role phenomenon"
   ],
-  "hash": "6106c58547675cf2",
+  "subcases": [],
+  "designMs": 340582,
+  "issueFile": "D:\\projects\\Tools\\multi-test-agent\\fixtures\\issues\\2044.md",
+  "hash": "0a8cff5321fa75df",
   "issueHash": "2ab96787c9722ea9",
   "env": "prod",
-  "version": 2
+  "version": 6
 }

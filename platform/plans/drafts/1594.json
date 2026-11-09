@@ -20,7 +20,10 @@
     "featureArea": "Messaging / @-mention",
     "context": "- **Feature area**: Messaging / @-mention\r\n- Suspected cause: @-mention member list loading or state refresh issue — the picker state is not reset when the conversation changes, the member-list request fails silently, or a stale/corrupted cache is used.\r\n- Suggested investigation: check the mention member-list request on conversation switch (does it re-fire? is the response cached?); verify the picker open-state / member-list state store is reset on conversation change; add a retry or re-fetch path when the member list is empty/stale.\r\n- Screenshot provided by reporter — the original CDN link returned HTTP 404 when this issue was filed (link likely expired); please ask the reporter to re-share if visual evidence is needed: https://teamily-storage.becdn.net/im/images/4203662271075754/76c85a8b-2660-49e6-96e4-f17bdf4472f6.msg_picture_17890104170000001339_0.png\r\n- Related existing issues (different platforms / symptoms, not duplicates): #1400 [Mobile] group chat @-mention only shows partial members; #1265 / #485 group chat @-mention member list incomplete; #865 [iOS] @ mention cannot be triggered in long-text editing view; #184 / #186 mention autocomplete does not show suggestions when typing '@T'.\r\n\r\n---",
     "environment": "- **Platform / OS / Browser**: Web",
-    "empty": false
+    "empty": false,
+    "images": [
+      "https://teamily-storage.becdn.net/im/images/4203662271075754/76c85a8b-2660-49e6-96e4-f17bdf4472f6.msg_picture_17890104170000001339_0.png"
+    ]
   },
   "classification": {
     "category": "bug-intermittent",
@@ -31,17 +34,543 @@
     "strength": "strong",
     "by": "rules"
   },
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "Switching to another conversation and back restores the picker."
+      },
+      {
+        "id": "q2",
+        "text": "Observe that the member/agent selection picker does not pop up"
+      },
+      {
+        "id": "q3",
+        "text": "未完全修复，web/desktop端均存在两种情况复现："
+      },
+      {
+        "id": "q4",
+        "text": "1.输入“@”弹出浮窗，按下esc关闭浮窗；"
+      },
+      {
+        "id": "q5",
+        "text": "2.删去已输入的“@”；"
+      },
+      {
+        "id": "q6",
+        "text": "3.输入一个新的”@“；"
+      },
+      {
+        "id": "q7",
+        "text": "4.不弹出浮窗"
+      },
+      {
+        "id": "q8",
+        "text": "1.只有文本框的第一个“@”不弹出浮窗，第二个“@”可弹出浮窗"
+      },
+      {
+        "id": "q9",
+        "text": "2.删除文本框所有“@”后，第一个“@”又能弹出浮窗"
+      },
+      {
+        "id": "q10",
+        "text": "1.输入“@”弹出浮窗，鼠标点击空白区域关闭浮窗；"
+      }
+    ],
+    "understanding": {
+      "subject": "群聊「黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2」消息输入框里的 @ 提及（成员/Agent 选择框）",
+      "trigger": "在输入框里输入 @ 弹出提及浮窗 → 按 Esc 关闭浮窗 → 删掉已输入的 @ → 再输入一个新的 @",
+      "phenomenon": "重新输入的这个（第一个）@ 不会弹出成员/Agent 选择框，看不到任何成员列表，无法 @ 人",
+      "expected": "输入 @ 就应弹出提及选择框，与之前是否打开/关闭过选择框、怎么进入会话无关；第二个 @ 才弹出说明第一个 @ 被吞掉了",
+      "frequency": "always",
+      "control": "切换到其他会话再切回原会话后，输入 @ 选择框恢复正常弹出（q1）；删掉文本框里所有 @ 后第一个 @ 也能再次弹出（q9）",
+      "basis": [
+        "q1",
+        "q2",
+        "q3",
+        "q4",
+        "q5",
+        "q6",
+        "q7",
+        "q8",
+        "q9"
+      ]
+    },
+    "feasibility": {
+      "status": "plannable",
+      "missing": []
+    },
+    "subcases": [
+      {
+        "sub": "main",
+        "oracle": {
+          "at": "actions[3]",
+          "hit": "删掉 @ 后重新输入的第一个 @ 之后，提及选择框区域（mention-picker/picker）没有出现",
+          "normal": "重新输入 @ 后提及选择框区域出现，成员/Agent 列表可见，可以继续 @ 人",
+          "canFail": "选择框区域是按当前画面做的确定性存在性比对：只要浮窗没弹出来，该区域就不存在，检查必然判「不通过」；正常路径下浮窗弹出则该区域存在，检查必然通过，所以检查对两种状态有区分度",
+          "baseline": "本轮触发前输入框为空（composer 里没有 @），且提及选择框当前未弹出；由 baseline 的 composer 文本检查和 mention-picker/picker 区域检查逐轮确认，不成立则本轮偏离"
+        },
+        "plan": {
+          "title": "群聊里 Esc 关闭提及浮窗并删掉 @ 后，重新输入第一个 @ 不弹出成员/Agent 选择框",
+          "targets": [
+            {
+              "id": "conv",
+              "kind": "group-conversation",
+              "guidance": "titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"（会话名称含多个成员名/逗号，是成员≥3 的群聊）",
+              "afterPrepare": false,
+              "must": {
+                "sender": "any",
+                "content": "any",
+                "contains": "黄悦龙"
+              }
+            },
+            {
+              "id": "other",
+              "kind": "other-conversation",
+              "guidance": "会话列表中与目标群不同的另一个会话（不是 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" 的那个）",
+              "afterPrepare": false,
+              "must": {
+                "sender": "any",
+                "content": "any"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "conv"
+                }
+              },
+              "delayAfterMs": 500
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.clearComposer",
+                "input": {}
+              },
+              "delayAfterMs": 300
+            }
+          ],
+          "baseline": [
+            {
+              "kind": "text",
+              "expect": "输入框里没有 @（本轮从空输入框开始）",
+              "match": {
+                "contains": "@"
+              },
+              "scope": "composer",
+              "want": "absent"
+            },
+            {
+              "kind": "visual-region",
+              "page": "mention-picker",
+              "region": "picker",
+              "expect": "触发前提及选择框未弹出",
+              "want": "absent"
+            }
+          ],
+          "actions": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.typeMention",
+                "input": {}
+              },
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "page": "mention-picker",
+                  "region": "picker",
+                  "expect": "输入第一个 @ 后提及选择框弹出（构造触发前状态）",
+                  "want": "present"
+                }
+              }
+            },
+            {
+              "type": "key",
+              "value": "Escape",
+              "delayAfterMs": 800,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "page": "mention-picker",
+                  "region": "picker",
+                  "expect": "按 Esc 后提及选择框关闭",
+                  "want": "absent"
+                }
+              }
+            },
+            {
+              "type": "key",
+              "value": "Backspace",
+              "delayAfterMs": 800,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "expect": "已删去输入框里唯一的 @",
+                  "match": {
+                    "contains": "@"
+                  },
+                  "scope": "composer",
+                  "want": "absent"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.typeMention",
+                "input": {}
+              },
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "phenomenon",
+                "check": {
+                  "kind": "visual-region",
+                  "page": "mention-picker",
+                  "region": "picker",
+                  "expect": "删掉 @ 后重新输入的第一个 @ 应弹出提及选择框",
+                  "want": "present"
+                }
+              }
+            }
+          ],
+          "checks": [],
+          "afterCheck": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.clearComposer",
+                "input": {}
+              },
+              "delayAfterMs": 500,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "expect": "复位：输入框已清空，没有残留的 @",
+                  "match": {
+                    "contains": "@"
+                  },
+                  "scope": "composer",
+                  "want": "absent"
+                }
+              }
+            }
+          ]
+        },
+        "trace": [
+          {
+            "at": "targets.conv",
+            "basis": [
+              "executor:允许清单里的会话「黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2」，名称含多个成员名/逗号，符合 @ 类问题用的群聊目标"
+            ]
+          },
+          {
+            "at": "targets.other",
+            "basis": [
+              "q1"
+            ]
+          },
+          {
+            "at": "setup[0]",
+            "basis": [
+              "executor:进入会话"
+            ]
+          },
+          {
+            "at": "setup[1]",
+            "basis": [
+              "executor:构造空输入框基线"
+            ]
+          },
+          {
+            "at": "baseline[0]",
+            "basis": [
+              "executor:基线：空输入框"
+            ]
+          },
+          {
+            "at": "baseline[1]",
+            "basis": [
+              "executor:基线：选择框未弹出"
+            ]
+          },
+          {
+            "at": "actions[0]",
+            "basis": [
+              "q4"
+            ]
+          },
+          {
+            "at": "actions[1]",
+            "basis": [
+              "q4"
+            ]
+          },
+          {
+            "at": "actions[2]",
+            "basis": [
+              "q5"
+            ]
+          },
+          {
+            "at": "actions[3]",
+            "basis": [
+              "q6",
+              "q7",
+              "q8"
+            ]
+          },
+          {
+            "at": "afterCheck[0]",
+            "basis": [
+              "executor:复位输入框"
+            ]
+          }
+        ]
+      },
+      {
+        "sub": "control",
+        "oracle": {
+          "at": "actions[1]",
+          "hit": "切到其他会话再切回后，输入 @ 选择框仍未弹出（与 Issue 的恢复路径 q1 不符，说明现象比描述的更严重）",
+          "normal": "切回原会话后输入 @，提及选择框区域出现、成员/Agent 列表可见（q1）",
+          "canFail": "对照组走的是 Issue 说明的正常恢复路径：只要选择框弹出，区域检查就通过；这证明「mention-picker/picker 区域存在」这一检查在正常状态下确实判通过，因此 main 里同一检查判不通过不是检查本身失效",
+          "baseline": "触发前输入框为空、提及选择框未弹出；由 baseline 的两条检查逐轮确认，不成立则本轮偏离"
+        },
+        "plan": {
+          "title": "对照：切到其他会话再切回后输入 @，提及选择框正常弹出",
+          "targets": [
+            {
+              "id": "conv",
+              "kind": "group-conversation",
+              "guidance": "titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"（会话名称含多个成员名/逗号，是成员≥3 的群聊）",
+              "afterPrepare": false,
+              "must": {
+                "sender": "any",
+                "content": "any",
+                "contains": "黄悦龙"
+              }
+            },
+            {
+              "id": "other",
+              "kind": "other-conversation",
+              "guidance": "会话列表中与目标群不同的另一个会话（不是 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" 的那个）",
+              "afterPrepare": false,
+              "must": {
+                "sender": "any",
+                "content": "any"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "conv"
+                }
+              },
+              "delayAfterMs": 500
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.clearComposer",
+                "input": {}
+              },
+              "delayAfterMs": 300
+            }
+          ],
+          "baseline": [
+            {
+              "kind": "text",
+              "expect": "输入框里没有 @（本轮从空输入框开始）",
+              "match": {
+                "contains": "@"
+              },
+              "scope": "composer",
+              "want": "absent"
+            },
+            {
+              "kind": "visual-region",
+              "page": "mention-picker",
+              "region": "picker",
+              "expect": "触发前提及选择框未弹出",
+              "want": "absent"
+            }
+          ],
+          "actions": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.switchConversation",
+                "input": {
+                  "from": "conv",
+                  "to": "other"
+                }
+              },
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "page": "chat",
+                  "region": "composer",
+                  "expect": "切走再切回后仍停在会话页（输入框区域在）",
+                  "want": "present"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.typeMention",
+                "input": {}
+              },
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "phenomenon",
+                "check": {
+                  "kind": "visual-region",
+                  "page": "mention-picker",
+                  "region": "picker",
+                  "expect": "切回会话后再输入 @，提及选择框应弹出",
+                  "want": "present"
+                }
+              }
+            }
+          ],
+          "checks": [],
+          "afterCheck": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.clearComposer",
+                "input": {}
+              },
+              "delayAfterMs": 500,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "expect": "复位：输入框已清空，没有残留的 @",
+                  "match": {
+                    "contains": "@"
+                  },
+                  "scope": "composer",
+                  "want": "absent"
+                }
+              }
+            }
+          ]
+        },
+        "trace": [
+          {
+            "at": "targets.conv",
+            "basis": [
+              "executor:允许清单里的会话「黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2」"
+            ]
+          },
+          {
+            "at": "targets.other",
+            "basis": [
+              "q1"
+            ]
+          },
+          {
+            "at": "setup[0]",
+            "basis": [
+              "executor:进入会话"
+            ]
+          },
+          {
+            "at": "setup[1]",
+            "basis": [
+              "executor:构造空输入框基线"
+            ]
+          },
+          {
+            "at": "baseline[0]",
+            "basis": [
+              "executor:基线：空输入框"
+            ]
+          },
+          {
+            "at": "baseline[1]",
+            "basis": [
+              "executor:基线：选择框未弹出"
+            ]
+          },
+          {
+            "at": "actions[0]",
+            "basis": [
+              "q1"
+            ]
+          },
+          {
+            "at": "actions[1]",
+            "basis": [
+              "q1",
+              "q2"
+            ]
+          },
+          {
+            "at": "afterCheck[0]",
+            "basis": [
+              "executor:复位输入框"
+            ]
+          }
+        ]
+      }
+    ],
+    "revision": null,
+    "selfCheck": {
+      "R1": "ok：只用了积木目录里的 Node（teamily.openConversation / clearComposer / typeMention / switchConversation）、动作原语（key，值 Escape/Backspace）、区域（mention-picker/picker、chat/composer）和观察（text / visual-region），没有坐标、没有代码",
+      "R2": "ok：main 里触发动作作用在 conv（group-conversation，titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"）的输入框上，target.must = {sender:any, content:any, contains:黄悦龙}，与 understanding.subject 一致；必须是群聊，因为 @ 选择框需要成员列表",
+      "R3": "ok：动作序列就是 Issue 的触发本身——输入 @（q4）→ Esc 关闭浮窗（q4）→ 删掉 @（q5）→ 再输入 @（q6）；没有用「切换会话」这类下游恢复操作代替触发",
+      "R4": "ok：现象发生在「重新输入 @」这一步之后，就在该动作（actions[3]）上挂 expect(role: phenomenon)，oracle.at = actions[3]；不等到轮末",
+      "R5": "ok：① 有毛病时 mention-picker/picker 区域一定不存在 → 检查必失败；正常时浮窗弹出 → 区域存在 → 必通过（control 子用例进一步验证正常时判通过）。② 检查范围取最窄的区域（选择框本身），不用整屏。③ 检查的不是浮窗里本来就有的成员文字，而是浮窗区域本身在不在，不会被触发界面自带的内容蒙混。④ 会留存的输入框 @ 状态写了 baseline（composer 里没有 @ 且选择框未弹出）",
+      "R6": "ok：一轮结束时输入框里留着 @，afterCheck 用 teamily.clearComposer 清空，并给它加了 expect(role: precondition) 确认没有残留 @",
+      "R7": "ok：Issue 给了恢复路径（q1 切换会话再切回后正常；q9 删掉所有 @ 后第一个 @ 能再弹出），据此加了 control 子用例：切走再切回后输入 @ 应弹出，既复现恢复路径，也证明该区域检查在正常时会通过",
+      "R8": "ok：main 与 control 所需的 Node / 区域 / 观察都在目录里。情况二（鼠标点击空白区域关闭浮窗，q10）缺少「可点击的空白区域」目标（没有坐标点击、目标种类里也没有空白区域），因此未纳入用例，已写入 risks",
+      "R9": "ok：Issue 只写 Web，本次在 desktop-web 执行；同一 Web 客户端，但桌面宽度下浮窗渲染与开合逻辑若与窄屏不一致，命中率可能有差异，已写入 risks",
+      "R10": "ok：循环里只用 phase: any 的 Node（typeMention / clearComposer / switchConversation / openConversation），没有 prepare-only（quoteReply / freezeMention），循环内不发任何消息，没有社交动作；delayAfterMs 全部 ≤ 900",
+      "R11": "ok：标题写的是这条 Issue 的对象和现象——「群聊里 Esc 关闭提及浮窗并删掉 @ 后，重新输入第一个 @ 不弹出成员/Agent 选择框」",
+      "R12": "ok：每个目标、动作、baseline、afterCheck 都在 trace 里引用了片段编号或 executor 理由；quotes 里的每一段都逐字取自 Issue 原文（含补充说明与两段中文步骤）"
+    },
+    "risks": [
+      "key 动作的键名取值没有在积木目录里列出，本计划用 \"Escape\" 关闭浮窗、用 \"Backspace\" 删掉 @；若执行器只认 \"Esc\" / \"BACKSPACE\" 之类别名，需按名字映射，否则 actions[1] / actions[2] 的 precondition 会失败而判偏离（不计有效尝试）",
+      "Esc 关闭浮窗后输入框是否仍保持焦点没有文档说明；若焦点丢失，Backspace 删不掉 @，actions[2] 的 precondition 会失败 → 偏离。备选：改用 teamily.clearComposer 完成「删去已输入的 @」这一步（它内部在 Web 上先按 Esc 再全选删除）",
+      "情况二（鼠标点击空白区域关闭浮窗，q10）未纳入用例：积木目录没有可点击的空白区域目标，也不允许写坐标，无法构造该触发",
+      "按补充说明 1（q8），现象只影响「第一个 @」，命中后第二个 @ 会弹出浮窗；建议命中后人工再输一个 @ 作为证据，但计划里不把它写成检查，避免第二个 @ 弹出把区分度冲掉",
+      "目标群的选择框依赖成员/Agent 列表能加载出来；若该群成员列表本身加载失败，actions[0] 的 precondition（第一个 @ 就弹出浮窗）会失败 → 整轮偏离而不是命中",
+      "补充说明 2（q9）说明「删掉所有 @ 后第一个 @ 又能弹出」；如果复位后状态残留导致后续轮次从别的状态开始，baseline 的 composer 无 @ + 选择框未弹出两条检查会先把这类轮次判为偏离"
+    ]
+  },
+  "planVersion": 1,
+  "modelCalls": 1,
   "status": "plannable",
-  "reason": "Frequency: Intermittent",
+  "reason": "计划 v1：群聊「黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2」消息输入框里的 @ 提及（成员/Agent 选择框） — 重新输入的这个（第一个）@ 不会弹出成员/Agent 选择框，看不到任何成员列表，无法 @ 人",
   "subcases": [
     {
       "sub": "main",
-      "title": "On the Teamily Web client, typing \"@\" in the message input of a chat conversatio",
+      "title": "群聊里 Esc 关闭提及浮窗并删掉 @ 后，重新输入第一个 @ 不弹出成员/Agent 选择框",
       "surface": "desktop-web",
       "plan": {
         "id": "1594-desktop-web-v1",
         "issueRef": "1594",
-        "title": "@ 成员选择器弹出（切换会话后循环）",
+        "title": "群聊里 Esc 关闭提及浮窗并删掉 @ 后，重新输入第一个 @ 不弹出成员/Agent 选择框",
         "category": "bug-intermittent",
         "surface": "desktop-web",
         "issueSurfaces": [
@@ -51,14 +580,25 @@
         "launch": "once",
         "targets": [
           {
-            "id": "group",
+            "id": "conv",
             "kind": "group-conversation",
-            "guidance": "成员 ≥3 的群聊（会话列表头像为多人拼图，或名称含多个成员名/逗号）；@ 类问题用它"
+            "guidance": "titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"（会话名称含多个成员名/逗号，是成员≥3 的群聊）",
+            "afterPrepare": false,
+            "must": {
+              "sender": "any",
+              "content": "any",
+              "contains": "黄悦龙"
+            }
           },
           {
             "id": "other",
             "kind": "other-conversation",
-            "guidance": "与目标群不同的任意会话（用于切换会话再切回）"
+            "guidance": "会话列表中与目标群不同的另一个会话（不是 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" 的那个）",
+            "afterPrepare": false,
+            "must": {
+              "sender": "any",
+              "content": "any"
+            }
           }
         ],
         "setup": [
@@ -67,28 +607,7 @@
             "node": {
               "name": "teamily.openConversation",
               "input": {
-                "target": "group"
-              }
-            },
-            "delayAfterMs": 800
-          }
-        ],
-        "prepare": [],
-        "actions": [
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.clearComposer",
-              "input": {}
-            },
-            "delayAfterMs": 200
-          },
-          {
-            "type": "node",
-            "node": {
-              "name": "teamily.openConversation",
-              "input": {
-                "target": "other"
+                "target": "conv"
               }
             },
             "delayAfterMs": 500
@@ -96,12 +615,81 @@
           {
             "type": "node",
             "node": {
-              "name": "teamily.openConversation",
-              "input": {
-                "target": "group"
-              }
+              "name": "teamily.clearComposer",
+              "input": {}
             },
-            "delayAfterMs": 700
+            "delayAfterMs": 300
+          }
+        ],
+        "prepare": [],
+        "baseline": [
+          {
+            "kind": "text",
+            "expect": "输入框里没有 @（本轮从空输入框开始）",
+            "want": "absent",
+            "match": {
+              "contains": "@"
+            },
+            "scope": "composer"
+          },
+          {
+            "kind": "visual-region",
+            "page": "mention-picker",
+            "region": "picker",
+            "expect": "触发前提及选择框未弹出",
+            "want": "absent"
+          }
+        ],
+        "actions": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.typeMention",
+              "input": {}
+            },
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "page": "mention-picker",
+                "region": "picker",
+                "expect": "输入第一个 @ 后提及选择框弹出（构造触发前状态）",
+                "want": "present"
+              }
+            }
+          },
+          {
+            "type": "key",
+            "value": "Escape",
+            "delayAfterMs": 800,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "page": "mention-picker",
+                "region": "picker",
+                "expect": "按 Esc 后提及选择框关闭",
+                "want": "absent"
+              }
+            }
+          },
+          {
+            "type": "key",
+            "value": "Backspace",
+            "delayAfterMs": 800,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "已删去输入框里唯一的 @",
+                "want": "absent",
+                "match": {
+                  "contains": "@"
+                },
+                "scope": "composer"
+              }
+            }
           },
           {
             "type": "node",
@@ -109,35 +697,224 @@
               "name": "teamily.typeMention",
               "input": {}
             },
-            "delayAfterMs": 700
-          }
-        ],
-        "checks": [
-          {
-            "kind": "visual-region",
-            "page": "mention-picker",
-            "region": "picker",
-            "expect": "输入 @ 后成员/智能体选择器弹出",
-            "want": "present",
-            "onlyOnAnomaly": true,
-            "requires": {
-              "composerHas": "@"
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "phenomenon",
+              "check": {
+                "kind": "visual-region",
+                "page": "mention-picker",
+                "region": "picker",
+                "expect": "删掉 @ 后重新输入的第一个 @ 应弹出提及选择框",
+                "want": "present"
+              }
             }
-          },
-          {
-            "kind": "page-error",
-            "expect": "无崩溃 / 页面错误",
-            "want": "absent"
           }
         ],
-        "afterCheck": [],
+        "checks": [],
+        "afterCheck": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.clearComposer",
+              "input": {}
+            },
+            "delayAfterMs": 500,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "复位：输入框已清空，没有残留的 @",
+                "want": "absent",
+                "match": {
+                  "contains": "@"
+                },
+                "scope": "composer"
+              }
+            }
+          }
+        ],
         "limits": {
           "maxSteps": 1000,
           "maxMinutes": 15,
-          "maxIntervalMs": 1000
+          "maxIntervalMs": 1000,
+          "maxRounds": 30,
+          "untilBudget": true
         },
         "verdictRule": {
           "anyHit": true
+        },
+        "audit": {
+          "version": 1,
+          "sub": "main",
+          "quotes": [
+            {
+              "id": "q1",
+              "text": "Switching to another conversation and back restores the picker."
+            },
+            {
+              "id": "q2",
+              "text": "Observe that the member/agent selection picker does not pop up"
+            },
+            {
+              "id": "q3",
+              "text": "未完全修复，web/desktop端均存在两种情况复现："
+            },
+            {
+              "id": "q4",
+              "text": "1.输入“@”弹出浮窗，按下esc关闭浮窗；"
+            },
+            {
+              "id": "q5",
+              "text": "2.删去已输入的“@”；"
+            },
+            {
+              "id": "q6",
+              "text": "3.输入一个新的”@“；"
+            },
+            {
+              "id": "q7",
+              "text": "4.不弹出浮窗"
+            },
+            {
+              "id": "q8",
+              "text": "1.只有文本框的第一个“@”不弹出浮窗，第二个“@”可弹出浮窗"
+            },
+            {
+              "id": "q9",
+              "text": "2.删除文本框所有“@”后，第一个“@”又能弹出浮窗"
+            },
+            {
+              "id": "q10",
+              "text": "1.输入“@”弹出浮窗，鼠标点击空白区域关闭浮窗；"
+            }
+          ],
+          "understanding": {
+            "subject": "群聊「黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2」消息输入框里的 @ 提及（成员/Agent 选择框）",
+            "trigger": "在输入框里输入 @ 弹出提及浮窗 → 按 Esc 关闭浮窗 → 删掉已输入的 @ → 再输入一个新的 @",
+            "phenomenon": "重新输入的这个（第一个）@ 不会弹出成员/Agent 选择框，看不到任何成员列表，无法 @ 人",
+            "expected": "输入 @ 就应弹出提及选择框，与之前是否打开/关闭过选择框、怎么进入会话无关；第二个 @ 才弹出说明第一个 @ 被吞掉了",
+            "frequency": "always",
+            "control": "切换到其他会话再切回原会话后，输入 @ 选择框恢复正常弹出（q1）；删掉文本框里所有 @ 后第一个 @ 也能再次弹出（q9）",
+            "basis": [
+              "q1",
+              "q2",
+              "q3",
+              "q4",
+              "q5",
+              "q6",
+              "q7",
+              "q8",
+              "q9"
+            ]
+          },
+          "feasibility": {
+            "status": "plannable",
+            "missing": []
+          },
+          "oracle": {
+            "at": "actions[3]",
+            "hit": "删掉 @ 后重新输入的第一个 @ 之后，提及选择框区域（mention-picker/picker）没有出现",
+            "normal": "重新输入 @ 后提及选择框区域出现，成员/Agent 列表可见，可以继续 @ 人",
+            "canFail": "选择框区域是按当前画面做的确定性存在性比对：只要浮窗没弹出来，该区域就不存在，检查必然判「不通过」；正常路径下浮窗弹出则该区域存在，检查必然通过，所以检查对两种状态有区分度",
+            "baseline": "本轮触发前输入框为空（composer 里没有 @），且提及选择框当前未弹出；由 baseline 的 composer 文本检查和 mention-picker/picker 区域检查逐轮确认，不成立则本轮偏离"
+          },
+          "trace": [
+            {
+              "at": "targets.conv",
+              "basis": [
+                "executor:允许清单里的会话「黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2」，名称含多个成员名/逗号，符合 @ 类问题用的群聊目标"
+              ]
+            },
+            {
+              "at": "targets.other",
+              "basis": [
+                "q1"
+              ]
+            },
+            {
+              "at": "setup[0]",
+              "basis": [
+                "executor:进入会话"
+              ]
+            },
+            {
+              "at": "setup[1]",
+              "basis": [
+                "executor:构造空输入框基线"
+              ]
+            },
+            {
+              "at": "baseline[0]",
+              "basis": [
+                "executor:基线：空输入框"
+              ]
+            },
+            {
+              "at": "baseline[1]",
+              "basis": [
+                "executor:基线：选择框未弹出"
+              ]
+            },
+            {
+              "at": "actions[0]",
+              "basis": [
+                "q4"
+              ]
+            },
+            {
+              "at": "actions[1]",
+              "basis": [
+                "q4"
+              ]
+            },
+            {
+              "at": "actions[2]",
+              "basis": [
+                "q5"
+              ]
+            },
+            {
+              "at": "actions[3]",
+              "basis": [
+                "q6",
+                "q7",
+                "q8"
+              ]
+            },
+            {
+              "at": "afterCheck[0]",
+              "basis": [
+                "executor:复位输入框"
+              ]
+            }
+          ],
+          "selfCheck": {
+            "R1": "ok：只用了积木目录里的 Node（teamily.openConversation / clearComposer / typeMention / switchConversation）、动作原语（key，值 Escape/Backspace）、区域（mention-picker/picker、chat/composer）和观察（text / visual-region），没有坐标、没有代码",
+            "R2": "ok：main 里触发动作作用在 conv（group-conversation，titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"）的输入框上，target.must = {sender:any, content:any, contains:黄悦龙}，与 understanding.subject 一致；必须是群聊，因为 @ 选择框需要成员列表",
+            "R3": "ok：动作序列就是 Issue 的触发本身——输入 @（q4）→ Esc 关闭浮窗（q4）→ 删掉 @（q5）→ 再输入 @（q6）；没有用「切换会话」这类下游恢复操作代替触发",
+            "R4": "ok：现象发生在「重新输入 @」这一步之后，就在该动作（actions[3]）上挂 expect(role: phenomenon)，oracle.at = actions[3]；不等到轮末",
+            "R5": "ok：① 有毛病时 mention-picker/picker 区域一定不存在 → 检查必失败；正常时浮窗弹出 → 区域存在 → 必通过（control 子用例进一步验证正常时判通过）。② 检查范围取最窄的区域（选择框本身），不用整屏。③ 检查的不是浮窗里本来就有的成员文字，而是浮窗区域本身在不在，不会被触发界面自带的内容蒙混。④ 会留存的输入框 @ 状态写了 baseline（composer 里没有 @ 且选择框未弹出）",
+            "R6": "ok：一轮结束时输入框里留着 @，afterCheck 用 teamily.clearComposer 清空，并给它加了 expect(role: precondition) 确认没有残留 @",
+            "R7": "ok：Issue 给了恢复路径（q1 切换会话再切回后正常；q9 删掉所有 @ 后第一个 @ 能再弹出），据此加了 control 子用例：切走再切回后输入 @ 应弹出，既复现恢复路径，也证明该区域检查在正常时会通过",
+            "R8": "ok：main 与 control 所需的 Node / 区域 / 观察都在目录里。情况二（鼠标点击空白区域关闭浮窗，q10）缺少「可点击的空白区域」目标（没有坐标点击、目标种类里也没有空白区域），因此未纳入用例，已写入 risks",
+            "R9": "ok：Issue 只写 Web，本次在 desktop-web 执行；同一 Web 客户端，但桌面宽度下浮窗渲染与开合逻辑若与窄屏不一致，命中率可能有差异，已写入 risks",
+            "R10": "ok：循环里只用 phase: any 的 Node（typeMention / clearComposer / switchConversation / openConversation），没有 prepare-only（quoteReply / freezeMention），循环内不发任何消息，没有社交动作；delayAfterMs 全部 ≤ 900",
+            "R11": "ok：标题写的是这条 Issue 的对象和现象——「群聊里 Esc 关闭提及浮窗并删掉 @ 后，重新输入第一个 @ 不弹出成员/Agent 选择框」",
+            "R12": "ok：每个目标、动作、baseline、afterCheck 都在 trace 里引用了片段编号或 executor 理由；quotes 里的每一段都逐字取自 Issue 原文（含补充说明与两段中文步骤）"
+          },
+          "risks": [
+            "key 动作的键名取值没有在积木目录里列出，本计划用 \"Escape\" 关闭浮窗、用 \"Backspace\" 删掉 @；若执行器只认 \"Esc\" / \"BACKSPACE\" 之类别名，需按名字映射，否则 actions[1] / actions[2] 的 precondition 会失败而判偏离（不计有效尝试）",
+            "Esc 关闭浮窗后输入框是否仍保持焦点没有文档说明；若焦点丢失，Backspace 删不掉 @，actions[2] 的 precondition 会失败 → 偏离。备选：改用 teamily.clearComposer 完成「删去已输入的 @」这一步（它内部在 Web 上先按 Esc 再全选删除）",
+            "情况二（鼠标点击空白区域关闭浮窗，q10）未纳入用例：积木目录没有可点击的空白区域目标，也不允许写坐标，无法构造该触发",
+            "按补充说明 1（q8），现象只影响「第一个 @」，命中后第二个 @ 会弹出浮窗；建议命中后人工再输一个 @ 作为证据，但计划里不把它写成检查，避免第二个 @ 弹出把区分度冲掉",
+            "目标群的选择框依赖成员/Agent 列表能加载出来；若该群成员列表本身加载失败，actions[0] 的 precondition（第一个 @ 就弹出浮窗）会失败 → 整轮偏离而不是命中",
+            "补充说明 2（q9）说明「删掉所有 @ 后第一个 @ 又能弹出」；如果复位后状态残留导致后续轮次从别的状态开始，baseline 的 composer 无 @ + 选择框未弹出两条检查会先把这类轮次判为偏离"
+          ],
+          "revision": null
+        },
+        "provenance": {
+          "generatedBy": "model",
+          "skillVersion": "2026.10.30-1"
         },
         "contract": {
           "issueRef": "1594",
@@ -147,40 +924,24 @@
               "id": "logged-in",
               "text": "已登录",
               "establish": "executor"
-            },
-            {
-              "id": "group-conversation",
-              "text": "存在成员 ≥3 的群聊",
-              "establish": "existing-data"
-            },
-            {
-              "id": "other-conversation",
-              "text": "存在另一个会话（切换用）",
-              "establish": "existing-data"
             }
           ],
           "trigger": {
-            "semantics": "repeat-switch-and-mention",
-            "text": "On the Teamily Web client, typing \"@\" in the message input of a chat conversation intermittently fails to open the member/agent selection picker, so the user cannot mention anyone. Switching to another conversation and back restores the picker. Reproduced during a live meeting by the reporter. Suspe",
-            "pattern": "mention-picker",
+            "semantics": "model",
+            "text": "在输入框里输入 @ 弹出提及浮窗 → 按 Esc 关闭浮窗 → 删掉已输入的 @ → 再输入一个新的 @",
             "params": {}
           },
           "observable": {
             "observation": "region",
-            "text": "Typing \"@\" in the message input box reliably opens the member/agent selection picker, allowing the user to mention any member or agent, regardless of how the conversation was entered.",
-            "phenomenon": "The @-mention selection picker sometimes does not appear after typing \"@\" — no member/agent list is shown and the user cannot mention anyone. The feature only recovers after switching to another conversation and back. Confirmed on the Web client, also reproduced during a meeting."
+            "text": "输入 @ 就应弹出提及选择框，与之前是否打开/关闭过选择框、怎么进入会话无关；第二个 @ 才弹出说明第一个 @ 被吞掉了",
+            "phenomenon": "重新输入的这个（第一个）@ 不会弹出成员/Agent 选择框，看不到任何成员列表，无法 @ 人"
           },
           "provenance": {
-            "by": "rules",
-            "skillVersion": "2026.10.26-1"
+            "by": "model",
+            "skillVersion": "2026.10.30-1",
+            "model": "deepseek-flash"
           }
-        },
-        "provenance": {
-          "generatedBy": "rules",
-          "skillVersion": "2026.10.26-1",
-          "pattern": "mention-picker"
-        },
-        "coverage": "covered"
+        }
       },
       "planErrors": [],
       "contract": {
@@ -191,37 +952,394 @@
             "id": "logged-in",
             "text": "已登录",
             "establish": "executor"
-          },
-          {
-            "id": "group-conversation",
-            "text": "存在成员 ≥3 的群聊",
-            "establish": "existing-data"
-          },
-          {
-            "id": "other-conversation",
-            "text": "存在另一个会话（切换用）",
-            "establish": "existing-data"
           }
         ],
         "trigger": {
-          "semantics": "repeat-switch-and-mention",
-          "text": "On the Teamily Web client, typing \"@\" in the message input of a chat conversation intermittently fails to open the member/agent selection picker, so the user cannot mention anyone. Switching to another conversation and back restores the picker. Reproduced during a live meeting by the reporter. Suspe",
-          "pattern": "mention-picker",
+          "semantics": "model",
+          "text": "在输入框里输入 @ 弹出提及浮窗 → 按 Esc 关闭浮窗 → 删掉已输入的 @ → 再输入一个新的 @",
           "params": {}
         },
         "observable": {
           "observation": "region",
-          "text": "Typing \"@\" in the message input box reliably opens the member/agent selection picker, allowing the user to mention any member or agent, regardless of how the conversation was entered.",
-          "phenomenon": "The @-mention selection picker sometimes does not appear after typing \"@\" — no member/agent list is shown and the user cannot mention anyone. The feature only recovers after switching to another conversation and back. Confirmed on the Web client, also reproduced during a meeting."
+          "text": "输入 @ 就应弹出提及选择框，与之前是否打开/关闭过选择框、怎么进入会话无关；第二个 @ 才弹出说明第一个 @ 被吞掉了",
+          "phenomenon": "重新输入的这个（第一个）@ 不会弹出成员/Agent 选择框，看不到任何成员列表，无法 @ 人"
         },
         "provenance": {
-          "by": "rules",
-          "skillVersion": "2026.10.26-1"
+          "by": "model",
+          "skillVersion": "2026.10.30-1",
+          "model": "deepseek-flash"
+        }
+      }
+    },
+    {
+      "sub": "control",
+      "title": "对照：切到其他会话再切回后输入 @，提及选择框正常弹出",
+      "surface": "desktop-web",
+      "plan": {
+        "id": "1594-control-desktop-web-v1",
+        "issueRef": "1594",
+        "title": "对照：切到其他会话再切回后输入 @，提及选择框正常弹出",
+        "category": "bug-intermittent",
+        "surface": "desktop-web",
+        "issueSurfaces": [
+          "web"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "conv",
+            "kind": "group-conversation",
+            "guidance": "titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"（会话名称含多个成员名/逗号，是成员≥3 的群聊）",
+            "afterPrepare": false,
+            "must": {
+              "sender": "any",
+              "content": "any",
+              "contains": "黄悦龙"
+            }
+          },
+          {
+            "id": "other",
+            "kind": "other-conversation",
+            "guidance": "会话列表中与目标群不同的另一个会话（不是 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" 的那个）",
+            "afterPrepare": false,
+            "must": {
+              "sender": "any",
+              "content": "any"
+            }
+          }
+        ],
+        "setup": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "conv"
+              }
+            },
+            "delayAfterMs": 500
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.clearComposer",
+              "input": {}
+            },
+            "delayAfterMs": 300
+          }
+        ],
+        "prepare": [],
+        "baseline": [
+          {
+            "kind": "text",
+            "expect": "输入框里没有 @（本轮从空输入框开始）",
+            "want": "absent",
+            "match": {
+              "contains": "@"
+            },
+            "scope": "composer"
+          },
+          {
+            "kind": "visual-region",
+            "page": "mention-picker",
+            "region": "picker",
+            "expect": "触发前提及选择框未弹出",
+            "want": "absent"
+          }
+        ],
+        "actions": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.switchConversation",
+              "input": {
+                "from": "conv",
+                "to": "other"
+              }
+            },
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "page": "chat",
+                "region": "composer",
+                "expect": "切走再切回后仍停在会话页（输入框区域在）",
+                "want": "present"
+              }
+            }
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.typeMention",
+              "input": {}
+            },
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "phenomenon",
+              "check": {
+                "kind": "visual-region",
+                "page": "mention-picker",
+                "region": "picker",
+                "expect": "切回会话后再输入 @，提及选择框应弹出",
+                "want": "present"
+              }
+            }
+          }
+        ],
+        "checks": [],
+        "afterCheck": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.clearComposer",
+              "input": {}
+            },
+            "delayAfterMs": 500,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "复位：输入框已清空，没有残留的 @",
+                "want": "absent",
+                "match": {
+                  "contains": "@"
+                },
+                "scope": "composer"
+              }
+            }
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 15,
+          "maxIntervalMs": 1000,
+          "maxRounds": 30,
+          "untilBudget": true
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "audit": {
+          "version": 1,
+          "sub": "control",
+          "quotes": [
+            {
+              "id": "q1",
+              "text": "Switching to another conversation and back restores the picker."
+            },
+            {
+              "id": "q2",
+              "text": "Observe that the member/agent selection picker does not pop up"
+            },
+            {
+              "id": "q3",
+              "text": "未完全修复，web/desktop端均存在两种情况复现："
+            },
+            {
+              "id": "q4",
+              "text": "1.输入“@”弹出浮窗，按下esc关闭浮窗；"
+            },
+            {
+              "id": "q5",
+              "text": "2.删去已输入的“@”；"
+            },
+            {
+              "id": "q6",
+              "text": "3.输入一个新的”@“；"
+            },
+            {
+              "id": "q7",
+              "text": "4.不弹出浮窗"
+            },
+            {
+              "id": "q8",
+              "text": "1.只有文本框的第一个“@”不弹出浮窗，第二个“@”可弹出浮窗"
+            },
+            {
+              "id": "q9",
+              "text": "2.删除文本框所有“@”后，第一个“@”又能弹出浮窗"
+            },
+            {
+              "id": "q10",
+              "text": "1.输入“@”弹出浮窗，鼠标点击空白区域关闭浮窗；"
+            }
+          ],
+          "understanding": {
+            "subject": "群聊「黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2」消息输入框里的 @ 提及（成员/Agent 选择框）",
+            "trigger": "在输入框里输入 @ 弹出提及浮窗 → 按 Esc 关闭浮窗 → 删掉已输入的 @ → 再输入一个新的 @",
+            "phenomenon": "重新输入的这个（第一个）@ 不会弹出成员/Agent 选择框，看不到任何成员列表，无法 @ 人",
+            "expected": "输入 @ 就应弹出提及选择框，与之前是否打开/关闭过选择框、怎么进入会话无关；第二个 @ 才弹出说明第一个 @ 被吞掉了",
+            "frequency": "always",
+            "control": "切换到其他会话再切回原会话后，输入 @ 选择框恢复正常弹出（q1）；删掉文本框里所有 @ 后第一个 @ 也能再次弹出（q9）",
+            "basis": [
+              "q1",
+              "q2",
+              "q3",
+              "q4",
+              "q5",
+              "q6",
+              "q7",
+              "q8",
+              "q9"
+            ]
+          },
+          "feasibility": {
+            "status": "plannable",
+            "missing": []
+          },
+          "oracle": {
+            "at": "actions[1]",
+            "hit": "切到其他会话再切回后，输入 @ 选择框仍未弹出（与 Issue 的恢复路径 q1 不符，说明现象比描述的更严重）",
+            "normal": "切回原会话后输入 @，提及选择框区域出现、成员/Agent 列表可见（q1）",
+            "canFail": "对照组走的是 Issue 说明的正常恢复路径：只要选择框弹出，区域检查就通过；这证明「mention-picker/picker 区域存在」这一检查在正常状态下确实判通过，因此 main 里同一检查判不通过不是检查本身失效",
+            "baseline": "触发前输入框为空、提及选择框未弹出；由 baseline 的两条检查逐轮确认，不成立则本轮偏离"
+          },
+          "trace": [
+            {
+              "at": "targets.conv",
+              "basis": [
+                "executor:允许清单里的会话「黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2」"
+              ]
+            },
+            {
+              "at": "targets.other",
+              "basis": [
+                "q1"
+              ]
+            },
+            {
+              "at": "setup[0]",
+              "basis": [
+                "executor:进入会话"
+              ]
+            },
+            {
+              "at": "setup[1]",
+              "basis": [
+                "executor:构造空输入框基线"
+              ]
+            },
+            {
+              "at": "baseline[0]",
+              "basis": [
+                "executor:基线：空输入框"
+              ]
+            },
+            {
+              "at": "baseline[1]",
+              "basis": [
+                "executor:基线：选择框未弹出"
+              ]
+            },
+            {
+              "at": "actions[0]",
+              "basis": [
+                "q1"
+              ]
+            },
+            {
+              "at": "actions[1]",
+              "basis": [
+                "q1",
+                "q2"
+              ]
+            },
+            {
+              "at": "afterCheck[0]",
+              "basis": [
+                "executor:复位输入框"
+              ]
+            }
+          ],
+          "selfCheck": {
+            "R1": "ok：只用了积木目录里的 Node（teamily.openConversation / clearComposer / typeMention / switchConversation）、动作原语（key，值 Escape/Backspace）、区域（mention-picker/picker、chat/composer）和观察（text / visual-region），没有坐标、没有代码",
+            "R2": "ok：main 里触发动作作用在 conv（group-conversation，titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"）的输入框上，target.must = {sender:any, content:any, contains:黄悦龙}，与 understanding.subject 一致；必须是群聊，因为 @ 选择框需要成员列表",
+            "R3": "ok：动作序列就是 Issue 的触发本身——输入 @（q4）→ Esc 关闭浮窗（q4）→ 删掉 @（q5）→ 再输入 @（q6）；没有用「切换会话」这类下游恢复操作代替触发",
+            "R4": "ok：现象发生在「重新输入 @」这一步之后，就在该动作（actions[3]）上挂 expect(role: phenomenon)，oracle.at = actions[3]；不等到轮末",
+            "R5": "ok：① 有毛病时 mention-picker/picker 区域一定不存在 → 检查必失败；正常时浮窗弹出 → 区域存在 → 必通过（control 子用例进一步验证正常时判通过）。② 检查范围取最窄的区域（选择框本身），不用整屏。③ 检查的不是浮窗里本来就有的成员文字，而是浮窗区域本身在不在，不会被触发界面自带的内容蒙混。④ 会留存的输入框 @ 状态写了 baseline（composer 里没有 @ 且选择框未弹出）",
+            "R6": "ok：一轮结束时输入框里留着 @，afterCheck 用 teamily.clearComposer 清空，并给它加了 expect(role: precondition) 确认没有残留 @",
+            "R7": "ok：Issue 给了恢复路径（q1 切换会话再切回后正常；q9 删掉所有 @ 后第一个 @ 能再弹出），据此加了 control 子用例：切走再切回后输入 @ 应弹出，既复现恢复路径，也证明该区域检查在正常时会通过",
+            "R8": "ok：main 与 control 所需的 Node / 区域 / 观察都在目录里。情况二（鼠标点击空白区域关闭浮窗，q10）缺少「可点击的空白区域」目标（没有坐标点击、目标种类里也没有空白区域），因此未纳入用例，已写入 risks",
+            "R9": "ok：Issue 只写 Web，本次在 desktop-web 执行；同一 Web 客户端，但桌面宽度下浮窗渲染与开合逻辑若与窄屏不一致，命中率可能有差异，已写入 risks",
+            "R10": "ok：循环里只用 phase: any 的 Node（typeMention / clearComposer / switchConversation / openConversation），没有 prepare-only（quoteReply / freezeMention），循环内不发任何消息，没有社交动作；delayAfterMs 全部 ≤ 900",
+            "R11": "ok：标题写的是这条 Issue 的对象和现象——「群聊里 Esc 关闭提及浮窗并删掉 @ 后，重新输入第一个 @ 不弹出成员/Agent 选择框」",
+            "R12": "ok：每个目标、动作、baseline、afterCheck 都在 trace 里引用了片段编号或 executor 理由；quotes 里的每一段都逐字取自 Issue 原文（含补充说明与两段中文步骤）"
+          },
+          "risks": [
+            "key 动作的键名取值没有在积木目录里列出，本计划用 \"Escape\" 关闭浮窗、用 \"Backspace\" 删掉 @；若执行器只认 \"Esc\" / \"BACKSPACE\" 之类别名，需按名字映射，否则 actions[1] / actions[2] 的 precondition 会失败而判偏离（不计有效尝试）",
+            "Esc 关闭浮窗后输入框是否仍保持焦点没有文档说明；若焦点丢失，Backspace 删不掉 @，actions[2] 的 precondition 会失败 → 偏离。备选：改用 teamily.clearComposer 完成「删去已输入的 @」这一步（它内部在 Web 上先按 Esc 再全选删除）",
+            "情况二（鼠标点击空白区域关闭浮窗，q10）未纳入用例：积木目录没有可点击的空白区域目标，也不允许写坐标，无法构造该触发",
+            "按补充说明 1（q8），现象只影响「第一个 @」，命中后第二个 @ 会弹出浮窗；建议命中后人工再输一个 @ 作为证据，但计划里不把它写成检查，避免第二个 @ 弹出把区分度冲掉",
+            "目标群的选择框依赖成员/Agent 列表能加载出来；若该群成员列表本身加载失败，actions[0] 的 precondition（第一个 @ 就弹出浮窗）会失败 → 整轮偏离而不是命中",
+            "补充说明 2（q9）说明「删掉所有 @ 后第一个 @ 又能弹出」；如果复位后状态残留导致后续轮次从别的状态开始，baseline 的 composer 无 @ + 选择框未弹出两条检查会先把这类轮次判为偏离"
+          ],
+          "revision": null
+        },
+        "provenance": {
+          "generatedBy": "model",
+          "skillVersion": "2026.10.30-1"
+        },
+        "contract": {
+          "issueRef": "1594",
+          "sub": "control",
+          "preconditions": [
+            {
+              "id": "logged-in",
+              "text": "已登录",
+              "establish": "executor"
+            }
+          ],
+          "trigger": {
+            "semantics": "model",
+            "text": "在输入框里输入 @ 弹出提及浮窗 → 按 Esc 关闭浮窗 → 删掉已输入的 @ → 再输入一个新的 @",
+            "params": {}
+          },
+          "observable": {
+            "observation": "region",
+            "text": "输入 @ 就应弹出提及选择框，与之前是否打开/关闭过选择框、怎么进入会话无关；第二个 @ 才弹出说明第一个 @ 被吞掉了",
+            "phenomenon": "重新输入的这个（第一个）@ 不会弹出成员/Agent 选择框，看不到任何成员列表，无法 @ 人"
+          },
+          "provenance": {
+            "by": "model",
+            "skillVersion": "2026.10.30-1",
+            "model": "deepseek-flash"
+          }
+        }
+      },
+      "planErrors": [],
+      "contract": {
+        "issueRef": "1594",
+        "sub": "control",
+        "preconditions": [
+          {
+            "id": "logged-in",
+            "text": "已登录",
+            "establish": "executor"
+          }
+        ],
+        "trigger": {
+          "semantics": "model",
+          "text": "在输入框里输入 @ 弹出提及浮窗 → 按 Esc 关闭浮窗 → 删掉已输入的 @ → 再输入一个新的 @",
+          "params": {}
+        },
+        "observable": {
+          "observation": "region",
+          "text": "输入 @ 就应弹出提及选择框，与之前是否打开/关闭过选择框、怎么进入会话无关；第二个 @ 才弹出说明第一个 @ 被吞掉了",
+          "phenomenon": "重新输入的这个（第一个）@ 不会弹出成员/Agent 选择框，看不到任何成员列表，无法 @ 人"
+        },
+        "provenance": {
+          "by": "model",
+          "skillVersion": "2026.10.30-1",
+          "model": "deepseek-flash"
         }
       }
     }
   ],
-  "hash": "3cedbed9efd89816",
+  "hash": "0490fcc577985a69",
   "issueHash": "71c5e6ece0ff2833",
-  "env": "prod"
+  "env": "prod",
+  "version": 2
 }

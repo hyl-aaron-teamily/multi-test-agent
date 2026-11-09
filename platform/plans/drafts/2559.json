@@ -1,0 +1,211 @@
+{
+  "issue": {
+    "id": "2559",
+    "title": "Since 2026-10-25 11:38 (Beijing) production IM has not been writing the messages of one single chat into MongoDB.",
+    "severity": "High (silent message loss)",
+    "frequency": "Always once a chat's 100-message block passes 16 MB (one conversation so far)",
+    "platforms": [],
+    "summary": "Since 2026-10-25 11:38 (Beijing) production IM has not been writing the messages of one single chat into MongoDB. OpenIM keeps 100 messages per document in `openim_v3.msg`. This chat's document for seq 101–200 has hit MongoDB's 16 MB document limit (now 16.0 MB), so every later message whose seq falls in this document fails with `Resulting document after update is larger than 16777216` or `BSONObj size: … is invalid. Size must be between 0 and 16793600(16MB)`. msgtransfer logs the error and increments `msg_insert_mongo_failed_total`, and that is all: no retry, no error to the sender or the receiver. The messages then exist only in the 24 h Redis message cache. After that, any device that pulls the history from the server (new device, reinstall, Web local data rebuilt, a receiver offline for more than 24 h) gets them back as deleted, so they vanish without any notice. 13 failures so far, which is the Ops IM Monitor \"Mongo insert failures\" warning that has been open since 10/25 11:44. The document was filled by one Web user's plain-text messages: 37 messages, 15.83 MB in total, ~397 KB median, 964 KB max. The Web composer sends text of any length.",
+    "steps": [
+      "Not reproduced in the test environment yet; these steps come from the production logs and the code.",
+      "In a single chat on the test environment, send plain-text messages of ~900 KB each from Web (paste a large block of text) until the messages in the current 100-seq block add up to more than 16 MB (~19 such messages).",
+      "Send one more message of any size.",
+      "Check the msgtransfer log (`single data insert to mongo err`) and `msg_insert_mongo_failed_total`.",
+      "After 24 h, or once the Redis message cache entry for that seq is gone, open the chat on a device that has no local copy and look at the history."
+    ],
+    "expected": "A message the server accepted and delivered is also stored for history. If a message cannot be stored, the sender is told when sending; it is not dropped silently. A failed storage write is retried or reported.",
+    "actual": "Sending and real-time delivery look normal, with no error anywhere. The write to MongoDB fails, and after 24 h the message is gone for every device that does not already have it locally.",
+    "featureArea": "IM message storage (OpenIM msgtransfer → MongoDB) / Web text message sending",
+    "context": "- **Feature area**: IM message storage (OpenIM msgtransfer → MongoDB) / Web text message sending\r\n- Conversation: `si_4290418727820106_9000272886796423` (a Web user and Super Agent).\r\n- Document: `_id: ObjectId('6ac987cb05a51bf164bf90e4')`, `doc_id …:1` (seq 101–200), created 2026-10-10 08:33 (Beijing), 16.0 MB. Stored: seq 101–167 (the last one saved 10/25 11:38:27). Empty: seq 168–200. Document `:2` does not exist yet. The seqs still left up to 200 (roughly 20, depending on the current seq in Redis) will fail too; a new document starts at seq 201.\r\n- 13 failures (UTC): 10/25 03:38:43, 03:38:51, 04:16:51, 04:17:02, 04:36:41, 08:09:31, 08:09:42, 08:33:48, 08:33:57, 19:44:36, 19:44:48, 19:55:34, 19:55:49. The pattern is a 100–370 KB message followed ~10 s later by a small one; both fail.\r\n- Log: `/logs/openim-service-log.2026-10-25` inside the pod (`kubectl logs` only reaches back a few minutes). Path: `online_msg_to_mongo_handler.go` \"single data insert to mongo err\" → `mongoutil.UpdateOneResult()` (`github.com/tabsong/tools@v0.0.50-alpha.111.2/db/mongoutil/util.go:80`).\r\n- Prometheus: `msg_insert_mongo_failed_total` = 13, all on that one pod; the other 5 msgtransfer pods report 0.\r\n- What the large messages are: all 37 come from the user, all `sender_platform_id` 5 (Web), all `content_type` 101. The content is only `{\"content\": …}` — no `data:image`, base64, quote, links or code fences, so it is plain text. Several are exactly 881 KB (the same text sent again and again). Super Agent's 30 messages in this document total 0.16 MB. These figures were computed inside the database; no message text was read.\r\n- Why it is silent (upstream OpenIM v3.8.3): `BatchInsertBlock` returns the error and the handler only logs and counts it; the Redis message cache TTL is 24 h (`cache/redis/msg.go` `msgCacheTimeout`); for a seq missing in MongoDB, `getMsgBySeqs` returns `MsgData{Seq, Status: MsgStatusHasDeleted}` (`storage/controller/msg.go:816`).\r\n- Web: chat-web `origin/tm-main` `apps/chat-co-v2/src/components/im/im-chat/chat-input/index.tsx` `getMessageItem` calls `createTextMessage(text)` with no length check and no special handling for long pastes. @Diff-Jack, please decide with product whether the Web side should limit or handle very long text.\r\n- Also to decide: whether to recover this chat's lost messages (13 or more so far).\r\n- cc @shawn-tensoropera\r\n\r\n---",
+    "environment": "- **Platform / OS / Browser**: Production. OpenIM `v3.8.3-patch.5-e-v1`, `img-server/openim-msgtransfer-84c65d7679-dd99c`. MongoDB Atlas `tensoropera-prod`, `openim_v3.msg`.",
+    "empty": false,
+    "images": []
+  },
+  "classification": {
+    "category": "bug-always",
+    "surfaces": [],
+    "reason": "Frequency: Always once a chat's 100-message block passes 16 MB (one conversation so far)",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "Since 2026-10-25 11:38 (Beijing) production IM has not been writing the messages of one single chat into MongoDB."
+      },
+      {
+        "id": "q2",
+        "text": "This chat's document for seq 101–200 has hit MongoDB's 16 MB document limit (now 16.0 MB), so every later message whose seq falls in this document fails with `Resulting document after update is larger than 16777216` or `BSONObj size: … is invalid. Size must be between 0 and 16793600(16MB)`."
+      },
+      {
+        "id": "q3",
+        "text": "msgtransfer logs the error and increments `msg_insert_mongo_failed_total`, and that is all: no retry, no error to the sender or the receiver."
+      },
+      {
+        "id": "q4",
+        "text": "The messages then exist only in the 24 h Redis message cache. After that, any device that pulls the history from the server (new device, reinstall, Web local data rebuilt, a receiver offline for more than 24 h) gets them back as deleted, so they vanish without any notice."
+      },
+      {
+        "id": "q5",
+        "text": "In a single chat on the test environment, send plain-text messages of ~900 KB each from Web (paste a large block of text) until the messages in the current 100-seq block add up to more than 16 MB (~19 such messages)."
+      },
+      {
+        "id": "q6",
+        "text": "Check the msgtransfer log (`single data insert to mongo err`) and `msg_insert_mongo_failed_total`."
+      },
+      {
+        "id": "q7",
+        "text": "After 24 h, or once the Redis message cache entry for that seq is gone, open the chat on a device that has no local copy and look at the history."
+      },
+      {
+        "id": "q8",
+        "text": "Sending and real-time delivery look normal, with no error anywhere."
+      },
+      {
+        "id": "q9",
+        "text": "A message the server accepted and delivered is also stored for history. If a message cannot be stored, the sender is told when sending; it is not dropped silently."
+      },
+      {
+        "id": "q10",
+        "text": "The document was filled by one Web user's plain-text messages: 37 messages, 15.83 MB in total, ~397 KB median, 964 KB max. The Web composer sends text of any length."
+      },
+      {
+        "id": "q11",
+        "text": "Not reproduced in the test environment yet; these steps come from the production logs and the code."
+      },
+      {
+        "id": "q12",
+        "text": "Conversation: `si_4290418727820106_9000272886796423` (a Web user and Super Agent)."
+      },
+      {
+        "id": "q13",
+        "text": "Document: `_id: ObjectId('6ac987cb05a51bf164bf90e4')`, `doc_id …:1` (seq 101–200), created 2026-10-10 08:33 (Beijing), 16.0 MB. Stored: seq 101–167 (the last one saved 10/25 11:38:27). Empty: seq 168–200. Document `:2` does not exist yet."
+      },
+      {
+        "id": "q14",
+        "text": "Always once a chat's 100-message block passes 16 MB (one conversation so far)"
+      },
+      {
+        "id": "q15",
+        "text": "Super Agent's 30 messages in this document total 0.16 MB."
+      },
+      {
+        "id": "q16",
+        "text": "@Diff-Jack, please decide with product whether the Web side should limit or handle very long text."
+      }
+    ],
+    "understanding": {
+      "subject": "生产单聊 `si_4290418727820106_9000272886796423` 里网页端用户发出的纯文字消息，即 seq 落在已被撑到 16MB 的那份 MongoDB 文档（`doc_id …:1`，seq 101–200）里的后续消息",
+      "trigger": "在同一个单聊里从网页端连续发送每条约 900KB 的纯文字（约 19 条，使当前 100-seq 块累计超过 16MB），之后再发一条任意大小的消息",
+      "phenomenon": "发送与实时投递看起来都正常、哪里都没有报错；消息写 MongoDB 失败，msgtransfer 只记一条日志并把 `msg_insert_mongo_failed_total` 加 1，不重试也不通知收发双方；24 小时后 Redis 缓存过期，本地没有副本的设备拉服务端历史时这些消息变成「已删除」，静默消失",
+      "expected": "服务端已接收并投递的消息也要能存进历史；存不了的消息要在发送时就告诉发送方，不能悄悄丢掉；存储写入失败要重试或报出来",
+      "frequency": "always",
+      "control": "同一份文档里 Super Agent 的 30 条消息合计只有 0.16MB，seq 101–167 已正常存下——小消息不会把文档撑到 16MB，因此不会触发",
+      "basis": [
+        "q1",
+        "q2",
+        "q3",
+        "q4",
+        "q5",
+        "q9",
+        "q14",
+        "q15"
+      ]
+    },
+    "feasibility": {
+      "status": "needs-block",
+      "missing": [
+        {
+          "kind": "observation",
+          "need": "读到 msgtransfer 服务端日志 `single data insert to mongo err` 与 Prometheus 计数器 `msg_insert_mongo_failed_total`——这是 Issue 里唯一的直接存储失败证据；现有观察（text / keyboard / region / crash / process-alive / ai）都在客户端，读不到服务端日志和指标",
+          "basis": [
+            "q3",
+            "q6"
+          ]
+        },
+        {
+          "kind": "precondition",
+          "need": "目标单聊当前 100-seq 块对应的 MongoDB 文档必须已经接近 16MB 上限，即需要读取或构造这份文档的字节数与 seq 区间（`_id: ObjectId('6ac987cb05a51bf164bf90e4')`，`doc_id …:1`，seq 101–200）；客户端没有任何积木能读 DB 文档大小，也无法得知当前是哪一份文档、哪一段 seq 在使用",
+          "basis": [
+            "q2",
+            "q13"
+          ]
+        },
+        {
+          "kind": "node",
+          "need": "从聊天输入框一次性粘贴并发送约 900KB 的纯文字、连续 19 条（累计 >16MB），并且知道每条消息实际字节数；现有 node `teamily.sendMessage` 只能键入文本，没有粘贴大段文本或注入超长文本的积木，也没有测量已发消息字节数的手段，按字符键入十几 MB 文本在本轮预算内不可能完成",
+          "basis": [
+            "q5",
+            "q10"
+          ]
+        },
+        {
+          "kind": "precondition",
+          "need": "让该 seq 的 Redis 消息缓存 24h TTL 过期，或精确删除该 seq 的缓存项，或拿到一台 24 小时内没上过线、本地没有这段记录的设备；执行器不提供跨 24 小时的等待，也没有清缓存、清 App 本地数据、以新设备身份进入的积木",
+          "basis": [
+            "q4",
+            "q7"
+          ]
+        },
+        {
+          "kind": "observation",
+          "need": "在一台本地没有该消息的设备上拉服务端历史，并判断该条历史返回的是「已删除」（`MsgStatusHasDeleted`）而不是本机副本；没有能区分「本机库副本」与「服务端历史」的确定性观察通道",
+          "basis": [
+            "q4",
+            "q7"
+          ]
+        },
+        {
+          "kind": "precondition",
+          "need": "Issue 的会话 `si_4290418727820106_9000272886796423` 不在允许构造数据的会话清单（黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2）内，无法在该会话里发送任何用于复现的超长消息；而换成允许清单里的会话，就不存在「那份已被撑到 16MB 的文档」这个前提",
+          "basis": [
+            "q12",
+            "q13"
+          ]
+        },
+        {
+          "kind": "target",
+          "need": "一个能标识「服务端没存下、只存在于发送方本机」的消息目标；客户端上这条消息和正常存好的消息长得完全一样，没有可核对的 must（sender/content/contains）能把它挑出来",
+          "basis": [
+            "q4",
+            "q8"
+          ]
+        }
+      ]
+    },
+    "subcases": [],
+    "revision": null,
+    "selfCheck": {
+      "R1": "ok：本次没有给出任何 subcases，没有写坐标、没有写代码；missing 里只描述需要什么积木",
+      "R2": "无法满足：Issue 的对象是「seq 落入 16MB 文档后发送失败的那条消息」，客户端读不到文档大小、seq 区间和实际字节数，写不出能核对的 must（见 missing #2 #3 #7）",
+      "R3": "无法满足：触发是「网页端粘贴约 900KB 纯文字 × 19」，现有 node 只能键入文本，没有粘贴大段文本的积木（missing #3）",
+      "R4": "无法满足：现象发生在两处——服务端写 MongoDB 失败（只能看日志/指标，missing #1），和 24h 后拉历史变「已删除」（missing #4 #5）；客户端都没有能在动作后立刻读到的 ① 观察",
+      "R5": "无法满足：客户端唯一能读到的、与 Issue 相关的事实是「发送与实时收发正常、没有任何报错」（q8），它在触发前的基线下同样成立，毫无区分度；有区分度的证据（日志、计数器、历史返回已删除）没有 ① 观察通道，不能用 ai 视觉凑",
+      "R6": "不适用：没有 subcase，本轮不会改动任何状态，无需复位",
+      "R7": "无法构建对照子用例：Issue 给的对照是「Super Agent 的小消息合计 0.16MB、不触发」（q15），它同样依赖 16MB 文档与 24h 缓存过期这两个无法构造的前提（missing #2 #4）",
+      "R8": "已按 R8 停下：feasibility.status = needs-block，missing 列出 7 项缺少的积木与前提，每一项都引用了片段编号，没有拿接近的积木顶替",
+      "R9": "替代执行（Issue 端 unknown → android-app）的差异必须写明：生产证据里发送方是 Web（`sender_platform_id` 5，chat-web 输入框不限制长度，q10/q16），Android 客户端输入框能否接受 ~900KB 粘贴、发送后本机是否留存本地副本，都与 Web 不同；即使 Android 能发出，发送方本机一定留有副本，看不出「服务端没存」的任何迹象，现象会比 Web 更难观察",
+      "R10": "ok：没有动作序列，因此不会在循环里发消息、不会用 prepare-only 的 node，`delayAfterMs` 约束不受影响",
+      "R11": "不适用：没有提交计划，故无标题；若日后积木齐全，标题应为「单聊 100-seq 文档超 16MB 后：发送方是否被告知消息没存下」",
+      "R12": "quotes q1–q16 都逐字摘自 Issue 原文；因为没有 subcase，没有 targets / actions / checks / expect 需要 trace"
+    },
+    "risks": [
+      "Issue 自己写明测试环境尚未复现、步骤由生产日志和代码推出（q11），所以即使积木齐全，也需要先在目标环境造出 16MB 文档才可能命中",
+      "允许清单里的会话（黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2）不是 Issue 的会话，其 100-seq 块当前字节数未知；在其中发超长消息大概率落在未满的文档里，不会失败，无法据此判定",
+      "在生产环境连续发送十几 MB 纯文字，本身就会真实污染该会话，并且可能真的把某份文档撑到 16MB、制造新的静默丢失——不建议用这种方式做验证",
+      "要真正判定，必须依赖服务端侧的观察（msgtransfer 日志、`msg_insert_mongo_failed_total`、直接查 `openim_v3.msg`）以及可控的 24h 缓存过期或干净设备，这些属于执行端能力，不在客户端积木目录内",
+      "「发送方应被告知」的判据在产品上还没定：Web 端要不要限制或处理超长文字仍待产品决定（q16），在定下来之前，即使能观察到「没有任何提示」，也算不上可判定的缺陷",
+      "本单聊已丢的消息（至少 13 条）要不要补回也仍待决定，属于数据修复，不是可复现的测试用例"
+    ]
+  },
+  "planVersion": 1,
+  "modelCalls": 1,
+  "status": "needs-block",
+  "reason": "缺积木：observation「读到 msgtransfer 服务端日志 `single data insert to mongo err` 与 Prometheus 计数器 `msg_insert_mongo_failed_total`——这是 Issue 里唯一的直接存储失败证据；现有观察（text / keyboard / region / crash / process-alive / ai）都在客户端，读不到服务端日志和指标」；precondition「目标单聊当前 100-seq 块对应的 MongoDB 文档必须已经接近 16MB 上限，即需要读取或构造这份文档的字节数与 seq 区间（`_id: ObjectId('6ac987cb05a51bf164bf90e4')`，`doc_id …:1`，seq 101–200）；客户端没有任何积木能读 DB 文档大小，也无法得知当前是哪一份文档、哪一段 seq 在使用」；node「从聊天输入框一次性粘贴并发送约 900KB 的纯文字、连续 19 条（累计 >16MB），并且知道每条消息实际字节数；现有 node `teamily.sendMessage` 只能键入文本，没有粘贴大段文本或注入超长文本的积木，也没有测量已发消息字节数的手段，按字符键入十几 MB 文本在本轮预算内不可能完成」；precondition「让该 seq 的 Redis 消息缓存 24h TTL 过期，或精确删除该 seq 的缓存项，或拿到一台 24 小时内没上过线、本地没有这段记录的设备；执行器不提供跨 24 小时的等待，也没有清缓存、清 App 本地数据、以新设备身份进入的积木」；observation「在一台本地没有该消息的设备上拉服务端历史，并判断该条历史返回的是「已删除」（`MsgStatusHasDeleted`）而不是本机副本；没有能区分「本机库副本」与「服务端历史」的确定性观察通道」；precondition「Issue 的会话 `si_4290418727820106_9000272886796423` 不在允许构造数据的会话清单（黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2）内，无法在该会话里发送任何用于复现的超长消息；而换成允许清单里的会话，就不存在「那份已被撑到 16MB 的文档」这个前提」；target「一个能标识「服务端没存下、只存在于发送方本机」的消息目标；客户端上这条消息和正常存好的消息长得完全一样，没有可核对的 must（sender/content/contains）能把它挑出来」",
+  "subcases": [],
+  "hash": "b64e593afee9db78",
+  "issueHash": "4d8f57404ececc66",
+  "env": "prod",
+  "version": 1
+}

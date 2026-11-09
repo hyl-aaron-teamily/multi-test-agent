@@ -1,0 +1,167 @@
+{
+  "issue": {
+    "id": "2735",
+    "title": "When a user composes a message that mixes plain text with Teamily artifact links (CloudDoc https://teamily.ai/docs/<id> URLs) and sends it, the rendered message",
+    "severity": "High",
+    "frequency": "To be confirmed — reported from a real sent message; whether every mixed text/link composition is affected or only certain interleavings is not yet established.",
+    "platforms": [
+      "desktop"
+    ],
+    "summary": "When a user composes a message that mixes plain text with Teamily artifact links (CloudDoc https://teamily.ai/docs/<id> URLs) and sends it, the rendered message does not preserve the order the user typed. Blocks are regrouped by type instead of by position, so a 'text → link → text → link' composition can come back as 'text → text → link → link' or with the links hoisted to the end of the bubble. The screenshot shows a sent message whose two doc links sit directly under their own lead-in lines, which reads correctly by luck of input; the reporter's point is that the order is decided by the renderer, not by the user, so any other interleaving gets silently rewritten. This is a content-correctness problem, not a cosmetic one: reordering changes meaning whenever the text refers to the links positionally ('the first one is urgent, the second is the rest'), and users cannot tell that their message was altered after sending.",
+    "steps": [
+      "Open Teamily (Web or Desktop) and go to a conversation where you can type a message.",
+      "Type a first line of text, then paste a Teamily artifact link (https://teamily.ai/docs/<id>), then type a second line of text, then paste a second artifact link — i.e. text → link → text → link.",
+      "Send the message.",
+      "Compare the order of the blocks in the sent bubble and in the chat-list preview with the order you typed in the composer.",
+      "(inferred) Repeat with a deliberately 'wrong' reading order — e.g. link first, then the text that explains it — to confirm the renderer, not the user, decides the order."
+    ],
+    "expected": "The sent message renders its blocks in exactly the order the user composed them: text and artifact links keep their original positions, with no regrouping by type and no hoisting of links to the start or end of the bubble. What the composer showed is what gets sent and what gets displayed.",
+    "actual": "The sent message's content order does not match the composer. Text blocks are gathered together and artifact links are gathered together (or the links are moved to the end of the bubble), so an interleaved composition is rewritten. The user's positional references inside the text then point at the wrong item, and there is no indication that the message was reordered after sending.",
+    "featureArea": "Messaging / Message content rendering (composer → sent message)",
+    "context": "- **Feature area**: Messaging / Message content rendering (composer → sent message)\r\n- Reported by Shawn (source:qa), who asked the open question directly: should the user's input order be preserved at all? The current behaviour answers that implicitly — no. Product needs to confirm the intended rule.\r\n- Duplicate check (scanned all 2,732 issues in the repo, open and closed, PRs excluded; title, body and comment search).\r\n- NOT a duplicate of #1779 (closed/completed) — 'Agent reply carrying a Markdown document deliverable renders only the deliverable card, the reply text body is missing'. #1779 is about an AGENT reply where the text body was DROPPED entirely; its fix (2026-09-21, ZharlieW: '已优化 md 卡片消息 UI，由纯交付物卡片改为「正文+交付物」样式') established the text+deliverable layout. This issue is a USER-composed message where nothing is dropped — every block survives but the ORDER changes. Different defect, same message type family. #1779's fix is the right place to start reading, because that is the code path that decides text-vs-card placement.\r\n- NOT a duplicate of #2387 (open, Feature) — 'Pasting a Teamily doc link should render an inline preview with switchable display modes'. That is a CloudDoc EDITOR feature request (link → preview card / title mention inside a document). This issue is about IM message bubbles, and asks for no new display mode — only that the existing order be preserved.\r\n- NOT a duplicate of #2349 (open) — 'permanent_artifacts sent as a JSON string is never normalized'. That is an agent-side serialization bug producing one broken link. Here the links render correctly; only their position moves.\r\n- NOT a duplicate of #2153 (closed/completed) — a LINK deliverable card's thumbnail image is missing. That is card artwork, not order.\r\n- NOT a duplicate of #507 (closed/completed) — 'Messages fly out of position when clicking blank area in chat with AI artifacts'. That is message-BUBBLE positioning / layout jump on interaction; here the bubbles are stable and the order of blocks INSIDE one bubble is different.\r\n- NOT a duplicate of #1009 (closed/completed) — closing a link preview card scrolls the feed to the bottom. That is scroll position, not content order.\r\n- NOT a duplicate of #361 (closed/completed) — 'Android APP: New messages appear out of order in conversation flow'. That is ordering of separate MESSAGES (delivery sequencing); this is ordering of BLOCKS inside a single message.\r\n- NOT a duplicate of #1548 (closed/completed) — an agent's @-mention reply appears above the user's message. Again message-level ordering, not intra-message.\r\n- NOT a duplicate of #1690 (closed/completed) — Slack channel agent thinking text rendered with 'scrambled word order'. That is character/word scrambling in Slack-rendered thinking text, a different surface and a different failure mode.\r\n- NOT a duplicate of #1847 (closed/completed) — Enter/Shift+Enter newline behaviour differs between the Studio composer and the chat input. That is key handling in the composer, not block order after send.\r\n- String searches that returned ZERO hits across the whole repo: '原始顺序', '输入顺序', '保持顺序', '保留顺序', 'preserve/keep ... order', '发送后 ... 顺序/重排', and title-level '顺序|排序|重排|乱序|次序' returned 0 issues. This defect has not been filed before in any wording.\r\n- Preliminary root-cause directions (for the developer to confirm, not conclusions): (a) the composer serialises the message into typed segments (text segments + artifact/link segments) and the renderer then groups by segment TYPE instead of walking the original index — this is the most likely cause and matches the observed 'texts together, links together'; (b) artifact links are extracted into an attachment/deliverable list and re-rendered at a fixed anchor (end of bubble), which is exactly the #1779 fix's layout; (c) the markdown/rich-text parser lifts bare links out of the text stream into their own block before rendering; (d) the backend stores segments as an unordered map or sorts them by type/created_",
+    "environment": "- **Platform / OS / Browser**: Not specified in the report — please confirm. The evidence screenshot is a desktop-width window (1600x476) showing the chat area with a reply-quote header and a '+ composer' bar.",
+    "empty": false,
+    "images": [
+      "https://github.com/Teamily-Inc/bug-screenshots/blob/main/issue-2735-8f5eb48b.png?raw=true"
+    ]
+  },
+  "classification": {
+    "category": "bug-intermittent",
+    "surfaces": [
+      "desktop-web"
+    ],
+    "reason": "Frequency: To be confirmed — reported from a real sent message; whether every mixed text/link composition is affected or only certain interleavings is not yet established.",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "Type a first line of text, then paste a Teamily artifact link (https://teamily.ai/docs/<id>), then type a second line of text, then paste a second artifact link — i.e. text → link → text → link."
+      },
+      {
+        "id": "q2",
+        "text": "The sent message renders its blocks in exactly the order the user composed them: text and artifact links keep their original positions, with no regrouping by type and no hoisting of links to the start or end of the bubble."
+      },
+      {
+        "id": "q3",
+        "text": "The sent message's content order does not match the composer. Text blocks are gathered together and artifact links are gathered together (or the links are moved to the end of the bubble), so an interleaved composition is rewritten."
+      },
+      {
+        "id": "q4",
+        "text": "Compare the order of the blocks in the sent bubble and in the chat-list preview with the order you typed in the composer."
+      },
+      {
+        "id": "q5",
+        "text": "Open Teamily (Web or Desktop) and go to a conversation where you can type a message."
+      },
+      {
+        "id": "q6",
+        "text": "To be confirmed — reported from a real sent message; whether every mixed text/link composition is affected or only certain interleavings is not yet established."
+      },
+      {
+        "id": "q7",
+        "text": "The evidence screenshot is a desktop-width window (1600x476) showing the chat area with a reply-quote header and a '+ composer' bar."
+      },
+      {
+        "id": "q8",
+        "text": "whether a plain non-Teamily URL is also reordered, which would point at the generic link handling rather than the artifact path"
+      },
+      {
+        "id": "q9",
+        "text": "the same message re-opened after a reload (to catch a client-only fix that does not survive a refetch)"
+      },
+      {
+        "id": "q10",
+        "text": "whether the chat-list preview line shows the same order as the bubble"
+      }
+    ],
+    "understanding": {
+      "subject": "用户自己编辑并发送的单条 IM 消息气泡，内容同时包含文字与 Teamily artifact 链接（https://teamily.ai/docs/<id>）",
+      "trigger": "在输入框里按「文字 → artifact 链接 → 文字 → artifact 链接」的交错顺序输入并发送",
+      "phenomenon": "发出后气泡内的区块顺序与输入框不一致：文字块被聚在一起、artifact 链接被聚在一起，或被提到气泡末尾；界面没有任何提示",
+      "expected": "气泡内区块严格保持用户输入的原始顺序与位置，不按类型分组、不把链接提升到开头或末尾",
+      "frequency": "unknown",
+      "control": "Issue 未给已确认的对照组；只列了两个待确认的对照方向——普通非 Teamily URL、会话列表预览行",
+      "basis": [
+        "q1",
+        "q3",
+        "q2",
+        "q6"
+      ]
+    },
+    "feasibility": {
+      "status": "needs-block",
+      "missing": [
+        {
+          "kind": "precondition",
+          "need": "把一条真实可解析的 Teamily artifact 链接（https://teamily.ai/docs/<id>）放进输入框的手段：需要能取到一个真实 CloudDoc 的 id/URL 并插入（复制链接 / 剪贴板粘贴 / 支持 artifact-link 段的发送）。现有积木做不到：teamily.sendMessage 只支持纯文本与 kind='markdown-link'（[text](url) 语法），doc-artifact 只能打开文档、读不到也送不进输入框，动作原语里没有 paste/clipboard，type 只能键入模型自己写死的字面文字——模型没有任何途径知道一个真实的 docs id。",
+          "basis": [
+            "q1",
+            "q5"
+          ]
+        },
+        {
+          "kind": "observation",
+          "need": "对同一条气泡内区块相对顺序的断言（有序序列 / 位置比较）：现有 text 观察只有 present/absent（可限定锚点附近，但不比较先后），visual-region 只有区域在/不在，ai 视觉问题属②通道、不可稳定复现。需要 kind=order 的观察（按顺序列出气泡内的块并比较），并能读到本轮刚发出的那个气泡。",
+          "basis": [
+            "q3",
+            "q4"
+          ]
+        },
+        {
+          "kind": "target",
+          "need": "「本轮刚发送的那条消息」这一动态目标类型（sent-message / last-sent）。targets 在 prepare 阶段冻结成坐标，而本 Issue 的被观察对象在轮内动作之后才产生，冻结时不存在；若改用 match 锚点文字，{token} 之外的轮内唯一标识（{round}）能否用于 text 的 match/scope 没有保证，跨轮会与上一轮的消息撞锚点。",
+          "basis": [
+            "q1",
+            "q4"
+          ]
+        },
+        {
+          "kind": "observation",
+          "need": "会话列表预览行内容的观察（q10 要求对比预览行与气泡内顺序）：从聊天页回到列表后需要读预览行的文字序列，现有 text 观察没有针对会话列表行的 scope。",
+          "basis": [
+            "q10"
+          ]
+        }
+      ]
+    },
+    "subcases": [],
+    "revision": null,
+    "selfCheck": {
+      "R1": "ok：本版不含任何动作、元素或坐标，未使用目录外的 id",
+      "R2": "阻塞：被观察对象是「本轮发出的含 artifact 链接的消息」，拼不出来（见 missing[0]），无法写 target.must",
+      "R3": "阻塞：Issue 的触发是「粘贴真实 artifact 链接」，没有任何积木能完成这一步；用普通 URL 或 Markdown 链接语法顶替会改变触发本身",
+      "R4": "阻塞：现象发生在「点发送之后」，但没有能观察气泡内块序的 ① 观察，无法给发送动作挂 expect(role: phenomenon)",
+      "R5": "阻塞：没有有序断言，也无从写 baseline（气泡在触发前不存在，且是否「正常时通过」无法自证）",
+      "R6": "不适用：未进入计划；且本动作只新增一条消息、不改动既有状态，无需复位",
+      "R7": "未写 control 子用例：Issue 只给了「普通 URL 是否同样重排」这个待确认问题（q8），不是已确认的对照",
+      "R8": "needs-block：缺 4 项积木，见 feasibility.missing（artifact 链接插入、块序观察、刚发送消息的动态目标、会话列表预览行观察）；没有用近似积木顶替",
+      "R9": "ok：执行端 desktop-web 与 q7 的桌面宽度窗口一致，不存在替代执行",
+      "R10": "不适用：未进入循环；若后续补积木，构造消息只发到允许清单会话",
+      "R11": "ok：本单的命名对象与现象为「含 artifact 链接的已发送消息 / 块顺序被按类型重排」",
+      "R12": "ok：quotes 全部逐字取自 Issue 原文；missing 每项都引用了片段编号"
+    },
+    "risks": [
+      "没有用普通 URL 或 Markdown 链接语法近似顶替 artifact 链接：两者的渲染路径可能不同（q8 正是待确认点），即便命中也不能证明本 Issue 的现象，按 R8 不做近似。",
+      "产品规则本身未定（是否应保留输入顺序），Issue 明确要产品确认；补上积木后，「命中」只证明顺序被改，不证明这是缺陷，需要产品侧结论配合。",
+      "频率未知（q6）：Issue 只说「某条真实发出的消息」，是否所有交错组合都复现尚未建立，计划落地后需要先做几轮探索再定复现率口径。",
+      "平台未明（q7 截图为桌面宽度窗口）：desktop-web 是否与截图同一端、iOS/Android 是否同样受影响都未知；本计划一旦可建，也只覆盖 desktop-web。",
+      "会话列表预览行（q10）与气泡内顺序是否一致是另一个观察面，目前也没有对应 scope，须与块序观察一起补齐，否则复现只能覆盖气泡一半的证据。",
+      "刷新后重开同一消息的回归（q9）用来抓「只改客户端、重取数据后又被重排」：需要 reload 之后仍能定位到那条消息，依赖 missing 里的 sent-message 目标类型。",
+      "若要补齐积木，最小可行集合是：一个能把真实 CloudDoc URL 放进输入框的原语（或 sendMessage 的 artifact-link 段），一个 kind=order 的块序观察，一个 sent-message 动态目标。"
+    ]
+  },
+  "planVersion": 1,
+  "modelCalls": 2,
+  "status": "needs-block",
+  "reason": "缺积木：precondition「把一条真实可解析的 Teamily artifact 链接（https://teamily.ai/docs/<id>）放进输入框的手段：需要能取到一个真实 CloudDoc 的 id/URL 并插入（复制链接 / 剪贴板粘贴 / 支持 artifact-link 段的发送）。现有积木做不到：teamily.sendMessage 只支持纯文本与 kind='markdown-link'（[text](url) 语法），doc-artifact 只能打开文档、读不到也送不进输入框，动作原语里没有 paste/clipboard，type 只能键入模型自己写死的字面文字——模型没有任何途径知道一个真实的 docs id。」；observation「对同一条气泡内区块相对顺序的断言（有序序列 / 位置比较）：现有 text 观察只有 present/absent（可限定锚点附近，但不比较先后），visual-region 只有区域在/不在，ai 视觉问题属②通道、不可稳定复现。需要 kind=order 的观察（按顺序列出气泡内的块并比较），并能读到本轮刚发出的那个气泡。」；target「「本轮刚发送的那条消息」这一动态目标类型（sent-message / last-sent）。targets 在 prepare 阶段冻结成坐标，而本 Issue 的被观察对象在轮内动作之后才产生，冻结时不存在；若改用 match 锚点文字，{token} 之外的轮内唯一标识（{round}）能否用于 text 的 match/scope 没有保证，跨轮会与上一轮的消息撞锚点。」；observation「会话列表预览行内容的观察（q10 要求对比预览行与气泡内顺序）：从聊天页回到列表后需要读预览行的文字序列，现有 text 观察没有针对会话列表行的 scope。」",
+  "subcases": [],
+  "designMs": 246923,
+  "issueFile": "D:\\projects\\Tools\\multi-test-agent\\issues\\2735.md",
+  "hash": "fbf5b9974e294d7e",
+  "issueHash": "dd822df4e6b9d8aa",
+  "env": "prod",
+  "version": 2
+}

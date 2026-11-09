@@ -12,13 +12,41 @@ import { isRowKind, pickTargets } from './targets';
 import { observeKeyboard, observeText } from '../observe';
 import { PreTapBlocked } from '../pretap';
 import { constructionAllowed, loadConversations } from '../../platform/conversations';
+import { verifyMust } from './expect';
+import { expand, expandCheck } from './template';
+
+/** A target that fails its `must` this many times in a row makes the run 执行失败 (W3-1 §6.3). */
+export const MUST_TRIES = 3;
 
 const freeze = async (c: RunCtx, phase: 'rows' | 'inside' | 'after-prepare') => {
-  for (const t of await pickTargets(c.plan, c.sess.inner, c.sess.profile, c.log, c.locate, phase, c.res.targets)) {
-    c.res.targets.push(t);
-    c.targets[t.id] = t.point;
-    // Pre-tap check: the fingerprint, or the decision-time frame for vision picks.
-    if (c.guard) await c.guard.remember(t.point, { purpose: `target ${t.id}`, ...t.ref, ...(t.ref ? {} : { png: await c.sess.inner.screenshot().catch(() => undefined) }) });
+  // {token} in a target's guidance / must is this run's marker (the message the plan constructed).
+  const v = { token: c.res.runTag ?? '', round: 0 };
+  let plan = { ...c.plan, targets: c.plan.targets.map((t) => ({ ...t, guidance: expand(t.guidance, v) })) };
+  for (let tryNo = 1; ; tryNo++) {
+    const picked = await pickTargets(plan, c.sess.inner, c.sess.profile, c.log, c.locate, phase, c.res.targets);
+    const bad: { id: string; detail: string; point: { x: number; y: number } }[] = [];
+    for (const t of picked) {
+      const m = await verifyMust(c, t.id, t.point);
+      if (m.ok === false) bad.push({ id: t.id, detail: m.detail, point: t.point });
+      else if (m.ok === null) c.log(`prep: target ${t.id}: ${m.detail}`);
+      else if (c.plan.targets.find((x) => x.id === t.id)?.must) t.reason += `；must ✓（${m.detail.slice(0, 80)}）`;
+    }
+    if (!bad.length) {
+      for (const t of picked) {
+        c.res.targets.push(t);
+        c.targets[t.id] = t.point;
+        // Pre-tap check: the fingerprint, or the decision-time frame for vision picks.
+        if (c.guard) await c.guard.remember(t.point, { purpose: `target ${t.id}`, ...t.ref, ...(t.ref ? {} : { png: await c.sess.inner.screenshot().catch(() => undefined) }) });
+      }
+      return;
+    }
+    for (const b of bad) {
+      c.log(`prep: target ${b.id} fails must (try ${tryNo}/${MUST_TRIES}): ${b.detail}`);
+      (c.res.mustLog ??= []).push({ id: b.id, try: tryNo, detail: b.detail, point: b.point });
+    }
+    if (tryNo >= MUST_TRIES) throw new Error(`目标核对连续 ${MUST_TRIES} 次不通过：${bad.map((b) => `${b.id} — ${b.detail}`).join('；')}`);
+    // Pick again, away from what was just rejected.
+    plan = { ...plan, targets: plan.targets.map((t) => (bad.some((b) => b.id === t.id) ? { ...t, guidance: `${t.guidance}（不是位于 (${bad.find((b) => b.id === t.id)!.point.x}, ${bad.find((b) => b.id === t.id)!.point.y}) 的那一条：${bad.find((b) => b.id === t.id)!.detail.slice(0, 80)}）` } : t)) };
   }
 };
 
@@ -110,12 +138,13 @@ export async function prepare(c: RunCtx, afterSetup?: () => Promise<void>): Prom
       d.label = `prepare:${actionLabel(a)}`;
       await c.exec(a);
     }
-    if (c.plan.prepareCheck) {
-      const k = c.plan.prepareCheck;
+    for (const k0 of [...(c.plan.prepareCheck ? [c.plan.prepareCheck] : []), ...(c.plan.prepareChecks ?? [])]) {
+      // {token} / {round} expanded like every other check (W3-1 plans name the run's own message).
+      const k = expandCheck(k0, { token: c.res.runTag ?? '', round: 0 });
       const pc = k.kind === 'ai' ? await evaluateAi(k, c.ask) : k.kind === 'text' ? await observeText(c.sess.inner, k, c.targets, profile.viewport.width) : k.kind === 'keyboard' ? await observeKeyboard(c.sess.inner, k) : await evaluateVisual(d, profile, k, c.ask);
       await writeFile(join(c.o.runDir, 'prepare-check.png'), await d.screenshot());
       c.log(`precondition: ${pc.pass ? 'established' : 'NOT established'} — ${pc.detail}`);
-      if (!pc.pass) throw new Error(`前置条件未建立（${c.plan.prepareCheck.expect}）— ${pc.detail}；见 prepare-check.png`);
+      if (!pc.pass) throw new Error(`前置条件未建立（${k.expect}）— ${pc.detail}；见 prepare-check.png`);
     }
     await freeze(c, 'after-prepare');
   }

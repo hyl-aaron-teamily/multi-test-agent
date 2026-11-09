@@ -24,7 +24,7 @@ const expandDeep = (x: unknown, v: TemplateVars): unknown => {
 
 /** Pure: the action with its text, node input and precondition expanded (element ids are left alone). */
 export function expandAction(a: PlannedAction, v: TemplateVars): PlannedAction {
-  return { ...a, value: a.value === undefined ? undefined : expand(a.value, v), node: a.node && { ...a.node, input: expandDeep(a.node.input, v) as Record<string, unknown> }, requires: a.requires && (expandDeep(a.requires, v) as PlannedAction['requires']) };
+  return { ...a, value: a.value === undefined ? undefined : expand(a.value, v), node: a.node && { ...a.node, input: expandDeep(a.node.input, v) as Record<string, unknown> }, requires: a.requires && (expandDeep(a.requires, v) as PlannedAction['requires']), expect: a.expect && { ...a.expect, check: expandCheck(a.expect.check, v) } };
 }
 
 /** Pure: the check with its match, message anchor and precondition expanded. */

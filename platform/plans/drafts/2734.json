@@ -1,0 +1,1307 @@
+{
+  "issue": {
+    "id": "2734",
+    "title": "On the Web/Desktop client, when a user composes a single message that mixes plain text with Teamily artifact links (https://teamily.ai/docs/<id>), the message t",
+    "severity": "High",
+    "frequency": "To be confirmed — the reporter did not state a reproduction rate",
+    "platforms": [
+      "web",
+      "desktop"
+    ],
+    "summary": "On the Web/Desktop client, when a user composes a single message that mixes plain text with Teamily artifact links (https://teamily.ai/docs/<id>), the message that lands in the conversation is not in the order the user typed. The content is re-arranged on send, so a line of explanatory text can end up separated from the artifact link it was written to introduce. Because these messages are typically structured as 'heading → link → heading → link', any reordering silently re-pairs each heading with the wrong artifact, which changes the meaning of the message. The reporter (Shawn) explicitly asks whether the original input order should be preserved — i.e. this is reported as a defect against the expected behaviour that a sent message reads exactly as it was typed.",
+    "steps": [
+      "Open any conversation on the Web/Desktop client.",
+      "In the composer, type content in a deliberate order, e.g. text A → Teamily artifact link (https://teamily.ai/docs/<id>) → text B → a second artifact link.",
+      "Send the message.",
+      "Compare the order of the blocks in the composer before sending with the order rendered in the sent message bubble."
+    ],
+    "expected": "The sent message renders the blocks in exactly the order the user typed them: text A, then its artifact link, then text B, then its artifact link. Each artifact link stays attached to the text that introduces it.",
+    "actual": "The blocks are re-arranged after sending, so the rendered order no longer matches the input order. The reporter's screenshot shows the sent message as a flat sequence of text lines and plain green underlined links; the pairing between each heading and its artifact link is not preserved as typed.",
+    "featureArea": "IM / Message Rendering — mixed text + artifact link composition",
+    "context": "- **Feature area**: IM / Message Rendering — mixed text + artifact link composition",
+    "environment": "- **Platform / OS / Browser**: Web / Desktop (screenshot captured on the Web client)",
+    "empty": false,
+    "images": [
+      "https://github.com/Teamily-Inc/bug-screenshots/blob/main/issue-2734-8f5eb48b.png?raw=true"
+    ]
+  },
+  "classification": {
+    "category": "bug-intermittent",
+    "surfaces": [
+      "desktop-web"
+    ],
+    "reason": "Frequency: To be confirmed — the reporter did not state a reproduction rate",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "On the Web/Desktop client, when a user composes a single message that mixes plain text with Teamily artifact links (https://teamily.ai/docs/<id>), the message that lands in the conversation is not in the order the user typed."
+      },
+      {
+        "id": "q2",
+        "text": "Because these messages are typically structured as 'heading → link → heading → link', any reordering silently re-pairs each heading with the wrong artifact, which changes the meaning of the message."
+      },
+      {
+        "id": "q3",
+        "text": "Open any conversation on the Web/Desktop client."
+      },
+      {
+        "id": "q4",
+        "text": "In the composer, type content in a deliberate order, e.g. text A → Teamily artifact link (https://teamily.ai/docs/<id>) → text B → a second artifact link."
+      },
+      {
+        "id": "q5",
+        "text": "Send the message."
+      },
+      {
+        "id": "q6",
+        "text": "Compare the order of the blocks in the composer before sending with the order rendered in the sent message bubble."
+      },
+      {
+        "id": "q7",
+        "text": "The sent message renders the blocks in exactly the order the user typed them: text A, then its artifact link, then text B, then its artifact link."
+      },
+      {
+        "id": "q8",
+        "text": "The blocks are re-arranged after sending, so the rendered order no longer matches the input order."
+      },
+      {
+        "id": "q9",
+        "text": "The reporter's screenshot shows the sent message as a flat sequence of text lines and plain green underlined links; the pairing between each heading and its artifact link is not preserved as typed."
+      },
+      {
+        "id": "q10",
+        "text": "Web / Desktop (screenshot captured on the Web client)"
+      },
+      {
+        "id": "q11",
+        "text": "**Frequency**: To be confirmed — the reporter did not state a reproduction rate"
+      }
+    ],
+    "understanding": {
+      "subject": "Web/桌面端输入框里混排的一条消息：文字 A + Teamily 文档链接（https://teamily.ai/docs/<id>）+ 文字 B + 第二个文档链接",
+      "trigger": "在输入框里按上述顺序键入这些内容后点发送",
+      "phenomenon": "发送后的消息气泡里各内容块被重新排列，顺序与输入顺序不一致，标题与它对应的文档链接被拆开（截图中呈「一串文字行 + 一串平铺链接」）",
+      "expected": "气泡严格按输入顺序渲染：文字 A、其文档链接、文字 B、其文档链接，每个链接紧跟介绍它的那段文字",
+      "frequency": "unknown",
+      "control": "",
+      "basis": [
+        "q1",
+        "q2",
+        "q4",
+        "q6",
+        "q7",
+        "q8",
+        "q9",
+        "q11"
+      ]
+    },
+    "feasibility": {
+      "status": "plannable",
+      "missing": []
+    },
+    "subcases": [
+      {
+        "sub": "main",
+        "oracle": {
+          "at": "actions[1]",
+          "hit": "发送后气泡里「文字块 → 其文档链接」的两处相邻关系不成立（两块文字被并到一起、两个链接被挪到文字之后或之前），即渲染顺序与键入顺序 AA→链接a→BB→链接b 不一致",
+          "normal": "发送后气泡自上而下依次是「AA-blk 这是第一个标题」「https://teamily.ai/docs/eval2734a」「BB-blk 这是第二个标题」「https://teamily.ai/docs/eval2734b」，跨块正则匹配成功，checks[0] 的视觉问题回答「是」",
+          "canFail": "有毛病时（发送时按内容类型重新分段、或渲染层把链接块提升），气泡变成「AA…」「BB…」「链接a」「链接b」的平铺顺序，正则要求的两处「文字后紧跟其自己的链接」不再成立 → 检查失败；checks[0] 的视觉问题同样回答「否」",
+          "baseline": "每轮触发前输入框为空：baseline[0] 要求 chat.composer 存在，baseline[1] 要求输入框区域内没有 AA-blk；任一不成立判本轮偏离，不计有效尝试"
+        },
+        "plan": {
+          "title": "输入框混排「文字A→文档链接→文字B→文档链接」发送后：气泡是否保持输入顺序",
+          "targets": [
+            {
+              "id": "conv",
+              "kind": "conversation",
+              "guidance": "titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"",
+              "must": {
+                "sender": "any",
+                "content": "any",
+                "contains": "黄悦龙"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "conv"
+                }
+              },
+              "delayAfterMs": 700,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "region": "element:chat.composer",
+                  "expect": "会话已打开，消息输入框存在",
+                  "want": "present"
+                }
+              }
+            }
+          ],
+          "baseline": [
+            {
+              "kind": "visual-region",
+              "region": "element:chat.composer",
+              "expect": "触发前输入框存在且可输入",
+              "want": "present"
+            },
+            {
+              "kind": "text",
+              "expect": "触发前输入框里没有本用例的文字",
+              "match": {
+                "contains": "AA-blk"
+              },
+              "scope": "composer",
+              "want": "absent"
+            }
+          ],
+          "actions": [
+            {
+              "type": "type",
+              "element": "chat.composer",
+              "value": "AA-blk 这是第一个标题\nhttps://teamily.ai/docs/eval2734a\nBB-blk 这是第二个标题\nhttps://teamily.ai/docs/eval2734b",
+              "delayAfterMs": 800,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "expect": "输入框里已出现第二段标题，说明四块内容都已键入",
+                  "match": {
+                    "contains": "BB-blk"
+                  },
+                  "scope": "composer",
+                  "want": "present"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.tapSend"
+              },
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "phenomenon",
+                "check": {
+                  "kind": "text",
+                  "expect": "发送后的消息气泡里，第一段标题之后紧跟它自己的文档链接，第二段标题之后紧跟第二个文档链接（顺序与输入一致）",
+                  "match": {
+                    "regex": "AA-blk[\\s\\S]{0,300}?https://teamily\\.ai/docs/eval2734a[\\s\\S]{0,300}?BB-blk[\\s\\S]{0,300}?https://teamily\\.ai/docs/eval2734b"
+                  },
+                  "scope": {
+                    "message": "AA-blk"
+                  },
+                  "want": "present"
+                }
+              }
+            }
+          ],
+          "checks": [
+            {
+              "kind": "ai",
+              "expect": "看会话中最下方（最后发送）的那条消息气泡，它的内容是否按输入顺序排列：先出现文字「AA-blk 这是第一个标题」，紧接着是绿色下划线的链接 https://teamily.ai/docs/eval2734a，然后是文字「BB-blk 这是第二个标题」，最后是链接 https://teamily.ai/docs/eval2734b —— 即两个链接各自紧跟在它自己的标题下面，而不是所有文字排在前面、两个链接一起排在后面（或链接整体被挪到文字之前）",
+              "want": "present"
+            }
+          ],
+          "afterCheck": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.clearComposer"
+              },
+              "delayAfterMs": 400,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "expect": "输入框已清空，回到可再次键入的状态",
+                  "match": {
+                    "contains": "AA-blk"
+                  },
+                  "scope": "composer",
+                  "want": "absent"
+                }
+              }
+            }
+          ]
+        },
+        "trace": [
+          {
+            "at": "targets.conv",
+            "basis": [
+              "q3"
+            ]
+          },
+          {
+            "at": "setup[0]",
+            "basis": [
+              "q3"
+            ]
+          },
+          {
+            "at": "setup[0].expect",
+            "basis": [
+              "executor:确认已进入会话、输入框可用"
+            ]
+          },
+          {
+            "at": "baseline[0]",
+            "basis": [
+              "executor:触发前基线"
+            ]
+          },
+          {
+            "at": "baseline[1]",
+            "basis": [
+              "executor:触发前基线，确认输入框没有残留本用例文字"
+            ]
+          },
+          {
+            "at": "actions[0]",
+            "basis": [
+              "q4"
+            ]
+          },
+          {
+            "at": "actions[0].expect",
+            "basis": [
+              "executor:确认多行内容完整键入，否则本轮偏离"
+            ]
+          },
+          {
+            "at": "actions[1]",
+            "basis": [
+              "q5"
+            ]
+          },
+          {
+            "at": "actions[1].expect",
+            "basis": [
+              "q6",
+              "q7",
+              "q8"
+            ]
+          },
+          {
+            "at": "checks[0]",
+            "basis": [
+              "q2",
+              "q6",
+              "q9"
+            ]
+          },
+          {
+            "at": "afterCheck[0]",
+            "basis": [
+              "executor:复位，清空输入框"
+            ]
+          }
+        ]
+      },
+      {
+        "sub": "control",
+        "oracle": {
+          "at": "actions[1]",
+          "hit": "对照组的顺序检查失败（两段纯文字在发送后也被调换顺序）——说明顺序观察本身不可靠，或缺陷范围比 Issue 描述的更广",
+          "normal": "两段纯文字按键入顺序渲染，跨块正则与视觉判定都通过；对照组通过才能证明主用例的检查在正常时不会误报",
+          "canFail": "如果检查在纯文字上也失败，主用例的命中就不能归因于「文字与 artifact 链接混排」，需要按证据修订观察方式",
+          "baseline": "每轮触发前输入框为空：baseline[0] 要求 chat.composer 存在，baseline[1] 要求输入框区域内没有 CC-blk；不成立判本轮偏离"
+        },
+        "plan": {
+          "title": "对照：只排两段纯文字发送后，气泡是否保持输入顺序",
+          "targets": [
+            {
+              "id": "conv",
+              "kind": "conversation",
+              "guidance": "titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"",
+              "must": {
+                "sender": "any",
+                "content": "any",
+                "contains": "黄悦龙"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "conv"
+                }
+              },
+              "delayAfterMs": 700,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "region": "element:chat.composer",
+                  "expect": "会话已打开，消息输入框存在",
+                  "want": "present"
+                }
+              }
+            }
+          ],
+          "baseline": [
+            {
+              "kind": "visual-region",
+              "region": "element:chat.composer",
+              "expect": "触发前输入框存在且可输入",
+              "want": "present"
+            },
+            {
+              "kind": "text",
+              "expect": "触发前输入框里没有对照组的文字",
+              "match": {
+                "contains": "CC-blk"
+              },
+              "scope": "composer",
+              "want": "absent"
+            }
+          ],
+          "actions": [
+            {
+              "type": "type",
+              "element": "chat.composer",
+              "value": "CC-blk 第一段文字\nDD-blk 第二段文字",
+              "delayAfterMs": 800,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "expect": "两段文字都已键入输入框",
+                  "match": {
+                    "contains": "DD-blk"
+                  },
+                  "scope": "composer",
+                  "want": "present"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.tapSend"
+              },
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "phenomenon",
+                "check": {
+                  "kind": "text",
+                  "expect": "发送后的气泡里第一段文字仍在第二段文字之前",
+                  "match": {
+                    "regex": "CC-blk[\\s\\S]{0,200}?DD-blk"
+                  },
+                  "scope": {
+                    "message": "CC-blk"
+                  },
+                  "want": "present"
+                }
+              }
+            }
+          ],
+          "checks": [
+            {
+              "kind": "ai",
+              "expect": "看会话中最下方（最后发送）的那条消息气泡，是否先出现「CC-blk 第一段文字」、再出现「DD-blk 第二段文字」，两行顺序与输入一致",
+              "want": "present"
+            }
+          ],
+          "afterCheck": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.clearComposer"
+              },
+              "delayAfterMs": 400,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "expect": "输入框已清空",
+                  "match": {
+                    "contains": "CC-blk"
+                  },
+                  "scope": "composer",
+                  "want": "absent"
+                }
+              }
+            }
+          ]
+        },
+        "trace": [
+          {
+            "at": "targets.conv",
+            "basis": [
+              "q3"
+            ]
+          },
+          {
+            "at": "setup[0]",
+            "basis": [
+              "q3"
+            ]
+          },
+          {
+            "at": "setup[0].expect",
+            "basis": [
+              "executor:确认已进入会话、输入框可用"
+            ]
+          },
+          {
+            "at": "baseline[0]",
+            "basis": [
+              "executor:触发前基线"
+            ]
+          },
+          {
+            "at": "baseline[1]",
+            "basis": [
+              "executor:触发前基线，确认输入框没有残留对照组文字"
+            ]
+          },
+          {
+            "at": "actions[0]",
+            "basis": [
+              "q4",
+              "executor:对照组只排纯文字，不含链接"
+            ]
+          },
+          {
+            "at": "actions[0].expect",
+            "basis": [
+              "executor:确认两段文字完整键入"
+            ]
+          },
+          {
+            "at": "actions[1]",
+            "basis": [
+              "q5"
+            ]
+          },
+          {
+            "at": "actions[1].expect",
+            "basis": [
+              "q6",
+              "executor:对照组的顺序检查"
+            ]
+          },
+          {
+            "at": "checks[0]",
+            "basis": [
+              "q6",
+              "executor:对照组视觉核对"
+            ]
+          },
+          {
+            "at": "afterCheck[0]",
+            "basis": [
+              "executor:复位，清空输入框"
+            ]
+          }
+        ]
+      }
+    ],
+    "revision": null,
+    "selfCheck": {
+      "R1": "ok：动作只用 type / node，元素只用 chat.composer 与 region chat/composer（取自 REGIONS）和 element:chat.composer（region 的 element: 形式），没有坐标与代码",
+      "R2": "ok：对象是「在允许清单会话里自己键入的一条混排消息」，targets.conv 的 must.contains=黄悦龙 与 guidance/允许清单一致；正文块与链接内容由本用例键入，understanding.subject 与之一致",
+      "R3": "ok：触发就是 Issue 的第 3 步「发送该消息」（actions[1] = teamily.tapSend），前面只有键入动作，没有用下游操作代替触发",
+      "R4": "ok：现象发生在发送这一步，actions[1]（tapSend）自带 expect(role: phenomenon)，oracle.at 指向 actions[1]；checks[0] 用视觉对同一现象做补充判定",
+      "R5": "ok：①有毛病时（按类型重新分段/链接块提升）两处「文字后紧跟其链接」的相邻关系消失，跨块正则不再成立；②范围取最窄，先按 {message: AA-blk} 锚到目标气泡，只在视觉判定用整屏；③匹配内容是本次键入的消息正文，不是发送界面自带的文字；④发送留存的只有消息本身，输入框状态写进 baseline（输入框为空、无 AA-blk）",
+      "R6": "ok：afterCheck 用 teamily.clearComposer 复位输入框，并带 expect(role: precondition) 确认已清空；已发送的消息无法撤回（发到允许清单会话，属允许的数据构造），在 risks 中说明",
+      "R7": "ok：Issue 没有给出明确对照（understanding.control 为空），额外加 control 子用例「只排两段纯文字」，用来证明顺序观察在正常时会通过",
+      "R8": "ok：所需积木都存在（type、teamily.openConversation/tapSend/clearComposer、text/visual-region/ai 观察），missing 为空",
+      "R9": "ok：执行端 desktop-web 与 Issue 的 Web/Desktop 一致，没有替代执行",
+      "R10": "ok：循环里只用 phase: any 的 Node（openConversation / tapSend / clearComposer）；不发 prepare-only Node；消息只发到允许清单会话「黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2」；delayAfterMs 均 ≤ 1000",
+      "R11": "ok：标题「输入框混排「文字A→文档链接→文字B→文档链接」发送后：气泡是否保持输入顺序」写的是本 Issue 的对象与现象",
+      "R12": "ok：每个目标、动作、检查、expect 都在 trace 里引用了片段编号或 executor:<理由>；quotes 全部逐字取自原文"
+    },
+    "risks": [
+      "多行内容依赖 type 把「\\n」按换行写进 Web 输入框：如果输入框把换行当成发送、或吃掉换行，actions[0] 的 expect 会偏离，需要改成逐行键入（key）后再发送。",
+      "跨块正则依赖 text 观察把气泡内各块按渲染顺序拼成一段可匹配的文字：如果观察按节点逐条匹配而不拼接，这条检查会恒不通过（假命中），此时以 checks[0] 的视觉回答为准并修订观察方式。",
+      "用例里的文档链接 id（eval2734a / eval2734b）是合成的：按 Issue 描述链接只作普通绿色下划线渲染，检查只看文本；若客户端对不存在的文档 id 不输出链接文本，需要换成真实文档链接。",
+      "同一会话多轮会累积内容相同的消息，scope {message: \"AA-blk\"} 可能锚到上一轮的气泡；判定以最下方最新消息为准，必要时在轮间刷新会话或给内容加轮号。",
+      "复现率未知（Issue 未给出），首轮命中后仍需多轮统计有效尝试次数与命中区间。"
+    ]
+  },
+  "planVersion": 1,
+  "modelCalls": 2,
+  "status": "plannable",
+  "reason": "计划 v1：Web/桌面端输入框里混排的一条消息：文字 A + Teamily 文档链接（https://teamily.ai/docs/<id>）+ 文字 B + 第二个文档链接 — 发送后的消息气泡里各内容块被重新排列，顺序与输入顺序不一致，标题与它对应的文档链接被拆开（截图中呈「一串文字行 + 一串平铺链接」）",
+  "subcases": [
+    {
+      "sub": "main",
+      "title": "输入框混排「文字A→文档链接→文字B→文档链接」发送后：气泡是否保持输入顺序",
+      "surface": "desktop-web",
+      "plan": {
+        "id": "2734-desktop-web-v1",
+        "issueRef": "2734",
+        "title": "输入框混排「文字A→文档链接→文字B→文档链接」发送后：气泡是否保持输入顺序",
+        "category": "bug-intermittent",
+        "surface": "desktop-web",
+        "issueSurfaces": [
+          "web",
+          "desktop"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "conv",
+            "kind": "conversation",
+            "guidance": "titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"",
+            "must": {
+              "sender": "any",
+              "content": "any",
+              "contains": "黄悦龙"
+            }
+          }
+        ],
+        "setup": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "conv"
+              }
+            },
+            "delayAfterMs": 700,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "region": "element:chat.composer",
+                "expect": "会话已打开，消息输入框存在",
+                "want": "present"
+              }
+            }
+          }
+        ],
+        "prepare": [],
+        "baseline": [
+          {
+            "kind": "visual-region",
+            "region": "element:chat.composer",
+            "expect": "触发前输入框存在且可输入",
+            "want": "present"
+          },
+          {
+            "kind": "text",
+            "expect": "触发前输入框里没有本用例的文字",
+            "want": "absent",
+            "match": {
+              "contains": "AA-blk"
+            },
+            "scope": "composer"
+          }
+        ],
+        "actions": [
+          {
+            "type": "type",
+            "element": "chat.composer",
+            "value": "AA-blk 这是第一个标题\nhttps://teamily.ai/docs/eval2734a\nBB-blk 这是第二个标题\nhttps://teamily.ai/docs/eval2734b",
+            "delayAfterMs": 800,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "输入框里已出现第二段标题，说明四块内容都已键入",
+                "want": "present",
+                "match": {
+                  "contains": "BB-blk"
+                },
+                "scope": "composer"
+              }
+            }
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.tapSend",
+              "input": {}
+            },
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "phenomenon",
+              "check": {
+                "kind": "text",
+                "expect": "发送后的消息气泡里，第一段标题之后紧跟它自己的文档链接，第二段标题之后紧跟第二个文档链接（顺序与输入一致）",
+                "want": "present",
+                "match": {
+                  "regex": "AA-blk[\\s\\S]{0,300}?https://teamily\\.ai/docs/eval2734a[\\s\\S]{0,300}?BB-blk[\\s\\S]{0,300}?https://teamily\\.ai/docs/eval2734b"
+                },
+                "scope": {
+                  "message": "AA-blk"
+                }
+              }
+            }
+          }
+        ],
+        "checks": [
+          {
+            "kind": "ai",
+            "expect": "看会话中最下方（最后发送）的那条消息气泡，它的内容是否按输入顺序排列：先出现文字「AA-blk 这是第一个标题」，紧接着是绿色下划线的链接 https://teamily.ai/docs/eval2734a，然后是文字「BB-blk 这是第二个标题」，最后是链接 https://teamily.ai/docs/eval2734b —— 即两个链接各自紧跟在它自己的标题下面，而不是所有文字排在前面、两个链接一起排在后面（或链接整体被挪到文字之前）",
+            "want": "present"
+          }
+        ],
+        "afterCheck": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.clearComposer",
+              "input": {}
+            },
+            "delayAfterMs": 400,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "输入框已清空，回到可再次键入的状态",
+                "want": "absent",
+                "match": {
+                  "contains": "AA-blk"
+                },
+                "scope": "composer"
+              }
+            }
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 15,
+          "maxIntervalMs": 1000,
+          "maxRounds": 30,
+          "untilBudget": true
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "audit": {
+          "version": 1,
+          "sub": "main",
+          "quotes": [
+            {
+              "id": "q1",
+              "text": "On the Web/Desktop client, when a user composes a single message that mixes plain text with Teamily artifact links (https://teamily.ai/docs/<id>), the message that lands in the conversation is not in the order the user typed."
+            },
+            {
+              "id": "q2",
+              "text": "Because these messages are typically structured as 'heading → link → heading → link', any reordering silently re-pairs each heading with the wrong artifact, which changes the meaning of the message."
+            },
+            {
+              "id": "q3",
+              "text": "Open any conversation on the Web/Desktop client."
+            },
+            {
+              "id": "q4",
+              "text": "In the composer, type content in a deliberate order, e.g. text A → Teamily artifact link (https://teamily.ai/docs/<id>) → text B → a second artifact link."
+            },
+            {
+              "id": "q5",
+              "text": "Send the message."
+            },
+            {
+              "id": "q6",
+              "text": "Compare the order of the blocks in the composer before sending with the order rendered in the sent message bubble."
+            },
+            {
+              "id": "q7",
+              "text": "The sent message renders the blocks in exactly the order the user typed them: text A, then its artifact link, then text B, then its artifact link."
+            },
+            {
+              "id": "q8",
+              "text": "The blocks are re-arranged after sending, so the rendered order no longer matches the input order."
+            },
+            {
+              "id": "q9",
+              "text": "The reporter's screenshot shows the sent message as a flat sequence of text lines and plain green underlined links; the pairing between each heading and its artifact link is not preserved as typed."
+            },
+            {
+              "id": "q10",
+              "text": "Web / Desktop (screenshot captured on the Web client)"
+            },
+            {
+              "id": "q11",
+              "text": "**Frequency**: To be confirmed — the reporter did not state a reproduction rate"
+            }
+          ],
+          "understanding": {
+            "subject": "Web/桌面端输入框里混排的一条消息：文字 A + Teamily 文档链接（https://teamily.ai/docs/<id>）+ 文字 B + 第二个文档链接",
+            "trigger": "在输入框里按上述顺序键入这些内容后点发送",
+            "phenomenon": "发送后的消息气泡里各内容块被重新排列，顺序与输入顺序不一致，标题与它对应的文档链接被拆开（截图中呈「一串文字行 + 一串平铺链接」）",
+            "expected": "气泡严格按输入顺序渲染：文字 A、其文档链接、文字 B、其文档链接，每个链接紧跟介绍它的那段文字",
+            "frequency": "unknown",
+            "control": "",
+            "basis": [
+              "q1",
+              "q2",
+              "q4",
+              "q6",
+              "q7",
+              "q8",
+              "q9",
+              "q11"
+            ]
+          },
+          "feasibility": {
+            "status": "plannable",
+            "missing": []
+          },
+          "oracle": {
+            "at": "actions[1]",
+            "hit": "发送后气泡里「文字块 → 其文档链接」的两处相邻关系不成立（两块文字被并到一起、两个链接被挪到文字之后或之前），即渲染顺序与键入顺序 AA→链接a→BB→链接b 不一致",
+            "normal": "发送后气泡自上而下依次是「AA-blk 这是第一个标题」「https://teamily.ai/docs/eval2734a」「BB-blk 这是第二个标题」「https://teamily.ai/docs/eval2734b」，跨块正则匹配成功，checks[0] 的视觉问题回答「是」",
+            "canFail": "有毛病时（发送时按内容类型重新分段、或渲染层把链接块提升），气泡变成「AA…」「BB…」「链接a」「链接b」的平铺顺序，正则要求的两处「文字后紧跟其自己的链接」不再成立 → 检查失败；checks[0] 的视觉问题同样回答「否」",
+            "baseline": "每轮触发前输入框为空：baseline[0] 要求 chat.composer 存在，baseline[1] 要求输入框区域内没有 AA-blk；任一不成立判本轮偏离，不计有效尝试"
+          },
+          "trace": [
+            {
+              "at": "targets.conv",
+              "basis": [
+                "q3"
+              ]
+            },
+            {
+              "at": "setup[0]",
+              "basis": [
+                "q3"
+              ]
+            },
+            {
+              "at": "setup[0].expect",
+              "basis": [
+                "executor:确认已进入会话、输入框可用"
+              ]
+            },
+            {
+              "at": "baseline[0]",
+              "basis": [
+                "executor:触发前基线"
+              ]
+            },
+            {
+              "at": "baseline[1]",
+              "basis": [
+                "executor:触发前基线，确认输入框没有残留本用例文字"
+              ]
+            },
+            {
+              "at": "actions[0]",
+              "basis": [
+                "q4"
+              ]
+            },
+            {
+              "at": "actions[0].expect",
+              "basis": [
+                "executor:确认多行内容完整键入，否则本轮偏离"
+              ]
+            },
+            {
+              "at": "actions[1]",
+              "basis": [
+                "q5"
+              ]
+            },
+            {
+              "at": "actions[1].expect",
+              "basis": [
+                "q6",
+                "q7",
+                "q8"
+              ]
+            },
+            {
+              "at": "checks[0]",
+              "basis": [
+                "q2",
+                "q6",
+                "q9"
+              ]
+            },
+            {
+              "at": "afterCheck[0]",
+              "basis": [
+                "executor:复位，清空输入框"
+              ]
+            }
+          ],
+          "selfCheck": {
+            "R1": "ok：动作只用 type / node，元素只用 chat.composer 与 region chat/composer（取自 REGIONS）和 element:chat.composer（region 的 element: 形式），没有坐标与代码",
+            "R2": "ok：对象是「在允许清单会话里自己键入的一条混排消息」，targets.conv 的 must.contains=黄悦龙 与 guidance/允许清单一致；正文块与链接内容由本用例键入，understanding.subject 与之一致",
+            "R3": "ok：触发就是 Issue 的第 3 步「发送该消息」（actions[1] = teamily.tapSend），前面只有键入动作，没有用下游操作代替触发",
+            "R4": "ok：现象发生在发送这一步，actions[1]（tapSend）自带 expect(role: phenomenon)，oracle.at 指向 actions[1]；checks[0] 用视觉对同一现象做补充判定",
+            "R5": "ok：①有毛病时（按类型重新分段/链接块提升）两处「文字后紧跟其链接」的相邻关系消失，跨块正则不再成立；②范围取最窄，先按 {message: AA-blk} 锚到目标气泡，只在视觉判定用整屏；③匹配内容是本次键入的消息正文，不是发送界面自带的文字；④发送留存的只有消息本身，输入框状态写进 baseline（输入框为空、无 AA-blk）",
+            "R6": "ok：afterCheck 用 teamily.clearComposer 复位输入框，并带 expect(role: precondition) 确认已清空；已发送的消息无法撤回（发到允许清单会话，属允许的数据构造），在 risks 中说明",
+            "R7": "ok：Issue 没有给出明确对照（understanding.control 为空），额外加 control 子用例「只排两段纯文字」，用来证明顺序观察在正常时会通过",
+            "R8": "ok：所需积木都存在（type、teamily.openConversation/tapSend/clearComposer、text/visual-region/ai 观察），missing 为空",
+            "R9": "ok：执行端 desktop-web 与 Issue 的 Web/Desktop 一致，没有替代执行",
+            "R10": "ok：循环里只用 phase: any 的 Node（openConversation / tapSend / clearComposer）；不发 prepare-only Node；消息只发到允许清单会话「黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2」；delayAfterMs 均 ≤ 1000",
+            "R11": "ok：标题「输入框混排「文字A→文档链接→文字B→文档链接」发送后：气泡是否保持输入顺序」写的是本 Issue 的对象与现象",
+            "R12": "ok：每个目标、动作、检查、expect 都在 trace 里引用了片段编号或 executor:<理由>；quotes 全部逐字取自原文"
+          },
+          "risks": [
+            "多行内容依赖 type 把「\\n」按换行写进 Web 输入框：如果输入框把换行当成发送、或吃掉换行，actions[0] 的 expect 会偏离，需要改成逐行键入（key）后再发送。",
+            "跨块正则依赖 text 观察把气泡内各块按渲染顺序拼成一段可匹配的文字：如果观察按节点逐条匹配而不拼接，这条检查会恒不通过（假命中），此时以 checks[0] 的视觉回答为准并修订观察方式。",
+            "用例里的文档链接 id（eval2734a / eval2734b）是合成的：按 Issue 描述链接只作普通绿色下划线渲染，检查只看文本；若客户端对不存在的文档 id 不输出链接文本，需要换成真实文档链接。",
+            "同一会话多轮会累积内容相同的消息，scope {message: \"AA-blk\"} 可能锚到上一轮的气泡；判定以最下方最新消息为准，必要时在轮间刷新会话或给内容加轮号。",
+            "复现率未知（Issue 未给出），首轮命中后仍需多轮统计有效尝试次数与命中区间。"
+          ],
+          "revision": null
+        },
+        "provenance": {
+          "generatedBy": "model",
+          "skillVersion": "2026.10.30-1"
+        },
+        "contract": {
+          "issueRef": "2734",
+          "sub": "main",
+          "preconditions": [
+            {
+              "id": "logged-in",
+              "text": "已登录",
+              "establish": "executor"
+            }
+          ],
+          "trigger": {
+            "semantics": "model",
+            "text": "在输入框里按上述顺序键入这些内容后点发送",
+            "params": {}
+          },
+          "observable": {
+            "observation": "text",
+            "text": "气泡严格按输入顺序渲染：文字 A、其文档链接、文字 B、其文档链接，每个链接紧跟介绍它的那段文字",
+            "phenomenon": "发送后的消息气泡里各内容块被重新排列，顺序与输入顺序不一致，标题与它对应的文档链接被拆开（截图中呈「一串文字行 + 一串平铺链接」）"
+          },
+          "provenance": {
+            "by": "model",
+            "skillVersion": "2026.10.30-1",
+            "model": "deepseek-flash"
+          }
+        }
+      },
+      "planErrors": [],
+      "contract": {
+        "issueRef": "2734",
+        "sub": "main",
+        "preconditions": [
+          {
+            "id": "logged-in",
+            "text": "已登录",
+            "establish": "executor"
+          }
+        ],
+        "trigger": {
+          "semantics": "model",
+          "text": "在输入框里按上述顺序键入这些内容后点发送",
+          "params": {}
+        },
+        "observable": {
+          "observation": "text",
+          "text": "气泡严格按输入顺序渲染：文字 A、其文档链接、文字 B、其文档链接，每个链接紧跟介绍它的那段文字",
+          "phenomenon": "发送后的消息气泡里各内容块被重新排列，顺序与输入顺序不一致，标题与它对应的文档链接被拆开（截图中呈「一串文字行 + 一串平铺链接」）"
+        },
+        "provenance": {
+          "by": "model",
+          "skillVersion": "2026.10.30-1",
+          "model": "deepseek-flash"
+        }
+      }
+    },
+    {
+      "sub": "control",
+      "title": "对照：只排两段纯文字发送后，气泡是否保持输入顺序",
+      "surface": "desktop-web",
+      "plan": {
+        "id": "2734-control-desktop-web-v1",
+        "issueRef": "2734",
+        "title": "对照：只排两段纯文字发送后，气泡是否保持输入顺序",
+        "category": "bug-intermittent",
+        "surface": "desktop-web",
+        "issueSurfaces": [
+          "web",
+          "desktop"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "conv",
+            "kind": "conversation",
+            "guidance": "titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"",
+            "must": {
+              "sender": "any",
+              "content": "any",
+              "contains": "黄悦龙"
+            }
+          }
+        ],
+        "setup": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "conv"
+              }
+            },
+            "delayAfterMs": 700,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "region": "element:chat.composer",
+                "expect": "会话已打开，消息输入框存在",
+                "want": "present"
+              }
+            }
+          }
+        ],
+        "prepare": [],
+        "baseline": [
+          {
+            "kind": "visual-region",
+            "region": "element:chat.composer",
+            "expect": "触发前输入框存在且可输入",
+            "want": "present"
+          },
+          {
+            "kind": "text",
+            "expect": "触发前输入框里没有对照组的文字",
+            "want": "absent",
+            "match": {
+              "contains": "CC-blk"
+            },
+            "scope": "composer"
+          }
+        ],
+        "actions": [
+          {
+            "type": "type",
+            "element": "chat.composer",
+            "value": "CC-blk 第一段文字\nDD-blk 第二段文字",
+            "delayAfterMs": 800,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "两段文字都已键入输入框",
+                "want": "present",
+                "match": {
+                  "contains": "DD-blk"
+                },
+                "scope": "composer"
+              }
+            }
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.tapSend",
+              "input": {}
+            },
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "phenomenon",
+              "check": {
+                "kind": "text",
+                "expect": "发送后的气泡里第一段文字仍在第二段文字之前",
+                "want": "present",
+                "match": {
+                  "regex": "CC-blk[\\s\\S]{0,200}?DD-blk"
+                },
+                "scope": {
+                  "message": "CC-blk"
+                }
+              }
+            }
+          }
+        ],
+        "checks": [
+          {
+            "kind": "ai",
+            "expect": "看会话中最下方（最后发送）的那条消息气泡，是否先出现「CC-blk 第一段文字」、再出现「DD-blk 第二段文字」，两行顺序与输入一致",
+            "want": "present"
+          }
+        ],
+        "afterCheck": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.clearComposer",
+              "input": {}
+            },
+            "delayAfterMs": 400,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "输入框已清空",
+                "want": "absent",
+                "match": {
+                  "contains": "CC-blk"
+                },
+                "scope": "composer"
+              }
+            }
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 15,
+          "maxIntervalMs": 1000,
+          "maxRounds": 30,
+          "untilBudget": true
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "audit": {
+          "version": 1,
+          "sub": "control",
+          "quotes": [
+            {
+              "id": "q1",
+              "text": "On the Web/Desktop client, when a user composes a single message that mixes plain text with Teamily artifact links (https://teamily.ai/docs/<id>), the message that lands in the conversation is not in the order the user typed."
+            },
+            {
+              "id": "q2",
+              "text": "Because these messages are typically structured as 'heading → link → heading → link', any reordering silently re-pairs each heading with the wrong artifact, which changes the meaning of the message."
+            },
+            {
+              "id": "q3",
+              "text": "Open any conversation on the Web/Desktop client."
+            },
+            {
+              "id": "q4",
+              "text": "In the composer, type content in a deliberate order, e.g. text A → Teamily artifact link (https://teamily.ai/docs/<id>) → text B → a second artifact link."
+            },
+            {
+              "id": "q5",
+              "text": "Send the message."
+            },
+            {
+              "id": "q6",
+              "text": "Compare the order of the blocks in the composer before sending with the order rendered in the sent message bubble."
+            },
+            {
+              "id": "q7",
+              "text": "The sent message renders the blocks in exactly the order the user typed them: text A, then its artifact link, then text B, then its artifact link."
+            },
+            {
+              "id": "q8",
+              "text": "The blocks are re-arranged after sending, so the rendered order no longer matches the input order."
+            },
+            {
+              "id": "q9",
+              "text": "The reporter's screenshot shows the sent message as a flat sequence of text lines and plain green underlined links; the pairing between each heading and its artifact link is not preserved as typed."
+            },
+            {
+              "id": "q10",
+              "text": "Web / Desktop (screenshot captured on the Web client)"
+            },
+            {
+              "id": "q11",
+              "text": "**Frequency**: To be confirmed — the reporter did not state a reproduction rate"
+            }
+          ],
+          "understanding": {
+            "subject": "Web/桌面端输入框里混排的一条消息：文字 A + Teamily 文档链接（https://teamily.ai/docs/<id>）+ 文字 B + 第二个文档链接",
+            "trigger": "在输入框里按上述顺序键入这些内容后点发送",
+            "phenomenon": "发送后的消息气泡里各内容块被重新排列，顺序与输入顺序不一致，标题与它对应的文档链接被拆开（截图中呈「一串文字行 + 一串平铺链接」）",
+            "expected": "气泡严格按输入顺序渲染：文字 A、其文档链接、文字 B、其文档链接，每个链接紧跟介绍它的那段文字",
+            "frequency": "unknown",
+            "control": "",
+            "basis": [
+              "q1",
+              "q2",
+              "q4",
+              "q6",
+              "q7",
+              "q8",
+              "q9",
+              "q11"
+            ]
+          },
+          "feasibility": {
+            "status": "plannable",
+            "missing": []
+          },
+          "oracle": {
+            "at": "actions[1]",
+            "hit": "对照组的顺序检查失败（两段纯文字在发送后也被调换顺序）——说明顺序观察本身不可靠，或缺陷范围比 Issue 描述的更广",
+            "normal": "两段纯文字按键入顺序渲染，跨块正则与视觉判定都通过；对照组通过才能证明主用例的检查在正常时不会误报",
+            "canFail": "如果检查在纯文字上也失败，主用例的命中就不能归因于「文字与 artifact 链接混排」，需要按证据修订观察方式",
+            "baseline": "每轮触发前输入框为空：baseline[0] 要求 chat.composer 存在，baseline[1] 要求输入框区域内没有 CC-blk；不成立判本轮偏离"
+          },
+          "trace": [
+            {
+              "at": "targets.conv",
+              "basis": [
+                "q3"
+              ]
+            },
+            {
+              "at": "setup[0]",
+              "basis": [
+                "q3"
+              ]
+            },
+            {
+              "at": "setup[0].expect",
+              "basis": [
+                "executor:确认已进入会话、输入框可用"
+              ]
+            },
+            {
+              "at": "baseline[0]",
+              "basis": [
+                "executor:触发前基线"
+              ]
+            },
+            {
+              "at": "baseline[1]",
+              "basis": [
+                "executor:触发前基线，确认输入框没有残留对照组文字"
+              ]
+            },
+            {
+              "at": "actions[0]",
+              "basis": [
+                "q4",
+                "executor:对照组只排纯文字，不含链接"
+              ]
+            },
+            {
+              "at": "actions[0].expect",
+              "basis": [
+                "executor:确认两段文字完整键入"
+              ]
+            },
+            {
+              "at": "actions[1]",
+              "basis": [
+                "q5"
+              ]
+            },
+            {
+              "at": "actions[1].expect",
+              "basis": [
+                "q6",
+                "executor:对照组的顺序检查"
+              ]
+            },
+            {
+              "at": "checks[0]",
+              "basis": [
+                "q6",
+                "executor:对照组视觉核对"
+              ]
+            },
+            {
+              "at": "afterCheck[0]",
+              "basis": [
+                "executor:复位，清空输入框"
+              ]
+            }
+          ],
+          "selfCheck": {
+            "R1": "ok：动作只用 type / node，元素只用 chat.composer 与 region chat/composer（取自 REGIONS）和 element:chat.composer（region 的 element: 形式），没有坐标与代码",
+            "R2": "ok：对象是「在允许清单会话里自己键入的一条混排消息」，targets.conv 的 must.contains=黄悦龙 与 guidance/允许清单一致；正文块与链接内容由本用例键入，understanding.subject 与之一致",
+            "R3": "ok：触发就是 Issue 的第 3 步「发送该消息」（actions[1] = teamily.tapSend），前面只有键入动作，没有用下游操作代替触发",
+            "R4": "ok：现象发生在发送这一步，actions[1]（tapSend）自带 expect(role: phenomenon)，oracle.at 指向 actions[1]；checks[0] 用视觉对同一现象做补充判定",
+            "R5": "ok：①有毛病时（按类型重新分段/链接块提升）两处「文字后紧跟其链接」的相邻关系消失，跨块正则不再成立；②范围取最窄，先按 {message: AA-blk} 锚到目标气泡，只在视觉判定用整屏；③匹配内容是本次键入的消息正文，不是发送界面自带的文字；④发送留存的只有消息本身，输入框状态写进 baseline（输入框为空、无 AA-blk）",
+            "R6": "ok：afterCheck 用 teamily.clearComposer 复位输入框，并带 expect(role: precondition) 确认已清空；已发送的消息无法撤回（发到允许清单会话，属允许的数据构造），在 risks 中说明",
+            "R7": "ok：Issue 没有给出明确对照（understanding.control 为空），额外加 control 子用例「只排两段纯文字」，用来证明顺序观察在正常时会通过",
+            "R8": "ok：所需积木都存在（type、teamily.openConversation/tapSend/clearComposer、text/visual-region/ai 观察），missing 为空",
+            "R9": "ok：执行端 desktop-web 与 Issue 的 Web/Desktop 一致，没有替代执行",
+            "R10": "ok：循环里只用 phase: any 的 Node（openConversation / tapSend / clearComposer）；不发 prepare-only Node；消息只发到允许清单会话「黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2」；delayAfterMs 均 ≤ 1000",
+            "R11": "ok：标题「输入框混排「文字A→文档链接→文字B→文档链接」发送后：气泡是否保持输入顺序」写的是本 Issue 的对象与现象",
+            "R12": "ok：每个目标、动作、检查、expect 都在 trace 里引用了片段编号或 executor:<理由>；quotes 全部逐字取自原文"
+          },
+          "risks": [
+            "多行内容依赖 type 把「\\n」按换行写进 Web 输入框：如果输入框把换行当成发送、或吃掉换行，actions[0] 的 expect 会偏离，需要改成逐行键入（key）后再发送。",
+            "跨块正则依赖 text 观察把气泡内各块按渲染顺序拼成一段可匹配的文字：如果观察按节点逐条匹配而不拼接，这条检查会恒不通过（假命中），此时以 checks[0] 的视觉回答为准并修订观察方式。",
+            "用例里的文档链接 id（eval2734a / eval2734b）是合成的：按 Issue 描述链接只作普通绿色下划线渲染，检查只看文本；若客户端对不存在的文档 id 不输出链接文本，需要换成真实文档链接。",
+            "同一会话多轮会累积内容相同的消息，scope {message: \"AA-blk\"} 可能锚到上一轮的气泡；判定以最下方最新消息为准，必要时在轮间刷新会话或给内容加轮号。",
+            "复现率未知（Issue 未给出），首轮命中后仍需多轮统计有效尝试次数与命中区间。"
+          ],
+          "revision": null
+        },
+        "provenance": {
+          "generatedBy": "model",
+          "skillVersion": "2026.10.30-1"
+        },
+        "contract": {
+          "issueRef": "2734",
+          "sub": "control",
+          "preconditions": [
+            {
+              "id": "logged-in",
+              "text": "已登录",
+              "establish": "executor"
+            }
+          ],
+          "trigger": {
+            "semantics": "model",
+            "text": "在输入框里按上述顺序键入这些内容后点发送",
+            "params": {}
+          },
+          "observable": {
+            "observation": "text",
+            "text": "气泡严格按输入顺序渲染：文字 A、其文档链接、文字 B、其文档链接，每个链接紧跟介绍它的那段文字",
+            "phenomenon": "发送后的消息气泡里各内容块被重新排列，顺序与输入顺序不一致，标题与它对应的文档链接被拆开（截图中呈「一串文字行 + 一串平铺链接」）"
+          },
+          "provenance": {
+            "by": "model",
+            "skillVersion": "2026.10.30-1",
+            "model": "deepseek-flash"
+          }
+        }
+      },
+      "planErrors": [],
+      "contract": {
+        "issueRef": "2734",
+        "sub": "control",
+        "preconditions": [
+          {
+            "id": "logged-in",
+            "text": "已登录",
+            "establish": "executor"
+          }
+        ],
+        "trigger": {
+          "semantics": "model",
+          "text": "在输入框里按上述顺序键入这些内容后点发送",
+          "params": {}
+        },
+        "observable": {
+          "observation": "text",
+          "text": "气泡严格按输入顺序渲染：文字 A、其文档链接、文字 B、其文档链接，每个链接紧跟介绍它的那段文字",
+          "phenomenon": "发送后的消息气泡里各内容块被重新排列，顺序与输入顺序不一致，标题与它对应的文档链接被拆开（截图中呈「一串文字行 + 一串平铺链接」）"
+        },
+        "provenance": {
+          "by": "model",
+          "skillVersion": "2026.10.30-1",
+          "model": "deepseek-flash"
+        }
+      }
+    }
+  ],
+  "hash": "165a3f6885a5bebb",
+  "issueHash": "d16e255446a1633f",
+  "env": "prod",
+  "version": 1
+}

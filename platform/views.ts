@@ -21,8 +21,10 @@ export const VIEW_SCHEMA_VERSION = 2;
 // ---------------------------------------------------------------- plan
 
 export interface PlanStep {
-  stage: 'setup' | 'prepare' | 'warmup' | 'loop' | 'check' | 'after' | 'epilogue' | 'acceptance';
+  stage: 'setup' | 'prepare' | 'warmup' | 'baseline' | 'loop' | 'check' | 'after' | 'epilogue' | 'acceptance';
   text: string;
+  /** W3-1: the Issue text this step is traced to (quote ids + text, or executor:<reason>) — hover on the plan page. */
+  basis?: string[];
   /** Element id (fixed, SKILL) or target id (picked by the model at preparation). */
   element?: string;
   byModel?: boolean;
@@ -48,6 +50,27 @@ export interface PlanView {
   modelCalls: string[];
   estimate: { minSec: number; maxSec: number; basis: 'history' | 'first-estimate'; samples: number; text: string };
   approval: { category: Classified['category']; reasons: string[]; state: 'approved' | 'rejected' | 'pending'; by?: string; runs?: string; note?: string };
+  /** W3-1 §7.6: what the model read and decided (model-authored plans only). */
+  audit?: {
+    version: number;
+    sub: string;
+    understanding: { subject: string; trigger: string; phenomenon: string; expected: string; frequency: string; control: string; quotes: { id: string; text: string }[] };
+    oracle: { at: string; atReason?: string; hit: string; normal: string; canFail: string; baseline: string };
+    missing: { kind: string; need: string; basis: string[] }[];
+    revision: { from: string; evidence: string[]; diagnosis: string; changes: string[] } | null;
+    risks: string[];
+  };
+}
+
+/** Pure: the quotes / executor reasons a plan location is traced to (W3-1 R12). */
+export function basisOf(p: Pick<TestPlan, 'audit'>, at: string): string[] | undefined {
+  const a = p.audit;
+  const t = a?.trace.find((x) => x.at === at);
+  if (!a || !t) return undefined;
+  return t.basis.map((b) => {
+    const q = a.quotes.find((x) => x.id === b);
+    return q ? `${q.id}：${q.text}` : b.replace(/^executor:/, '执行器：');
+  });
 }
 
 const elementText = (id: string) => ELEMENTS.find((e) => e.id === id)?.meaning ?? id;
@@ -112,7 +135,7 @@ export function stepText(a: PlannedAction, p: Pick<TestPlan, 'targets'>, keepTok
 export function checkText(k: CheckPoint, p: Pick<TestPlan, 'targets'>): string {
   const tagText = tagTextDefault;
   const m = k.match ? ('exact' in k.match ? `「${tagText(k.match.exact)}」` : 'contains' in k.match ? `含「${tagText(k.match.contains)}」` : `匹配 /${k.match.regex}/`) : '';
-  const where = k.kind === 'text' ? (k.scope === 'composer' ? '输入框里的文字' : typeof k.scope === 'object' && 'message' in k.scope ? `本轮那条含「${tagText(k.scope.message)}」的消息` : typeof k.scope === 'object' && 'target' in k.scope ? `目标「${targetText(p, k.scope.target)}」附近` : '屏幕上的文字') : k.kind === 'visual-region' ? `${k.page} 页的「${REGIONS.find((r) => r.page === k.page && r.region === k.region)?.meaning ?? k.region}」` : k.kind === 'crash' ? 'App 是否崩溃' : k.kind === 'keyboard' ? '软键盘' : k.kind === 'ai' ? '截图（视觉模型判断）' : k.kind;
+  const where = k.kind === 'text' ? (k.scope === 'composer' ? '输入框里的文字' : typeof k.scope === 'object' && 'message' in k.scope ? `本轮那条含「${tagText(k.scope.message)}」的消息` : typeof k.scope === 'object' && 'targetBubble' in k.scope ? `目标「${targetText(p, k.scope.targetBubble)}」的消息气泡及其下方的反应行` : typeof k.scope === 'object' && 'target' in k.scope ? `目标「${targetText(p, k.scope.target)}」附近` : '屏幕上的文字') : k.kind === 'visual-region' ? `${k.page} 页的「${REGIONS.find((r) => r.page === k.page && r.region === k.region)?.meaning ?? k.region}」` : k.kind === 'crash' ? 'App 是否崩溃' : k.kind === 'keyboard' ? '软键盘' : k.kind === 'ai' ? '截图（视觉模型判断）' : k.kind;
   return `看${where}${m ? `是否${k.want === 'absent' ? '不' : ''}为${m}` : ''}：应「${tagText(k.expect)}」`;
 }
 
@@ -181,15 +204,23 @@ export function planHistory(testPlanId: string, roots = [resolve('platform/state
 export function planView(o: { id: string; hash: string; plan: TestPlan; classified: Classified; envConfig?: string[]; history?: (number | PastRun)[]; approval?: Approval; maxRounds?: number; warmupFailures?: { at: string; detail: string }[] }): PlanView {
   const p = o.plan;
   const steps: PlanStep[] = [];
+  const KEY: Partial<Record<PlanStep['stage'], string>> = { setup: 'setup', prepare: 'prepare', loop: 'actions', after: 'afterCheck' };
   const add = (stage: PlanStep['stage'], xs: PlannedAction[] | undefined) => {
-    for (const a of xs ?? []) steps.push({ stage, ...stepText(a, p) });
+    (xs ?? []).forEach((a, i) => {
+      const at = `${KEY[stage]}[${i}]`;
+      const s = stepText(a, p);
+      // W3-1: an action's post-condition is read right after it (phenomenon = the hit; precondition = drift).
+      const x = a.expect ? `；随即读：${checkText(a.expect.check, p)}（${a.expect.role === 'phenomenon' ? '不成立 = 命中' : '不成立 = 本轮偏离'}）` : '';
+      steps.push({ stage, ...s, text: `${s.text}${x}`, ...(basisOf(p, at) ? { basis: basisOf(p, at) } : {}) });
+    });
   };
   add('setup', p.setup);
   add('prepare', p.prepare);
   if (p.category === 'feature') for (const a of p.acceptance ?? []) steps.push({ stage: 'acceptance', text: `验收「${a.text}」：${a.actions.map((x) => stepText(x, p).text).join(' → ') || '不操作'}；${checkText(a.check, p)}` });
   else {
+    (p.baseline ?? []).forEach((k, i) => steps.push({ stage: 'baseline', text: `每轮触发前读：${checkText(k, p)}（不成立 = 本轮偏离）`, ...(basisOf(p, `baseline[${i}]`) ? { basis: basisOf(p, `baseline[${i}]`) } : {}) }));
     add('loop', p.actions);
-    for (const k of p.checks) steps.push({ stage: 'check', text: checkText(k, p) });
+    p.checks.forEach((k, i) => steps.push({ stage: 'check', text: checkText(k, p), ...(basisOf(p, `checks[${i}]`) ? { basis: basisOf(p, `checks[${i}]`) } : {}) }));
     add('after', p.afterCheck);
     if (p.epilogue) {
       add('epilogue', p.epilogue.actions);
@@ -198,15 +229,16 @@ export function planView(o: { id: string; hash: string; plan: TestPlan; classifi
   }
   const tagText = tagTextDefault;
   const rounds = o.maxRounds ?? p.limits.maxRounds;
-  const rule = '任意 1 轮命中即算「已复现」';
+  const rule = p.limits.untilBudget ? '跑满预算（命中后不停），复现率 = 命中 ÷ 有效尝试（只算证据复核认定一致的命中）' : '任意 1 轮命中即算「已复现」';
   const verdict =
     p.category === 'feature'
       ? ['逐项执行验收项：全部通过 = 已实现；部分通过 = 部分实现；全部不通过 = 未实现', '读不出的项记「未验证」，不算通过']
       : [
-          `每轮执行上面的循环步骤，然后检查：${p.checks.map((k) => `「${tagText(k.expect)}」`).join('、')}；检查不成立 = 本轮命中`,
+          `每轮执行上面的循环步骤${p.checks.length ? `，然后检查：${p.checks.map((k) => `「${tagText(k.expect)}」`).join('、')}；检查不成立 = 本轮命中` : ''}${p.actions.some((a) => a.expect?.role === 'phenomenon') ? '；现象在动作之后当场读取，不成立 = 本轮命中' : ''}`,
           `${rule}；${rounds ? `最多 ${rounds} 次有效尝试` : `最多 ${p.limits.maxSteps} 步`}，或 ${p.limits.maxMinutes} 分钟`,
           '本轮自身的前提（如输入框里确有刚键入的文字）不成立 = 操作偏离：不计入有效尝试，也不算命中；偏离超过 10 次即停止',
           '开始循环前先跑 1 轮预热（逐步核对），不计入结果',
+          ...(p.audit ? [p.audit.sub === 'control' ? '对照组：预热时现象检查必须判「通过」（证明检查在正常时会通过）' : '预热时先在触发前读一次现象检查，必须判「不通过」（证明检查有区分度）', '复位步骤之后核实复位成功；不成立 = 本轮偏离'] : []),
         ];
   const convs = [...new Set(p.targets.filter((t) => /conversation/.test(t.kind)).map((t) => targetText(p, t.id)))];
   const sendSteps = steps.filter((s) => s.sends);
@@ -222,7 +254,8 @@ export function planView(o: { id: string; hash: string; plan: TestPlan; classifi
   }
   if (p.substitution) uncertain.push(`替代执行：Issue 端 ${p.substitution.from} → 实际 ${p.surface}；结论不能直接代表 ${p.substitution.from} 端`);
   if (p.coverage === 'not-covered') uncertain.push('计划未覆盖 Issue 描述的现象：结论只说明有没有崩溃');
-  if (p.provenance.generatedBy === 'model') uncertain.push('计划由模型组合（不是验证过的模式），预热轮逐步核对后才进入循环');
+  if (p.provenance.generatedBy === 'rules') uncertain.push('v1 计划：W3-1 之前由规则模板生成，未经模型按原文设计（报告标注「v1 计划」）');
+  for (const r of p.audit?.risks ?? []) uncertain.push(`模型标注的风险：${r}`);
   if (p.checks.some((k) => k.kind === 'ai')) uncertain.push('有视觉模型判断的检查：结果可能误判，命中会再做证据复核');
   for (const w of o.warmupFailures ?? []) uncertain.push(`上次预热失败（${w.at}）：${w.detail.slice(0, 100)}`);
   const modelCalls = [
@@ -254,6 +287,19 @@ export function planView(o: { id: string; hash: string; plan: TestPlan; classifi
     modelCalls,
     estimate: est,
     approval: { category: o.classified.category, reasons: o.classified.reasons, state, by: ap?.rejected?.by ?? ap?.by, runs: ap && !ap.rejected ? `${ap.runsUsed}/${ap.runsAllowed}` : undefined, note: ap?.rejected?.note },
+    ...(p.audit
+      ? {
+          audit: {
+            version: p.audit.version,
+            sub: p.audit.sub,
+            understanding: { ...p.audit.understanding, quotes: p.audit.quotes.filter((q) => p.audit!.understanding.basis.includes(q.id)) },
+            oracle: p.audit.oracle,
+            missing: p.audit.feasibility.missing,
+            revision: p.audit.revision,
+            risks: p.audit.risks,
+          },
+        }
+      : {}),
   };
 }
 
@@ -307,8 +353,8 @@ export interface ResultRun {
   conclusion: string;
   sentence: string;
   basis: string[];
-  attempts?: { valid: number; hits: number; drift: number; rate: number; wilson: [number, number]; upper95?: number; text: string };
-  flags: { evidenceReview: string; substituted: string; selfCheck: string };
+  attempts?: { valid: number; hits: number; drift: number; rate: number; wilson: [number, number]; text: string };
+  flags: { evidenceReview: string; substituted: string; selfCheck: string; plan: string };
   failure?: { kind: 'env' | 'tool'; kindText: string; rule: string; reason: string; suggestion: string };
   durationSec?: number;
   runTag?: string;
@@ -328,6 +374,10 @@ export interface ResultView {
   series?: { runs: number; reachedLoop: number; reproducedRuns: number; validRuns: number; valid: number; hits: number };
   ended?: { by?: string; at?: string };
   evidence: { report?: string; runDir?: string; incidents: string[] };
+  /** W3-1 P0: the result was declared invalid (e.g. the plan did not match the Issue). */
+  invalidated?: { reason: string; at: string; by: string };
+  /** W3-1 §8.2: what the revision step did after this task. */
+  revision?: { note: string; planId?: string; next?: string };
   /** Exploration tier (task kind explore). */
   explore?: ExploreSummary;
   /** Multi-client sync (task kind sync). */
@@ -372,8 +422,29 @@ export function exploreSentence(e: ExploreSummary): string {
 const SUGGEST: Record<'env' | 'tool', string> = { env: '环境问题：按环境页的建议处理（解锁 / 重连 / 重新检查），然后只重跑这一项', tool: '工具问题：查看报告里的错误与截图，修代码或重新标定 SKILL 后只重跑这一项' };
 
 /** Pure: one run's conclusion sentence (the same words everywhere). */
-export function runSentence(r: Pick<RunResult, 'conclusion' | 'attempts' | 'conclusionDetail' | 'cancelled' | 'substitution' | 'surface'>): string {
+const pctText = (x: number) => `${(x * 100).toFixed(1).replace(/\.0$/, '')}%`;
+
+/** W3-1 §8.3 wording of a model-authored plan's run: the reproduction rate with its interval and the plan
+ *  version; a miss is the plans' miss (「计划 v1–vK 未能复现」), never an upper bound on the product. */
+export function versionSentence(r: Pick<RunResult, 'conclusion' | 'attempts' | 'conclusionDetail' | 'planVersion' | 'substitution' | 'surface' | 'executability'> & { sub?: string }, firstVersion = 1): string | undefined {
+  const k = r.planVersion;
+  if (!k) return undefined;
+  const sub = r.substitution ? `（替代执行 ${r.substitution.from} → ${r.surface}）` : '';
+  const a = r.attempts;
+  // The control sub-case shows the check passes on the normal object: no hit is the expected result.
+  const control = r.sub === 'control' || /-control-/.test((r as { planId?: string }).planId ?? '');
+  if (control && a && r.conclusion === '未复现') return `对照组正常：${a.valid} 次有效尝试检查全部通过（计划 v${k}）${sub}`;
+  if (control && a && r.conclusion === '已复现') return `对照组异常：${a.hits}/${a.valid} 次检查不通过——检查或环境有问题，不算主用例复现（计划 v${k}）${sub}`;
+  if (r.conclusion === '已复现' && a) return `已复现：复现率 ${a.hits}/${a.valid}（Wilson 95% ${pctText(a.wilson[0])}–${pctText(a.wilson[1])}），计划 v${k}${sub}`;
+  if (r.conclusion === '未复现') return `计划 ${firstVersion === k ? `v${k}` : `v${firstVersion}–v${k}`} 未能复现${a ? `（${attemptsText(a)}${r.executability?.unstable ? `；偏离率 ${pctText(r.executability.driftRate)}：触发未稳定生效` : ''}）` : ''}${sub}`;
+  if (r.conclusion === '计划不可执行') return `计划不可执行（v${k}）${sub}：${r.conclusionDetail.slice(0, 160)}`;
+  return undefined;
+}
+
+export function runSentence(r: Pick<RunResult, 'conclusion' | 'attempts' | 'conclusionDetail' | 'cancelled' | 'substitution' | 'surface'> & Partial<Pick<RunResult, 'planVersion' | 'executability' | 'sub'>>): string {
   if (r.cancelled) return `已取消：不完整，不给结论${r.attempts ? `（中断前 ${r.attempts.valid} 次有效尝试、命中 ${r.attempts.hits} 次）` : ''}`;
+  const v = versionSentence(r);
+  if (v) return v;
   const a = r.attempts ? `：${attemptsText(r.attempts)}` : '';
   const sub = r.substitution ? `（替代执行 ${r.substitution.from} → ${r.surface}）` : '';
   if (['已复现', '未复现', '疑似误操作', '转为 bug'].includes(r.conclusion)) return `${r.conclusion}${a}${sub}`;
@@ -387,11 +458,12 @@ export function resultRun(r: RunResult): ResultRun {
     conclusion: r.cancelled ? '已取消' : r.conclusion,
     sentence: runSentence(r),
     basis: r.lead ? [`触发路径：${r.lead.trigger}（${r.lead.triggerBasis}）`, `出现位置：${r.lead.location}（${r.lead.locationBasis}）`, `推测机制（未验证）：${r.lead.mechanism}`] : r.acceptance ? r.acceptance.map((x) => `${x.text}：${x.pass === null ? '未验证' : x.pass ? '通过' : '不通过'}（${x.detail.slice(0, 80)}）`).slice(0, 3) : [r.conclusionDetail.slice(0, 160)],
-    attempts: r.attempts && { valid: r.attempts.valid, hits: r.attempts.hits, drift: r.attempts.drift, rate: r.attempts.rate, wilson: r.attempts.wilson, upper95: r.attempts.upper95, text: attemptsText(r.attempts) },
+    attempts: r.attempts && { valid: r.attempts.valid, hits: r.attempts.hits, drift: r.attempts.drift, rate: r.attempts.rate, wilson: r.attempts.wilson, text: attemptsText(r.attempts) },
     flags: {
       evidenceReview: r.hits.length ? (reviewed.length ? `已复核 ${reviewed.length}/${r.hits.length} 次命中` : '命中未复核（视觉模型不可用）') : r.dismissed?.length ? `复核排除误报 ${r.dismissed.length} 次` : '无命中，无需复核',
       substituted: r.substitution ? `替代执行（${r.substitution.from} → ${r.surface}）` : '非替代执行',
       selfCheck: '工具自检：未接入（P1）',
+      plan: r.planVersion ? `计划 v${r.planVersion}（模型从原文设计）` : r.category === 'feature' ? '验收计划' : 'v1 计划（W3-1 之前批准的规则模板计划）',
     },
     failure: r.failure && { kind: r.failure.kind, kindText: r.failure.kind === 'env' ? '环境' : '工具', rule: r.failure.rule, reason: r.failure.reason.slice(0, 300), suggestion: SUGGEST[r.failure.kind] },
     durationSec: r.stats?.durationSec,
@@ -405,7 +477,7 @@ export function exploreSummary(a: AgentResult): ExploreSummary {
   return { goal: a.goal, mode: a.mode, status: a.status, summary: a.summary, findings: a.findings.map((f) => ({ n: f.n, counted: f.counted, source: f.source, kind: f.detector ?? f.kind, description: f.description, incident: f.incident, review: f.review })), coverage: { screens: a.coverage.screens, actions: a.coverage.actions }, blocked: a.blocked.length, usage: a.usage, ...(a.candidates ? { candidates: a.candidates.count } : {}) };
 }
 
-export function resultView(t: TaskRecord, runs: RunResult[], code: Code, extra: { series?: ResultView['series']; report?: string; runDir?: string; explore?: ExploreSummary; sync?: SyncSummary } = {}): ResultView {
+export function resultView(t: TaskRecord, runs: RunResult[], code: Code, extra: { series?: ResultView['series']; report?: string; runDir?: string; explore?: ExploreSummary; sync?: SyncSummary; invalidated?: ResultView['invalidated'] } = {}): ResultView {
   const rr = runs.map(resultRun);
   const complete = !!t.endedBy ? t.endedBy === 'normal' : t.state === 'done';
   const where = t.endedAt?.phase ? `停在${PHASE_TEXT[t.endedAt.phase] ?? t.endedAt.phase}${t.endedAt.round !== undefined ? ` 第 ${t.endedAt.round} 轮` : ''}${t.endedAt.step !== undefined ? ` 第 ${t.endedAt.step} 步` : ''}` : '';
@@ -424,6 +496,8 @@ export function resultView(t: TaskRecord, runs: RunResult[], code: Code, extra: 
     evidence: { report: extra.report ?? t.report, runDir: extra.runDir ?? t.runDir, incidents: extra.explore ? extra.explore.findings.map((f) => f.incident) : runs.flatMap((r) => r.incidents) },
     explore: extra.explore,
     sync: extra.sync,
+    ...(extra.invalidated ? { invalidated: extra.invalidated, sentence: `【已作废】${sentence}` } : {}),
+    ...(t.revision ? { revision: t.revision } : {}),
   };
 }
 
@@ -497,7 +571,15 @@ export function taskView(t: TaskRecord, events: { at: string; type: string; stat
 
 export function planText(v: PlanView): string {
   const out = [`计划 ${v.id}  [哈希 ${v.hash}]`, `目的：${v.purpose}`, ...(v.substitution ? [`替代执行：${v.substitution.from} → ${v.substitution.to}`] : []), '步骤：'];
-  const STAGE: Record<PlanStep['stage'], string> = { setup: '开始', prepare: '准备', warmup: '预热', loop: '每轮', check: '每轮检查', after: '检查后', epilogue: '结束前', acceptance: '验收' };
+  const STAGE: Record<PlanStep['stage'], string> = { setup: '开始', prepare: '准备', warmup: '预热', baseline: '每轮触发前', loop: '每轮', check: '每轮检查', after: '检查后', epilogue: '结束前', acceptance: '验收' };
+  if (v.audit) {
+    const u = v.audit.understanding;
+    out.push(`计划 v${v.audit.version}（子用例 ${v.audit.sub}，模型从原文设计）`, `理解：${u.subject} 在「${u.trigger}」之后出现「${u.phenomenon}」；正常应为「${u.expected}」`, ...u.quotes.map((q) => `  ${q.id}：「${q.text.slice(0, 160)}」`));
+    const o = v.audit.oracle;
+    out.push(`判定依据：命中 = ${o.hit}；正常时看到 ${o.normal}；有毛病时一定失败，因为 ${o.canFail}；基线 = ${o.baseline}（观察点 ${o.at}${o.atReason ? `：${o.atReason}` : ''}）`);
+    if (v.audit.missing.length) out.push(`缺积木：${v.audit.missing.map((m) => `${m.kind}「${m.need}」`).join('；')}`);
+    if (v.audit.revision) out.push(`修订（自 ${v.audit.revision.from}）：${v.audit.revision.diagnosis}`, ...v.audit.revision.changes.map((c) => `  - ${c}`));
+  }
   v.steps.forEach((s, i) => out.push(`  ${i + 1}. [${STAGE[s.stage]}] ${s.text}${s.byModel ? '（运行时由模型选）' : ''}`));
   out.push('怎样算复现：', ...v.verdict.map((x) => `  - ${x}`));
   out.push(`影响：最多发送 ${v.impact.messagesMax} 条消息${v.impact.conversations.length ? `，会话：${v.impact.conversations.join('、')}` : ''}`, ...v.impact.data.map((x) => `  - ${x}`), `  - 环境配置项：${v.impact.envConfig.join('；') || '无'}`, `  - 额外改动的手机设置：${v.impact.extraSettings.join('；') || '无'}`);
@@ -509,11 +591,13 @@ export function planText(v: PlanView): string {
 
 export function resultText(v: ResultView): string {
   const out = [`结论：${v.sentence}`, `状态码：${v.code}（${v.status}）`];
+  if (v.invalidated) out.push(`⚠ 本结论已作废（${v.invalidated.by}，${v.invalidated.at}）：${v.invalidated.reason}`);
+  if (v.revision) out.push(`修订：${v.revision.note}`);
   for (const r of v.runs) {
     out.push(`- ${r.planId}：${r.sentence}`);
     if (r.attempts) out.push(`  有效尝试 ${r.attempts.valid}，命中 ${r.attempts.hits}，偏离 ${r.attempts.drift}`);
     for (const b of r.basis) out.push(`  依据：${b}`);
-    out.push(`  标识：${r.flags.evidenceReview}；${r.flags.substituted}；${r.flags.selfCheck}`);
+    out.push(`  标识：${r.flags.plan}；${r.flags.evidenceReview}；${r.flags.substituted}；${r.flags.selfCheck}`);
     if (r.failure) out.push(`  失败归类：${r.failure.kindText}（${r.failure.rule}）— ${r.failure.reason}`, `  建议：${r.failure.suggestion}`);
     if (!v.sync) {
       out.push(`  附带发现（确定性判定，不计入结论）：${r.incidental.length ? `${r.incidental.length} 个` : '无'}`);

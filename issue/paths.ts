@@ -1,11 +1,14 @@
 // Where Issue files live (the one place): `issues/<id>.md`, Issues drafted from exploration findings in
-// `issues/explore/<id>.md`, or a path given as is.
+// `issues/explore/<id>.md`, imported ones in `issues/upload/<id>.md`, or a path given as is.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { type NormalizedIssue, parseIssue } from './parse';
 
+/** Imported Issues (W3-1 P6: upload / paste / GitHub link). */
+export const UPLOAD_DIR = () => resolve(process.env.AUTOTEST_UPLOAD_DIR ?? join('issues', 'upload'));
+
 /** `issues/` is local (not in git); tests point AUTOTEST_ISSUES_DIR at the committed samples (fixtures/issues). */
-export const ISSUE_DIRS = () => [resolve(process.env.AUTOTEST_ISSUES_DIR ?? 'issues'), resolve('issues', 'explore')];
+export const ISSUE_DIRS = () => [resolve(process.env.AUTOTEST_ISSUES_DIR ?? 'issues'), resolve('issues', 'explore'), UPLOAD_DIR()];
 
 export function issuePath(ref: string): string {
   if (existsSync(ref)) return ref;

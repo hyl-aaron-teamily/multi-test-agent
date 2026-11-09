@@ -17,11 +17,18 @@ export interface NodeContext {
   targets: Record<string, Point>;
   /** Resolved by the executor from the account pool; never logged. */
   credentials?: () => Credentials;
+  /** A second pool account of the same env (teamily.relogin as: other); never logged. */
+  otherCredentials?: () => Credentials | undefined;
+  /** Which account the App is signed in as after a relogin (the executor restores 'self' at the end). */
+  onAccountSwitch?: (who: 'self' | 'other') => void;
   /** Max wait used by nodes that wait for a page (ms). */
   settleMs?: number;
   /** Tiered locate (prepare-only Nodes): literal texts first, then the description by vision. */
   /** textOnly: ① literal text only — never a vision guess (where a wrong guess would tap something else). */
   locate?: (description: string, texts: string[], newest?: boolean, textOnly?: boolean) => Promise<Point | null>;
+  /** Android: every node whose text or description is one of `texts` (exact), with its box — ① tree read, for
+   *  Nodes that must tell two same-labelled controls apart (e.g. a dialog button vs. the item behind it). */
+  findAll?: (texts: string[], cls?: RegExp) => Promise<{ point: Point; box: [number, number, number, number]; cls: string; clickable: boolean; label: string }[]>;
   /** Preparation only (hierarchy reads allowed): the composer's text, null = unknown. */
   composerText?: () => Promise<string | null>;
   /** A reference region ("page/region") shows in this screenshot — pixels only (no tree, no model), so loop-safe. */
@@ -170,6 +177,109 @@ const quoteReply: Exec<{ quote: string; text: string }> = async ({ input, contex
   await sleep(1000);
   await sendMessage({ input: { text: input.text }, context: c });
   return { summary: `quote-replied to "${input.quote.slice(0, 30)}"` };
+};
+
+/** Literal texts of the App's logout / login path (Chinese and English UI). */
+export const RELOGIN_TEXT = {
+  me: ['我的', '我', 'Me'],
+  settings: ['打开设置', '设置', 'Open settings', 'Settings'],
+  logout: ['退出登录', '退出账号', 'Log out', 'Log Out', 'Sign out'],
+  confirm: ['确定', '确认', '退出', '退出登录', 'Log out', 'OK', 'Confirm'],
+  email: ['邮箱', '电子邮箱', 'Email', 'E-mail'],
+  next: ['继续', '下一步', 'Continue', 'Next', '登录', 'Log in', 'Sign in'],
+  password: ['密码', 'Password'],
+};
+
+/** App: log out and back in with the leased pool account (W3-1: allowed by the user 2026-11-09). Every step is
+ *  located by its literal text on the accessibility tree (never a vision guess: a wrong tap here could hit
+ *  "delete account"); a step that is not found fails the Node (the round drifts / the warm-up fails). */
+const relogin: Exec<{ as?: 'self' | 'other' }> = async ({ input, context: c }) => {
+  if (c.driver.surface !== 'android-app') throw new Error('teamily.relogin: android-app only');
+  if (!c.locate) throw new Error('teamily.relogin: no locator');
+  const who = input.as ?? 'self';
+  const cred = who === 'other' ? c.otherCredentials?.() : c.credentials?.();
+  if (!cred) throw new Error(`teamily.relogin: no ${who === 'other' ? 'second pool account' : 'credentials provider'}`);
+  const find = async (what: string, texts: string[], tries = 3, scroll = false) => {
+    for (let i = 0; i < tries; i++) {
+      const p = await c.locate!(what, texts, false, true);
+      if (p) return p;
+      if (scroll) await c.driver.swipe({ x: c.profile.viewport.width / 2, y: c.profile.viewport.height * 0.75 }, { x: c.profile.viewport.width / 2, y: c.profile.viewport.height * 0.35 }, 300);
+      await sleep(1200);
+    }
+    throw new RoundDrift(`teamily.relogin: "${texts[0]}" not on screen (${what})`);
+  };
+  const edits = async () => ((await c.findAll?.([], /EditText/)) ?? []).filter((n) => n.box[2] >= 100 && n.box[3] >= 30).sort((a, b) => a.point.y - b.point.y);
+  const button = async (texts: string[]) => ((await c.findAll?.(texts)) ?? []).filter((n) => n.clickable).sort((a, b) => b.point.y - a.point.y)[0];
+  // Already on the sign-in page (an earlier attempt logged out): sign in only.
+  const onLogin = (!!(await button(['邮箱', 'Email'])) || !!(await c.findAll?.(['使用密码登录']))?.length) && (await edits()).length > 0 && !(await c.findAll?.(['聊天', 'Chat']))?.length;
+  if (!onLogin) {
+    // Already on the profile page (the App resumes the last screen): the ☰ is there; else open 我 first.
+    const gear = (await c.findAll?.(RELOGIN_TEXT.settings))?.find((n) => n.clickable);
+    if (!gear) {
+      await c.driver.tap(await find('the 我 (Me) tab', RELOGIN_TEXT.me));
+      await sleep(1500);
+    }
+    await c.driver.tap(gear?.point ?? (await find('the settings entry (☰ 打开设置)', RELOGIN_TEXT.settings, 3)));
+    await sleep(1500);
+    const item = await find('the 退出登录 (Log out) item', RELOGIN_TEXT.logout, 4, true);
+    await c.driver.tap(item);
+    await sleep(1200);
+    // The confirm dialog repeats the label (title + red button) over the drawer item: take a clickable Button that
+    // is not the item just tapped (2026-11-09, App 2.1.5: 「退出登录」 dialog, buttons 取消 / 退出登录).
+    const cands = (await c.findAll?.(RELOGIN_TEXT.confirm)) ?? [];
+    const ok = cands.filter((n) => n.clickable && /Button/.test(n.cls) && Math.abs(n.point.y - item.y) > 80).sort((a, b) => b.point.x - a.point.x)[0];
+    if (!ok) throw new RoundDrift('teamily.relogin: the log-out confirm button was not found');
+    await c.driver.tap(ok.point);
+    await sleep(4000);
+  }
+  // Sign-in (App 2.1.5): page 1 = tabs 邮箱 / 手机 + one EditText (邮箱地址) + 继续; page 2 「使用密码登录」 = the
+  // filled email (read-only) + the password EditText + 继续. Resumable: a step already done is skipped.
+  // A field keeps what an earlier attempt typed: select all + delete before typing (keys only, no IME).
+  const clearField = async () => {
+    await c.driver.key('selectall');
+    await c.driver.key('del');
+    await sleep(300);
+  };
+  const onPasswordPage = async () => !!(await c.findAll?.(['使用密码登录', '输入密码', 'Password']))?.length;
+  if (!(await onPasswordPage())) {
+    const tab = await button(['邮箱', 'Email']);
+    if (tab) await c.driver.tap(tab.point);
+    await sleep(800);
+    const email = (await edits())[0];
+    if (!email) throw new RoundDrift('teamily.relogin: the email input is not on screen');
+    await c.driver.tap(email.point);
+    await clearField();
+    await (c.driver.typeExact ? c.driver.typeExact(cred.email) : c.driver.type(cred.email));
+    await sleep(500);
+    const next1 = await button(RELOGIN_TEXT.next);
+    if (!next1) throw new RoundDrift('teamily.relogin: no 继续 button after the email');
+    await c.driver.tap(next1.point);
+    for (let i = 0; i < 6 && !(await onPasswordPage()); i++) await sleep(1000);
+  }
+  // The password field is the last input (the email above it stays an EditText).
+  const pw = (await edits()).at(-1);
+  if (!pw || !(await onPasswordPage())) throw new RoundDrift('teamily.relogin: the password page did not open');
+  await c.driver.tap(pw.point);
+  await sleep(400);
+  await clearField();
+  await (c.driver.typeExact ? c.driver.typeExact(cred.password) : c.driver.type(cred.password));
+  await sleep(500);
+  const next2 = await button(RELOGIN_TEXT.next);
+  if (!next2) throw new RoundDrift('teamily.relogin: no 继续 / 登录 button after the password');
+  await c.driver.tap(next2.point);
+  // Home list: the chat tab is back (literal text), within ~30 s.
+  // The App resumes the last screen after signing in (e.g. the profile page): step back to the home list.
+  for (let i = 0; i < 15; i++) {
+    await sleep(2000);
+    if (await c.locate('the 聊天 (Chat) tab', ['聊天', 'Chat'], false, true)) {
+      c.onAccountSwitch?.(who);
+      return { summary: `relogin as ${who} ${cred.email.replace(/^(.).*@/, '$1***@')}` };
+    }
+    if (await onPasswordPage()) continue; // still signing in
+    const back = (await c.findAll?.(['返回', 'Back']))?.find((n) => n.clickable && n.point.y < 400);
+    if (back) await c.driver.tap(back.point);
+  }
+  throw new RoundDrift('teamily.relogin: home list not reached after signing in');
 };
 
 const typeMention: Exec<Record<string, never>> = async ({ context: c }) => {
@@ -359,6 +469,7 @@ const openPage: Exec<{ page: 'profile' | 'artifacts' | 'chat' }> = async ({ inpu
 
 const EXEC: Record<NodeName, Exec<any>> = {
   'teamily.login': login,
+  'teamily.relogin': relogin,
   'teamily.openConversation': openConversation,
   'teamily.sendMessage': sendMessage,
   'teamily.typeMention': typeMention,

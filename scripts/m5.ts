@@ -10,7 +10,6 @@
 import 'dotenv/config';
 import { TEAMILY_PACKAGE } from '../drivers/factory';
 import { openPools } from '../platform/pools';
-import { patternById } from '../skills/teamily/patterns';
 import { AccountPool } from '../platform/accounts/account-pool';
 import type { Env } from '../platform/accounts/types';
 

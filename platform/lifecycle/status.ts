@@ -26,6 +26,7 @@ export const STATUS = {
   ENV_UNFIT: { exit: 50, status: 503, text: '环境不合格（预检失败）' },
   ENV_LOCKED: { exit: 51, status: 423, text: '手机锁屏，需人工解锁' },
   ENV_OFFLINE: { exit: 52, status: 503, text: '设备离线 / 浏览器不可用' },
+  GITHUB_AUTH: { exit: 53, status: 424, text: 'GitHub 凭据缺失 / 无效 / 无权限（或 Issue 不存在）' },
   PLATFORM_DOWN: { exit: 54, status: 503, text: '平台服务未启动' },
   TOOL_FAILED: { exit: 60, status: 500, text: '工具失败' },
   SKILL_STALE: { exit: 61, status: 500, text: 'SKILL 失效' },

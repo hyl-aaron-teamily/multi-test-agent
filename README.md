@@ -8,9 +8,9 @@ Teamily 客户端的真机黑盒测试台。只做用户能做的操作（触控
 
 | | ① 快速档：Issue → 计划 → 重复执行、拦截问题 | ② 探索档：自然语言任务 / AI 探索，发现新问题 |
 |---|---|---|
-| 输入 | 结构化文档：一份 Issue（本地 `issues/*.md`，样例见 `fixtures/issues/`）→ 审批过的计划 | 一句话目标，例如「打开通知铃铛，看看有哪些分类」 |
-| 怎么做 | 规则 + 模型生成计划，确认一次后按坐标循环执行（每步 ≤ 1 s，循环内不读屏、不调视觉） | 每一步看截图和可点元素，视觉模型决定动作；默认只读；用速度和 token 换覆盖 |
-| 结论 | 已复现 / 未复现（带有效尝试数和区间）、已实现 / 部分实现 / 未实现；命中时有完整现场包 | 发现清单（每条带现场包）、覆盖了哪些界面、拦截了哪些动作、用量 |
+| 输入 | 一份 Issue（本地 `issues/*.md`，或在 Web / CLI 上传、粘贴、给 GitHub 链接导入；样例见 `fixtures/issues/`）→ 审批过的计划 | 一句话目标，例如「打开通知铃铛，看看有哪些分类」 |
+| 怎么做 | 模型读 Issue 原文、只用 SKILL 积木从零设计用例（不套模板），确认一次后按坐标循环执行（每步 ≤ 1 s；只在动作后读一次 ① 判定） | 每一步看截图和可点元素，视觉模型决定动作；默认只读；用速度和 token 换覆盖 |
+| 结论 | 已复现：复现率 h/n（Wilson 区间）+ 计划版本；计划 v1–vK 未能复现（附每版诊断）；命中时有完整现场包 | 发现清单（每条带现场包）、覆盖了哪些界面、拦截了哪些动作、用量 |
 | 两者关系 | 复现探索档的发现，给出带分母的结论 | ← 探索的发现可以一键转成 Issue 草稿 |
 
 多设备、多账号的协同（多端同步、一个任务同时租多个环境、每端不同账号）是这两项能力的执行底座。
@@ -60,19 +60,21 @@ npx tsx bin/autotest.ts env list     # 各环境状态：ready / leased / checki
 ## 能力 ① 快速档：Issue → 计划 → 复现
 
 ```bash
+npx tsx bin/autotest.ts issue import issues-in/2063.md                 # 导入 Markdown（任意格式）；--dry-run 预览，--overwrite 覆盖
+npx tsx bin/autotest.ts issue import https://github.com/Teamily-Inc/teamily-ai-all/issues/2063   # GitHub 链接（token：.env GITHUB_TOKEN）
 npx tsx bin/autotest.ts issue list                                     # Issue、分类、草稿与计划 id
-npx tsx bin/autotest.ts draft create 1903 --json                       # 分类 + 契约 + 计划 → 计划 id，如 1903/main:android-app@v1
+npx tsx bin/autotest.ts draft create 2063 --json                       # 模型读原文设计用例 → 计划 id，如 2063/main:android-app@v1
 npx tsx bin/autotest.ts plan explain "1903/main:android-app@v1"        # 步骤、影响、不确定处、预计耗时、审批类别、哈希
 npx tsx bin/autotest.ts task run "1903/main:android-app@v1" --max-rounds 6   # 20 已排队；--series 10 = 独立运行 10 次
 npx tsx bin/autotest.ts task wait <taskId>                             # 退出码 = 结论：10 未复现 / 11 已复现 / 13 已实现 / 14 未实现 …
 npx tsx bin/autotest.ts result show <taskId>                           # 结论句、依据、证据、附带发现
 ```
 
-1. **分类**：规则优先、模型兜底，分为必现 / 偶现 / 需求 / 疑似误操作 / 服务端 / 多账号 / 前置条件构造不了 / 不可执行。**不拒绝任何 Issue**：服务端问题按偶现执行，只看用户可见的一侧；计划生成不了的子用例出一页「无法生成计划」报告，写明原因和怎样才能执行。Issue 里的截图链接（最多 3 张）与文字一起交给模型。
-2. **契约与计划**：Issue → 意图契约（前置条件、触发、可观察的现象）→ 设备上验证过的模式确定性编译，没有模式时由模型从动作库组合，统一过规则校验（含 Node 参数 schema）。计划只引用 SKILL 元素 id 和 Node，不写坐标；用哪个群、哪条消息由模型在准备阶段看屏幕选定，冻结为坐标。多账号 Issue 规划成多角色计划（各端 + 轮数）。
+1. **分类**：规则只读结构化字段（Frequency → 必现 / 偶现、平台 → 执行端）和人工 override（多账号 / 前置条件构造不了）。对象、触发、现象都由模型从原文读出。**不拒绝任何 Issue**：生成不了计划的出一页报告写明原因。
+2. **用例设计**：提示词 = `skills/plan-authoring/SKILL.md` + 由执行端代码生成的积木目录（`issue/catalog.ts`）；模型读 Issue 原文全文和截图（导入时已下载到 `issues/assets/<id>/`），交出一个 JSON：逐字摘录、理解、可行性、子用例（含对照组）、判定依据、追溯、自查。校验器检查 R1–R12（积木存在、目标有 `must`、现象在发生处用 `expect` 观察、检查有区分度、复位要核实、执行约束、摘录逐字可查、追溯完整）；不通过把错误交回模型改一次。缺积木就标 `needs-block`，不拿近似积木顶替。
 3. **审批**：只操作被测软件的计划默认允许；敏感计划（离开被测软件、单次发送 > 50 条、系列 > 20 次）在 Web 上由人同意；完全授权开启时不再等确认。删除 / 撤回消息、允许清单外的会话、锁屏 PIN、凭据落盘任何情况都拒绝。批准绑定计划哈希、SKILL / App / Issue 版本和次数。
 4. **执行**：租环境（多端任务一次租齐，租不齐就都不租）→ 预检（锁屏、离线等 → 环境不合格，不点击）→ 冷启动 → 首页核对 → 准备 → **预热**（逐步核对，不通过 = 计划不可执行，不给结论）→ 循环。循环里每步只按坐标，不读屏、不调视觉；异常门只看事件流（logcat / 页面事件）；每轮检查一次；第 1 轮和每 10 轮的轮末跑确定性判定，看到的问题列为「附带发现」（不计入结论，可转成 Issue）。
-5. **判定**：任何类别命中一次即「已复现」；命中 = 硬异常，或检查不通过且证据复核与 Issue 描述一致。轮自身前提不成立（例如输入框里没有刚键入的文字）记为偏离，不计尝试。结论带分母：单轮命中率与 Wilson 95% 区间，0 命中时给 3/n 上界。未复现不等于已修复。
+5. **判定与修订**：每版计划跑满预算（30 次有效尝试或 15 分钟，命中不停）。现象在动作之后当场读（`expect`）；每轮触发前读基线、复位后核实，不成立都记为偏离、不计尝试。命中 = 硬异常，或检查不通过且证据复核与 Issue 描述一致。结论：「已复现：复现率 h/n（Wilson 区间），计划 vK」；本地 Issue 都是可复现的问题，没复现写「计划 v1–vK 未能复现」并附诊断（不给产品的概率上界）。预热不通过、偏离率 > 30% 或预算内 0 命中时，把运行证据交回模型修订，最多 3 版（完全授权开启时自动再跑）。
 6. **证据**：每次运行 `manifest.json`、`trajectory.jsonl`、`report.md`（android-app 另有卡顿指标）；命中时的现场包——Android 录屏（环形缓冲合并成 `merged.mp4` + `ops.srt`）、logcat 窗口、崩溃缓冲、dropbox、设备状态；Web 的 Playwright trace、console、网络、最后几屏截图；`replay.json` 可坐标重放（`autotest replay <现场包>/replay.json`）；`index.html` 离线打开。
 
 ## 能力 ② 探索档：自然语言任务与 AI 探索

@@ -143,6 +143,8 @@ function planStub(o: AgentOptions, id: string): TestPlan {
     targets: [],
     setup: [],
     prepare: [],
+    baseline: [],
+    prepareChecks: [],
     actions: [],
     checks: [],
     afterCheck: [],

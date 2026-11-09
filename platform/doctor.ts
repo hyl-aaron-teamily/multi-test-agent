@@ -62,6 +62,8 @@ export interface Facts {
   envs: { id: string; state: string; reason?: string; suggestion?: string; lease?: string }[];
   stale: { locks: string[]; forwards: { serial: string; local: string }[]; leases: { env: string; task: string; why: string }[] };
   probe?: ProbeResult[];
+  /** W3-1 P7: GitHub Issue import (token state; never the token). Undefined = not checked. */
+  github?: { configured: boolean; login?: string; repos: { repo: string; ok: boolean; detail: string }[]; error?: string };
 }
 
 export interface ProbeResult {
@@ -140,7 +142,12 @@ export function diagnose(f: Facts): Diagnosis {
   add({ id: 'platform', title: '平台服务', level: f.platform.up ? 'ok' : 'fail', blocking: true, code: 'PLATFORM_DOWN', detail: f.platform.up ? `运行中（${f.platform.url}）` : `未启动（连不上 ${f.platform.url}）`, next: f.platform.up ? undefined : [{ kind: 'run', text: '启动平台服务（常驻进程，另开一个终端）', cmd: 'pnpm platform' }] });
 
   const modelNext: Next[] = [{ kind: 'human', text: '在 .env 配置模型（MIDSCENE_MODEL_BASE_URL / MIDSCENE_MODEL_API_KEY / MIDSCENE_MODEL_NAME），改完重启平台和 MCP 服务' }];
-  add({ id: 'model', title: '模型配置', level: f.model.text && f.model.vision ? 'ok' : 'warn', detail: f.model.text || f.model.vision ? `文本模型 ${f.model.text ? '有' : '无'}，视觉模型 ${f.model.vision ? '有' : '无'}${f.model.vision ? '' : '（视觉判定 / 证据复核记为未验证）'}` : '未配置：草稿只能用规则（--no-model），视觉判定与证据复核记为未验证', next: f.model.text && f.model.vision ? undefined : modelNext });
+  if (f.github) {
+    const g = f.github;
+    const bad = g.repos.filter((r) => !r.ok);
+    add({ id: 'github', title: 'GitHub Issue 导入', level: g.configured && !bad.length && !g.error ? 'ok' : 'warn', detail: !g.configured ? '未配置 token：只能上传 / 粘贴 Markdown，不能按链接导入' : `${g.login ?? '(未识别账号)'}；${g.repos.map((r) => `${r.repo} ${r.ok ? '可读' : r.detail}`).join('；')}${g.error ? `；${g.error}` : ''}`, next: !g.configured ? [{ kind: 'human', text: '用测试 / 机器人账号建 fine-grained PAT（只读：teamily-ai-all Issues、bug-screenshots Contents，90 天过期），写入 .env 的 GITHUB_TOKEN 或 platform/secrets/github.token' }] : bad.length || g.error ? [{ kind: 'human', text: '给 token 加上缺的仓库只读权限，或请组织管理员批准这个 token' }] : undefined });
+  }
+  add({ id: 'model', title: '模型配置', level: f.model.text && f.model.vision ? 'ok' : 'warn', detail: f.model.text || f.model.vision ? `文本模型 ${f.model.text ? '有' : '无'}，视觉模型 ${f.model.vision ? '有' : '无'}${f.model.vision ? '' : '（视觉判定 / 证据复核记为未验证）'}` : '未配置：无法起草计划（W3-1 起计划由模型从原文设计），视觉判定与证据复核记为未验证', next: f.model.text && f.model.vision ? undefined : modelNext });
 
   add({ id: 'recorder', title: '录屏工具链', level: 'ok', detail: f.recorder.scrcpy ? 'scrcpy 可用' : 'scrcpy 不在，录屏用手机自带 screenrecord（每段最长 3 分钟）' });
 
@@ -207,7 +214,9 @@ export async function gatherFacts(o: { probe?: boolean } = {}): Promise<Facts> {
   }
   const envs = listEnvs().map((e) => ({ id: e.id, state: e.state, reason: e.reason, suggestion: e.suggestion, lease: e.lease?.taskId }));
   const stale = await findStale(up, adbF.ok);
-  const f: Facts = { node: { version: process.versions.node, missing }, platform: { up, url }, model: { text: modelConfigured(), vision: visionConfigured() }, adb: adbF, devices, recorder: { scrcpy: !!findScrcpy() }, envs, stale };
+  const { githubStatus } = await import('../issue/github');
+  const g = await githubStatus().catch(() => undefined);
+  const f: Facts = { node: { version: process.versions.node, missing }, platform: { up, url }, model: { text: modelConfigured(), vision: visionConfigured() }, adb: adbF, devices, recorder: { scrcpy: !!findScrcpy() }, envs, stale, ...(g ? { github: { configured: g.configured, login: g.login, repos: g.repos, error: g.error } } : {}) };
   if (o.probe) f.probe = await Promise.all(devices.filter((d) => d.state === 'device' && !d.locked).map((d) => probe(d)));
   return f;
 }

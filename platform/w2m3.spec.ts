@@ -141,7 +141,7 @@ describe('W2-3 T6 view models', () => {
     const t = { id: 't1', state: 'done', endedBy: 'normal' } as any;
     const v = resultView(t, [r], 'NOT_REPRODUCED');
     expect(v.sentence).toBe(v.runs[0].sentence);
-    expect(v.sentence).toMatch(/^未复现：6 次有效尝试未复现/);
+    expect(v.sentence).toMatch(/^未复现：6 次有效尝试，命中 0 次/);
     const txt = resultText(v);
     expect(txt).toContain(v.sentence);
     expect(txt).toContain(`有效尝试 ${v.runs[0].attempts!.valid}，命中 ${v.runs[0].attempts!.hits}`);

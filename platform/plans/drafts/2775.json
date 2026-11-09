@@ -1,0 +1,170 @@
+{
+  "issue": {
+    "id": "2775",
+    "title": "Reported by Yvonne (2026-11-03): image upload in Teamily IM repeatedly fails with the toast 「图片没传过去」 (the picture did not get through).",
+    "severity": "High",
+    "frequency": "Intermittent (recurring across sessions — reported 2026-11-03 and 2026-09-10)",
+    "platforms": [],
+    "summary": "Reported by Yvonne (2026-11-03): image upload in Teamily IM repeatedly fails with the toast 「图片没传过去」 (the picture did not get through). After the failure, the image inside the failed message bubble renders as a blank area — no thumbnail, no placeholder, no retry affordance. The same symptom was reported on 2026-09-10 (photo taken then uploaded, failed, blank image in the failed message, with a screen recording attached), so this is a recurring defect on the core IM send path rather than a one-off. Users cannot tell whether the image was sent, and the blank bubble destroys trust in the message history.",
+    "steps": [
+      "Open any conversation in Teamily IM and attach / take a photo to send as an image message.",
+      "Wait for the upload to finish.",
+      "Observe the failure toast 「图片没传过去」 and the message being marked as failed.",
+      "Look at the image area inside the failed message bubble — it renders as blank (no local preview, no placeholder).",
+      "Retry the send; the failure recurs across multiple attempts and across sessions (also reported 2026-09-10)."
+    ],
+    "expected": "The image uploads and the message is delivered. If the upload genuinely fails, the client must show a clear, actionable error (reason + retry entry) and keep the local preview / a proper placeholder in the failed bubble so the user can see which image failed and retry it.",
+    "actual": "The upload fails with the toast 「图片没传过去」. The failed message bubble shows the image as a blank area — the local preview is gone and no placeholder is rendered, so the user cannot tell what failed or retry it meaningfully. The problem recurs (2026-11-03 and 2026-09-10), i.e. it is not a single transient failure.",
+    "featureArea": "IM / Messaging — image upload & failed-message rendering",
+    "context": "- **Feature area**: IM / Messaging — image upload & failed-message rendering\r\n- Reporter: Yvonne. Reported 2026-11-03 in the group chat.\r\n- Screenshot of the failure: https://teamily-storage.becdn.net/im/images/4226444513685462/9f61ea17-d63f-4aa3-9e92-8e9c63fbd508.msg_picture_17936620719270000004396_0.png\r\n- Historical same-symptom report 2026-09-10: photo taken then upload failed, image blank in the failed message. Screen recording: https://imserver.teamily.ai/im_api/object/4226444513685462/vid-1789081909047-zlzhhsvq-ScreenRecording_09-10-2026%2016-10-12_1.mp4\r\n- The defect recurs — treat it as a systemic upload/render problem, not a one-off network blip.\r\n- Investigation directions: (1) the exact error code and failure rate of the upload (CDN upload / auth / network timeout); (2) why the image in the failed message body renders blank (local preview lost / placeholder missing); (3) whether the retry mechanism and the user-facing message are clear enough; (4) whether this shares a root cause with the 2026-09-10 report.\r\n- Related historical tickets to compare against: #90 (blob URL revoked before CDN URL replacement — closed as fixed), #2246 (outbox starvation on failed image send — closed), #2271 (attachment data lost banner — closed), #1695 (batch multi-image send fails — closed), #1561 (mobile image send slow/fails — closed). None of them covers a blank image inside the failed bubble on the current build.",
+    "environment": "- **Platform / OS / Browser**: Not specified by the reporter — please confirm (Web / Desktop / iOS / Android). The 2026-09-10 report involved taking a photo, which points at the mobile client.",
+    "empty": false,
+    "images": [
+      "https://github.com/Teamily-Inc/bug-screenshots/blob/main/issue-2775-18f072a2.png?raw=true",
+      "https://teamily-storage.becdn.net/im/images/4226444513685462/9f61ea17-d63f-4aa3-9e92-8e9c63fbd508.msg_picture_17936620719270000004396_0.png"
+    ]
+  },
+  "classification": {
+    "category": "bug-intermittent",
+    "surfaces": [],
+    "reason": "Frequency: Intermittent (recurring across sessions — reported 2026-11-03 and 2026-09-10)",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "Open any conversation in Teamily IM and attach / take a photo to send as an image message."
+      },
+      {
+        "id": "q2",
+        "text": "Wait for the upload to finish."
+      },
+      {
+        "id": "q3",
+        "text": "Observe the failure toast 「图片没传过去」 and the message being marked as failed."
+      },
+      {
+        "id": "q4",
+        "text": "Look at the image area inside the failed message bubble — it renders as blank (no local preview, no placeholder)."
+      },
+      {
+        "id": "q5",
+        "text": "The upload fails with the toast 「图片没传过去」. The failed message bubble shows the image as a blank area — the local preview is gone and no placeholder is rendered, so the user cannot tell what failed or retry it meaningfully."
+      },
+      {
+        "id": "q6",
+        "text": "If the upload genuinely fails, the client must show a clear, actionable error (reason + retry entry) and keep the local preview / a proper placeholder in the failed bubble so the user can see which image failed and retry it."
+      },
+      {
+        "id": "q7",
+        "text": "Intermittent (recurring across sessions — reported 2026-11-03 and 2026-09-10)"
+      },
+      {
+        "id": "q8",
+        "text": "Not specified by the reporter — please confirm (Web / Desktop / iOS / Android)."
+      },
+      {
+        "id": "q9",
+        "text": "The 2026-09-10 report involved taking a photo, which points at the mobile client."
+      },
+      {
+        "id": "q10",
+        "text": "Retry the send; the failure recurs across multiple attempts and across sessions (also reported 2026-09-10)."
+      }
+    ],
+    "understanding": {
+      "subject": "一条待发送的图片消息（从相册选择或拍照得到的图片消息气泡）",
+      "trigger": "在任意会话中附加/拍摄照片作为图片消息发送，并等待上传结束",
+      "phenomenon": "上传失败并提示「图片没传过去」，消息被标记为发送失败，且失败气泡中图片区域渲染为空白：本地预览丢失、无占位图、无可用的重试入口",
+      "expected": "图片正常上传并送达；若上传确实失败，客户端应给出清晰可操作的错误（失败原因 + 重试入口），并在失败气泡中保留本地预览或正确的占位图，使用户能看出是哪张图失败并重试",
+      "frequency": "intermittent",
+      "control": "",
+      "basis": [
+        "q1",
+        "q3",
+        "q4",
+        "q5",
+        "q6"
+      ]
+    },
+    "feasibility": {
+      "status": "needs-block",
+      "missing": [
+        {
+          "kind": "element",
+          "need": "chat 页输入框旁「附件 / 图片 / 拍照」入口的固定元素 id（例如 chat.attach、chat.imagePicker、chat.camera），用于打开系统相册或相机并选中一张图片；现有元素目录只有 chat.composer / chat.send / chat.rewrite 等，没有任何附件或选图入口",
+          "basis": [
+            "q1"
+          ]
+        },
+        {
+          "kind": "node",
+          "need": "发送图片消息的 Node（选取一个本地图片资产 → 作为图片消息发出 → 等待上传结束），例如 teamily.sendImage；现有 teamily.sendMessage 只支持纯文本与 markdown-link 两种形态，无法产生图片消息，也就无法进入上传链路",
+          "basis": [
+            "q1",
+            "q2"
+          ]
+        },
+        {
+          "kind": "precondition",
+          "need": "可稳定注入的上传失败条件（测试用网络代理 / CDN 上传失败开关 / 可控断网），把偶发失败变成可重复的上传失败，从而产生「图片没传过去」提示与失败消息标记；Issue 明确这是跨会话反复出现但非必现的问题，prod 环境无法按需制造失败",
+          "basis": [
+            "q3",
+            "q7",
+            "q10"
+          ]
+        },
+        {
+          "kind": "target",
+          "need": "「发送失败的图片消息」动态目标类型（例如 kind: failed-image-message）；现有 must 只有 sender / content / contains 三个字段，无法表达「消息状态 = 发送失败」这一硬性条件，而失败态正是本 Issue 的对象",
+          "basis": [
+            "q4",
+            "q5"
+          ]
+        },
+        {
+          "kind": "observation",
+          "need": "失败气泡内图片区域「是否渲染出本地预览或占位图」的观察（例如 visual-region 参考区域 chat/image-bubble，或限定在目标气泡范围内的视觉问句）；现有 text / element / region 观察只覆盖文字与固定元素，无法判断气泡内图片区域是否空白",
+          "basis": [
+            "q4",
+            "q5"
+          ]
+        }
+      ]
+    },
+    "subcases": [],
+    "revision": null,
+    "selfCheck": {
+      "R1": "ok：未编写任何计划动作，未使用坐标、未写代码",
+      "R2": "不适用（未能组成计划）：对象本应为「发送失败的图片消息气泡」，现有 targets 无法表达「失败态 + 内容是图片」，已记入 feasibility.missing（kind: target）",
+      "R3": "不适用（未能组成计划）：Issue 的触发动作是「选图/拍照后发图片消息」（q1），目录里没有任何能产生图片消息的动作或 Node，不能用「发文字消息」「发 markdown-link」顶替",
+      "R4": "不适用（未能组成计划）：现象发生在图片上传结束之后的失败气泡上（q3、q4），需要在那一步加 expect(role: phenomenon)，但触发步骤本身无法执行",
+      "R5": "不适用（未能组成计划）：空白判定需要视觉比对气泡内图片区域，现有 ① 观察（text / keyboard / process-alive / visual-region 固定区域）都不覆盖该区域，已记入 feasibility.missing（kind: observation）",
+      "R6": "不适用（未能组成计划）：一旦能发图，失败图片消息会留存于会话且可能需要复位（删除/重发），当前无删除消息的积木，需在具备积木后一并设计",
+      "R7": "不适用：Issue 未给出对照（例如「文字消息正常」），understanding.control 为空串",
+      "R8": "ok：状态置为 needs-block，missing 列出 5 项缺口并逐条引用片段编号，未用近似积木顶替",
+      "R9": "ok：已写明替代执行差异（见 risks 第 1 条）——Issue 平台未指定（q8），按 android-app 执行；若缺陷实际位于 iOS/Web 的上传链路或 Web 端失败气泡渲染，android-app 上的上传行为、失败文案与气泡渲染可能不同，现象可能在新端上不复现",
+      "R10": "ok：未编写任何动作；后续若补齐积木，发图只会发到允许清单会话 \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"",
+      "R11": "不适用（未组成计划）：若具备积木，标题应为「发送图片消息失败后：失败气泡内图片区域是否空白」",
+      "R12": "ok：quotes 全部为 Issue 原文逐字片段；understanding.basis 与 missing.basis 均引用已声明的片段编号"
+    },
+    "risks": [
+      "R9 替代执行：Issue 平台未指定（q8），本次按 android-app 执行；若真实缺陷在 iOS/Web 或与移动端拍照路径强相关（q9），android-app 上可能无法复现，失败文案「图片没传过去」也可能按端不同。",
+      "上传失败是偶发的（q7、q10 两次跨月反馈），prod 环境无法按需制造失败；即使补齐选图/发图积木，没有可控的失败注入时复现率不可控，属环境替代导致的可复现性风险。",
+      "Issue 截图显示的具体场景是「两张截图未附带图片链接」发给 Personal Agent，其上传/转发链路可能与相册选图或拍照略有差异；目标对象在具备积木后需重新核对。",
+      "补齐积木后发图会在允许清单群聊中留下真实失败消息与空白气泡，需确认该痕迹可接受，并确认是否需要（以及能否）删除该失败消息以完成轮次复位。",
+      "「空白」需要视觉判定（气泡内是否出现预览/占位像素）；若只有视觉通道可用，预热阶段需先确认基线（成功图片消息气泡）与失败气泡的视觉差异具有区分度。"
+    ]
+  },
+  "planVersion": 1,
+  "modelCalls": 1,
+  "status": "needs-block",
+  "reason": "缺积木：element「chat 页输入框旁「附件 / 图片 / 拍照」入口的固定元素 id（例如 chat.attach、chat.imagePicker、chat.camera），用于打开系统相册或相机并选中一张图片；现有元素目录只有 chat.composer / chat.send / chat.rewrite 等，没有任何附件或选图入口」；node「发送图片消息的 Node（选取一个本地图片资产 → 作为图片消息发出 → 等待上传结束），例如 teamily.sendImage；现有 teamily.sendMessage 只支持纯文本与 markdown-link 两种形态，无法产生图片消息，也就无法进入上传链路」；precondition「可稳定注入的上传失败条件（测试用网络代理 / CDN 上传失败开关 / 可控断网），把偶发失败变成可重复的上传失败，从而产生「图片没传过去」提示与失败消息标记；Issue 明确这是跨会话反复出现但非必现的问题，prod 环境无法按需制造失败」；target「「发送失败的图片消息」动态目标类型（例如 kind: failed-image-message）；现有 must 只有 sender / content / contains 三个字段，无法表达「消息状态 = 发送失败」这一硬性条件，而失败态正是本 Issue 的对象」；observation「失败气泡内图片区域「是否渲染出本地预览或占位图」的观察（例如 visual-region 参考区域 chat/image-bubble，或限定在目标气泡范围内的视觉问句）；现有 text / element / region 观察只覆盖文字与固定元素，无法判断气泡内图片区域是否空白」",
+  "subcases": [],
+  "hash": "23f16ad4d91632c1",
+  "issueHash": "249c705f6d9760a7",
+  "env": "prod",
+  "version": 1
+}

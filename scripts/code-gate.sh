@@ -2,7 +2,7 @@
 # Code gate (W2-2 §2 N4 / T8): deterministic checks after every change, target ≤ 5 minutes. No device, no
 # product account needed except the evidence-review preset cases (vision model; skipped with --no-model).
 #   sh scripts/code-gate.sh [--no-model]
-# Steps: typecheck → unit tests (incl. golden templates and the 4 W2-2 Issues' expectations) → evidence
+# Steps: typecheck → unit tests (incl. the W3-1 validator rules R1–R12 and the 2063 delivery shape) → evidence
 # review preset cases (fixtures/evidence). Exit code = number of failed steps.
 cd "$(dirname "$0")/.." || exit 1
 t0=$(date +%s)

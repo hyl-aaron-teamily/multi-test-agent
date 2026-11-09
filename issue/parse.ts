@@ -48,7 +48,11 @@ export function detectPlatforms(env: string): string[] {
     .filter((c) => !UNVERIFIED.test(c))
     .join(' ; ');
   const out: string[] = [];
-  if (/\bios\b|iphone|ipad/.test(t)) out.push('ios');
+  // "Mobile app (iOS / Android - exact build not specified)": the parenthesis is dropped as unverified, the
+  // words before it still name the phone apps.
+  const mobile = /\bmobile (app|client)s?\b/.test(t);
+  if (/\bios\b|iphone|ipad/.test(t) || mobile) out.push('ios');
+  if (mobile && !/android/.test(t)) out.push('android');
   if (/android/.test(t)) out.push('android');
   if (/\bweb\b|browser|chromium|chrome|teamily\.ai/.test(t)) out.push('web');
   if (/desktop|macos|mac os|windows/.test(t)) out.push('desktop');

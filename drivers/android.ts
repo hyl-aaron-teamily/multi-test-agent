@@ -239,6 +239,14 @@ export class AndroidDriver implements Driver {
     await this.sh(`input swipe ${Math.round(p.x)} ${Math.round(p.y)} ${Math.round(p.x)} ${Math.round(p.y)} ${ms}`);
   }
 
+  async typeExact(text: string): Promise<void> {
+    if (!this.device) {
+      const adbPath = resolveAdbPath();
+      this.device = new AndroidDevice(this.o.udid, adbPath === 'adb' ? {} : { androidAdbPath: adbPath });
+    }
+    await this.device.execYadb(text);
+  }
+
   async type(text: string): Promise<void> {
     if (/^[\x21-\x7e]+$/.test(text) && !/[\\'"`$&|;<>()*?~]/.test(text)) {
       // Plain ASCII: input text in the resident shell (fast). Chinese / symbols → yadb.

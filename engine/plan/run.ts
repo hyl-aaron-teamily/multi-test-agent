@@ -2,8 +2,8 @@
 //   lease (account + endpoint slot) → session (launch once, sign in, home list, SKILL check)
 //   → prepare (dynamic targets frozen, setup, precondition) → feature acceptance | [correct path] → loop
 //   → verdict. Phases live in prepare.ts / phases.ts / loop.ts / checkpoint.ts / incident-hook.ts.
-import { mkdir, writeFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { basename, join, resolve } from 'node:path';
 import { modelCallListeners, modelCalls, setModelPurpose, visionConfigured } from '../../core/model/llm';
 import { isoMs, openTrajectory, type Trajectory } from '../../core/trajectory';
 import type { CoordOp } from '../recorder/recording-driver';
@@ -47,6 +47,7 @@ import { expandAction, newRunToken } from './template';
 import { AndroidDriver } from '../../drivers/android';
 import { CancelledError, type RunHooks } from '../../platform/lifecycle/runtime';
 import { stepText } from '../../platform/views';
+import { loadConversations } from '../../platform/conversations';
 
 export { execAction } from './actions';
 export type { Stats } from '../stats';
@@ -116,7 +117,7 @@ export interface RunResult {
   error?: string;
   /** Run marker written into this run's drafts / messages (W2-2 §4.3). */
   runTag?: string;
-  /** Bug runs: valid attempts, drift rounds, hits, per-round rate + Wilson interval / 3/n bound (W2-2 §3.1). */
+  /** Bug runs: valid attempts, drift rounds, hits, per-round rate + Wilson interval (W2-2 §3.1; no upper bound since W3-1 K3). */
   attempts?: Attempts;
   /** Phase durations in ms: lease, preflight, launch, login, prepare, warmup, loop, teardown. */
   phases?: Record<string, number>;
@@ -131,6 +132,20 @@ export interface RunResult {
   traces?: string[];
   /** Stopped by a cancel request (W2-3 §4.3 L2): incomplete, no verdict. */
   cancelled?: boolean;
+  /** W3-1: expect / baseline reads that did not hold (which step, what was read) — revision material. */
+  expectLog?: import('./expect').ExpectRecord[];
+  /** W3-1: suspect signals with the logcat line that raised them. */
+  suspects?: { round: number; step: number; kind: string; detail: string }[];
+  /** W3-1: targets that failed their `must` at preparation (each try). */
+  mustLog?: { id: string; try: number; detail: string; point: { x: number; y: number } }[];
+  /** W3-1: sampled low-resolution screenshots (every 10 rounds, ring of 30). */
+  samples?: string[];
+  /** W3-1 §8.1: executability of the plan version in this run. */
+  executability?: { validated: boolean; warmup: 'passed' | 'failed' | 'not-run'; driftRate: number; unstable: boolean };
+  /** Sub-case of a model-authored plan (main / control / s1 …). */
+  sub?: string;
+  /** Plan version (audit.version) the run executed; undefined = a plan from before W3-1 ("v1 计划"). */
+  planVersion?: number;
   /** Report lead (W2-2 §3.2): trigger path / location / suspected mechanism, each with its basis. */
   lead?: { trigger: string; triggerBasis: string; location: string; locationBasis: string; mechanism: string };
 }
@@ -158,7 +173,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   const tree0 = { reads: Object.fromEntries(Object.entries(treeStats.reads).map(([k, v]) => [k, v.n])), fallbacks: treeStats.fallbacks.length };
   let guard: PreTapGuard | undefined;
   const runTag = o.runTag ?? newRunToken();
-  const res: RunResult = { planId: plan.id, issue: plan.issueRef, title: plan.title, category: plan.category, surface: plan.surface, substitution: plan.substitution, env: plan.env, coverage: plan.coverage, phenomenon: plan.contract?.observable.phenomenon, conclusion: '执行失败', conclusionDetail: '', startedAt: new Date(t0).toISOString(), finishedAt: '', stats, hits: [], incidents: [], targets: [], roundLog: [], runTag, phases: {} };
+  const res: RunResult = { planId: plan.id, issue: plan.issueRef, title: plan.title, category: plan.category, surface: plan.surface, substitution: plan.substitution, env: plan.env, coverage: plan.coverage, phenomenon: plan.contract?.observable.phenomenon, conclusion: '执行失败', conclusionDetail: '', startedAt: new Date(t0).toISOString(), finishedAt: '', stats, hits: [], incidents: [], targets: [], roundLog: [], runTag, phases: {}, ...(plan.audit ? { planVersion: plan.audit.version, sub: plan.audit.sub } : {}) };
   const phase = (name: string, since: number) => {
     res.phases![name] = (res.phases![name] ?? 0) + (Date.now() - since);
   };
@@ -172,8 +187,9 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     const pkg = packageOf(plan.surface);
     res.manifest = buildManifest({ plan, runId: `${plan.id}-${t0}`, startedAt: res.startedAt, runTag, profile: o.profile?.name, account, device: preflight?.device ?? (udid ? { udid, app: pkg ? { package: pkg } : undefined } : undefined), preflight });
     traj.emit('manifest', res.manifest as unknown as Record<string, unknown>);
-    traj.emit('plan', { planId: plan.id, issue: plan.issueRef, category: plan.category, surface: plan.surface, env: plan.env, draftHash: plan.provenance.draftHash, pattern: plan.provenance.pattern, coverage: plan.coverage });
+    traj.emit('plan', { planId: plan.id, issue: plan.issueRef, category: plan.category, surface: plan.surface, env: plan.env, draftHash: plan.provenance.draftHash, planVersion: plan.audit?.version, generatedBy: plan.provenance.generatedBy });
     if (plan.contract) traj.emit('contract', plan.contract as unknown as Record<string, unknown>);
+    if (plan.audit) traj.emit('audit', plan.audit as unknown as Record<string, unknown>);
   };
   const onCall = (e: { kind: string; purpose: string }) => traj.emit('model-call', { model: e.kind, purpose: e.purpose });
   modelCallListeners.add(onCall);
@@ -189,6 +205,11 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   };
   const done = async () => {
     modelCallListeners.delete(onCall);
+    // W3-1 §8.4: the sampled screenshots go into every incident bundle of the run (the hit's own frames are there already).
+    for (const i of res.samples?.length ? res.incidents : []) {
+      await mkdir(join(i, 'samples'), { recursive: true }).catch(() => {});
+      for (const f of res.samples!) await copyFile(f, join(i, 'samples', basename(f))).catch(() => {});
+    }
     head(res.account, res.device);
     const located = (sess?.profile.resolver as import('../skill-resolver').SkillResolver | undefined)?.located;
     if (located?.length) res.located = [...located];
@@ -271,11 +292,23 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     stats.launches++;
 
     const targets: Record<string, import('../../drivers/types').Point> = {};
+    let signedInAs: 'self' | 'other' = 'self';
     const nodeCtx: NodeContext = {
       driver: s.d,
       profile: s.profile,
       targets,
       credentials: () => o.pool.backend.get(account.id),
+      // A second pool account for alternating logins on one phone (user 2026-11-09): the allow-listed member first.
+      otherCredentials: () => {
+        const member = loadConversations().construct.member;
+        const ok = o.pool.list(plan.env).filter((a) => a.id !== account.id && a.status !== 'disabled' && a.status !== 'login-failed');
+        const other = ok.find((a) => member && a.email.split('@')[0] === member) ?? ok[0];
+        return other ? o.pool.backend.get(other.id) : undefined;
+      },
+      onAccountSwitch: (who) => {
+        signedInAs = who;
+        log(`account: signed in as ${who === 'self' ? `the leased account ${account.id}` : 'the second pool account'}`);
+      },
       // prepare-only Nodes (validator keeps them out of the loop)
       locate: async (desc, texts, newest, textOnly) => {
         const r = textOnly ? await locateText(s.inner, texts, newest) : await locate(s.inner, desc, { texts, newest, purpose: 'prep' });
@@ -283,6 +316,14 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
         return r?.point ?? null;
       },
       regionShows: (img, key) => regionShows(img, s.profile, key),
+      findAll: async (texts, cls) => {
+        if (!(s.inner instanceof AndroidDriver)) return [];
+        const { dumpTree } = await import('../../core/ui-tree');
+        const nodes = await dumpTree(s.inner.o.udid, '', 2);
+        return nodes
+          .filter((n) => (!texts.length || texts.includes(n.text.trim()) || texts.includes(n.desc.trim())) && (!cls || cls.test(n.cls)))
+          .map((n) => ({ point: { x: Math.round((n.x1 + n.x2) / 2), y: Math.round((n.y1 + n.y2) / 2) }, box: [n.x1, n.y1, n.x2 - n.x1, n.y2 - n.y1] as [number, number, number, number], cls: n.cls, clickable: n.clickable, label: n.text || n.desc }));
+      },
       onFreeze: (id, point, chosen) => res.targets.push({ id, kind: 'picker-row', point, chosen, reason: 'located by its literal text (①) at preparation', by: 'text' }),
     };
     const c: RunCtx = {
@@ -313,6 +354,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       afr,
       wfr,
       guard: g,
+      signedInAs: () => signedInAs,
     };
     cRef = c;
     setModelPurpose('prep');
@@ -375,6 +417,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
       res.conclusion = '计划不可执行';
       res.conclusionDetail = err.message;
       res.warmup = { steps: err.steps, checks: [] };
+      res.executability = { validated: true, warmup: 'failed', driftRate: 0, unstable: false };
     }
     if (err instanceof CancelledError) res.cancelled = true;
     o.hooks?.phase('finishing');
@@ -410,6 +453,7 @@ export function checkLocation(k: TestPlan['checks'][number]): string {
     if (s === 'quote-cards') return '聊天页引用块';
     if (s === 'screen') return '当前屏幕文字';
     if ('message' in s) return `聊天页本轮最新一条含「${s.message}」的消息气泡`;
+    if ('targetBubble' in s) return `目标 ${s.targetBubble} 的消息气泡及其下方的反应行`;
     return `目标 ${s.target} 附近`;
   }
   if (k.kind === 'visual-region') return `${k.page} 页 ${k.region} 区域`;
@@ -441,6 +485,10 @@ function writeTrajectory(traj: Trajectory, r: RunResult, ops: CoordOp[]): void {
   if (r.account) traj.emit('lease', { account: r.account, device: r.device, surface: r.surface });
   for (const t of r.targets) traj.emit('prep.target', { id: t.id, targetKind: t.kind, chosen: t.chosen, point: t.point, by: t.by, reason: t.reason });
   for (const w of r.warmup?.steps ?? []) traj.emit('warmup.step', { ...w });
+  for (const x of r.expectLog ?? []) traj.emit(x.role === 'baseline' ? 'baseline' : 'expect', { ...x });
+  for (const x of r.suspects ?? []) traj.emit('suspect', { ...x });
+  for (const x of r.mustLog ?? []) traj.emit('must', { ...x });
+  for (const f of r.samples ?? []) traj.emit('sample', { file: f });
   for (const l of r.located ?? []) traj.emit('located', { ...l });
   for (const op of ops) traj.emit('op', { ...op });
   for (const l of r.roundLog) traj.emit('observe', { round: l.round, step: l.step, results: l.results });

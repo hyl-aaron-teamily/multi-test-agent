@@ -1,0 +1,1416 @@
+{
+  "issue": {
+    "id": "2063",
+    "title": "On the Teamily iOS app, long-pressing a message whose content is only a link (a URL together with its link preview card, and no accompanying user text - a link-",
+    "severity": "High",
+    "frequency": "Always",
+    "platforms": [
+      "ios"
+    ],
+    "summary": "On the Teamily iOS app, long-pressing a message whose content is only a link (a URL together with its link preview card, and no accompanying user text - a link-only message) produces no response at all: the message action menu never opens. Because the action menu is the only entry point for acting on a message, every operation on a link-only message becomes unreachable - most importantly quoting / replying to it, but also forwarding it, translating it, adding it to My Artifacts, deleting it and adding an emoji reaction. Text messages in the same conversation open the menu normally, so the failure is tied to the link message type rather than to long-press in general. Reported by Java (Teamily product team).",
+    "steps": [
+      "Open the Teamily iOS app and open a conversation that contains a link-only message (a message whose content is a URL plus its link preview card, with no accompanying text). In the reported case this is the conversation shown in the screenshot.",
+      "Long-press a plain TEXT message in the same conversation and confirm the action menu opens normally (emoji reaction row plus Reply, Ask AI, Translate, Copy, Forward, Multiple Selection, Add to My Artifacts, Report, Delete).",
+      "Now long-press the link-only message (press and hold on the URL / preview card).",
+      "Observe: nothing happens - no action menu, no reaction bar, no visual feedback. (This is the reported state; the screenshot shows the link-only message with no menu on screen.)",
+      "(inferred) Repeat in other conversations and with other link-only messages: the same no-response behaviour, while text messages keep working."
+    ],
+    "expected": "Long-pressing a link-only message should open the same message action menu that text messages get - including at minimum Quote/Reply, Forward, Copy (of the link), Add to My Artifacts, Delete and the emoji reaction row. A link message should not be a second-class citizen in the message action menu.",
+    "actual": "Long-pressing a link-only message produces no response at all - the action menu never opens. No action can therefore be performed on the message, so quoting / replying to a shared link is impossible. The screenshot shows the link-only message and confirms that no menu / action panel is on screen.",
+    "featureArea": "Chat / Messaging - message action menu (long-press context menu)",
+    "context": "- **Feature area**: Chat / Messaging - message action menu (long-press context menu)\r\n- Message type affected: link-only message (URL plus link preview card, no accompanying text). Text messages in the same conversation are unaffected.\r\n- Impact: the action menu is the only way to act on a message, so for a link-only message the entire operation surface is unreachable - quoting/replying, forwarding, translating, saving to My Artifacts, deleting and emoji reactions.\r\n- Related: #2003 (iOS, open, P1) reports the same symptom but for IMAGE-only messages. That issue has been narrowed by engineering to a narrow selectable/hit area on image messages; a link message is a large card, so the hit-area explanation does not transfer. Recorded separately so that fixing #2003 does not silently leave link messages broken - full duplicate-check reasoning is in the triage comment.\r\n- No workaround inside the app: there is no alternative entry point (no \"more\" affordance on the link card) reaching Quote/Reply.\r\n- Screenshot: the affected link-only message is a Figma link sent by Ivy, rendered as green underlined URL text inside a bubble plus a link preview card (domain figma.com, title \"onboarding feedback\").\r\n\r\n---",
+    "environment": "- **Platform / OS / Browser**: iOS App (Teamily iOS)",
+    "empty": false,
+    "images": [
+      "https://github.com/Teamily-Inc/bug-screenshots/blob/main/issue-2063-9cf275bb.jpg?raw=true"
+    ]
+  },
+  "classification": {
+    "category": "bug-always",
+    "surfaces": [],
+    "reason": "Frequency: Always",
+    "strength": "strong",
+    "by": "rules"
+  },
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "long-pressing a message whose content is only a link (a URL together with its link preview card, and no accompanying user text - a link-only message) produces no response at all: the message action menu never opens"
+      },
+      {
+        "id": "q2",
+        "text": "Text messages in the same conversation open the menu normally, so the failure is tied to the link message type rather than to long-press in general."
+      },
+      {
+        "id": "q3",
+        "text": "Long-pressing a link-only message should open the same message action menu that text messages get - including at minimum Quote/Reply, Forward, Copy (of the link), Add to My Artifacts, Delete and the emoji reaction row."
+      },
+      {
+        "id": "q4",
+        "text": "Now long-press the link-only message (press and hold on the URL / preview card)."
+      },
+      {
+        "id": "q5",
+        "text": "Observe: nothing happens - no action menu, no reaction bar, no visual feedback."
+      },
+      {
+        "id": "q6",
+        "text": "- **Frequency**: Always"
+      },
+      {
+        "id": "q7",
+        "text": "- **Platform / OS / Browser**: iOS App (Teamily iOS)"
+      },
+      {
+        "id": "q8",
+        "text": "Long-press a plain TEXT message in the same conversation and confirm the action menu opens normally (emoji reaction row plus Reply, Ask AI, Translate, Copy, Forward, Multiple Selection, Add to My Artifacts, Report, Delete)."
+      },
+      {
+        "id": "q9",
+        "text": "the affected link-only message is a Figma link sent by Ivy, rendered as green underlined URL text inside a bubble plus a link preview card (domain figma.com, title \"onboarding feedback\")"
+      }
+    ],
+    "understanding": {
+      "subject": "会话中的一条纯 link 消息（消息内容只有链接）：气泡内容只有 URL（绿色下划线链接文字）加链接预览卡片，没有附带任何正文文字",
+      "trigger": "在这条纯 link 消息上长按（按住 URL 或预览卡片区域）",
+      "phenomenon": "完全没有反应：消息动作面板（长按菜单）不弹出，emoji 表情行也不出现，没有任何视觉反馈",
+      "expected": "弹出与文字消息相同的消息动作面板，至少包含引用/回复、转发、复制链接、加入 My Artifacts、删除以及 emoji 表情行",
+      "frequency": "always",
+      "control": "在同一会话中长按一条普通文字消息时，动作面板正常弹出（emoji 表情行，以及 Reply、Ask AI、Translate、Copy、Forward、Multiple Selection、Add to My Artifacts、Report、Delete 等菜单项）",
+      "basis": [
+        "q1",
+        "q2",
+        "q3",
+        "q4",
+        "q5",
+        "q7",
+        "q8",
+        "q9"
+      ]
+    },
+    "feasibility": {
+      "status": "plannable",
+      "missing": []
+    },
+    "subcases": [
+      {
+        "sub": "main",
+        "oracle": {
+          "at": "actions[0]",
+          "hit": "在纯 link 消息上长按后，目标消息周围（±1000px）读不到任何只属于动作面板的菜单项（转发 / 翻译 / 多选 / 添加到 / Forward / Translate / Multiple Selection / Add to My Artifacts），即面板没有弹出，判为命中",
+          "normal": "长按后动作面板弹出，目标消息附近的无障碍树里能读到 转发、翻译、多选 等菜单项文字，检查通过",
+          "canFail": "面板一旦弹出，Issue 列出的菜单项中至少「Forward / Translate / Multiple Selection」之一必然出现在无障碍树里，并被 text 观察在目标附近读到时，检查就通过；面板不弹出时这些菜单项文字不可能出现（它们不是消息正文的一部分），检查必然不通过，具有区分度。v2 的失败已证明匹配词若含「回复」会与聊天正文混淆，本版只用菜单专属词，baseline 仍会在每轮长按前复核这些词不在",
+          "baseline": "长按前，在目标消息 ±1000px 范围内读不到菜单专属词（want=absent 成立），并且 prepareCheck 已确认含 {token} 的纯 link 消息出现在会话里；两者同时成立，才计入有效尝试"
+        },
+        "plan": {
+          "title": "长按纯链接消息（URL + 预览卡片、无正文）：消息动作面板是否弹出",
+          "targets": [
+            {
+              "id": "conv",
+              "kind": "conversation",
+              "guidance": "titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"",
+              "must": {
+                "sender": "any",
+                "content": "any"
+              }
+            },
+            {
+              "id": "linkmsg",
+              "kind": "message",
+              "guidance": "prepare 阶段由自己发出的那条消息：气泡里是整段 URL 文字（含 {token}），可以带链接预览卡片，没有任何附带正文",
+              "afterPrepare": true,
+              "must": {
+                "sender": "self",
+                "content": "link",
+                "contains": "{token}"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "conv"
+                }
+              },
+              "delayAfterMs": 800
+            }
+          ],
+          "prepare": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.sendMessage",
+                "input": {
+                  "text": "https://www.figma.com/?t={token}",
+                  "kind": "markdown-link"
+                }
+              },
+              "delayAfterMs": 1000
+            }
+          ],
+          "prepareCheck": [
+            {
+              "kind": "text",
+              "expect": "prepare 发出的纯 link 消息已出现在会话中（整段 URL 含本次运行标记 {token}）",
+              "match": {
+                "contains": "{token}"
+              },
+              "scope": "screen"
+            }
+          ],
+          "baseline": [
+            {
+              "kind": "text",
+              "expect": "长按前看不到消息动作面板",
+              "want": "absent",
+              "match": {
+                "regex": "转发|翻译|多选|添加到|Forward|Translate|Multiple Selection|Add to My Artifacts"
+              },
+              "scope": {
+                "target": "linkmsg",
+                "within": 1000,
+                "withinX": 1000
+              }
+            }
+          ],
+          "actions": [
+            {
+              "type": "longPress",
+              "element": "target.linkmsg",
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "phenomenon",
+                "check": {
+                  "kind": "text",
+                  "expect": "长按纯 link 消息后动作面板弹出",
+                  "match": {
+                    "regex": "转发|翻译|多选|添加到|Forward|Translate|Multiple Selection|Add to My Artifacts"
+                  },
+                  "scope": {
+                    "target": "linkmsg",
+                    "within": 1000,
+                    "withinX": 1000
+                  }
+                }
+              }
+            }
+          ],
+          "checks": [],
+          "afterCheck": [
+            {
+              "type": "tap",
+              "element": "chat.composer",
+              "delayAfterMs": 600,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "expect": "动作面板已收起（点输入框关闭弹层，避免用 back 退出会话）",
+                  "want": "absent",
+                  "match": {
+                    "regex": "转发|翻译|多选|添加到|Forward|Translate|Multiple Selection|Add to My Artifacts"
+                  },
+                  "scope": {
+                    "target": "linkmsg",
+                    "within": 1000,
+                    "withinX": 1000
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "trace": [
+          {
+            "at": "targets.conv",
+            "basis": [
+              "executor:进入允许清单内的会话，Issue 步骤 1"
+            ]
+          },
+          {
+            "at": "targets.linkmsg",
+            "basis": [
+              "q1",
+              "q9"
+            ]
+          },
+          {
+            "at": "setup[0]",
+            "basis": [
+              "executor:打开会话",
+              "q1"
+            ]
+          },
+          {
+            "at": "prepare[0]",
+            "basis": [
+              "q1",
+              "q4",
+              "q9"
+            ]
+          },
+          {
+            "at": "prepareCheck[0]",
+            "basis": [
+              "q1",
+              "executor:准备阶段目标未冻结，改用整屏 + 唯一 token 定位"
+            ]
+          },
+          {
+            "at": "baseline[0]",
+            "basis": [
+              "q5",
+              "executor:确认长按前面板不在，保证检查有区分度"
+            ]
+          },
+          {
+            "at": "actions[0]",
+            "basis": [
+              "q4",
+              "q1"
+            ]
+          },
+          {
+            "at": "actions[0].expect",
+            "basis": [
+              "q1",
+              "q3",
+              "q5"
+            ]
+          },
+          {
+            "at": "afterCheck[0]",
+            "basis": [
+              "executor:每轮复位，关闭弹层"
+            ]
+          },
+          {
+            "at": "afterCheck[0].expect",
+            "basis": [
+              "executor:确认复位成功（前置条件）"
+            ]
+          }
+        ]
+      },
+      {
+        "sub": "control",
+        "oracle": {
+          "at": "actions[0]",
+          "hit": "对照组以「面板弹出」为命中（检查通过）：长按文字消息后，在目标附近读到 转发 / 翻译 / 多选 等菜单专属词。如果检查不通过，说明长按机制或运行环境本身有问题，该轮对照失效，不计入 main 的复现率",
+          "normal": "长按普通文字消息后动作面板弹出，目标消息附近读到 转发 / 翻译 / 多选 等菜单项文字",
+          "canFail": "面板未弹出时读不到菜单专属词，检查不通过——这正是对照失效的信号，而不是产品命中；它证明同一套检查在正常对象（文字消息）上会通过，因此 main 的不通过不是检查没有区分度，而是 link 消息类型特有的现象",
+          "baseline": "长按前，在目标文字消息 ±1000px 范围内读不到菜单专属词（want=absent 成立），并且 prepareCheck 确认含 {token} 的文字消息在屏幕上"
+        },
+        "plan": {
+          "title": "长按普通文字消息（对照）：消息动作面板是否弹出",
+          "targets": [
+            {
+              "id": "conv",
+              "kind": "conversation",
+              "guidance": "titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"",
+              "must": {
+                "sender": "any",
+                "content": "any"
+              }
+            },
+            {
+              "id": "textmsg",
+              "kind": "message",
+              "guidance": "prepare 阶段由自己发出的那条普通文字消息：只包含一个短句加 {token}，不含任何 URL 或链接预览卡片",
+              "afterPrepare": true,
+              "must": {
+                "sender": "self",
+                "content": "text",
+                "contains": "{token}"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "conv"
+                }
+              },
+              "delayAfterMs": 800
+            }
+          ],
+          "prepare": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.sendMessage",
+                "input": {
+                  "text": "对照纯文字消息 {token}",
+                  "kind": "plain"
+                }
+              },
+              "delayAfterMs": 1000
+            }
+          ],
+          "prepareCheck": [
+            {
+              "kind": "text",
+              "expect": "对照文字消息已出现在会话中（含本次运行标记 {token}）",
+              "match": {
+                "contains": "{token}"
+              },
+              "scope": "screen"
+            }
+          ],
+          "baseline": [
+            {
+              "kind": "text",
+              "expect": "长按前看不到消息动作面板",
+              "want": "absent",
+              "match": {
+                "regex": "转发|翻译|多选|添加到|Forward|Translate|Multiple Selection|Add to My Artifacts"
+              },
+              "scope": {
+                "target": "textmsg",
+                "within": 1000,
+                "withinX": 1000
+              }
+            }
+          ],
+          "actions": [
+            {
+              "type": "longPress",
+              "element": "target.textmsg",
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "phenomenon",
+                "check": {
+                  "kind": "text",
+                  "expect": "长按文字消息后动作面板弹出",
+                  "match": {
+                    "regex": "转发|翻译|多选|添加到|Forward|Translate|Multiple Selection|Add to My Artifacts"
+                  },
+                  "scope": {
+                    "target": "textmsg",
+                    "within": 1000,
+                    "withinX": 1000
+                  }
+                }
+              }
+            }
+          ],
+          "checks": [],
+          "afterCheck": [
+            {
+              "type": "back",
+              "delayAfterMs": 600,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "expect": "动作面板已收起",
+                  "want": "absent",
+                  "match": {
+                    "regex": "转发|翻译|多选|添加到|Forward|Translate|Multiple Selection|Add to My Artifacts"
+                  },
+                  "scope": {
+                    "target": "textmsg",
+                    "within": 1000,
+                    "withinX": 1000
+                  }
+                }
+              }
+            }
+          ]
+        },
+        "trace": [
+          {
+            "at": "targets.conv",
+            "basis": [
+              "executor:进入允许清单内的会话",
+              "q8"
+            ]
+          },
+          {
+            "at": "targets.textmsg",
+            "basis": [
+              "q2",
+              "q8"
+            ]
+          },
+          {
+            "at": "setup[0]",
+            "basis": [
+              "executor:打开会话"
+            ]
+          },
+          {
+            "at": "prepare[0]",
+            "basis": [
+              "q8",
+              "q2"
+            ]
+          },
+          {
+            "at": "prepareCheck[0]",
+            "basis": [
+              "q8",
+              "executor:准备阶段目标未冻结，改用整屏 + 唯一 token 定位"
+            ]
+          },
+          {
+            "at": "baseline[0]",
+            "basis": [
+              "executor:确认长按前面板不在"
+            ]
+          },
+          {
+            "at": "actions[0]",
+            "basis": [
+              "q8"
+            ]
+          },
+          {
+            "at": "actions[0].expect",
+            "basis": [
+              "q8",
+              "q2"
+            ]
+          },
+          {
+            "at": "afterCheck[0]",
+            "basis": [
+              "executor:每轮复位（对照组面板已弹出，用 back 关闭不会退出会话）"
+            ]
+          },
+          {
+            "at": "afterCheck[0].expect",
+            "basis": [
+              "executor:确认复位成功（前置条件）"
+            ]
+          }
+        ]
+      }
+    ],
+    "revision": {
+      "from": "v2",
+      "evidence": [
+        "预热第 0 步 baseline[0] 不成立：text 检查 /Reply|Forward|Translate|Copy|Delete|Report|Ask AI|回复|转发|翻译|复制|删除|举报/ 在屏幕上读到的是另一条历史消息的正文「r21761b 这是一条用来验证气泡第二行是否被裁切的长消息，请勿回复。The quick brown fox jumps over the lazy dog 」——其中「请勿回复」含匹配词「回复」，于是「长按前面板不在」被判成不成立",
+        "预热在 baseline 这一步就中止，没有进入 longPress 步骤：对象（纯 link 消息）、prepare（markdown-link 发送、prepareCheck 通过）、触发（longPress）均无失败证据",
+        "0 张截图、0 次有效尝试、0 次偏离：中止原因在检查的匹配词，而不是执行环境或对象选择"
+      ],
+      "diagnosis": "区分度问题——对象与触发都没有失败证据：现象检查与 baseline 共用的菜单词正则里混入了「回复 / Reply、复制 / Copy、删除 / Delete、举报 / Report」这类会出现在普通聊天正文里的词，别人的消息文本（「请勿回复」）就足以让长按前的 baseline 假失败，计划在预热第 0 步被判不可执行。",
+      "changes": [
+        "main.baseline[0] 与 main.actions[0].expect.check 以及 main.afterCheck[0].expect.check 的 match.regex 由 /Reply|Forward|Translate|Copy|Delete|Report|Ask AI|回复|转发|翻译|复制|删除|举报/ 改为只含菜单专属词的 /转发|翻译|多选|添加到|Forward|Translate|Multiple Selection|Add to My Artifacts/——对应 evidence 1（「回复」等聊天正文常见词造成假失败）",
+        "control.baseline[0]、control.actions[0].expect.check、control.afterCheck[0].expect.check 同步改为同一正则，保证 main 与 control 用的判定标准一致——对应 evidence 1",
+        "其余一律不变：targets（纯 link 消息 / 文字消息）、setup、prepare（markdown-link 发送含 {token} 的链接消息）、prepareCheck、expect 仍挂在 actions[0].longPress 上、scope {target, within:1000, withinX:1000}、复位方式都保留——这些位置没有收到任何失败证据，按「无证据不改」处理"
+      ]
+    },
+    "selfCheck": {
+      "R1": "ok：动作只使用 longPress / tap / back / node（teamily.openConversation、teamily.sendMessage），固定元素只使用 chat.composer，观察只使用 text；没有坐标，也没有代码",
+      "R2": "ok：main 的 linkmsg.must = {sender:self, content:link, contains:{token}}，对应 q1/q9（只有 URL 与预览卡片、无正文、自己发出）；control 的 textmsg.must = {sender:self, content:text, contains:{token}}，对应 q2/q8；与 understanding.subject 一致",
+      "R3": "ok：触发就是 Issue 中的长按本身（actions[0].type=longPress 直接作用在目标消息上），没有用菜单里的下游操作代替长按",
+      "R4": "ok：现象是「长按后菜单不出现」，因此挂在 longPress 这一步的 expect(role=phenomenon) 上；两个子用例的 oracle.at 都是 actions[0]，该 expect 的 role 均为 phenomenon",
+      "R5": "ok：① 面板弹出时 Issue 列出的 Forward / Translate / Multiple Selection 至少一项必然进入无障碍树，不弹出时这些菜单专属词不会出现，有区分度；② baseline 与 expect 都收窄到 {target, within:1000, withinX:1000}，只有 prepareCheck 因目标未冻结改用整屏加唯一 token；③ 匹配词已剔除会出现在聊天正文里的「回复 / 复制 / 删除 / 举报」（v2 的失败正是「请勿回复」命中「回复」），只留菜单专属词；④ 菜单是瞬时状态，仍写了 baseline（长按前这些菜单词不在目标附近），并会在每轮复核",
+      "R6": "ok：main 的 afterCheck 点 chat.composer 收起弹层（避免 back 在无弹层时退出会话），control 用 back 关闭已弹出的面板；两者都带 expect(role=precondition) 确认菜单词已不在",
+      "R7": "ok：control 子用例 = 在同一会话中对普通文字消息做同样的长按，与 main 使用完全相同的手指动作与匹配正则，证明该检查在正常对象上会通过",
+      "R8": "ok：现有积木足够；没有专门表示「消息动作面板」的元素或区域，用目标范围内的 text 观察替代，已在 risks 写明，不需要额外积木，因此未标为 needs-block",
+      "R9": "ok：Issue 端为 iOS，本次在 android-app 替代执行；若安卓端对纯 link 消息本就正常弹面板则复现不出来，或安卓长按菜单的项目集合与 iOS 不同（例如没有 Translate / Multiple Selection），这属于端差异，已在 risks 写明",
+      "R10": "ok：循环里只用 phase=any 的 Node（openConversation、sendMessage）；没有 prepare-only Node；发消息只发到允许清单会话 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"；没有社交动作；delayAfterMs ≤ 1000",
+      "R11": "ok：标题为「长按纯链接消息（URL + 预览卡片、无正文）：消息动作面板是否弹出」，对照为「长按普通文字消息（对照）：消息动作面板是否弹出」",
+      "R12": "ok：每个 target、setup/prepare/prepareCheck、baseline、action、expect、afterCheck 都在 trace 里引用了 q1–q9 或 executor: 理由；quotes 的 9 段均为 Issue 原文逐字片段"
+    },
+    "risks": [
+      "匹配词剔除「回复/复制/删除/举报」后，若安卓端长按菜单里既不出现「转发/翻译/多选/添加到」也不出现对应的英文项（例如只有 Copy / Delete），检查会读不到内容而误判成命中；命中必须经截图证据复核，并在下一版补词或改用 visual-region。",
+      "菜单项文字依赖 App 语言：本版只保留跨语言歧义小的词（转发/翻译/多选/添加到 与 Forward/Translate/Multiple Selection/Add to My Artifacts），若界面为第三种语言需补充词表。",
+      "动作面板若以纯图形或不带无障碍文本的方式渲染，text 观察读不到，可能出现「面板已弹出却判为不通过」的假命中，需靠定期截图人工复核证据。",
+      "面板位置不确定：安卓端可能是贴近消息的浮层，也可能是底部弹层；scope 用 within/withinX=1000（以目标消息为中心）已尽量覆盖，预热若发现面板落在该范围外，需要放宽或改用 visual-region。",
+      "会话里存在其他测试遗留消息（预热读到的「r21761b 这是一条用来验证气泡第二行是否被裁切的长消息」），±1000px 范围内可能包含邻居消息；本版已通过只匹配菜单专属词规避，但仍需留意其他测试消息里是否含「转发/翻译」等词。",
+      "prepareCheck 用整屏 + 唯一 {token} 定位消息，依赖 token 在屏幕上只出现这一次；若执行器把 token 也写进其他界面元素，预热时需要改用 {message: <anchor>} 锚点。",
+      "teamily.sendMessage 的 markdown-link 只能以 [URL](URL) 形式发送，是否稳定渲染出链接预览卡片取决于服务端抓取；即使预览卡片缺失，URL 文本本身仍构成纯 link 消息（must.content=link 仍成立），但形态等价性略低于 Issue 截图。",
+      "端替代（iOS → android-app）：安卓端可能不存在该缺陷，或长按实现不同（如长按直接进入多选而非弹菜单），届时复现率低属端差异，不能据此改判产品正常。"
+    ]
+  },
+  "planVersion": 3,
+  "modelCalls": 1,
+  "status": "plannable",
+  "reason": "计划 v3：会话中的一条纯 link 消息（消息内容只有链接）：气泡内容只有 URL（绿色下划线链接文字）加链接预览卡片，没有附带任何正文文字 — 完全没有反应：消息动作面板（长按菜单）不弹出，emoji 表情行也不出现，没有任何视觉反馈",
+  "subcases": [
+    {
+      "sub": "main",
+      "title": "长按纯链接消息（URL + 预览卡片、无正文）：消息动作面板是否弹出",
+      "surface": "android-app",
+      "substitution": {
+        "from": "ios",
+        "to": "android-app",
+        "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。",
+        "alternatives": [
+          "android-app",
+          "mobile-web"
+        ]
+      },
+      "plan": {
+        "id": "2063-android-app-v3",
+        "issueRef": "2063",
+        "title": "长按纯链接消息（URL + 预览卡片、无正文）：消息动作面板是否弹出",
+        "category": "bug-always",
+        "surface": "android-app",
+        "issueSurfaces": [
+          "ios"
+        ],
+        "substitution": {
+          "from": "ios",
+          "to": "android-app",
+          "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。"
+        },
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "conv",
+            "kind": "conversation",
+            "guidance": "titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"",
+            "must": {
+              "sender": "any",
+              "content": "any"
+            }
+          },
+          {
+            "id": "linkmsg",
+            "kind": "message",
+            "guidance": "prepare 阶段由自己发出的那条消息：气泡里是整段 URL 文字（含 {token}），可以带链接预览卡片，没有任何附带正文",
+            "afterPrepare": true,
+            "must": {
+              "sender": "self",
+              "content": "link",
+              "contains": "{token}"
+            }
+          }
+        ],
+        "setup": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "conv"
+              }
+            },
+            "delayAfterMs": 800
+          }
+        ],
+        "prepare": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.sendMessage",
+              "input": {
+                "text": "https://www.figma.com/?t={token}",
+                "kind": "markdown-link"
+              }
+            },
+            "delayAfterMs": 1000
+          }
+        ],
+        "prepareCheck": {
+          "kind": "text",
+          "expect": "prepare 发出的纯 link 消息已出现在会话中（整段 URL 含本次运行标记 {token}）",
+          "want": "present",
+          "match": {
+            "contains": "{token}"
+          },
+          "scope": "screen"
+        },
+        "prepareChecks": [],
+        "baseline": [
+          {
+            "kind": "text",
+            "expect": "长按前看不到消息动作面板",
+            "want": "absent",
+            "match": {
+              "regex": "转发|翻译|多选|添加到|Forward|Translate|Multiple Selection|Add to My Artifacts"
+            },
+            "scope": {
+              "target": "linkmsg",
+              "within": 1000,
+              "withinX": 1000
+            }
+          }
+        ],
+        "actions": [
+          {
+            "type": "longPress",
+            "element": "target.linkmsg",
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "phenomenon",
+              "check": {
+                "kind": "text",
+                "expect": "长按纯 link 消息后动作面板弹出",
+                "want": "present",
+                "match": {
+                  "regex": "转发|翻译|多选|添加到|Forward|Translate|Multiple Selection|Add to My Artifacts"
+                },
+                "scope": {
+                  "target": "linkmsg",
+                  "within": 1000,
+                  "withinX": 1000
+                }
+              }
+            }
+          }
+        ],
+        "checks": [],
+        "afterCheck": [
+          {
+            "type": "tap",
+            "element": "chat.composer",
+            "delayAfterMs": 600,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "动作面板已收起（点输入框关闭弹层，避免用 back 退出会话）",
+                "want": "absent",
+                "match": {
+                  "regex": "转发|翻译|多选|添加到|Forward|Translate|Multiple Selection|Add to My Artifacts"
+                },
+                "scope": {
+                  "target": "linkmsg",
+                  "within": 1000,
+                  "withinX": 1000
+                }
+              }
+            }
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 15,
+          "maxIntervalMs": 1000,
+          "maxRounds": 30,
+          "untilBudget": true
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "audit": {
+          "version": 3,
+          "sub": "main",
+          "quotes": [
+            {
+              "id": "q1",
+              "text": "long-pressing a message whose content is only a link (a URL together with its link preview card, and no accompanying user text - a link-only message) produces no response at all: the message action menu never opens"
+            },
+            {
+              "id": "q2",
+              "text": "Text messages in the same conversation open the menu normally, so the failure is tied to the link message type rather than to long-press in general."
+            },
+            {
+              "id": "q3",
+              "text": "Long-pressing a link-only message should open the same message action menu that text messages get - including at minimum Quote/Reply, Forward, Copy (of the link), Add to My Artifacts, Delete and the emoji reaction row."
+            },
+            {
+              "id": "q4",
+              "text": "Now long-press the link-only message (press and hold on the URL / preview card)."
+            },
+            {
+              "id": "q5",
+              "text": "Observe: nothing happens - no action menu, no reaction bar, no visual feedback."
+            },
+            {
+              "id": "q6",
+              "text": "- **Frequency**: Always"
+            },
+            {
+              "id": "q7",
+              "text": "- **Platform / OS / Browser**: iOS App (Teamily iOS)"
+            },
+            {
+              "id": "q8",
+              "text": "Long-press a plain TEXT message in the same conversation and confirm the action menu opens normally (emoji reaction row plus Reply, Ask AI, Translate, Copy, Forward, Multiple Selection, Add to My Artifacts, Report, Delete)."
+            },
+            {
+              "id": "q9",
+              "text": "the affected link-only message is a Figma link sent by Ivy, rendered as green underlined URL text inside a bubble plus a link preview card (domain figma.com, title \"onboarding feedback\")"
+            }
+          ],
+          "understanding": {
+            "subject": "会话中的一条纯 link 消息（消息内容只有链接）：气泡内容只有 URL（绿色下划线链接文字）加链接预览卡片，没有附带任何正文文字",
+            "trigger": "在这条纯 link 消息上长按（按住 URL 或预览卡片区域）",
+            "phenomenon": "完全没有反应：消息动作面板（长按菜单）不弹出，emoji 表情行也不出现，没有任何视觉反馈",
+            "expected": "弹出与文字消息相同的消息动作面板，至少包含引用/回复、转发、复制链接、加入 My Artifacts、删除以及 emoji 表情行",
+            "frequency": "always",
+            "control": "在同一会话中长按一条普通文字消息时，动作面板正常弹出（emoji 表情行，以及 Reply、Ask AI、Translate、Copy、Forward、Multiple Selection、Add to My Artifacts、Report、Delete 等菜单项）",
+            "basis": [
+              "q1",
+              "q2",
+              "q3",
+              "q4",
+              "q5",
+              "q7",
+              "q8",
+              "q9"
+            ]
+          },
+          "feasibility": {
+            "status": "plannable",
+            "missing": []
+          },
+          "oracle": {
+            "at": "actions[0]",
+            "hit": "在纯 link 消息上长按后，目标消息周围（±1000px）读不到任何只属于动作面板的菜单项（转发 / 翻译 / 多选 / 添加到 / Forward / Translate / Multiple Selection / Add to My Artifacts），即面板没有弹出，判为命中",
+            "normal": "长按后动作面板弹出，目标消息附近的无障碍树里能读到 转发、翻译、多选 等菜单项文字，检查通过",
+            "canFail": "面板一旦弹出，Issue 列出的菜单项中至少「Forward / Translate / Multiple Selection」之一必然出现在无障碍树里，并被 text 观察在目标附近读到时，检查就通过；面板不弹出时这些菜单项文字不可能出现（它们不是消息正文的一部分），检查必然不通过，具有区分度。v2 的失败已证明匹配词若含「回复」会与聊天正文混淆，本版只用菜单专属词，baseline 仍会在每轮长按前复核这些词不在",
+            "baseline": "长按前，在目标消息 ±1000px 范围内读不到菜单专属词（want=absent 成立），并且 prepareCheck 已确认含 {token} 的纯 link 消息出现在会话里；两者同时成立，才计入有效尝试"
+          },
+          "trace": [
+            {
+              "at": "targets.conv",
+              "basis": [
+                "executor:进入允许清单内的会话，Issue 步骤 1"
+              ]
+            },
+            {
+              "at": "targets.linkmsg",
+              "basis": [
+                "q1",
+                "q9"
+              ]
+            },
+            {
+              "at": "setup[0]",
+              "basis": [
+                "executor:打开会话",
+                "q1"
+              ]
+            },
+            {
+              "at": "prepare[0]",
+              "basis": [
+                "q1",
+                "q4",
+                "q9"
+              ]
+            },
+            {
+              "at": "prepareCheck[0]",
+              "basis": [
+                "q1",
+                "executor:准备阶段目标未冻结，改用整屏 + 唯一 token 定位"
+              ]
+            },
+            {
+              "at": "baseline[0]",
+              "basis": [
+                "q5",
+                "executor:确认长按前面板不在，保证检查有区分度"
+              ]
+            },
+            {
+              "at": "actions[0]",
+              "basis": [
+                "q4",
+                "q1"
+              ]
+            },
+            {
+              "at": "actions[0].expect",
+              "basis": [
+                "q1",
+                "q3",
+                "q5"
+              ]
+            },
+            {
+              "at": "afterCheck[0]",
+              "basis": [
+                "executor:每轮复位，关闭弹层"
+              ]
+            },
+            {
+              "at": "afterCheck[0].expect",
+              "basis": [
+                "executor:确认复位成功（前置条件）"
+              ]
+            }
+          ],
+          "selfCheck": {
+            "R1": "ok：动作只使用 longPress / tap / back / node（teamily.openConversation、teamily.sendMessage），固定元素只使用 chat.composer，观察只使用 text；没有坐标，也没有代码",
+            "R2": "ok：main 的 linkmsg.must = {sender:self, content:link, contains:{token}}，对应 q1/q9（只有 URL 与预览卡片、无正文、自己发出）；control 的 textmsg.must = {sender:self, content:text, contains:{token}}，对应 q2/q8；与 understanding.subject 一致",
+            "R3": "ok：触发就是 Issue 中的长按本身（actions[0].type=longPress 直接作用在目标消息上），没有用菜单里的下游操作代替长按",
+            "R4": "ok：现象是「长按后菜单不出现」，因此挂在 longPress 这一步的 expect(role=phenomenon) 上；两个子用例的 oracle.at 都是 actions[0]，该 expect 的 role 均为 phenomenon",
+            "R5": "ok：① 面板弹出时 Issue 列出的 Forward / Translate / Multiple Selection 至少一项必然进入无障碍树，不弹出时这些菜单专属词不会出现，有区分度；② baseline 与 expect 都收窄到 {target, within:1000, withinX:1000}，只有 prepareCheck 因目标未冻结改用整屏加唯一 token；③ 匹配词已剔除会出现在聊天正文里的「回复 / 复制 / 删除 / 举报」（v2 的失败正是「请勿回复」命中「回复」），只留菜单专属词；④ 菜单是瞬时状态，仍写了 baseline（长按前这些菜单词不在目标附近），并会在每轮复核",
+            "R6": "ok：main 的 afterCheck 点 chat.composer 收起弹层（避免 back 在无弹层时退出会话），control 用 back 关闭已弹出的面板；两者都带 expect(role=precondition) 确认菜单词已不在",
+            "R7": "ok：control 子用例 = 在同一会话中对普通文字消息做同样的长按，与 main 使用完全相同的手指动作与匹配正则，证明该检查在正常对象上会通过",
+            "R8": "ok：现有积木足够；没有专门表示「消息动作面板」的元素或区域，用目标范围内的 text 观察替代，已在 risks 写明，不需要额外积木，因此未标为 needs-block",
+            "R9": "ok：Issue 端为 iOS，本次在 android-app 替代执行；若安卓端对纯 link 消息本就正常弹面板则复现不出来，或安卓长按菜单的项目集合与 iOS 不同（例如没有 Translate / Multiple Selection），这属于端差异，已在 risks 写明",
+            "R10": "ok：循环里只用 phase=any 的 Node（openConversation、sendMessage）；没有 prepare-only Node；发消息只发到允许清单会话 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"；没有社交动作；delayAfterMs ≤ 1000",
+            "R11": "ok：标题为「长按纯链接消息（URL + 预览卡片、无正文）：消息动作面板是否弹出」，对照为「长按普通文字消息（对照）：消息动作面板是否弹出」",
+            "R12": "ok：每个 target、setup/prepare/prepareCheck、baseline、action、expect、afterCheck 都在 trace 里引用了 q1–q9 或 executor: 理由；quotes 的 9 段均为 Issue 原文逐字片段"
+          },
+          "risks": [
+            "匹配词剔除「回复/复制/删除/举报」后，若安卓端长按菜单里既不出现「转发/翻译/多选/添加到」也不出现对应的英文项（例如只有 Copy / Delete），检查会读不到内容而误判成命中；命中必须经截图证据复核，并在下一版补词或改用 visual-region。",
+            "菜单项文字依赖 App 语言：本版只保留跨语言歧义小的词（转发/翻译/多选/添加到 与 Forward/Translate/Multiple Selection/Add to My Artifacts），若界面为第三种语言需补充词表。",
+            "动作面板若以纯图形或不带无障碍文本的方式渲染，text 观察读不到，可能出现「面板已弹出却判为不通过」的假命中，需靠定期截图人工复核证据。",
+            "面板位置不确定：安卓端可能是贴近消息的浮层，也可能是底部弹层；scope 用 within/withinX=1000（以目标消息为中心）已尽量覆盖，预热若发现面板落在该范围外，需要放宽或改用 visual-region。",
+            "会话里存在其他测试遗留消息（预热读到的「r21761b 这是一条用来验证气泡第二行是否被裁切的长消息」），±1000px 范围内可能包含邻居消息；本版已通过只匹配菜单专属词规避，但仍需留意其他测试消息里是否含「转发/翻译」等词。",
+            "prepareCheck 用整屏 + 唯一 {token} 定位消息，依赖 token 在屏幕上只出现这一次；若执行器把 token 也写进其他界面元素，预热时需要改用 {message: <anchor>} 锚点。",
+            "teamily.sendMessage 的 markdown-link 只能以 [URL](URL) 形式发送，是否稳定渲染出链接预览卡片取决于服务端抓取；即使预览卡片缺失，URL 文本本身仍构成纯 link 消息（must.content=link 仍成立），但形态等价性略低于 Issue 截图。",
+            "端替代（iOS → android-app）：安卓端可能不存在该缺陷，或长按实现不同（如长按直接进入多选而非弹菜单），届时复现率低属端差异，不能据此改判产品正常。"
+          ],
+          "revision": {
+            "from": "v2",
+            "evidence": [
+              "预热第 0 步 baseline[0] 不成立：text 检查 /Reply|Forward|Translate|Copy|Delete|Report|Ask AI|回复|转发|翻译|复制|删除|举报/ 在屏幕上读到的是另一条历史消息的正文「r21761b 这是一条用来验证气泡第二行是否被裁切的长消息，请勿回复。The quick brown fox jumps over the lazy dog 」——其中「请勿回复」含匹配词「回复」，于是「长按前面板不在」被判成不成立",
+              "预热在 baseline 这一步就中止，没有进入 longPress 步骤：对象（纯 link 消息）、prepare（markdown-link 发送、prepareCheck 通过）、触发（longPress）均无失败证据",
+              "0 张截图、0 次有效尝试、0 次偏离：中止原因在检查的匹配词，而不是执行环境或对象选择"
+            ],
+            "diagnosis": "区分度问题——对象与触发都没有失败证据：现象检查与 baseline 共用的菜单词正则里混入了「回复 / Reply、复制 / Copy、删除 / Delete、举报 / Report」这类会出现在普通聊天正文里的词，别人的消息文本（「请勿回复」）就足以让长按前的 baseline 假失败，计划在预热第 0 步被判不可执行。",
+            "changes": [
+              "main.baseline[0] 与 main.actions[0].expect.check 以及 main.afterCheck[0].expect.check 的 match.regex 由 /Reply|Forward|Translate|Copy|Delete|Report|Ask AI|回复|转发|翻译|复制|删除|举报/ 改为只含菜单专属词的 /转发|翻译|多选|添加到|Forward|Translate|Multiple Selection|Add to My Artifacts/——对应 evidence 1（「回复」等聊天正文常见词造成假失败）",
+              "control.baseline[0]、control.actions[0].expect.check、control.afterCheck[0].expect.check 同步改为同一正则，保证 main 与 control 用的判定标准一致——对应 evidence 1",
+              "其余一律不变：targets（纯 link 消息 / 文字消息）、setup、prepare（markdown-link 发送含 {token} 的链接消息）、prepareCheck、expect 仍挂在 actions[0].longPress 上、scope {target, within:1000, withinX:1000}、复位方式都保留——这些位置没有收到任何失败证据，按「无证据不改」处理"
+            ]
+          }
+        },
+        "provenance": {
+          "generatedBy": "model",
+          "skillVersion": "2026.10.30-1"
+        },
+        "contract": {
+          "issueRef": "2063",
+          "sub": "main",
+          "preconditions": [
+            {
+              "id": "logged-in",
+              "text": "已登录",
+              "establish": "executor"
+            },
+            {
+              "id": "unmapped",
+              "text": "计划在准备阶段构造的前置数据",
+              "establish": "construct"
+            }
+          ],
+          "trigger": {
+            "semantics": "model",
+            "text": "在这条纯 link 消息上长按（按住 URL 或预览卡片区域）",
+            "params": {}
+          },
+          "observable": {
+            "observation": "text",
+            "text": "弹出与文字消息相同的消息动作面板，至少包含引用/回复、转发、复制链接、加入 My Artifacts、删除以及 emoji 表情行",
+            "phenomenon": "完全没有反应：消息动作面板（长按菜单）不弹出，emoji 表情行也不出现，没有任何视觉反馈"
+          },
+          "provenance": {
+            "by": "model",
+            "skillVersion": "2026.10.30-1",
+            "model": "deepseek-flash"
+          }
+        }
+      },
+      "planErrors": [],
+      "contract": {
+        "issueRef": "2063",
+        "sub": "main",
+        "preconditions": [
+          {
+            "id": "logged-in",
+            "text": "已登录",
+            "establish": "executor"
+          },
+          {
+            "id": "unmapped",
+            "text": "计划在准备阶段构造的前置数据",
+            "establish": "construct"
+          }
+        ],
+        "trigger": {
+          "semantics": "model",
+          "text": "在这条纯 link 消息上长按（按住 URL 或预览卡片区域）",
+          "params": {}
+        },
+        "observable": {
+          "observation": "text",
+          "text": "弹出与文字消息相同的消息动作面板，至少包含引用/回复、转发、复制链接、加入 My Artifacts、删除以及 emoji 表情行",
+          "phenomenon": "完全没有反应：消息动作面板（长按菜单）不弹出，emoji 表情行也不出现，没有任何视觉反馈"
+        },
+        "provenance": {
+          "by": "model",
+          "skillVersion": "2026.10.30-1",
+          "model": "deepseek-flash"
+        }
+      }
+    },
+    {
+      "sub": "control",
+      "title": "长按普通文字消息（对照）：消息动作面板是否弹出",
+      "surface": "android-app",
+      "substitution": {
+        "from": "ios",
+        "to": "android-app",
+        "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。",
+        "alternatives": [
+          "android-app",
+          "mobile-web"
+        ]
+      },
+      "plan": {
+        "id": "2063-control-android-app-v3",
+        "issueRef": "2063",
+        "title": "长按普通文字消息（对照）：消息动作面板是否弹出",
+        "category": "bug-always",
+        "surface": "android-app",
+        "issueSurfaces": [
+          "ios"
+        ],
+        "substitution": {
+          "from": "ios",
+          "to": "android-app",
+          "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。"
+        },
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "conv",
+            "kind": "conversation",
+            "guidance": "titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"",
+            "must": {
+              "sender": "any",
+              "content": "any"
+            }
+          },
+          {
+            "id": "textmsg",
+            "kind": "message",
+            "guidance": "prepare 阶段由自己发出的那条普通文字消息：只包含一个短句加 {token}，不含任何 URL 或链接预览卡片",
+            "afterPrepare": true,
+            "must": {
+              "sender": "self",
+              "content": "text",
+              "contains": "{token}"
+            }
+          }
+        ],
+        "setup": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "conv"
+              }
+            },
+            "delayAfterMs": 800
+          }
+        ],
+        "prepare": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.sendMessage",
+              "input": {
+                "text": "对照纯文字消息 {token}",
+                "kind": "plain"
+              }
+            },
+            "delayAfterMs": 1000
+          }
+        ],
+        "prepareCheck": {
+          "kind": "text",
+          "expect": "对照文字消息已出现在会话中（含本次运行标记 {token}）",
+          "want": "present",
+          "match": {
+            "contains": "{token}"
+          },
+          "scope": "screen"
+        },
+        "prepareChecks": [],
+        "baseline": [
+          {
+            "kind": "text",
+            "expect": "长按前看不到消息动作面板",
+            "want": "absent",
+            "match": {
+              "regex": "转发|翻译|多选|添加到|Forward|Translate|Multiple Selection|Add to My Artifacts"
+            },
+            "scope": {
+              "target": "textmsg",
+              "within": 1000,
+              "withinX": 1000
+            }
+          }
+        ],
+        "actions": [
+          {
+            "type": "longPress",
+            "element": "target.textmsg",
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "phenomenon",
+              "check": {
+                "kind": "text",
+                "expect": "长按文字消息后动作面板弹出",
+                "want": "present",
+                "match": {
+                  "regex": "转发|翻译|多选|添加到|Forward|Translate|Multiple Selection|Add to My Artifacts"
+                },
+                "scope": {
+                  "target": "textmsg",
+                  "within": 1000,
+                  "withinX": 1000
+                }
+              }
+            }
+          }
+        ],
+        "checks": [],
+        "afterCheck": [
+          {
+            "type": "back",
+            "delayAfterMs": 600,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "动作面板已收起",
+                "want": "absent",
+                "match": {
+                  "regex": "转发|翻译|多选|添加到|Forward|Translate|Multiple Selection|Add to My Artifacts"
+                },
+                "scope": {
+                  "target": "textmsg",
+                  "within": 1000,
+                  "withinX": 1000
+                }
+              }
+            }
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 15,
+          "maxIntervalMs": 1000,
+          "maxRounds": 30,
+          "untilBudget": true
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "audit": {
+          "version": 3,
+          "sub": "control",
+          "quotes": [
+            {
+              "id": "q1",
+              "text": "long-pressing a message whose content is only a link (a URL together with its link preview card, and no accompanying user text - a link-only message) produces no response at all: the message action menu never opens"
+            },
+            {
+              "id": "q2",
+              "text": "Text messages in the same conversation open the menu normally, so the failure is tied to the link message type rather than to long-press in general."
+            },
+            {
+              "id": "q3",
+              "text": "Long-pressing a link-only message should open the same message action menu that text messages get - including at minimum Quote/Reply, Forward, Copy (of the link), Add to My Artifacts, Delete and the emoji reaction row."
+            },
+            {
+              "id": "q4",
+              "text": "Now long-press the link-only message (press and hold on the URL / preview card)."
+            },
+            {
+              "id": "q5",
+              "text": "Observe: nothing happens - no action menu, no reaction bar, no visual feedback."
+            },
+            {
+              "id": "q6",
+              "text": "- **Frequency**: Always"
+            },
+            {
+              "id": "q7",
+              "text": "- **Platform / OS / Browser**: iOS App (Teamily iOS)"
+            },
+            {
+              "id": "q8",
+              "text": "Long-press a plain TEXT message in the same conversation and confirm the action menu opens normally (emoji reaction row plus Reply, Ask AI, Translate, Copy, Forward, Multiple Selection, Add to My Artifacts, Report, Delete)."
+            },
+            {
+              "id": "q9",
+              "text": "the affected link-only message is a Figma link sent by Ivy, rendered as green underlined URL text inside a bubble plus a link preview card (domain figma.com, title \"onboarding feedback\")"
+            }
+          ],
+          "understanding": {
+            "subject": "会话中的一条纯 link 消息（消息内容只有链接）：气泡内容只有 URL（绿色下划线链接文字）加链接预览卡片，没有附带任何正文文字",
+            "trigger": "在这条纯 link 消息上长按（按住 URL 或预览卡片区域）",
+            "phenomenon": "完全没有反应：消息动作面板（长按菜单）不弹出，emoji 表情行也不出现，没有任何视觉反馈",
+            "expected": "弹出与文字消息相同的消息动作面板，至少包含引用/回复、转发、复制链接、加入 My Artifacts、删除以及 emoji 表情行",
+            "frequency": "always",
+            "control": "在同一会话中长按一条普通文字消息时，动作面板正常弹出（emoji 表情行，以及 Reply、Ask AI、Translate、Copy、Forward、Multiple Selection、Add to My Artifacts、Report、Delete 等菜单项）",
+            "basis": [
+              "q1",
+              "q2",
+              "q3",
+              "q4",
+              "q5",
+              "q7",
+              "q8",
+              "q9"
+            ]
+          },
+          "feasibility": {
+            "status": "plannable",
+            "missing": []
+          },
+          "oracle": {
+            "at": "actions[0]",
+            "hit": "对照组以「面板弹出」为命中（检查通过）：长按文字消息后，在目标附近读到 转发 / 翻译 / 多选 等菜单专属词。如果检查不通过，说明长按机制或运行环境本身有问题，该轮对照失效，不计入 main 的复现率",
+            "normal": "长按普通文字消息后动作面板弹出，目标消息附近读到 转发 / 翻译 / 多选 等菜单项文字",
+            "canFail": "面板未弹出时读不到菜单专属词，检查不通过——这正是对照失效的信号，而不是产品命中；它证明同一套检查在正常对象（文字消息）上会通过，因此 main 的不通过不是检查没有区分度，而是 link 消息类型特有的现象",
+            "baseline": "长按前，在目标文字消息 ±1000px 范围内读不到菜单专属词（want=absent 成立），并且 prepareCheck 确认含 {token} 的文字消息在屏幕上"
+          },
+          "trace": [
+            {
+              "at": "targets.conv",
+              "basis": [
+                "executor:进入允许清单内的会话",
+                "q8"
+              ]
+            },
+            {
+              "at": "targets.textmsg",
+              "basis": [
+                "q2",
+                "q8"
+              ]
+            },
+            {
+              "at": "setup[0]",
+              "basis": [
+                "executor:打开会话"
+              ]
+            },
+            {
+              "at": "prepare[0]",
+              "basis": [
+                "q8",
+                "q2"
+              ]
+            },
+            {
+              "at": "prepareCheck[0]",
+              "basis": [
+                "q8",
+                "executor:准备阶段目标未冻结，改用整屏 + 唯一 token 定位"
+              ]
+            },
+            {
+              "at": "baseline[0]",
+              "basis": [
+                "executor:确认长按前面板不在"
+              ]
+            },
+            {
+              "at": "actions[0]",
+              "basis": [
+                "q8"
+              ]
+            },
+            {
+              "at": "actions[0].expect",
+              "basis": [
+                "q8",
+                "q2"
+              ]
+            },
+            {
+              "at": "afterCheck[0]",
+              "basis": [
+                "executor:每轮复位（对照组面板已弹出，用 back 关闭不会退出会话）"
+              ]
+            },
+            {
+              "at": "afterCheck[0].expect",
+              "basis": [
+                "executor:确认复位成功（前置条件）"
+              ]
+            }
+          ],
+          "selfCheck": {
+            "R1": "ok：动作只使用 longPress / tap / back / node（teamily.openConversation、teamily.sendMessage），固定元素只使用 chat.composer，观察只使用 text；没有坐标，也没有代码",
+            "R2": "ok：main 的 linkmsg.must = {sender:self, content:link, contains:{token}}，对应 q1/q9（只有 URL 与预览卡片、无正文、自己发出）；control 的 textmsg.must = {sender:self, content:text, contains:{token}}，对应 q2/q8；与 understanding.subject 一致",
+            "R3": "ok：触发就是 Issue 中的长按本身（actions[0].type=longPress 直接作用在目标消息上），没有用菜单里的下游操作代替长按",
+            "R4": "ok：现象是「长按后菜单不出现」，因此挂在 longPress 这一步的 expect(role=phenomenon) 上；两个子用例的 oracle.at 都是 actions[0]，该 expect 的 role 均为 phenomenon",
+            "R5": "ok：① 面板弹出时 Issue 列出的 Forward / Translate / Multiple Selection 至少一项必然进入无障碍树，不弹出时这些菜单专属词不会出现，有区分度；② baseline 与 expect 都收窄到 {target, within:1000, withinX:1000}，只有 prepareCheck 因目标未冻结改用整屏加唯一 token；③ 匹配词已剔除会出现在聊天正文里的「回复 / 复制 / 删除 / 举报」（v2 的失败正是「请勿回复」命中「回复」），只留菜单专属词；④ 菜单是瞬时状态，仍写了 baseline（长按前这些菜单词不在目标附近），并会在每轮复核",
+            "R6": "ok：main 的 afterCheck 点 chat.composer 收起弹层（避免 back 在无弹层时退出会话），control 用 back 关闭已弹出的面板；两者都带 expect(role=precondition) 确认菜单词已不在",
+            "R7": "ok：control 子用例 = 在同一会话中对普通文字消息做同样的长按，与 main 使用完全相同的手指动作与匹配正则，证明该检查在正常对象上会通过",
+            "R8": "ok：现有积木足够；没有专门表示「消息动作面板」的元素或区域，用目标范围内的 text 观察替代，已在 risks 写明，不需要额外积木，因此未标为 needs-block",
+            "R9": "ok：Issue 端为 iOS，本次在 android-app 替代执行；若安卓端对纯 link 消息本就正常弹面板则复现不出来，或安卓长按菜单的项目集合与 iOS 不同（例如没有 Translate / Multiple Selection），这属于端差异，已在 risks 写明",
+            "R10": "ok：循环里只用 phase=any 的 Node（openConversation、sendMessage）；没有 prepare-only Node；发消息只发到允许清单会话 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"；没有社交动作；delayAfterMs ≤ 1000",
+            "R11": "ok：标题为「长按纯链接消息（URL + 预览卡片、无正文）：消息动作面板是否弹出」，对照为「长按普通文字消息（对照）：消息动作面板是否弹出」",
+            "R12": "ok：每个 target、setup/prepare/prepareCheck、baseline、action、expect、afterCheck 都在 trace 里引用了 q1–q9 或 executor: 理由；quotes 的 9 段均为 Issue 原文逐字片段"
+          },
+          "risks": [
+            "匹配词剔除「回复/复制/删除/举报」后，若安卓端长按菜单里既不出现「转发/翻译/多选/添加到」也不出现对应的英文项（例如只有 Copy / Delete），检查会读不到内容而误判成命中；命中必须经截图证据复核，并在下一版补词或改用 visual-region。",
+            "菜单项文字依赖 App 语言：本版只保留跨语言歧义小的词（转发/翻译/多选/添加到 与 Forward/Translate/Multiple Selection/Add to My Artifacts），若界面为第三种语言需补充词表。",
+            "动作面板若以纯图形或不带无障碍文本的方式渲染，text 观察读不到，可能出现「面板已弹出却判为不通过」的假命中，需靠定期截图人工复核证据。",
+            "面板位置不确定：安卓端可能是贴近消息的浮层，也可能是底部弹层；scope 用 within/withinX=1000（以目标消息为中心）已尽量覆盖，预热若发现面板落在该范围外，需要放宽或改用 visual-region。",
+            "会话里存在其他测试遗留消息（预热读到的「r21761b 这是一条用来验证气泡第二行是否被裁切的长消息」），±1000px 范围内可能包含邻居消息；本版已通过只匹配菜单专属词规避，但仍需留意其他测试消息里是否含「转发/翻译」等词。",
+            "prepareCheck 用整屏 + 唯一 {token} 定位消息，依赖 token 在屏幕上只出现这一次；若执行器把 token 也写进其他界面元素，预热时需要改用 {message: <anchor>} 锚点。",
+            "teamily.sendMessage 的 markdown-link 只能以 [URL](URL) 形式发送，是否稳定渲染出链接预览卡片取决于服务端抓取；即使预览卡片缺失，URL 文本本身仍构成纯 link 消息（must.content=link 仍成立），但形态等价性略低于 Issue 截图。",
+            "端替代（iOS → android-app）：安卓端可能不存在该缺陷，或长按实现不同（如长按直接进入多选而非弹菜单），届时复现率低属端差异，不能据此改判产品正常。"
+          ],
+          "revision": {
+            "from": "v2",
+            "evidence": [
+              "预热第 0 步 baseline[0] 不成立：text 检查 /Reply|Forward|Translate|Copy|Delete|Report|Ask AI|回复|转发|翻译|复制|删除|举报/ 在屏幕上读到的是另一条历史消息的正文「r21761b 这是一条用来验证气泡第二行是否被裁切的长消息，请勿回复。The quick brown fox jumps over the lazy dog 」——其中「请勿回复」含匹配词「回复」，于是「长按前面板不在」被判成不成立",
+              "预热在 baseline 这一步就中止，没有进入 longPress 步骤：对象（纯 link 消息）、prepare（markdown-link 发送、prepareCheck 通过）、触发（longPress）均无失败证据",
+              "0 张截图、0 次有效尝试、0 次偏离：中止原因在检查的匹配词，而不是执行环境或对象选择"
+            ],
+            "diagnosis": "区分度问题——对象与触发都没有失败证据：现象检查与 baseline 共用的菜单词正则里混入了「回复 / Reply、复制 / Copy、删除 / Delete、举报 / Report」这类会出现在普通聊天正文里的词，别人的消息文本（「请勿回复」）就足以让长按前的 baseline 假失败，计划在预热第 0 步被判不可执行。",
+            "changes": [
+              "main.baseline[0] 与 main.actions[0].expect.check 以及 main.afterCheck[0].expect.check 的 match.regex 由 /Reply|Forward|Translate|Copy|Delete|Report|Ask AI|回复|转发|翻译|复制|删除|举报/ 改为只含菜单专属词的 /转发|翻译|多选|添加到|Forward|Translate|Multiple Selection|Add to My Artifacts/——对应 evidence 1（「回复」等聊天正文常见词造成假失败）",
+              "control.baseline[0]、control.actions[0].expect.check、control.afterCheck[0].expect.check 同步改为同一正则，保证 main 与 control 用的判定标准一致——对应 evidence 1",
+              "其余一律不变：targets（纯 link 消息 / 文字消息）、setup、prepare（markdown-link 发送含 {token} 的链接消息）、prepareCheck、expect 仍挂在 actions[0].longPress 上、scope {target, within:1000, withinX:1000}、复位方式都保留——这些位置没有收到任何失败证据，按「无证据不改」处理"
+            ]
+          }
+        },
+        "provenance": {
+          "generatedBy": "model",
+          "skillVersion": "2026.10.30-1"
+        },
+        "contract": {
+          "issueRef": "2063",
+          "sub": "control",
+          "preconditions": [
+            {
+              "id": "logged-in",
+              "text": "已登录",
+              "establish": "executor"
+            },
+            {
+              "id": "unmapped",
+              "text": "计划在准备阶段构造的前置数据",
+              "establish": "construct"
+            }
+          ],
+          "trigger": {
+            "semantics": "model",
+            "text": "在这条纯 link 消息上长按（按住 URL 或预览卡片区域）",
+            "params": {}
+          },
+          "observable": {
+            "observation": "text",
+            "text": "弹出与文字消息相同的消息动作面板，至少包含引用/回复、转发、复制链接、加入 My Artifacts、删除以及 emoji 表情行",
+            "phenomenon": "完全没有反应：消息动作面板（长按菜单）不弹出，emoji 表情行也不出现，没有任何视觉反馈"
+          },
+          "provenance": {
+            "by": "model",
+            "skillVersion": "2026.10.30-1",
+            "model": "deepseek-flash"
+          }
+        }
+      },
+      "planErrors": [],
+      "contract": {
+        "issueRef": "2063",
+        "sub": "control",
+        "preconditions": [
+          {
+            "id": "logged-in",
+            "text": "已登录",
+            "establish": "executor"
+          },
+          {
+            "id": "unmapped",
+            "text": "计划在准备阶段构造的前置数据",
+            "establish": "construct"
+          }
+        ],
+        "trigger": {
+          "semantics": "model",
+          "text": "在这条纯 link 消息上长按（按住 URL 或预览卡片区域）",
+          "params": {}
+        },
+        "observable": {
+          "observation": "text",
+          "text": "弹出与文字消息相同的消息动作面板，至少包含引用/回复、转发、复制链接、加入 My Artifacts、删除以及 emoji 表情行",
+          "phenomenon": "完全没有反应：消息动作面板（长按菜单）不弹出，emoji 表情行也不出现，没有任何视觉反馈"
+        },
+        "provenance": {
+          "by": "model",
+          "skillVersion": "2026.10.30-1",
+          "model": "deepseek-flash"
+        }
+      }
+    }
+  ],
+  "designMs": 54801,
+  "history": [
+    {
+      "version": 1,
+      "planIds": [
+        "2063-android-app-v1"
+      ],
+      "taskIds": [
+        "t-20261109033911-828o"
+      ],
+      "validated": true,
+      "warmup": "not-run",
+      "valid": 0,
+      "hits": 0,
+      "conclusion": "执行失败",
+      "diagnosis": "观察位置选错（可执行性问题）：prepareCheck 在准备阶段执行，此时动态目标还没冻结，用 {target: <id>} 作为 text 检查的范围在结构上不合法，导致计划不可执行、预热无法开始。对象选择、触发动作、现象挂载位置与区分度没有收到任何失败证据，不作改动。"
+    },
+    {
+      "version": 2,
+      "planIds": [
+        "2063-android-app-v2"
+      ],
+      "taskIds": [
+        "t-20261109034837-dcns"
+      ],
+      "validated": true,
+      "warmup": "failed",
+      "driftRate": 0,
+      "valid": 0,
+      "hits": 0,
+      "conclusion": "计划不可执行",
+      "diagnosis": "区分度问题——对象与触发都没有失败证据：现象检查与 baseline 共用的菜单词正则里混入了「回复 / Reply、复制 / Copy、删除 / Delete、举报 / Report」这类会出现在普通聊天正文里的词，别人的消息文本（「请勿回复」）就足以让长按前的 baseline 假失败，计划在预热第 0 步被判不可执行。"
+    },
+    {
+      "version": 3,
+      "planIds": [
+        "2063-android-app-v3"
+      ],
+      "taskIds": [
+        "t-20261109043039-f714"
+      ],
+      "validated": true,
+      "warmup": "passed",
+      "driftRate": 0,
+      "valid": 17,
+      "hits": 11,
+      "wilson": [
+        0.413,
+        0.8269
+      ],
+      "conclusion": "已复现"
+    }
+  ],
+  "issueFile": "D:\\projects\\Tools\\multi-test-agent\\issues\\2063.md",
+  "hash": "ed8c1757b5c695eb",
+  "issueHash": "794ddcdacb41857c",
+  "env": "prod",
+  "version": 5,
+  "warmupFailures": [
+    {
+      "planId": "2063-android-app-v3",
+      "at": "2026-11-09T04:29:12.573Z",
+      "detail": "计划不可执行（预热第 1 步：target.linkmsg 预期 画面变化 未出现 — screen Δ0px (min 25920)）"
+    }
+  ]
+}

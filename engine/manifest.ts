@@ -12,7 +12,7 @@ export interface Manifest {
   schema: 'manifest-v1';
   runId: string;
   startedAt: string;
-  tool: { gitCommit: string; gitDirty: boolean; skillVersion: string; profile?: string; draftHash?: string; pattern?: string };
+  tool: { gitCommit: string; gitDirty: boolean; skillVersion: string; profile?: string; draftHash?: string; planVersion?: number; generatedBy?: string };
   target: { issue: string; planId: string; sub: string; surface: string; mode: string; env: string; budget: { maxSteps: number; maxMinutes: number; maxRounds?: number }; stopRule: string; seed: string };
   device?: DeviceInfo;
   account?: { id: string; conversation?: string };
@@ -43,16 +43,16 @@ export function buildManifest(o: { plan: TestPlan; runId: string; startedAt: str
     schema: 'manifest-v1',
     runId: o.runId,
     startedAt: o.startedAt,
-    tool: { gitCommit: g.commit, gitDirty: g.dirty, skillVersion: SKILL_VERSION, profile: o.profile, draftHash: p.provenance.draftHash, pattern: p.provenance.pattern },
+    tool: { gitCommit: g.commit, gitDirty: g.dirty, skillVersion: SKILL_VERSION, profile: o.profile, draftHash: p.provenance.draftHash, planVersion: p.audit?.version, generatedBy: p.provenance.generatedBy },
     target: {
       issue: p.issueRef,
       planId: p.id,
-      sub: p.contract?.sub ?? (p.id.match(/-(s\d+)-/)?.[1] ?? 'main'),
+      sub: p.audit?.sub ?? p.contract?.sub ?? (p.id.match(/-(s\d+)-/)?.[1] ?? 'main'),
       surface: p.surface,
-      mode: p.provenance.pattern ?? p.category,
+      mode: p.category,
       env: p.env,
       budget: { maxSteps: p.limits.maxSteps, maxMinutes: p.limits.maxMinutes, maxRounds: p.limits.maxRounds },
-      stopRule: '命中 1 次',
+      stopRule: p.limits.untilBudget ? '跑满预算（命中后不停）' : '命中 1 次',
       // The run's only random input is its marker.
       seed: o.runTag,
     },
@@ -72,7 +72,7 @@ export function manifestMarkdown(m: Manifest): string[] {
   const d = m.device;
   const out = [
     `- 运行：\`${m.runId}\`；运行标记 \`${m.runTag}\`；开始 ${m.startedAt}`,
-    `- 工具：commit \`${m.tool.gitCommit}\`${m.tool.gitDirty ? '（有未提交改动）' : ''}；SKILL ${m.tool.skillVersion}；SKILL 缓存 ${m.tool.profile ?? '-'}；草稿 ${m.tool.draftHash ?? '-'}；模式 ${m.tool.pattern ?? '-'}`,
+    `- 工具：commit \`${m.tool.gitCommit}\`${m.tool.gitDirty ? '（有未提交改动）' : ''}；SKILL ${m.tool.skillVersion}；SKILL 缓存 ${m.tool.profile ?? '-'}；草稿 ${m.tool.draftHash ?? '-'}；计划 ${m.tool.planVersion ? `v${m.tool.planVersion}（模型设计）` : m.tool.generatedBy === 'rules' ? 'v1 计划（W3-1 之前的规则模板）' : m.tool.generatedBy ?? '-'}`,
     `- 目标：Issue ${m.target.issue} / ${m.target.sub}；${m.target.surface}；${m.target.mode}；${m.target.env}；预算 ${m.target.budget.maxRounds ? `${m.target.budget.maxRounds} 轮 / ` : ''}${m.target.budget.maxSteps} 步 / ${m.target.budget.maxMinutes} 分钟；停止条件 ${m.target.stopRule}`,
   ];
   if (d) out.push(`- 设备：${d.model ?? '?'}（${d.udid}）Android ${d.android ?? '?'} / ${d.hyperos ?? '-'}；App ${d.app?.package ?? '-'} ${d.app?.versionName ?? '?'}（${d.app?.versionCode ?? '?'}）；输入法 ${d.ime ?? '?'}；网络 ${d.network ?? '?'}；电量 ${d.battery ?? '?'}%`);

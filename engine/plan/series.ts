@@ -1,6 +1,6 @@
 // Series of independent runs (W2-2 §3.4, E2): N cold-started runs of one sub-case, each with its own run
 // marker; the summary separates tool reliability (did the run reach the loop?) from the product result
-// (reproduced runs, pooled per-round rate with its Wilson interval, or the 3/n bound when nothing hit).
+// (reproduced runs, pooled per-round rate with its Wilson interval, or the attempt count when nothing hit — W3-1 K3: no upper bound).
 // 环境不合格 runs are listed but not in the reliability denominator (N2).
 import { relative } from 'node:path';
 import { FAILURE_TEXT } from '../failure';

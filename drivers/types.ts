@@ -27,6 +27,8 @@ export interface Driver {
   tap(p: Point): Promise<void>;
   longPress(p: Point, ms?: number): Promise<void>;
   type(text: string): Promise<void>;
+  /** Android: set the text exactly, bypassing the input method (credentials: an IME in pinyin mode eats ASCII). */
+  typeExact?(text: string): Promise<void>;
   key(name: string): Promise<void>;
   swipe(from: Point, to: Point, ms?: number): Promise<void>;
   scroll(at: Point, dy: number): Promise<void>;

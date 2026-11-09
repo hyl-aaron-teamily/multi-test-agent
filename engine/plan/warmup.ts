@@ -18,6 +18,9 @@ import { waitForRegion } from '../checks';
 import { Checkpoint } from './checkpoint';
 import type { RunCtx } from './context';
 import { recordIncident } from '../recorder/incident-hook';
+import { observeCheck } from './checkpoint';
+import { readBaseline, readExpect } from './expect';
+import { restore } from './loop';
 
 export interface WarmupStep {
   step: number;
@@ -31,6 +34,8 @@ export interface WarmupStep {
   fingerprint?: { text: string; desc: string; cls: string };
   redo?: boolean;
   healed?: string;
+  /** W3-1: the action's post-condition read in the warm-up. */
+  expect?: { role: string; pass: boolean | null; detail: string };
 }
 
 /** Fraction of the screen's pixels a navigation / popup changes at least. */
@@ -79,6 +84,39 @@ function tapPoint(c: RunCtx, a: PlannedAction): Point | undefined {
   return undefined;
 }
 
+/** Pure: the sub-case is the Issue's control (its checks must PASS after the trigger, SKILL R7). */
+export const isControl = (p: { audit?: { sub: string } }) => p.audit?.sub === 'control';
+
+/** W3-1 §7.4 — before the trigger (baseline state): the baseline holds, and every phenomenon check reads
+ *  「不通过」 — a check that already passes before anything happened passes whatever happens (no
+ *  discrimination). Throws WarmupError (计划不可执行). */
+export async function proveChecksCanFail(c: RunCtx, steps: WarmupStep[], observe: typeof observeCheck = observeCheck, baseline: typeof readBaseline = readBaseline): Promise<void> {
+  const fail = async (st: WarmupStep) => {
+    steps.push(st);
+    c.log(`warm-up ${st.action}: FAILED (${st.observed})`);
+    await writeFile(join(c.o.runDir, 'warmup.json'), JSON.stringify(steps, null, 2));
+    await writeFile(join(c.o.runDir, 'warmup-failed-baseline.png'), await c.sess.d.screenshot()).catch(() => {});
+    throw new WarmupError(st, steps);
+  };
+  if (c.plan.baseline.length) {
+    const b = await baseline(c, 0);
+    const st: WarmupStep = { step: 0, action: '基线', expected: '基线成立', observed: b ? `${b.at}: ${b.detail}` : 'baseline holds', pass: !b, ms: 0, tier: '①' };
+    if (b) await fail(st);
+    steps.push(st);
+  }
+  if (isControl(c.plan)) return;
+  for (const [i, a] of c.plan.actions.entries()) {
+    if (a.expect?.role !== 'phenomenon') continue;
+    const t0 = Date.now();
+    const r = await observe(c, a.expect.check).catch(() => undefined);
+    const st: WarmupStep = { step: 0, action: `反证 actions[${i}]`, expected: '触发前现象检查判「不通过」（检查有区分度）', observed: r ? r.detail : '读不出', pass: r?.pass === false, ms: Date.now() - t0, tier: r?.tier };
+    if (r?.pass === true) await fail({ ...st, observed: `检查无区分度：触发前就判「通过」— ${r.detail}` });
+    // Unreadable before the trigger (e.g. its anchor message is sent inside the round) cannot pass either: fine.
+    // Only a check that already passes proves nothing (§7.4).
+    steps.push(r?.pass === false ? st : { ...st, pass: null, observed: `触发前读不到（${r?.detail ?? `${a.expect.check.kind} cannot be read on ${c.plan.surface}`}），不会判「通过」` });
+  }
+}
+
 export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
   const { d, inner, profile } = c.sess;
   const android = inner instanceof AndroidDriver ? inner : undefined;
@@ -86,9 +124,12 @@ export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
   const steps: WarmupStep[] = [];
   d.round = 0;
   c.log(`warm-up: ${c.plan.actions.length} steps with per-step verification`);
+  await proveChecksCanFail(c, steps);
   for (const [i, a] of c.plan.actions.entries()) {
     const t0 = Date.now();
-    const eff = expectedEffect(a);
+    // An action carrying the phenomenon check is observed by that check: "nothing happens" may be exactly the
+    // Issue (2063: long-press, no menu, screen Δ0) — the generic effect gate must not call the plan broken.
+    const eff = a.expect?.role === 'phenomenon' ? undefined : expectedEffect(a);
     const pt = tapPoint(c, a);
     let nodes: UiNode[] = [];
     if (android && pt) nodes = await dumpTree(android.o.udid, android.o.packageName, 2);
@@ -162,11 +203,21 @@ export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
       }
     };
     let r = await attempt();
+    // W3-1: the post-condition read right after the action (before any other observation of the step).
+    const readX = async () => {
+      const x = await readExpect(c, a, `actions[${i}]`, 0);
+      if (!x) return;
+      st.expect = { role: x.role, pass: x.pass, detail: x.detail };
+      if (x.role === 'precondition' && x.pass !== true) r = { pass: false, observed: `expect（前置）不成立：${x.detail}`, tier: '①' };
+      else if (x.role === 'phenomenon' && isControl(c.plan) && x.pass !== true) r = { pass: false, observed: `对照组的现象检查不通过（正常时它应通过）：${x.detail}`, tier: '①' };
+    };
+    if (r.pass !== false) await readX();
     if (r.pass === false) {
       // One redo; a fixed element is first located again on the live screen (its cached point may be stale).
       if (a.element && !a.element.startsWith('target.') && (await c.sess.profile.resolver?.refresh(a.element).catch(() => false))) st.healed = `重新定位 ${a.element}`;
       st.redo = true;
       r = await attempt();
+      if (r.pass !== false) await readX();
     }
     st.pass = r.pass;
     st.observed = r.observed;
@@ -189,9 +240,14 @@ export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
   const png = await d.screenshot();
   const results = await new Checkpoint(c).evaluate(png);
   c.res.warmup = { steps, checks: results.map((x) => ({ kind: x.check.kind, pass: x.pass, detail: x.detail })) };
-  for (const a of c.plan.afterCheck) {
-    d.label = `warmup-after:${actionLabel(a)}`;
-    await c.exec(a);
+  // The restore steps, each verified (W3-1 §6.4): an unverified restore makes the plan not executable.
+  const rf = await restore(c, 0);
+  if (rf) {
+    const st: WarmupStep = { step: steps.length + 1, action: '复位（afterCheck）', expected: '复位后的 expect 成立', observed: rf, pass: false, ms: 0, tier: '①' };
+    steps.push(st);
+    await writeFile(join(c.o.runDir, 'warmup.json'), JSON.stringify(steps, null, 2));
+    await writeFile(join(c.o.runDir, 'warmup-failed-restore.png'), await d.screenshot()).catch(() => {});
+    throw new WarmupError(st, steps);
   }
   await writeFile(join(c.o.runDir, 'warmup.json'), JSON.stringify(c.res.warmup, null, 2));
   c.log(`warm-up passed (${steps.filter((s) => s.pass).length}/${steps.filter((s) => s.pass !== null).length} verified steps)`);

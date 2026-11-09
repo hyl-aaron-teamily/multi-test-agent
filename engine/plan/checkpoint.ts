@@ -19,6 +19,28 @@ const BASELINE_TOLERANCE = Number(process.env.AUTOTEST_BASELINE_TOLERANCE ?? 0.3
 /** Pure: does any check of the plan need a round-end screenshot? */
 export const needsScreenshot = (checks: CheckPoint[]) => checks.some((c) => c.kind === 'visual-region' || c.kind === 'baseline' || c.kind === 'ai');
 
+/** One check, now (round end, an action's post-condition, a round's baseline, the warm-up). {token} / {round}
+ *  are expanded; a visual check without a frame takes one screenshot. undefined = the check kind does not
+ *  apply on this surface / without a frame. Records its tier and time. */
+export async function observeCheck(c: RunCtx, k0: CheckPoint, png?: Buffer): Promise<Observed | undefined> {
+  const { d, profile, inner } = c.sess;
+  const k = expandCheck(k0, { token: c.res.runTag ?? '', round: d.round });
+  const t0 = Date.now();
+  let r: Observed | undefined;
+  if (k.kind === 'visual-region') r = await evaluateVisual(d, profile, k, c.ask, png ?? (await d.screenshot()));
+  else if (k.kind === 'ai' && png && k.onlyOnAnomaly === false) r = { ...(await evaluateAi(k, c.ask)), tier: '③' };
+  else if (k.kind === 'process-alive' && inner instanceof AndroidDriver) {
+    const alive = await inner.processAlive();
+    r = { check: k, pass: k.want === 'absent' ? !alive : alive, detail: `process ${alive ? 'running' : 'not running'}`, tier: '①' };
+  } else if (k.kind === 'keyboard') r = await observeKeyboard(inner, k);
+  else if (k.kind === 'text') r = await observeText(inner, k, c.targets, profile.viewport.width);
+  if (!r) return undefined;
+  r.tier ??= r.vision ? '③' : '①';
+  r.ms ??= Date.now() - t0;
+  addTier((c.stats.observeTiers ??= {}), `${r.tier} ${observationOf(k)}`, r.ms);
+  return r;
+}
+
 export class Checkpoint {
   // 'baseline': round 1 verifies the landing screen once (accessibility read of the quoted original) and
   // keeps it; later rounds must land on the same screen.
@@ -31,23 +53,8 @@ export class Checkpoint {
     const { d, profile, inner } = c.sess;
     const results: CheckResult[] = [];
     for (const k0 of c.plan.checks) {
-      // {token} / {round}: this run's marker and the round just played.
-      const k = expandCheck(k0, { token: c.res.runTag ?? '', round: d.round });
-      const t0 = Date.now();
-      let r: Observed | undefined;
-      if (k.kind === 'visual-region' && png) r = await evaluateVisual(d, profile, k, c.ask, png);
-      else if (k.kind === 'ai' && png && k.onlyOnAnomaly === false) r = { ...(await evaluateAi(k, c.ask)), tier: '③' };
-      else if (k.kind === 'process-alive' && inner instanceof AndroidDriver) {
-        const alive = await inner.processAlive();
-        r = { check: k, pass: k.want === 'absent' ? !alive : alive, detail: `process ${alive ? 'running' : 'not running'}`, tier: '①' };
-      } else if (k.kind === 'baseline' && png) r = { ...(await this.baselineCheck(k, png)), tier: '①' };
-      else if (k.kind === 'keyboard') r = await observeKeyboard(inner, k);
-      else if (k.kind === 'text') r = await observeText(inner, k, c.targets, profile.viewport.width);
-      if (!r) continue;
-      r.tier ??= r.vision ? '③' : '①';
-      r.ms ??= Date.now() - t0;
-      addTier((c.stats.observeTiers ??= {}), `${r.tier} ${observationOf(k)}`, r.ms);
-      results.push(r);
+      const r = k0.kind === 'baseline' ? (png ? { ...(await this.baselineCheck(expandCheck(k0, { token: c.res.runTag ?? '', round: d.round }), png)), tier: '①' as const } : undefined) : await observeCheck(c, k0, png);
+      if (r) results.push(r);
     }
     return results;
   }

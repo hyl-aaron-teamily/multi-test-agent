@@ -15,6 +15,7 @@ import { stateRoot } from './lifecycle/store';
 import { DevicePool } from './device-pool';
 import { AccountPool } from './accounts/account-pool';
 import { apiV1 } from './api-v1';
+import { apiError, outcome } from './lifecycle/status';
 import { Supervisor } from './lifecycle/supervisor';
 
 const PORT = Number(process.env.PLATFORM_PORT ?? 3210);
@@ -30,13 +31,28 @@ function send(res: ServerResponse, status: number, body: unknown, type = 'applic
   res.end(typeof body === 'string' || Buffer.isBuffer(body) ? body : JSON.stringify(body));
 }
 
-async function readBody(req: IncomingMessage): Promise<unknown> {
-  let data = '';
+/** POST body limit per route (W3-1 P6): Issue imports carry whole Markdown files. */
+export const bodyLimit = (path: string) => (/^\/api\/v1\/issues\/import\/?$/.test(path) ? 1_000_000 : 64_000);
+
+export class BodyError extends Error {}
+
+/** The JSON body; too large / not JSON → BodyError (answered as BAD_INPUT, never read as {}). */
+export async function readBody(req: AsyncIterable<Buffer | string>, limit = 64_000): Promise<unknown> {
+  const parts: Buffer[] = [];
+  let n = 0;
   for await (const chunk of req) {
-    data += chunk;
-    if (data.length > 64_000) throw new Error('body too large');
+    const b = typeof chunk === 'string' ? Buffer.from(chunk) : chunk;
+    n += b.length;
+    if (n > limit) throw new BodyError(`请求体超过 ${limit >= 1_000_000 ? `${limit / 1_000_000} MB` : `${limit / 1000} KB`} 上限`);
+    parts.push(b);
   }
-  return data ? JSON.parse(data) : {};
+  const data = Buffer.concat(parts).toString('utf8');
+  if (!data.trim()) return {};
+  try {
+    return JSON.parse(data);
+  } catch {
+    throw new BodyError('请求体不是合法的 JSON');
+  }
 }
 
 /** Resolve /files/<p> inside FILES_ROOT only. Pure, exported for tests. */
@@ -53,7 +69,17 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   const stream = req.method === 'GET' && p.match(/^\/api\/v1\/tasks\/([^/]+)\/stream$/);
   if (stream) return taskStream(decodeURIComponent(stream[1]), req, res);
   if (p.startsWith('/api/v1/')) {
-    const body = req.method === 'POST' ? await readBody(req).catch(() => ({})) : {};
+    let body: unknown = {};
+    if (req.method === 'POST') {
+      try {
+        body = await readBody(req, bodyLimit(p));
+      } catch (e) {
+        if (!(e instanceof BodyError)) throw e;
+        req.resume();
+        const msg = (e as Error).message;
+        return send(res, 400, { ...outcome('BAD_INPUT'), summary: msg, error: apiError('BAD_INPUT', msg, '缩小内容（Issue 导入上限 1 MB，其余接口 64 KB）') });
+      }
+    }
     const env = await apiV1({ method: req.method ?? 'GET', path: p, query: url.searchParams, body, web: req.headers['x-autotest-client'] === 'web' }, { sup });
     return send(res, env.status, env);
   }

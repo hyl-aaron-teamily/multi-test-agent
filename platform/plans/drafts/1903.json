@@ -5,7 +5,8 @@
     "severity": "High",
     "frequency": "Always",
     "platforms": [
-      "ios"
+      "ios",
+      "android"
     ],
     "summary": "In the Teamily iOS app (TestFlight build 386), after @-mentioning a member in a group chat and sending the message, the mention is NOT rendered in the message bubble — the bubble shows the text without the @ mention (no mention styling, no mentioned name). The conversation-list preview for the very same message DOES render the mention correctly, which proves the mention data is intact in the message payload and only the in-chat bubble rendering layer drops it. This breaks a core IM capability: recipients of the bubble cannot tell who was mentioned, and the sender cannot visually confirm that the mention was actually sent.",
     "steps": [
@@ -21,47 +22,793 @@
     "featureArea": "Messaging / UI Rendering (mention rendering)",
     "context": "- **Feature area**: Messaging / UI Rendering (mention rendering)\r\n- Reporter: Jane (Teamily PM/QA). Reported 2026-09-21.\r\n- Evidence: the conversation-list preview renders the mention correctly while the in-chat bubble does not — the defect is isolated to the message bubble rendering layer, not to mention parsing, message payload or delivery.\r\n- Impact: @ is a core IM capability. Users cannot see who was mentioned in a sent message, and cannot verify the mention was delivered, which can cause missed assignments/notifications in work groups.\r\n- Regression window: only observed on the mobile client (iOS TestFlight 386); Web/Desktop renders mentions correctly.\r\n\r\n---",
     "environment": "- **Platform / OS / Browser**: iOS / Teamily mobile app / TestFlight build 386",
-    "empty": false
+    "empty": false,
+    "images": [
+      "https://github.com/Teamily-Inc/bug-screenshots/blob/main/issue-1903-a6a84eb2.jpg?raw=true",
+      "https://github.com/Teamily-Inc/bug-screenshots/blob/main/issue-1903-7f53bc1f.jpg?raw=true"
+    ]
   },
   "classification": {
     "category": "bug-always",
-    "surfaces": [],
-    "reason": "Frequency: Always；步骤明确",
+    "surfaces": [
+      "android-app"
+    ],
+    "reason": "Frequency: Always",
     "strength": "strong",
     "by": "rules"
   },
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "after @-mentioning a member in a group chat and sending the message, the mention is NOT rendered in the message bubble — the bubble shows the text without the @ mention (no mention styling, no mentioned name)."
+      },
+      {
+        "id": "q2",
+        "text": "The conversation-list preview for the very same message DOES render the mention correctly"
+      },
+      {
+        "id": "q3",
+        "text": "The sent message bubble should render the @-mention with mention styling and the mentioned member display name"
+      },
+      {
+        "id": "q4",
+        "text": "Open a group chat."
+      },
+      {
+        "id": "q5",
+        "text": "Compose a message and @-mention a group member (e.g. a message ending with @Henry)."
+      },
+      {
+        "id": "q6",
+        "text": "Send the message."
+      },
+      {
+        "id": "q7",
+        "text": "Observe the sent message bubble: the @-mention is not rendered — the bubble shows plain text with no @ mention and no mention styling."
+      },
+      {
+        "id": "q8",
+        "text": "Return to the conversation list and observe the preview of the same message: the @-mention IS rendered correctly"
+      },
+      {
+        "id": "q9",
+        "text": "- **Frequency**: Always"
+      },
+      {
+        "id": "q10",
+        "text": "iOS / Teamily mobile app / TestFlight build 386"
+      },
+      {
+        "id": "q11",
+        "text": "only observed on the mobile client (iOS TestFlight 386); Web/Desktop renders mentions correctly"
+      },
+      {
+        "id": "q12",
+        "text": "群聊里 @ 某成员并发送消息后，消息气泡内没有渲染出 @ 的样式与内容（@ 未显示，退化为纯文本）"
+      }
+    ],
+    "understanding": {
+      "subject": "群聊里一条带真实 @ 提及的已发送消息（它的消息气泡）",
+      "trigger": "在群聊输入框里键入正文、键入 @ 并选中一位群成员（让 mention 真正插入待发送内容），然后发送该消息",
+      "phenomenon": "发送后的消息气泡只显示纯文本，被 @ 成员的显示名没有出现在气泡里（没有 @ 内容、没有 @ 样式）",
+      "expected": "气泡里渲染出 @ 提及：出现被 @ 成员的显示名，与会话列表预览 / Web 端表现一致",
+      "frequency": "always",
+      "control": "同一条消息在会话列表的预览里 @ 渲染正常；Web/Desktop 端也渲染正常",
+      "basis": [
+        "q1",
+        "q2",
+        "q3",
+        "q9",
+        "q10",
+        "q12"
+      ]
+    },
+    "feasibility": {
+      "status": "plannable",
+      "missing": []
+    },
+    "subcases": [
+      {
+        "sub": "main",
+        "oracle": {
+          "at": "actions[4]",
+          "hit": "点发送后，在本轮消息气泡范围内读不到被 @ 成员的显示名「aaron+test2」→ 现象检查不通过 = 命中",
+          "normal": "气泡文字里同时含正文锚点「压测确认 {token} 第{round}轮」和被 @ 成员显示名「aaron+test2」→ 检查通过",
+          "canFail": "渲染层丢掉 mention 时（q1/q7/q12），气泡的无障碍文字只剩正文锚点「压测确认 {token} 第{round}轮」，在 scope={message:压测确认 {token} 第{round}轮} 里找不到「aaron+test2」，contains 检查必然不通过；而 actions[3] 的 composer 前置检查已经确认 mention 已插入输入框，所以「输入框里有、气泡里没有」正是 Issue 描述的缺陷",
+          "baseline": "每轮触发前：会话里不存在含「压测确认 {token} 第{round}轮」的气泡（baseline[0] want=absent），输入框不含「压测确认」（baseline[1] want=absent）；因此气泡范围只能是本轮新发出的那条，检查不会被旧消息或上次残留内容污染"
+        },
+        "plan": {
+          "title": "群聊 @ 提及发送后：消息气泡是否渲染被 @ 成员名",
+          "targets": [
+            {
+              "id": "group",
+              "kind": "group-conversation",
+              "guidance": "会话列表中 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" 的群聊（允许清单内的会话，成员 ≥3）",
+              "must": {
+                "sender": "any",
+                "content": "any",
+                "contains": "黄悦龙-AgentEval"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "group"
+                }
+              },
+              "delayAfterMs": 800,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "page": "chat",
+                  "region": "composer",
+                  "expect": "已进入目标群聊：聊天页输入框区域出现"
+                }
+              }
+            }
+          ],
+          "prepare": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.freezeMention",
+                "input": {
+                  "member": "aaron+test2",
+                  "as": "mention"
+                }
+              },
+              "delayAfterMs": 800
+            }
+          ],
+          "prepareCheck": {
+            "kind": "visual-region",
+            "page": "mention-picker",
+            "region": "picker",
+            "want": "absent",
+            "expect": "prepare 结束：@ 选择器已关闭、输入框已清空，冻结好的成员行等待本轮重新触发"
+          },
+          "baseline": [
+            {
+              "kind": "text",
+              "scope": {
+                "message": "压测确认 {token} 第{round}轮"
+              },
+              "match": {
+                "contains": "压测确认 {token} 第{round}轮"
+              },
+              "want": "absent",
+              "expect": "触发前本轮标记消息尚不存在（气泡检查的锚点是全新的）"
+            },
+            {
+              "kind": "text",
+              "scope": "composer",
+              "match": {
+                "contains": "压测确认"
+              },
+              "want": "absent",
+              "expect": "触发前输入框为空"
+            }
+          ],
+          "actions": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.clearComposer"
+              },
+              "delayAfterMs": 400,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "scope": "composer",
+                  "match": {
+                    "contains": "@"
+                  },
+                  "want": "absent",
+                  "expect": "输入框已清空（不含残留的 @ 提及），本轮从空输入框开始键入"
+                }
+              }
+            },
+            {
+              "type": "type",
+              "element": "chat.composer",
+              "value": "压测确认 {token} 第{round}轮",
+              "delayAfterMs": 600
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.typeMention"
+              },
+              "delayAfterMs": 600,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "page": "mention-picker",
+                  "region": "picker",
+                  "expect": "键入 @ 后成员选择器弹出"
+                }
+              }
+            },
+            {
+              "type": "tap",
+              "element": "target.mention",
+              "delayAfterMs": 800,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "scope": "composer",
+                  "match": {
+                    "contains": "aaron+test2"
+                  },
+                  "expect": "选中成员后输入框里出现被 @ 成员的显示名 aaron+test2（mention 已进入待发送内容）"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.tapSend"
+              },
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "phenomenon",
+                "check": {
+                  "kind": "text",
+                  "scope": {
+                    "message": "压测确认 {token} 第{round}轮"
+                  },
+                  "match": {
+                    "contains": "aaron+test2"
+                  },
+                  "expect": "已发送的气泡里渲染出被 @ 成员的显示名 aaron+test2"
+                }
+              }
+            }
+          ],
+          "checks": [
+            {
+              "kind": "crash",
+              "expect": "发送与渲染过程中 App 未闪退、未 ANR"
+            }
+          ],
+          "afterCheck": [
+            {
+              "type": "wait",
+              "value": "500",
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "scope": {
+                    "message": "压测确认 {token} 第{round}轮"
+                  },
+                  "match": {
+                    "contains": "压测确认"
+                  },
+                  "expect": "核对：本轮消息确实已发出并出现在会话里；这条不成立说明消息没发出，本轮现象检查不算命中"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.clearComposer"
+              },
+              "delayAfterMs": 400,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "scope": "composer",
+                  "match": {
+                    "contains": "压测确认"
+                  },
+                  "want": "absent",
+                  "expect": "复位：输入框已空，下一轮从干净状态开始（已发送的消息无法撤回，靠 {round} 锚点区分）"
+                }
+              }
+            }
+          ]
+        },
+        "trace": [
+          {
+            "at": "targets.group",
+            "basis": [
+              "q4"
+            ]
+          },
+          {
+            "at": "setup[0]",
+            "basis": [
+              "q4"
+            ]
+          },
+          {
+            "at": "prepare[0]",
+            "basis": [
+              "q5"
+            ]
+          },
+          {
+            "at": "prepareCheck",
+            "basis": [
+              "executor:确认 prepare 完成后输入框与选择器已复位"
+            ]
+          },
+          {
+            "at": "baseline[0]",
+            "basis": [
+              "executor:确认本轮气泡锚点是新的"
+            ]
+          },
+          {
+            "at": "baseline[1]",
+            "basis": [
+              "executor:确认触发前输入框为空"
+            ]
+          },
+          {
+            "at": "actions[0]",
+            "basis": [
+              "executor:清空输入框，保证键入从空状态开始"
+            ]
+          },
+          {
+            "at": "actions[1]",
+            "basis": [
+              "q5"
+            ]
+          },
+          {
+            "at": "actions[2]",
+            "basis": [
+              "q5"
+            ]
+          },
+          {
+            "at": "actions[3]",
+            "basis": [
+              "q5"
+            ]
+          },
+          {
+            "at": "actions[4]",
+            "basis": [
+              "q6",
+              "q7",
+              "q1"
+            ]
+          },
+          {
+            "at": "checks[0]",
+            "basis": [
+              "executor:排除闪退导致的假命中"
+            ]
+          },
+          {
+            "at": "afterCheck[0]",
+            "basis": [
+              "executor:核对消息确已发出，避免把「没发出」算成命中"
+            ]
+          },
+          {
+            "at": "afterCheck[1]",
+            "basis": [
+              "executor:复位输入框"
+            ]
+          }
+        ]
+      },
+      {
+        "sub": "control",
+        "oracle": {
+          "at": "actions[5]",
+          "hit": "从会话返回列表后，在目标会话行附近读不到「@aaron+test2」→ 预览检查不通过 = 命中",
+          "normal": "返回会话列表后，目标会话行的预览文字里含「@aaron+test2」（如「压测确认 … 第N轮 @aaron+test2」）→ 检查通过",
+          "canFail": "Issue 的证据是「预览能正确渲染」（q2/q8）：同一条消息的数据里 mention 是完整的，所以正常时返回列表一定能在该会话行读到「@aaron+test2」；若预览也丢 mention，则该行附近读不到 @ + 显示名，检查必然不通过。匹配串带 @ 前缀，避免命中会话标题本身包含的「aaron+test2」",
+          "baseline": "每轮触发前：会话里不存在含「压测确认 {token} 第{round}轮」的气泡（baseline[0] want=absent），输入框为空（baseline[1] want=absent）；因此返回列表时该会话行的预览只可能来自本轮刚发出的消息"
+        },
+        "plan": {
+          "title": "群聊 @ 提及发送后：会话列表预览是否渲染 @ 提及（对照）",
+          "targets": [
+            {
+              "id": "group",
+              "kind": "group-conversation",
+              "guidance": "会话列表中 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" 的群聊（允许清单内的会话，成员 ≥3）",
+              "must": {
+                "sender": "any",
+                "content": "any",
+                "contains": "黄悦龙-AgentEval"
+              }
+            }
+          ],
+          "setup": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "group"
+                }
+              },
+              "delayAfterMs": 800,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "page": "chat",
+                  "region": "composer",
+                  "expect": "已进入目标群聊：聊天页输入框区域出现"
+                }
+              }
+            }
+          ],
+          "prepare": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.freezeMention",
+                "input": {
+                  "member": "aaron+test2",
+                  "as": "mention"
+                }
+              },
+              "delayAfterMs": 800
+            }
+          ],
+          "prepareCheck": {
+            "kind": "visual-region",
+            "page": "mention-picker",
+            "region": "picker",
+            "want": "absent",
+            "expect": "prepare 结束：@ 选择器已关闭、输入框已清空，冻结好的成员行等待本轮重新触发"
+          },
+          "baseline": [
+            {
+              "kind": "text",
+              "scope": {
+                "message": "压测确认 {token} 第{round}轮"
+              },
+              "match": {
+                "contains": "压测确认 {token} 第{round}轮"
+              },
+              "want": "absent",
+              "expect": "触发前本轮标记消息尚不存在"
+            },
+            {
+              "kind": "text",
+              "scope": "composer",
+              "match": {
+                "contains": "压测确认"
+              },
+              "want": "absent",
+              "expect": "触发前输入框为空"
+            }
+          ],
+          "actions": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.clearComposer"
+              },
+              "delayAfterMs": 400,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "scope": "composer",
+                  "match": {
+                    "contains": "@"
+                  },
+                  "want": "absent",
+                  "expect": "输入框已清空（不含残留的 @ 提及），本轮从空输入框开始键入"
+                }
+              }
+            },
+            {
+              "type": "type",
+              "element": "chat.composer",
+              "value": "压测确认 {token} 第{round}轮",
+              "delayAfterMs": 600
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.typeMention"
+              },
+              "delayAfterMs": 600,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "visual-region",
+                  "page": "mention-picker",
+                  "region": "picker",
+                  "expect": "键入 @ 后成员选择器弹出"
+                }
+              }
+            },
+            {
+              "type": "tap",
+              "element": "target.mention",
+              "delayAfterMs": 800,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "scope": "composer",
+                  "match": {
+                    "contains": "aaron+test2"
+                  },
+                  "expect": "选中成员后输入框里出现被 @ 成员的显示名 aaron+test2（mention 已进入待发送内容）"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.tapSend"
+              },
+              "delayAfterMs": 800,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "scope": "composer",
+                  "match": {
+                    "contains": "压测确认"
+                  },
+                  "want": "absent",
+                  "expect": "消息已发出，输入框被清空"
+                }
+              }
+            },
+            {
+              "type": "tap",
+              "element": "chat.back",
+              "delayAfterMs": 900,
+              "expect": {
+                "role": "phenomenon",
+                "check": {
+                  "kind": "text",
+                  "scope": {
+                    "target": "group",
+                    "within": 250
+                  },
+                  "match": {
+                    "contains": "@aaron+test2"
+                  },
+                  "expect": "会话列表里该会话的预览渲染出 @ 提及与被 @ 成员显示名"
+                }
+              }
+            }
+          ],
+          "checks": [
+            {
+              "kind": "crash",
+              "expect": "返回会话列表过程中 App 未闪退、未 ANR"
+            }
+          ],
+          "afterCheck": [
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.openConversation",
+                "input": {
+                  "target": "group"
+                }
+              },
+              "delayAfterMs": 800,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "scope": {
+                    "message": "压测确认 {token} 第{round}轮"
+                  },
+                  "match": {
+                    "contains": "压测确认"
+                  },
+                  "expect": "复位并核对：重新进入群聊后能看到本轮发送的消息；这条不成立说明消息没发出，本轮现象检查不算命中"
+                }
+              }
+            },
+            {
+              "type": "node",
+              "node": {
+                "name": "teamily.clearComposer"
+              },
+              "delayAfterMs": 400,
+              "expect": {
+                "role": "precondition",
+                "check": {
+                  "kind": "text",
+                  "scope": "composer",
+                  "match": {
+                    "contains": "压测确认"
+                  },
+                  "want": "absent",
+                  "expect": "复位：输入框已空，下一轮从干净状态开始"
+                }
+              }
+            }
+          ]
+        },
+        "trace": [
+          {
+            "at": "targets.group",
+            "basis": [
+              "q4"
+            ]
+          },
+          {
+            "at": "setup[0]",
+            "basis": [
+              "q4"
+            ]
+          },
+          {
+            "at": "prepare[0]",
+            "basis": [
+              "q5"
+            ]
+          },
+          {
+            "at": "prepareCheck",
+            "basis": [
+              "executor:确认 prepare 完成后输入框与选择器已复位"
+            ]
+          },
+          {
+            "at": "baseline[0]",
+            "basis": [
+              "executor:确认本轮消息锚点是新的"
+            ]
+          },
+          {
+            "at": "baseline[1]",
+            "basis": [
+              "executor:确认触发前输入框为空"
+            ]
+          },
+          {
+            "at": "actions[0]",
+            "basis": [
+              "executor:清空输入框"
+            ]
+          },
+          {
+            "at": "actions[1]",
+            "basis": [
+              "q5"
+            ]
+          },
+          {
+            "at": "actions[2]",
+            "basis": [
+              "q5"
+            ]
+          },
+          {
+            "at": "actions[3]",
+            "basis": [
+              "q5"
+            ]
+          },
+          {
+            "at": "actions[4]",
+            "basis": [
+              "q6"
+            ]
+          },
+          {
+            "at": "actions[5]",
+            "basis": [
+              "q2",
+              "q8"
+            ]
+          },
+          {
+            "at": "checks[0]",
+            "basis": [
+              "executor:排除闪退导致的假命中"
+            ]
+          },
+          {
+            "at": "afterCheck[0]",
+            "basis": [
+              "executor:复位到会话内并核对消息确已发出"
+            ]
+          },
+          {
+            "at": "afterCheck[1]",
+            "basis": [
+              "executor:复位输入框"
+            ]
+          }
+        ]
+      }
+    ],
+    "revision": {
+      "from": "v2",
+      "evidence": [
+        "运行材料：预热每一步为空、expect / baseline 失败记录为空、有效尝试 0、命中 0、偏离 0、采样截图 0 张，v2 的结论是「执行失败」但没有任何一条运行记录 —— 说明 v2 在进入预热之前就被拦下（积木装载 / 结构校验阶段），属于静态规则问题，不是目标选择、触发序列或观察位置的运行问题",
+        "执行条件（执行器给定）：允许清单会话里可以 @ 的成员只有「aaron+test2」，登录的测试账号自己不在 @ 选择器里；而 v2 的 prepare[0] 用 freezeMention member=\"黄悦龙Aaron\"（即登录账号自己），mention 行必然定位不到"
+      ],
+      "diagnosis": "两处。① 对象积木越界（这是「无预热记录」的直接原因）：v2 在 targets[] 里声明了 kind=\"mention-row\" 的目标，而积木目录的「动态目标（targets[].kind）」只列出 group-conversation / other-conversation / others-text-message / doc-artifact / conversation / quote-card / message，没有 mention-row；冻结 @ 选择器成员行的积木是 prepare-only 的 teamily.freezeMention，它按输入 `as` 直接产出目标 id，不需要也不允许在 targets[] 里自定义 kind。② 被 @ 的成员写错：v2 写的是登录账号自己，而执行条件说明可 @ 的成员只有 aaron+test2。②不会单独造成「无预热记录」，但①修好之后它会让预热在 prepare 步骤偏离，所以一并改正。触发序列（键入正文 → 键入 @ → 点成员行 → 发送）、现象观察位置（发送动作上带 phenomenon expect）和检查范围（{message} / {target+within}）没有运行证据表明有问题，保持不变。",
+      "changes": [
+        "删除 targets[] 里 kind=\"mention-row\" 的 mention 目标，改由 prepare[0] 的 teamily.freezeMention(as=\"mention\") 冻结成员行，动作里继续用 element=target.mention 引用 —— 对应证据第 1 条",
+        "prepare[0].input.member 由 \"黄悦龙Aaron\" 改为 \"aaron+test2\" —— 对应证据第 2 条",
+        "main 的 actions[3]（点成员行）composer 前置检查匹配串由 \"黄悦龙Aaron\" 改为 \"aaron+test2\" —— 对应证据第 2 条",
+        "main 的 actions[4]（发送）现象检查匹配串由 contains \"黄悦龙Aaron\" 改为 contains \"aaron+test2\" —— 对应证据第 2 条",
+        "control 的 actions[5]（返回列表）预览检查匹配串由 \"@黄悦龙Aaron\" 改为 \"@aaron+test2\"，保留 @ 前缀以免命中会话标题里的 aaron+test2 —— 对应证据第 2 条",
+        "main 的 afterCheck 新增一个 wait 动作，用 scope={message:压测确认 {token} 第{round}轮} 的 present 前置核对「本轮消息确实已发出」；control 的 afterCheck[0] 也带上同一核对 —— 对应证据第 1 条：v2 没有任何运行记录、区分度未被验证，本轮补上「消息是否真发出」的前置核对，防止把「消息根本没发出」误判成命中"
+      ]
+    },
+    "selfCheck": {
+      "R1": "ok：动作只用 PlannedAction 原语与目录内 Node（openConversation / clearComposer / typeMention / tapSend / freezeMention）；元素只用 chat.composer、chat.back 与 target.mention（target.mention 由 prepare-only 的 freezeMention 的 `as` 产出，v2 那个不在目录里的 kind=mention-row 已删除）；观察只用 text / visual-region / crash；无坐标、无代码",
+      "R2": "ok：触发对象是「群聊里一条带真实 @ 提及的消息」—— group.must.contains=黄悦龙-AgentEval 锁定允许清单里的那个群（q4），被 @ 的成员由 freezeMention.member=aaron+test2（执行条件给定的可 @ 成员）锁定，并由 actions[3] 的 composer 前置检查再确认一次；现象检查的范围就是这条消息的气泡（q1）",
+      "R3": "ok：动作序列包含 Issue 的触发本身——键入正文（q5）→ 键入 @ 并弹出选择器（q5）→ 点中成员行使 mention 真正插入输入框（q5，由 actions[3] 的 composer 前置检查证明）→ 发送（q6）；没有用发送后的下游操作代替触发",
+      "R4": "ok：main 的现象在发送动作 actions[4] 上自带 expect(role=phenomenon)，范围是该条消息气泡；control 的现象在返回列表的动作 actions[5] 上自带 expect(role=phenomenon)，范围是目标会话行附近 250px；两处 oracle.at 都指向带 phenomenon expect 的动作",
+      "R5": "ok：① 有毛病时必失败：气泡丢了 mention 时，气泡文字只剩正文锚点，contains aaron+test2 在该气泡范围内找不到；② 范围取最窄：气泡检查与基线用 {message:本轮正文锚点}，预览检查用 {target:group, within:250}，输入框检查用 composer，没有任何整屏 scope；③ 匹配串不与触发界面自带内容重合：control 用带 @ 前缀的「@aaron+test2」，避免命中会话标题里的 aaron+test2；④ 会留存状态（已发送消息、输入框）写了 baseline（本轮锚点气泡不存在、输入框为空）",
+      "R6": "ok：每轮复位并核实——main 的 afterCheck 先核对本轮消息已出现（wait + expect precondition），再 clearComposer 并带 expect(precondition)；control 的 afterCheck 先 openConversation 回到会话内（同一消息核对），再 clearComposer 带 expect(precondition)。已发送消息无法撤回，靠 {round} 锚点把检查限定在本轮消息上",
+      "R7": "ok：Issue 明确给了对照（q2/q8），因此加了 control 子用例，动作与 main 完全相同，只把观察点换成会话列表预览；它同时证明该检查在正常时会通过（数据里 mention 完整）",
+      "R8": "ok：没有缺口——mention 的插入用 typeMention + 冻结的成员行 tap + tapSend 组合完成，全部来自目录（freezeMention 即用于冻结 @ 选择器里的成员行）；故 feasibility.status=plannable、missing 为空",
+      "R9": "ok：Issue 报在 iOS TestFlight 386，本计划在 android-app 执行。可能不同的部分：① Android 气泡渲染层是否同样丢 mention（若 Android 实现正确，复现率会是 0）；② @ 选择器的成员显示名与排序在 Android 上不同，冻结行需按文字重新定位；③ 会话列表预览的渲染实现可能不同（是否带 @ 前缀）。现象的核心（气泡丢 mention、预览保留）在两端语义一致",
+      "R10": "ok：循环里只用 phase:any 的 Node（clearComposer / typeMention / tapSend），prepare-only 的 freezeMention 只出现在 prepare；发消息只发到允许清单里的会话 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"；社交动作不涉及他人内容；delayAfterMs 全部 ≤ 1000，wait 为 500 ms",
+      "R11": "ok：标题用本 Issue 的对象与现象命名——「群聊 @ 提及发送后：消息气泡是否渲染被 @ 成员名」/「…会话列表预览是否渲染 @ 提及（对照）」",
+      "R12": "ok：每个 target / 动作 / 基线 / 检查 / expect 都在 trace 里引用了片段（q1/q2/q4/q5/q6/q7/q8）或标注 executor:<理由>（复位、核对消息已发出、排除闪退）；quotes 均为 Issue 原文逐字片段"
+    },
+    "risks": [
+      "Issue 报在 iOS TestFlight 386，本次在 android-app 执行：若 Android 的气泡渲染层实现不同（可能已正确渲染 mention），复现率会是 0，这属于环境替代的固有风险，需在报告中单列。",
+      "@ 选择器里被 @ 成员的显示名必须确实是「aaron+test2」；若实际显示名不同（例如带后缀或英文名），prepare 的 freezeMention 会找不到行，预热即偏离，需要按实际显示名修订。",
+      "prepare 冻结的成员行坐标在一次执行内复用；若选择器每次弹出的排序（如按最近使用）或位置变化，actions[3] 可能点到别的行，由该动作的 composer 前置检查（输入框出现 aaron+test2）兜住并计为偏离。",
+      "检查只验证气泡里出现被 @ 成员的显示名，无法用 ① 通道验证「@ 样式」；若产品把 mention 渲染成带样式的 chip 而不在无障碍文字里暴露名字，会造成误判，需要在证据复核时看截图。",
+      "control 的预览检查要求预览里出现「@aaron+test2」（带 @ 前缀），这是为了避免命中会话标题里的 aaron+test2；若 Android 端预览只渲染样式化的名字而不带 @，control 会误判为命中，需要在证据复核时看截图判断。",
+      "scope 锚点里的 {token} / {round} 是否被替换由执行器决定；若未替换，{message:…} 定位会失败，预热阶段即暴露，需要改为不含标记的锚点。",
+      "已发送消息无法撤回，多轮会在会话里累积「压测确认 …」消息；main 靠 {round} 锚点区分本轮，control 的预览只显示最新一条，仍需在执行记录里核对消息条数。",
+      "Web/Desktop 端的对照（q11）本次无法执行，只能作为 Issue 提供的旁证，不在本计划覆盖范围内。"
+    ]
+  },
+  "planVersion": 3,
+  "modelCalls": 1,
   "status": "plannable",
-  "reason": "Frequency: Always；步骤明确",
+  "reason": "计划 v3：群聊里一条带真实 @ 提及的已发送消息（它的消息气泡） — 发送后的消息气泡只显示纯文本，被 @ 成员的显示名没有出现在气泡里（没有 @ 内容、没有 @ 样式）",
   "subcases": [
     {
       "sub": "main",
-      "title": "In the Teamily iOS app (TestFlight build 386), after @-mentioning a member in a ",
+      "title": "群聊 @ 提及发送后：消息气泡是否渲染被 @ 成员名",
       "surface": "android-app",
-      "substitution": {
-        "from": "ios",
-        "to": "android-app",
-        "reason": "ios 端当前无可用执行端（设备池只有 Android 真机，Web 用 Playwright）。替代为 android-app（同为原生移动端交互：长按/键盘/触控）或 mobile-web（同一 Web 代码的手机视口 + 触屏）；结论不能直接代表 ios 端。",
-        "alternatives": [
-          "android-app",
-          "mobile-web"
-        ]
-      },
       "plan": {
-        "id": "1903-android-app-v1",
+        "id": "1903-android-app-v3",
         "issueRef": "1903",
-        "title": "发送带 @ 的消息后气泡里应显示 @成员名",
+        "title": "群聊 @ 提及发送后：消息气泡是否渲染被 @ 成员名",
         "category": "bug-always",
         "surface": "android-app",
         "issueSurfaces": [
-          "ios"
+          "ios",
+          "android"
         ],
         "env": "prod",
         "launch": "once",
         "targets": [
           {
-            "id": "conv",
+            "id": "group",
             "kind": "group-conversation",
-            "guidance": "the conversation titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" (titles may be cut short with …)"
+            "guidance": "会话列表中 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" 的群聊（允许清单内的会话，成员 ≥3）",
+            "must": {
+              "sender": "any",
+              "content": "any",
+              "contains": "黄悦龙-AgentEval"
+            }
           }
         ],
         "setup": [
@@ -70,10 +817,20 @@
             "node": {
               "name": "teamily.openConversation",
               "input": {
-                "target": "conv"
+                "target": "group"
               }
             },
-            "delayAfterMs": 1000
+            "delayAfterMs": 800,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "page": "chat",
+                "region": "composer",
+                "expect": "已进入目标群聊：聊天页输入框区域出现",
+                "want": "present"
+              }
+            }
           }
         ],
         "prepare": [
@@ -83,10 +840,40 @@
               "name": "teamily.freezeMention",
               "input": {
                 "member": "aaron+test2",
-                "as": "member"
+                "as": "mention"
               }
             },
-            "delayAfterMs": 500
+            "delayAfterMs": 800
+          }
+        ],
+        "prepareCheck": {
+          "kind": "visual-region",
+          "page": "mention-picker",
+          "region": "picker",
+          "expect": "prepare 结束：@ 选择器已关闭、输入框已清空，冻结好的成员行等待本轮重新触发",
+          "want": "absent"
+        },
+        "prepareChecks": [],
+        "baseline": [
+          {
+            "kind": "text",
+            "expect": "触发前本轮标记消息尚不存在（气泡检查的锚点是全新的）",
+            "want": "absent",
+            "match": {
+              "contains": "压测确认 {token} 第{round}轮"
+            },
+            "scope": {
+              "message": "压测确认 {token} 第{round}轮"
+            }
+          },
+          {
+            "kind": "text",
+            "expect": "触发前输入框为空",
+            "want": "absent",
+            "match": {
+              "contains": "压测确认"
+            },
+            "scope": "composer"
           }
         ],
         "actions": [
@@ -96,34 +883,60 @@
               "name": "teamily.clearComposer",
               "input": {}
             },
-            "delayAfterMs": 300
+            "delayAfterMs": 400,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "输入框已清空（不含残留的 @ 提及），本轮从空输入框开始键入",
+                "want": "absent",
+                "match": {
+                  "contains": "@"
+                },
+                "scope": "composer"
+              }
+            }
           },
           {
             "type": "type",
-            "value": "autotest-1903 {token} {round} ",
-            "delayAfterMs": 300
+            "element": "chat.composer",
+            "value": "压测确认 {token} 第{round}轮",
+            "delayAfterMs": 600
           },
           {
-            "type": "type",
-            "value": "@",
-            "delayAfterMs": 1000
-          },
-          {
-            "type": "wait",
-            "value": "1000",
-            "delayAfterMs": 0
+            "type": "node",
+            "node": {
+              "name": "teamily.typeMention",
+              "input": {}
+            },
+            "delayAfterMs": 600,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "page": "mention-picker",
+                "region": "picker",
+                "expect": "键入 @ 后成员选择器弹出",
+                "want": "present"
+              }
+            }
           },
           {
             "type": "tap",
-            "element": "target.member",
-            "delayAfterMs": 800
-          },
-          {
-            "type": "require",
-            "requires": {
-              "composerHas": "@aaron+test2"
-            },
-            "delayAfterMs": 0
+            "element": "target.mention",
+            "delayAfterMs": 800,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "选中成员后输入框里出现被 @ 成员的显示名 aaron+test2（mention 已进入待发送内容）",
+                "want": "present",
+                "match": {
+                  "contains": "aaron+test2"
+                },
+                "scope": "composer"
+              }
+            }
           },
           {
             "type": "node",
@@ -131,61 +944,293 @@
               "name": "teamily.tapSend",
               "input": {}
             },
-            "delayAfterMs": 1000
-          },
-          {
-            "type": "wait",
-            "value": "1000",
-            "delayAfterMs": 1000
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "phenomenon",
+              "check": {
+                "kind": "text",
+                "expect": "已发送的气泡里渲染出被 @ 成员的显示名 aaron+test2",
+                "want": "present",
+                "match": {
+                  "contains": "aaron+test2"
+                },
+                "scope": {
+                  "message": "压测确认 {token} 第{round}轮"
+                }
+              }
+            }
           }
         ],
         "checks": [
           {
-            "kind": "text",
-            "expect": "已发送气泡里显示 @aaron+test2（独立的 @ 提及）",
-            "want": "present",
-            "match": {
-              "exact": "@aaron+test2"
+            "kind": "crash",
+            "expect": "发送与渲染过程中 App 未闪退、未 ANR",
+            "want": "present"
+          }
+        ],
+        "afterCheck": [
+          {
+            "type": "wait",
+            "value": "500",
+            "delayAfterMs": 300,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "核对：本轮消息确实已发出并出现在会话里；这条不成立说明消息没发出，本轮现象检查不算命中",
+                "want": "present",
+                "match": {
+                  "contains": "压测确认"
+                },
+                "scope": {
+                  "message": "压测确认 {token} 第{round}轮"
+                }
+              }
+            }
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.clearComposer",
+              "input": {}
             },
-            "scope": {
-              "message": "autotest-1903 {token} {round}"
+            "delayAfterMs": 400,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "复位：输入框已空，下一轮从干净状态开始（已发送的消息无法撤回，靠 {round} 锚点区分）",
+                "want": "absent",
+                "match": {
+                  "contains": "压测确认"
+                },
+                "scope": "composer"
+              }
             }
           }
         ],
-        "afterCheck": [],
-        "epilogue": {
-          "actions": [
-            {
-              "type": "tap",
-              "element": "chat.back",
-              "delayAfterMs": 1000
-            },
-            {
-              "type": "wait",
-              "value": "1000",
-              "delayAfterMs": 1000
-            }
-          ],
-          "check": {
-            "kind": "text",
-            "expect": "会话列表预览里有 @aaron+test2",
-            "want": "present",
-            "match": {
-              "contains": "@aaron+test2"
-            },
-            "scope": {
-              "message": "autotest-1903 {token}"
-            }
-          }
-        },
         "limits": {
           "maxSteps": 1000,
           "maxMinutes": 15,
           "maxIntervalMs": 1000,
-          "maxRounds": 6
+          "maxRounds": 30,
+          "untilBudget": true
         },
         "verdictRule": {
-          "consecutiveHits": 3
+          "anyHit": true
+        },
+        "audit": {
+          "version": 3,
+          "sub": "main",
+          "quotes": [
+            {
+              "id": "q1",
+              "text": "after @-mentioning a member in a group chat and sending the message, the mention is NOT rendered in the message bubble — the bubble shows the text without the @ mention (no mention styling, no mentioned name)."
+            },
+            {
+              "id": "q2",
+              "text": "The conversation-list preview for the very same message DOES render the mention correctly"
+            },
+            {
+              "id": "q3",
+              "text": "The sent message bubble should render the @-mention with mention styling and the mentioned member display name"
+            },
+            {
+              "id": "q4",
+              "text": "Open a group chat."
+            },
+            {
+              "id": "q5",
+              "text": "Compose a message and @-mention a group member (e.g. a message ending with @Henry)."
+            },
+            {
+              "id": "q6",
+              "text": "Send the message."
+            },
+            {
+              "id": "q7",
+              "text": "Observe the sent message bubble: the @-mention is not rendered — the bubble shows plain text with no @ mention and no mention styling."
+            },
+            {
+              "id": "q8",
+              "text": "Return to the conversation list and observe the preview of the same message: the @-mention IS rendered correctly"
+            },
+            {
+              "id": "q9",
+              "text": "- **Frequency**: Always"
+            },
+            {
+              "id": "q10",
+              "text": "iOS / Teamily mobile app / TestFlight build 386"
+            },
+            {
+              "id": "q11",
+              "text": "only observed on the mobile client (iOS TestFlight 386); Web/Desktop renders mentions correctly"
+            },
+            {
+              "id": "q12",
+              "text": "群聊里 @ 某成员并发送消息后，消息气泡内没有渲染出 @ 的样式与内容（@ 未显示，退化为纯文本）"
+            }
+          ],
+          "understanding": {
+            "subject": "群聊里一条带真实 @ 提及的已发送消息（它的消息气泡）",
+            "trigger": "在群聊输入框里键入正文、键入 @ 并选中一位群成员（让 mention 真正插入待发送内容），然后发送该消息",
+            "phenomenon": "发送后的消息气泡只显示纯文本，被 @ 成员的显示名没有出现在气泡里（没有 @ 内容、没有 @ 样式）",
+            "expected": "气泡里渲染出 @ 提及：出现被 @ 成员的显示名，与会话列表预览 / Web 端表现一致",
+            "frequency": "always",
+            "control": "同一条消息在会话列表的预览里 @ 渲染正常；Web/Desktop 端也渲染正常",
+            "basis": [
+              "q1",
+              "q2",
+              "q3",
+              "q9",
+              "q10",
+              "q12"
+            ]
+          },
+          "feasibility": {
+            "status": "plannable",
+            "missing": []
+          },
+          "oracle": {
+            "at": "actions[4]",
+            "hit": "点发送后，在本轮消息气泡范围内读不到被 @ 成员的显示名「aaron+test2」→ 现象检查不通过 = 命中",
+            "normal": "气泡文字里同时含正文锚点「压测确认 {token} 第{round}轮」和被 @ 成员显示名「aaron+test2」→ 检查通过",
+            "canFail": "渲染层丢掉 mention 时（q1/q7/q12），气泡的无障碍文字只剩正文锚点「压测确认 {token} 第{round}轮」，在 scope={message:压测确认 {token} 第{round}轮} 里找不到「aaron+test2」，contains 检查必然不通过；而 actions[3] 的 composer 前置检查已经确认 mention 已插入输入框，所以「输入框里有、气泡里没有」正是 Issue 描述的缺陷",
+            "baseline": "每轮触发前：会话里不存在含「压测确认 {token} 第{round}轮」的气泡（baseline[0] want=absent），输入框不含「压测确认」（baseline[1] want=absent）；因此气泡范围只能是本轮新发出的那条，检查不会被旧消息或上次残留内容污染"
+          },
+          "trace": [
+            {
+              "at": "targets.group",
+              "basis": [
+                "q4"
+              ]
+            },
+            {
+              "at": "setup[0]",
+              "basis": [
+                "q4"
+              ]
+            },
+            {
+              "at": "prepare[0]",
+              "basis": [
+                "q5"
+              ]
+            },
+            {
+              "at": "prepareCheck",
+              "basis": [
+                "executor:确认 prepare 完成后输入框与选择器已复位"
+              ]
+            },
+            {
+              "at": "baseline[0]",
+              "basis": [
+                "executor:确认本轮气泡锚点是新的"
+              ]
+            },
+            {
+              "at": "baseline[1]",
+              "basis": [
+                "executor:确认触发前输入框为空"
+              ]
+            },
+            {
+              "at": "actions[0]",
+              "basis": [
+                "executor:清空输入框，保证键入从空状态开始"
+              ]
+            },
+            {
+              "at": "actions[1]",
+              "basis": [
+                "q5"
+              ]
+            },
+            {
+              "at": "actions[2]",
+              "basis": [
+                "q5"
+              ]
+            },
+            {
+              "at": "actions[3]",
+              "basis": [
+                "q5"
+              ]
+            },
+            {
+              "at": "actions[4]",
+              "basis": [
+                "q6",
+                "q7",
+                "q1"
+              ]
+            },
+            {
+              "at": "checks[0]",
+              "basis": [
+                "executor:排除闪退导致的假命中"
+              ]
+            },
+            {
+              "at": "afterCheck[0]",
+              "basis": [
+                "executor:核对消息确已发出，避免把「没发出」算成命中"
+              ]
+            },
+            {
+              "at": "afterCheck[1]",
+              "basis": [
+                "executor:复位输入框"
+              ]
+            }
+          ],
+          "selfCheck": {
+            "R1": "ok：动作只用 PlannedAction 原语与目录内 Node（openConversation / clearComposer / typeMention / tapSend / freezeMention）；元素只用 chat.composer、chat.back 与 target.mention（target.mention 由 prepare-only 的 freezeMention 的 `as` 产出，v2 那个不在目录里的 kind=mention-row 已删除）；观察只用 text / visual-region / crash；无坐标、无代码",
+            "R2": "ok：触发对象是「群聊里一条带真实 @ 提及的消息」—— group.must.contains=黄悦龙-AgentEval 锁定允许清单里的那个群（q4），被 @ 的成员由 freezeMention.member=aaron+test2（执行条件给定的可 @ 成员）锁定，并由 actions[3] 的 composer 前置检查再确认一次；现象检查的范围就是这条消息的气泡（q1）",
+            "R3": "ok：动作序列包含 Issue 的触发本身——键入正文（q5）→ 键入 @ 并弹出选择器（q5）→ 点中成员行使 mention 真正插入输入框（q5，由 actions[3] 的 composer 前置检查证明）→ 发送（q6）；没有用发送后的下游操作代替触发",
+            "R4": "ok：main 的现象在发送动作 actions[4] 上自带 expect(role=phenomenon)，范围是该条消息气泡；control 的现象在返回列表的动作 actions[5] 上自带 expect(role=phenomenon)，范围是目标会话行附近 250px；两处 oracle.at 都指向带 phenomenon expect 的动作",
+            "R5": "ok：① 有毛病时必失败：气泡丢了 mention 时，气泡文字只剩正文锚点，contains aaron+test2 在该气泡范围内找不到；② 范围取最窄：气泡检查与基线用 {message:本轮正文锚点}，预览检查用 {target:group, within:250}，输入框检查用 composer，没有任何整屏 scope；③ 匹配串不与触发界面自带内容重合：control 用带 @ 前缀的「@aaron+test2」，避免命中会话标题里的 aaron+test2；④ 会留存状态（已发送消息、输入框）写了 baseline（本轮锚点气泡不存在、输入框为空）",
+            "R6": "ok：每轮复位并核实——main 的 afterCheck 先核对本轮消息已出现（wait + expect precondition），再 clearComposer 并带 expect(precondition)；control 的 afterCheck 先 openConversation 回到会话内（同一消息核对），再 clearComposer 带 expect(precondition)。已发送消息无法撤回，靠 {round} 锚点把检查限定在本轮消息上",
+            "R7": "ok：Issue 明确给了对照（q2/q8），因此加了 control 子用例，动作与 main 完全相同，只把观察点换成会话列表预览；它同时证明该检查在正常时会通过（数据里 mention 完整）",
+            "R8": "ok：没有缺口——mention 的插入用 typeMention + 冻结的成员行 tap + tapSend 组合完成，全部来自目录（freezeMention 即用于冻结 @ 选择器里的成员行）；故 feasibility.status=plannable、missing 为空",
+            "R9": "ok：Issue 报在 iOS TestFlight 386，本计划在 android-app 执行。可能不同的部分：① Android 气泡渲染层是否同样丢 mention（若 Android 实现正确，复现率会是 0）；② @ 选择器的成员显示名与排序在 Android 上不同，冻结行需按文字重新定位；③ 会话列表预览的渲染实现可能不同（是否带 @ 前缀）。现象的核心（气泡丢 mention、预览保留）在两端语义一致",
+            "R10": "ok：循环里只用 phase:any 的 Node（clearComposer / typeMention / tapSend），prepare-only 的 freezeMention 只出现在 prepare；发消息只发到允许清单里的会话 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"；社交动作不涉及他人内容；delayAfterMs 全部 ≤ 1000，wait 为 500 ms",
+            "R11": "ok：标题用本 Issue 的对象与现象命名——「群聊 @ 提及发送后：消息气泡是否渲染被 @ 成员名」/「…会话列表预览是否渲染 @ 提及（对照）」",
+            "R12": "ok：每个 target / 动作 / 基线 / 检查 / expect 都在 trace 里引用了片段（q1/q2/q4/q5/q6/q7/q8）或标注 executor:<理由>（复位、核对消息已发出、排除闪退）；quotes 均为 Issue 原文逐字片段"
+          },
+          "risks": [
+            "Issue 报在 iOS TestFlight 386，本次在 android-app 执行：若 Android 的气泡渲染层实现不同（可能已正确渲染 mention），复现率会是 0，这属于环境替代的固有风险，需在报告中单列。",
+            "@ 选择器里被 @ 成员的显示名必须确实是「aaron+test2」；若实际显示名不同（例如带后缀或英文名），prepare 的 freezeMention 会找不到行，预热即偏离，需要按实际显示名修订。",
+            "prepare 冻结的成员行坐标在一次执行内复用；若选择器每次弹出的排序（如按最近使用）或位置变化，actions[3] 可能点到别的行，由该动作的 composer 前置检查（输入框出现 aaron+test2）兜住并计为偏离。",
+            "检查只验证气泡里出现被 @ 成员的显示名，无法用 ① 通道验证「@ 样式」；若产品把 mention 渲染成带样式的 chip 而不在无障碍文字里暴露名字，会造成误判，需要在证据复核时看截图。",
+            "control 的预览检查要求预览里出现「@aaron+test2」（带 @ 前缀），这是为了避免命中会话标题里的 aaron+test2；若 Android 端预览只渲染样式化的名字而不带 @，control 会误判为命中，需要在证据复核时看截图判断。",
+            "scope 锚点里的 {token} / {round} 是否被替换由执行器决定；若未替换，{message:…} 定位会失败，预热阶段即暴露，需要改为不含标记的锚点。",
+            "已发送消息无法撤回，多轮会在会话里累积「压测确认 …」消息；main 靠 {round} 锚点区分本轮，control 的预览只显示最新一条，仍需在执行记录里核对消息条数。",
+            "Web/Desktop 端的对照（q11）本次无法执行，只能作为 Issue 提供的旁证，不在本计划覆盖范围内。"
+          ],
+          "revision": {
+            "from": "v2",
+            "evidence": [
+              "运行材料：预热每一步为空、expect / baseline 失败记录为空、有效尝试 0、命中 0、偏离 0、采样截图 0 张，v2 的结论是「执行失败」但没有任何一条运行记录 —— 说明 v2 在进入预热之前就被拦下（积木装载 / 结构校验阶段），属于静态规则问题，不是目标选择、触发序列或观察位置的运行问题",
+              "执行条件（执行器给定）：允许清单会话里可以 @ 的成员只有「aaron+test2」，登录的测试账号自己不在 @ 选择器里；而 v2 的 prepare[0] 用 freezeMention member=\"黄悦龙Aaron\"（即登录账号自己），mention 行必然定位不到"
+            ],
+            "diagnosis": "两处。① 对象积木越界（这是「无预热记录」的直接原因）：v2 在 targets[] 里声明了 kind=\"mention-row\" 的目标，而积木目录的「动态目标（targets[].kind）」只列出 group-conversation / other-conversation / others-text-message / doc-artifact / conversation / quote-card / message，没有 mention-row；冻结 @ 选择器成员行的积木是 prepare-only 的 teamily.freezeMention，它按输入 `as` 直接产出目标 id，不需要也不允许在 targets[] 里自定义 kind。② 被 @ 的成员写错：v2 写的是登录账号自己，而执行条件说明可 @ 的成员只有 aaron+test2。②不会单独造成「无预热记录」，但①修好之后它会让预热在 prepare 步骤偏离，所以一并改正。触发序列（键入正文 → 键入 @ → 点成员行 → 发送）、现象观察位置（发送动作上带 phenomenon expect）和检查范围（{message} / {target+within}）没有运行证据表明有问题，保持不变。",
+            "changes": [
+              "删除 targets[] 里 kind=\"mention-row\" 的 mention 目标，改由 prepare[0] 的 teamily.freezeMention(as=\"mention\") 冻结成员行，动作里继续用 element=target.mention 引用 —— 对应证据第 1 条",
+              "prepare[0].input.member 由 \"黄悦龙Aaron\" 改为 \"aaron+test2\" —— 对应证据第 2 条",
+              "main 的 actions[3]（点成员行）composer 前置检查匹配串由 \"黄悦龙Aaron\" 改为 \"aaron+test2\" —— 对应证据第 2 条",
+              "main 的 actions[4]（发送）现象检查匹配串由 contains \"黄悦龙Aaron\" 改为 contains \"aaron+test2\" —— 对应证据第 2 条",
+              "control 的 actions[5]（返回列表）预览检查匹配串由 \"@黄悦龙Aaron\" 改为 \"@aaron+test2\"，保留 @ 前缀以免命中会话标题里的 aaron+test2 —— 对应证据第 2 条",
+              "main 的 afterCheck 新增一个 wait 动作，用 scope={message:压测确认 {token} 第{round}轮} 的 present 前置核对「本轮消息确实已发出」；control 的 afterCheck[0] 也带上同一核对 —— 对应证据第 1 条：v2 没有任何运行记录、区分度未被验证，本轮补上「消息是否真发出」的前置核对，防止把「消息根本没发出」误判成命中"
+            ]
+          }
+        },
+        "provenance": {
+          "generatedBy": "model",
+          "skillVersion": "2026.10.30-1"
         },
         "contract": {
           "issueRef": "1903",
@@ -197,42 +1242,27 @@
               "establish": "executor"
             },
             {
-              "id": "group-conversation",
-              "text": "存在成员 ≥3 的群聊",
-              "establish": "existing-data"
-            },
-            {
-              "id": "group-member-mentioned",
-              "text": "在允许清单群里发出一条 @ 另一位测试账号的消息（每轮构造）",
+              "id": "unmapped",
+              "text": "计划在准备阶段构造的前置数据",
               "establish": "construct"
             }
           ],
           "trigger": {
-            "semantics": "send-message-with-mention",
-            "text": "In the Teamily iOS app (TestFlight build 386), after @-mentioning a member in a group chat and sending the message, the mention is NOT rendered in the message bubble — the bubble shows the text without the @ mention (no mention styling, no mentioned name). The conversation-list preview for the very ",
-            "pattern": "mention-render",
-            "params": {
-              "conversation": "黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2",
-              "member": "aaron+test2"
-            }
+            "semantics": "model",
+            "text": "在群聊输入框里键入正文、键入 @ 并选中一位群成员（让 mention 真正插入待发送内容），然后发送该消息",
+            "params": {}
           },
           "observable": {
             "observation": "text",
-            "text": "The sent message bubble should render the @-mention with mention styling and the mentioned member display name, consistent with the conversation-list preview and with the Web/Desktop client behaviour.",
-            "phenomenon": "The message bubble renders the message text without the @-mention (mention not displayed, no mention styling). The conversation-list preview of the same message renders the mention correctly (\"2点在压测吗? @Henry\"), demonstrating that the mention exists in the message data and that only the in-conversation bubble rendering fails."
+            "text": "气泡里渲染出 @ 提及：出现被 @ 成员的显示名，与会话列表预览 / Web 端表现一致",
+            "phenomenon": "发送后的消息气泡只显示纯文本，被 @ 成员的显示名没有出现在气泡里（没有 @ 内容、没有 @ 样式）"
           },
-          "suspectedMechanism": "消息数据里有 @（会话列表预览正常），只有会话内气泡的渲染层丢了 @ 提及（Issue 报告的推断）",
           "provenance": {
-            "by": "rules",
-            "skillVersion": "2026.10.30-1"
+            "by": "model",
+            "skillVersion": "2026.10.30-1",
+            "model": "deepseek-flash"
           }
-        },
-        "provenance": {
-          "generatedBy": "rules",
-          "skillVersion": "2026.10.30-1",
-          "pattern": "mention-render"
-        },
-        "coverage": "covered"
+        }
       },
       "planErrors": [],
       "contract": {
@@ -245,40 +1275,634 @@
             "establish": "executor"
           },
           {
-            "id": "group-conversation",
-            "text": "存在成员 ≥3 的群聊",
-            "establish": "existing-data"
-          },
-          {
-            "id": "group-member-mentioned",
-            "text": "在允许清单群里发出一条 @ 另一位测试账号的消息（每轮构造）",
+            "id": "unmapped",
+            "text": "计划在准备阶段构造的前置数据",
             "establish": "construct"
           }
         ],
         "trigger": {
-          "semantics": "send-message-with-mention",
-          "text": "In the Teamily iOS app (TestFlight build 386), after @-mentioning a member in a group chat and sending the message, the mention is NOT rendered in the message bubble — the bubble shows the text without the @ mention (no mention styling, no mentioned name). The conversation-list preview for the very ",
-          "pattern": "mention-render",
-          "params": {
-            "conversation": "黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2",
-            "member": "aaron+test2"
-          }
+          "semantics": "model",
+          "text": "在群聊输入框里键入正文、键入 @ 并选中一位群成员（让 mention 真正插入待发送内容），然后发送该消息",
+          "params": {}
         },
         "observable": {
           "observation": "text",
-          "text": "The sent message bubble should render the @-mention with mention styling and the mentioned member display name, consistent with the conversation-list preview and with the Web/Desktop client behaviour.",
-          "phenomenon": "The message bubble renders the message text without the @-mention (mention not displayed, no mention styling). The conversation-list preview of the same message renders the mention correctly (\"2点在压测吗? @Henry\"), demonstrating that the mention exists in the message data and that only the in-conversation bubble rendering fails."
+          "text": "气泡里渲染出 @ 提及：出现被 @ 成员的显示名，与会话列表预览 / Web 端表现一致",
+          "phenomenon": "发送后的消息气泡只显示纯文本，被 @ 成员的显示名没有出现在气泡里（没有 @ 内容、没有 @ 样式）"
         },
-        "suspectedMechanism": "消息数据里有 @（会话列表预览正常），只有会话内气泡的渲染层丢了 @ 提及（Issue 报告的推断）",
         "provenance": {
-          "by": "rules",
+          "by": "model",
+          "skillVersion": "2026.10.30-1",
+          "model": "deepseek-flash"
+        }
+      }
+    },
+    {
+      "sub": "control",
+      "title": "群聊 @ 提及发送后：会话列表预览是否渲染 @ 提及（对照）",
+      "surface": "android-app",
+      "plan": {
+        "id": "1903-control-android-app-v3",
+        "issueRef": "1903",
+        "title": "群聊 @ 提及发送后：会话列表预览是否渲染 @ 提及（对照）",
+        "category": "bug-always",
+        "surface": "android-app",
+        "issueSurfaces": [
+          "ios",
+          "android"
+        ],
+        "env": "prod",
+        "launch": "once",
+        "targets": [
+          {
+            "id": "group",
+            "kind": "group-conversation",
+            "guidance": "会话列表中 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\" 的群聊（允许清单内的会话，成员 ≥3）",
+            "must": {
+              "sender": "any",
+              "content": "any",
+              "contains": "黄悦龙-AgentEval"
+            }
+          }
+        ],
+        "setup": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "group"
+              }
+            },
+            "delayAfterMs": 800,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "page": "chat",
+                "region": "composer",
+                "expect": "已进入目标群聊：聊天页输入框区域出现",
+                "want": "present"
+              }
+            }
+          }
+        ],
+        "prepare": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.freezeMention",
+              "input": {
+                "member": "aaron+test2",
+                "as": "mention"
+              }
+            },
+            "delayAfterMs": 800
+          }
+        ],
+        "prepareCheck": {
+          "kind": "visual-region",
+          "page": "mention-picker",
+          "region": "picker",
+          "expect": "prepare 结束：@ 选择器已关闭、输入框已清空，冻结好的成员行等待本轮重新触发",
+          "want": "absent"
+        },
+        "prepareChecks": [],
+        "baseline": [
+          {
+            "kind": "text",
+            "expect": "触发前本轮标记消息尚不存在",
+            "want": "absent",
+            "match": {
+              "contains": "压测确认 {token} 第{round}轮"
+            },
+            "scope": {
+              "message": "压测确认 {token} 第{round}轮"
+            }
+          },
+          {
+            "kind": "text",
+            "expect": "触发前输入框为空",
+            "want": "absent",
+            "match": {
+              "contains": "压测确认"
+            },
+            "scope": "composer"
+          }
+        ],
+        "actions": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.clearComposer",
+              "input": {}
+            },
+            "delayAfterMs": 400,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "输入框已清空（不含残留的 @ 提及），本轮从空输入框开始键入",
+                "want": "absent",
+                "match": {
+                  "contains": "@"
+                },
+                "scope": "composer"
+              }
+            }
+          },
+          {
+            "type": "type",
+            "element": "chat.composer",
+            "value": "压测确认 {token} 第{round}轮",
+            "delayAfterMs": 600
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.typeMention",
+              "input": {}
+            },
+            "delayAfterMs": 600,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "visual-region",
+                "page": "mention-picker",
+                "region": "picker",
+                "expect": "键入 @ 后成员选择器弹出",
+                "want": "present"
+              }
+            }
+          },
+          {
+            "type": "tap",
+            "element": "target.mention",
+            "delayAfterMs": 800,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "选中成员后输入框里出现被 @ 成员的显示名 aaron+test2（mention 已进入待发送内容）",
+                "want": "present",
+                "match": {
+                  "contains": "aaron+test2"
+                },
+                "scope": "composer"
+              }
+            }
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.tapSend",
+              "input": {}
+            },
+            "delayAfterMs": 800,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "消息已发出，输入框被清空",
+                "want": "absent",
+                "match": {
+                  "contains": "压测确认"
+                },
+                "scope": "composer"
+              }
+            }
+          },
+          {
+            "type": "tap",
+            "element": "chat.back",
+            "delayAfterMs": 900,
+            "expect": {
+              "role": "phenomenon",
+              "check": {
+                "kind": "text",
+                "expect": "会话列表里该会话的预览渲染出 @ 提及与被 @ 成员显示名",
+                "want": "present",
+                "match": {
+                  "contains": "@aaron+test2"
+                },
+                "scope": {
+                  "target": "group",
+                  "within": 250
+                }
+              }
+            }
+          }
+        ],
+        "checks": [
+          {
+            "kind": "crash",
+            "expect": "返回会话列表过程中 App 未闪退、未 ANR",
+            "want": "present"
+          }
+        ],
+        "afterCheck": [
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.openConversation",
+              "input": {
+                "target": "group"
+              }
+            },
+            "delayAfterMs": 800,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "复位并核对：重新进入群聊后能看到本轮发送的消息；这条不成立说明消息没发出，本轮现象检查不算命中",
+                "want": "present",
+                "match": {
+                  "contains": "压测确认"
+                },
+                "scope": {
+                  "message": "压测确认 {token} 第{round}轮"
+                }
+              }
+            }
+          },
+          {
+            "type": "node",
+            "node": {
+              "name": "teamily.clearComposer",
+              "input": {}
+            },
+            "delayAfterMs": 400,
+            "expect": {
+              "role": "precondition",
+              "check": {
+                "kind": "text",
+                "expect": "复位：输入框已空，下一轮从干净状态开始",
+                "want": "absent",
+                "match": {
+                  "contains": "压测确认"
+                },
+                "scope": "composer"
+              }
+            }
+          }
+        ],
+        "limits": {
+          "maxSteps": 1000,
+          "maxMinutes": 15,
+          "maxIntervalMs": 1000,
+          "maxRounds": 30,
+          "untilBudget": true
+        },
+        "verdictRule": {
+          "anyHit": true
+        },
+        "audit": {
+          "version": 3,
+          "sub": "control",
+          "quotes": [
+            {
+              "id": "q1",
+              "text": "after @-mentioning a member in a group chat and sending the message, the mention is NOT rendered in the message bubble — the bubble shows the text without the @ mention (no mention styling, no mentioned name)."
+            },
+            {
+              "id": "q2",
+              "text": "The conversation-list preview for the very same message DOES render the mention correctly"
+            },
+            {
+              "id": "q3",
+              "text": "The sent message bubble should render the @-mention with mention styling and the mentioned member display name"
+            },
+            {
+              "id": "q4",
+              "text": "Open a group chat."
+            },
+            {
+              "id": "q5",
+              "text": "Compose a message and @-mention a group member (e.g. a message ending with @Henry)."
+            },
+            {
+              "id": "q6",
+              "text": "Send the message."
+            },
+            {
+              "id": "q7",
+              "text": "Observe the sent message bubble: the @-mention is not rendered — the bubble shows plain text with no @ mention and no mention styling."
+            },
+            {
+              "id": "q8",
+              "text": "Return to the conversation list and observe the preview of the same message: the @-mention IS rendered correctly"
+            },
+            {
+              "id": "q9",
+              "text": "- **Frequency**: Always"
+            },
+            {
+              "id": "q10",
+              "text": "iOS / Teamily mobile app / TestFlight build 386"
+            },
+            {
+              "id": "q11",
+              "text": "only observed on the mobile client (iOS TestFlight 386); Web/Desktop renders mentions correctly"
+            },
+            {
+              "id": "q12",
+              "text": "群聊里 @ 某成员并发送消息后，消息气泡内没有渲染出 @ 的样式与内容（@ 未显示，退化为纯文本）"
+            }
+          ],
+          "understanding": {
+            "subject": "群聊里一条带真实 @ 提及的已发送消息（它的消息气泡）",
+            "trigger": "在群聊输入框里键入正文、键入 @ 并选中一位群成员（让 mention 真正插入待发送内容），然后发送该消息",
+            "phenomenon": "发送后的消息气泡只显示纯文本，被 @ 成员的显示名没有出现在气泡里（没有 @ 内容、没有 @ 样式）",
+            "expected": "气泡里渲染出 @ 提及：出现被 @ 成员的显示名，与会话列表预览 / Web 端表现一致",
+            "frequency": "always",
+            "control": "同一条消息在会话列表的预览里 @ 渲染正常；Web/Desktop 端也渲染正常",
+            "basis": [
+              "q1",
+              "q2",
+              "q3",
+              "q9",
+              "q10",
+              "q12"
+            ]
+          },
+          "feasibility": {
+            "status": "plannable",
+            "missing": []
+          },
+          "oracle": {
+            "at": "actions[5]",
+            "hit": "从会话返回列表后，在目标会话行附近读不到「@aaron+test2」→ 预览检查不通过 = 命中",
+            "normal": "返回会话列表后，目标会话行的预览文字里含「@aaron+test2」（如「压测确认 … 第N轮 @aaron+test2」）→ 检查通过",
+            "canFail": "Issue 的证据是「预览能正确渲染」（q2/q8）：同一条消息的数据里 mention 是完整的，所以正常时返回列表一定能在该会话行读到「@aaron+test2」；若预览也丢 mention，则该行附近读不到 @ + 显示名，检查必然不通过。匹配串带 @ 前缀，避免命中会话标题本身包含的「aaron+test2」",
+            "baseline": "每轮触发前：会话里不存在含「压测确认 {token} 第{round}轮」的气泡（baseline[0] want=absent），输入框为空（baseline[1] want=absent）；因此返回列表时该会话行的预览只可能来自本轮刚发出的消息"
+          },
+          "trace": [
+            {
+              "at": "targets.group",
+              "basis": [
+                "q4"
+              ]
+            },
+            {
+              "at": "setup[0]",
+              "basis": [
+                "q4"
+              ]
+            },
+            {
+              "at": "prepare[0]",
+              "basis": [
+                "q5"
+              ]
+            },
+            {
+              "at": "prepareCheck",
+              "basis": [
+                "executor:确认 prepare 完成后输入框与选择器已复位"
+              ]
+            },
+            {
+              "at": "baseline[0]",
+              "basis": [
+                "executor:确认本轮消息锚点是新的"
+              ]
+            },
+            {
+              "at": "baseline[1]",
+              "basis": [
+                "executor:确认触发前输入框为空"
+              ]
+            },
+            {
+              "at": "actions[0]",
+              "basis": [
+                "executor:清空输入框"
+              ]
+            },
+            {
+              "at": "actions[1]",
+              "basis": [
+                "q5"
+              ]
+            },
+            {
+              "at": "actions[2]",
+              "basis": [
+                "q5"
+              ]
+            },
+            {
+              "at": "actions[3]",
+              "basis": [
+                "q5"
+              ]
+            },
+            {
+              "at": "actions[4]",
+              "basis": [
+                "q6"
+              ]
+            },
+            {
+              "at": "actions[5]",
+              "basis": [
+                "q2",
+                "q8"
+              ]
+            },
+            {
+              "at": "checks[0]",
+              "basis": [
+                "executor:排除闪退导致的假命中"
+              ]
+            },
+            {
+              "at": "afterCheck[0]",
+              "basis": [
+                "executor:复位到会话内并核对消息确已发出"
+              ]
+            },
+            {
+              "at": "afterCheck[1]",
+              "basis": [
+                "executor:复位输入框"
+              ]
+            }
+          ],
+          "selfCheck": {
+            "R1": "ok：动作只用 PlannedAction 原语与目录内 Node（openConversation / clearComposer / typeMention / tapSend / freezeMention）；元素只用 chat.composer、chat.back 与 target.mention（target.mention 由 prepare-only 的 freezeMention 的 `as` 产出，v2 那个不在目录里的 kind=mention-row 已删除）；观察只用 text / visual-region / crash；无坐标、无代码",
+            "R2": "ok：触发对象是「群聊里一条带真实 @ 提及的消息」—— group.must.contains=黄悦龙-AgentEval 锁定允许清单里的那个群（q4），被 @ 的成员由 freezeMention.member=aaron+test2（执行条件给定的可 @ 成员）锁定，并由 actions[3] 的 composer 前置检查再确认一次；现象检查的范围就是这条消息的气泡（q1）",
+            "R3": "ok：动作序列包含 Issue 的触发本身——键入正文（q5）→ 键入 @ 并弹出选择器（q5）→ 点中成员行使 mention 真正插入输入框（q5，由 actions[3] 的 composer 前置检查证明）→ 发送（q6）；没有用发送后的下游操作代替触发",
+            "R4": "ok：main 的现象在发送动作 actions[4] 上自带 expect(role=phenomenon)，范围是该条消息气泡；control 的现象在返回列表的动作 actions[5] 上自带 expect(role=phenomenon)，范围是目标会话行附近 250px；两处 oracle.at 都指向带 phenomenon expect 的动作",
+            "R5": "ok：① 有毛病时必失败：气泡丢了 mention 时，气泡文字只剩正文锚点，contains aaron+test2 在该气泡范围内找不到；② 范围取最窄：气泡检查与基线用 {message:本轮正文锚点}，预览检查用 {target:group, within:250}，输入框检查用 composer，没有任何整屏 scope；③ 匹配串不与触发界面自带内容重合：control 用带 @ 前缀的「@aaron+test2」，避免命中会话标题里的 aaron+test2；④ 会留存状态（已发送消息、输入框）写了 baseline（本轮锚点气泡不存在、输入框为空）",
+            "R6": "ok：每轮复位并核实——main 的 afterCheck 先核对本轮消息已出现（wait + expect precondition），再 clearComposer 并带 expect(precondition)；control 的 afterCheck 先 openConversation 回到会话内（同一消息核对），再 clearComposer 带 expect(precondition)。已发送消息无法撤回，靠 {round} 锚点把检查限定在本轮消息上",
+            "R7": "ok：Issue 明确给了对照（q2/q8），因此加了 control 子用例，动作与 main 完全相同，只把观察点换成会话列表预览；它同时证明该检查在正常时会通过（数据里 mention 完整）",
+            "R8": "ok：没有缺口——mention 的插入用 typeMention + 冻结的成员行 tap + tapSend 组合完成，全部来自目录（freezeMention 即用于冻结 @ 选择器里的成员行）；故 feasibility.status=plannable、missing 为空",
+            "R9": "ok：Issue 报在 iOS TestFlight 386，本计划在 android-app 执行。可能不同的部分：① Android 气泡渲染层是否同样丢 mention（若 Android 实现正确，复现率会是 0）；② @ 选择器的成员显示名与排序在 Android 上不同，冻结行需按文字重新定位；③ 会话列表预览的渲染实现可能不同（是否带 @ 前缀）。现象的核心（气泡丢 mention、预览保留）在两端语义一致",
+            "R10": "ok：循环里只用 phase:any 的 Node（clearComposer / typeMention / tapSend），prepare-only 的 freezeMention 只出现在 prepare；发消息只发到允许清单里的会话 titled \"黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2\"；社交动作不涉及他人内容；delayAfterMs 全部 ≤ 1000，wait 为 500 ms",
+            "R11": "ok：标题用本 Issue 的对象与现象命名——「群聊 @ 提及发送后：消息气泡是否渲染被 @ 成员名」/「…会话列表预览是否渲染 @ 提及（对照）」",
+            "R12": "ok：每个 target / 动作 / 基线 / 检查 / expect 都在 trace 里引用了片段（q1/q2/q4/q5/q6/q7/q8）或标注 executor:<理由>（复位、核对消息已发出、排除闪退）；quotes 均为 Issue 原文逐字片段"
+          },
+          "risks": [
+            "Issue 报在 iOS TestFlight 386，本次在 android-app 执行：若 Android 的气泡渲染层实现不同（可能已正确渲染 mention），复现率会是 0，这属于环境替代的固有风险，需在报告中单列。",
+            "@ 选择器里被 @ 成员的显示名必须确实是「aaron+test2」；若实际显示名不同（例如带后缀或英文名），prepare 的 freezeMention 会找不到行，预热即偏离，需要按实际显示名修订。",
+            "prepare 冻结的成员行坐标在一次执行内复用；若选择器每次弹出的排序（如按最近使用）或位置变化，actions[3] 可能点到别的行，由该动作的 composer 前置检查（输入框出现 aaron+test2）兜住并计为偏离。",
+            "检查只验证气泡里出现被 @ 成员的显示名，无法用 ① 通道验证「@ 样式」；若产品把 mention 渲染成带样式的 chip 而不在无障碍文字里暴露名字，会造成误判，需要在证据复核时看截图。",
+            "control 的预览检查要求预览里出现「@aaron+test2」（带 @ 前缀），这是为了避免命中会话标题里的 aaron+test2；若 Android 端预览只渲染样式化的名字而不带 @，control 会误判为命中，需要在证据复核时看截图判断。",
+            "scope 锚点里的 {token} / {round} 是否被替换由执行器决定；若未替换，{message:…} 定位会失败，预热阶段即暴露，需要改为不含标记的锚点。",
+            "已发送消息无法撤回，多轮会在会话里累积「压测确认 …」消息；main 靠 {round} 锚点区分本轮，control 的预览只显示最新一条，仍需在执行记录里核对消息条数。",
+            "Web/Desktop 端的对照（q11）本次无法执行，只能作为 Issue 提供的旁证，不在本计划覆盖范围内。"
+          ],
+          "revision": {
+            "from": "v2",
+            "evidence": [
+              "运行材料：预热每一步为空、expect / baseline 失败记录为空、有效尝试 0、命中 0、偏离 0、采样截图 0 张，v2 的结论是「执行失败」但没有任何一条运行记录 —— 说明 v2 在进入预热之前就被拦下（积木装载 / 结构校验阶段），属于静态规则问题，不是目标选择、触发序列或观察位置的运行问题",
+              "执行条件（执行器给定）：允许清单会话里可以 @ 的成员只有「aaron+test2」，登录的测试账号自己不在 @ 选择器里；而 v2 的 prepare[0] 用 freezeMention member=\"黄悦龙Aaron\"（即登录账号自己），mention 行必然定位不到"
+            ],
+            "diagnosis": "两处。① 对象积木越界（这是「无预热记录」的直接原因）：v2 在 targets[] 里声明了 kind=\"mention-row\" 的目标，而积木目录的「动态目标（targets[].kind）」只列出 group-conversation / other-conversation / others-text-message / doc-artifact / conversation / quote-card / message，没有 mention-row；冻结 @ 选择器成员行的积木是 prepare-only 的 teamily.freezeMention，它按输入 `as` 直接产出目标 id，不需要也不允许在 targets[] 里自定义 kind。② 被 @ 的成员写错：v2 写的是登录账号自己，而执行条件说明可 @ 的成员只有 aaron+test2。②不会单独造成「无预热记录」，但①修好之后它会让预热在 prepare 步骤偏离，所以一并改正。触发序列（键入正文 → 键入 @ → 点成员行 → 发送）、现象观察位置（发送动作上带 phenomenon expect）和检查范围（{message} / {target+within}）没有运行证据表明有问题，保持不变。",
+            "changes": [
+              "删除 targets[] 里 kind=\"mention-row\" 的 mention 目标，改由 prepare[0] 的 teamily.freezeMention(as=\"mention\") 冻结成员行，动作里继续用 element=target.mention 引用 —— 对应证据第 1 条",
+              "prepare[0].input.member 由 \"黄悦龙Aaron\" 改为 \"aaron+test2\" —— 对应证据第 2 条",
+              "main 的 actions[3]（点成员行）composer 前置检查匹配串由 \"黄悦龙Aaron\" 改为 \"aaron+test2\" —— 对应证据第 2 条",
+              "main 的 actions[4]（发送）现象检查匹配串由 contains \"黄悦龙Aaron\" 改为 contains \"aaron+test2\" —— 对应证据第 2 条",
+              "control 的 actions[5]（返回列表）预览检查匹配串由 \"@黄悦龙Aaron\" 改为 \"@aaron+test2\"，保留 @ 前缀以免命中会话标题里的 aaron+test2 —— 对应证据第 2 条",
+              "main 的 afterCheck 新增一个 wait 动作，用 scope={message:压测确认 {token} 第{round}轮} 的 present 前置核对「本轮消息确实已发出」；control 的 afterCheck[0] 也带上同一核对 —— 对应证据第 1 条：v2 没有任何运行记录、区分度未被验证，本轮补上「消息是否真发出」的前置核对，防止把「消息根本没发出」误判成命中"
+            ]
+          }
+        },
+        "provenance": {
+          "generatedBy": "model",
           "skillVersion": "2026.10.30-1"
+        },
+        "contract": {
+          "issueRef": "1903",
+          "sub": "control",
+          "preconditions": [
+            {
+              "id": "logged-in",
+              "text": "已登录",
+              "establish": "executor"
+            },
+            {
+              "id": "unmapped",
+              "text": "计划在准备阶段构造的前置数据",
+              "establish": "construct"
+            }
+          ],
+          "trigger": {
+            "semantics": "model",
+            "text": "在群聊输入框里键入正文、键入 @ 并选中一位群成员（让 mention 真正插入待发送内容），然后发送该消息",
+            "params": {}
+          },
+          "observable": {
+            "observation": "text",
+            "text": "气泡里渲染出 @ 提及：出现被 @ 成员的显示名，与会话列表预览 / Web 端表现一致",
+            "phenomenon": "发送后的消息气泡只显示纯文本，被 @ 成员的显示名没有出现在气泡里（没有 @ 内容、没有 @ 样式）"
+          },
+          "provenance": {
+            "by": "model",
+            "skillVersion": "2026.10.30-1",
+            "model": "deepseek-flash"
+          }
+        }
+      },
+      "planErrors": [],
+      "contract": {
+        "issueRef": "1903",
+        "sub": "control",
+        "preconditions": [
+          {
+            "id": "logged-in",
+            "text": "已登录",
+            "establish": "executor"
+          },
+          {
+            "id": "unmapped",
+            "text": "计划在准备阶段构造的前置数据",
+            "establish": "construct"
+          }
+        ],
+        "trigger": {
+          "semantics": "model",
+          "text": "在群聊输入框里键入正文、键入 @ 并选中一位群成员（让 mention 真正插入待发送内容），然后发送该消息",
+          "params": {}
+        },
+        "observable": {
+          "observation": "text",
+          "text": "气泡里渲染出 @ 提及：出现被 @ 成员的显示名，与会话列表预览 / Web 端表现一致",
+          "phenomenon": "发送后的消息气泡只显示纯文本，被 @ 成员的显示名没有出现在气泡里（没有 @ 内容、没有 @ 样式）"
+        },
+        "provenance": {
+          "by": "model",
+          "skillVersion": "2026.10.30-1",
+          "model": "deepseek-flash"
         }
       }
     }
   ],
-  "hash": "02ee89ccfca9c31d",
+  "designMs": 132851,
+  "history": [
+    {
+      "version": 1,
+      "planIds": [
+        "1903-android-app-v1"
+      ],
+      "taskIds": [
+        "t-20261109041706-3ngf"
+      ],
+      "validated": true,
+      "warmup": "not-run",
+      "valid": 0,
+      "hits": 0,
+      "conclusion": "执行失败",
+      "diagnosis": "v1 不可执行的原因是两处「进入会话 / 回到会话内」的 text 检查用了整屏 scope，违反 R5② （计划含 targets 时必须把范围收窄到 {message} / {target} / {targetBubble}），被结构校验拦下，预热未运行。没有任何运行证据表明对象选择、触发动作或现象观察位置有问题，因此本轮只修正被指出的 scope 用法，其余设计保持不变。"
+    },
+    {
+      "version": 2,
+      "planIds": [
+        "1903-control-android-app-v2"
+      ],
+      "taskIds": [
+        "t-20261109043310-ohv5"
+      ],
+      "validated": true,
+      "warmup": "not-run",
+      "valid": 0,
+      "hits": 0,
+      "conclusion": "执行失败",
+      "diagnosis": "两处。① 对象积木越界（这是「无预热记录」的直接原因）：v2 在 targets[] 里声明了 kind=\"mention-row\" 的目标，而积木目录的「动态目标（targets[].kind）」只列出 group-conversation / other-conversation / others-text-message / doc-artifact / conversation / quote-card / message，没有 mention-row；冻结 @ 选择器成员行的积木是 prepare-only 的 teamily.freezeMention，它按输入 `as` 直接产出目标 id，不需要也不允许在 targets[] 里自定义 kind。② 被 @ 的成员写错：v2 写的是登录账号自己，而执行条件说明可 @ 的成员只有 aaron+test2。②不会单独造成「无预热记录」，但①修好之后它会让预热在 prepare 步骤偏离，所以一并改正。触发序列（键入正文 → 键入 @ → 点成员行 → 发送）、现象观察位置（发送动作上带 phenomenon expect）和检查范围（{message} / {target+within}）没有运行证据表明有问题，保持不变。"
+    },
+    {
+      "version": 3,
+      "planIds": [
+        "1903-android-app-v3"
+      ],
+      "taskIds": [
+        "t-20261109045301-w5dl"
+      ],
+      "validated": true,
+      "warmup": "passed",
+      "driftRate": 0,
+      "valid": 30,
+      "hits": 0,
+      "wilson": [
+        0,
+        0.1135
+      ],
+      "conclusion": "未复现",
+      "attribution": "plan"
+    }
+  ],
+  "issueFile": "D:\\projects\\Tools\\multi-test-agent\\fixtures\\issues\\1903.md",
+  "hash": "3574c122c669ef8f",
   "issueHash": "9fa7c7301fd29e44",
   "env": "prod",
-  "version": 1
+  "version": 6,
+  "warmupFailures": [
+    {
+      "planId": "1903-control-android-app-v3",
+      "at": "2026-11-09T04:50:28.580Z",
+      "detail": "计划不可执行（预热第 0 步：基线 预期 基线成立 未出现 — baseline[0]: 触发前本轮标记消息尚不存在 — no message containing \"压测确认 r61f04c 第0轮\" on screen）"
+    }
+  ]
 }

@@ -29,51 +29,150 @@
     ]
   },
   "classification": {
-    "category": "multi-account",
+    "category": "bug-always",
     "surfaces": [
       "desktop-web"
     ],
-    "reason": "需要第二账号或同账号多端配合观察（多端协同计划）",
+    "reason": "Frequency: Always (on the reporter's Web and Desktop 101 clients)",
     "strength": "strong",
     "by": "rules"
   },
-  "status": "unplannable",
-  "reason": "需要「转发」操作：SKILL 里还没有转发 Node，多端协同计划只能发普通消息；补上转发 Node 后重新生成草稿",
-  "subcases": [],
-  "contracts": [
-    {
-      "issueRef": "2235",
-      "sub": "main",
-      "preconditions": [
+  "envelope": {
+    "quotes": [
+      {
+        "id": "q1",
+        "text": "Henry forwarded a message out of the 1:1 (direct) conversation with Shok."
+      },
+      {
+        "id": "q2",
+        "text": "In the 1:1 (direct) conversation with Shok, forward a message out of that conversation (the exact forward entry point used is not specified — please confirm)."
+      },
+      {
+        "id": "q3",
+        "text": "the forwarded message is present, carrying a 'Forwarded from Shok' attribution label"
+      },
+      {
+        "id": "q4",
+        "text": "but it does not appear at all on Web or on the Desktop client (build 101) for the same account"
+      },
+      {
+        "id": "q5",
+        "text": "No error, no placeholder and no notice is shown on Web/Desktop"
+      },
+      {
+        "id": "q6",
+        "text": "The same forwarded message should be visible on every client of the same account (iOS / Web / Desktop)"
+      },
+      {
+        "id": "q7",
+        "text": "我这web和desktop（101）都没看到，只有ios看到这个消息"
+      },
+      {
+        "id": "q8",
+        "text": "web 和desktop没看到，只有ios有，有不一致问题"
+      },
+      {
+        "id": "q9",
+        "text": "Always (on the reporter's Web and Desktop 101 clients)"
+      },
+      {
+        "id": "q10",
+        "text": "Whether the message is completely absent on Web/Desktop or rendered as an empty placeholder / gap — the reporter says it is not visible; please confirm which."
+      },
+      {
+        "id": "q11",
+        "text": "neither screenshot shows the Web or Desktop client, so the screenshots do NOT themselves demonstrate the absence of the message on Web/Desktop"
+      },
+      {
+        "id": "q12",
+        "text": "iOS app (visible) vs Web and Desktop client build 101 (not visible); sender side macOS"
+      }
+    ],
+    "understanding": {
+      "subject": "一条从与 Shok 的单聊（1:1）转发出去、带「Forwarded from Shok」来源标记的转发消息，以及同一账号在各端看到的该会话消息列表",
+      "trigger": "在与 Shok 的单聊里把一条消息转发到一个目标会话（转发入口 Issue 未指明，见 q2）",
+      "phenomenon": "该转发消息在接收方 iOS 与发送方 macOS 上可见，但在同一账号的 Web 与 Desktop（build 101）上完全不出现，且无报错、无占位、无提示（q3、q4、q5、q7、q8）",
+      "expected": "同一账号的同一转发消息在 iOS / Web / Desktop 上都可见；若产品有意按端或按角色限制可见性，该规则须明确，且各端表现仍须一致，不能一端有、另一端静默缺失（q6）",
+      "frequency": "always",
+      "control": "同一转发消息在 iOS（接收方 Shawn，带 'Forwarded from Shok' 标记）与发送方 macOS 上可见，即「能看到」的对照端（q3、q12）",
+      "basis": [
+        "q1",
+        "q2",
+        "q3",
+        "q4",
+        "q5",
+        "q6",
+        "q12"
+      ]
+    },
+    "feasibility": {
+      "status": "needs-block",
+      "missing": [
         {
-          "id": "logged-in",
-          "text": "已登录",
-          "establish": "executor"
+          "kind": "node",
+          "need": "一个「转发」动作 Node（例如 teamily.forwardMessage：在会话里长按/打开某条消息的操作菜单 → 选「转发」→ 选目标会话 → 发送），能产出带「Forwarded from <原发送者>」来源标记的转发消息。现有 Node 只有 sendMessage（plain / markdown-link 纯文本）、quoteReply（引用回复，不是转发）、tapSend、typeMention、clearComposer、switchConversation、openPage、tapRewrite、relogin、freezeMention，没有任何积木能发出转发消息，因此无法执行本 Issue 的触发动作",
+          "basis": [
+            "q2",
+            "q3",
+            "q11"
+          ]
         },
         {
-          "id": "second-account",
-          "text": "需要第二个账号 / 第二个客户端配合",
-          "establish": "unconstructible"
+          "kind": "precondition",
+          "need": "一个与源账号（Shok）的单聊（1:1）会话，且该会话在允许构造数据的清单内。本次允许清单只有群会话「黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2」，没有与 Shok 的单聊，也没有创建/进入单聊的积木，Issue 的对象（「从单聊转发出去的转发消息」）无法构造",
+          "basis": [
+            "q1",
+            "q2",
+            "q12"
+          ]
+        },
+        {
+          "kind": "observation",
+          "need": "同一账号同一会话在 Web 浏览器与 Desktop 客户端 build 101 上的消息列表读取能力（判断该转发消息是完全不存在、为空占位还是显示为其他形态）。本轮只在 android-app 执行，网页端不运行，现有观察（text / element / region / crash / process-alive / keyboard / ai）都只读当前这台 android 端的画面，无法读到另两端的消息列表，也无法做三端对照",
+          "basis": [
+            "q4",
+            "q5",
+            "q7",
+            "q8",
+            "q10",
+            "q12"
+          ]
         }
-      ],
-      "trigger": {
-        "semantics": "unmapped",
-        "text": "Henry forwarded a message out of the 1:1 (direct) conversation with Shok. On the sender's side (Henry, macOS) the forwarded message is present, and on the recipient's side (Shawn) it is visible on the iOS app — but the SAME message never appears on Web or on the Desktop client (build 101). The same ",
-        "params": {}
-      },
-      "observable": {
-        "observation": "unmapped",
-        "text": "The same forwarded message should be visible on every client of the same account (iOS / Web / Desktop), or — if the product deliberately restricts forwarded-message visibility per client or per role (sender vs recipient) — that rule must be explicit and documented, and the clients must still agree with each other. Either way the multi-client experience should be consistent, and a message that exists on one client should not be silently absent on another.",
-        "phenomenon": "The forwarded message is visible on iOS (with a 'Forwarded from Shok' label) and on the sender's macOS client, but it does not appear at all on Web or on the Desktop client (build 101) for the same account. The reporter's words: '我这 web 和 desktop（101）都没看到，只有 ios 看到这个消息' and 'web 和 desktop 没看到，只有 ios 有，有不一致问题'. No error, no placeholder and no notice is shown on Web/Desktop — the message is simply absent, so the user cannot tell whether it was lost or intentionally hidden."
-      },
-      "provenance": {
-        "by": "rules",
-        "skillVersion": "2026.10.30-1"
-      }
-    }
-  ],
-  "hash": "9a11eb1c51003a2c",
+      ]
+    },
+    "subcases": [],
+    "revision": null,
+    "selfCheck": {
+      "R1": "ok：本版 subcases 为空，没有提交任何动作、元素、Node、观察 id，不存在自造坐标或代码；需要的积木缺失写在 feasibility.missing。",
+      "R2": "不适用（缺口已上报）：无法构造 Issue 的对象——缺转发 Node（missing.kind=node）且允许清单里没有与 Shok 的单聊（missing.kind=precondition），因此没有可写 target.must 的目标，也没有用「群里的普通消息」凑数。",
+      "R3": "不适用：触发动作本身是「在单聊里转发出去」，执行端没有对应积木；没有用转发之后的下游操作（例如在目标会话里发一条文本消息）来替代触发。",
+      "R4": "不适用：现象发生在 Web / Desktop 客户端上，执行端只有 android-app，无法在现象发生处观察；这一点已作为 missing.kind=observation 上报。",
+      "R5": "不适用：本 Issue 唯一有区分度的判据是「同一消息在 Web/Desktop 缺失、在 iOS 可见」（q4、q6），只有跨端比对才有区分度；单端内的文字/区域检查无法区分「消息丢了」和「本端本来就该显示」，也不存在可用的窄范围锚点。",
+      "R6": "不适用：本版没有轮次动作，无需复位。",
+      "R7": "不适用：Issue 的对照是「iOS / macOS 可见」对「Web / Desktop(101) 不可见」（q3、q12），对照面本身就是另外两个客户端，在当前执行条件（只在 android-app 上执行）下不可构造。",
+      "R8": "needs-block：feasibility.missing 写了三条（node / precondition / observation），每条都带片段编号；没有用 sendMessage、quoteReply 等近似积木顶替「转发」，也没有用单端画面顶替跨端比对。",
+      "R9": "替代执行（iOS → android-app）需写明的差异：android-app 只能证明「这条转发消息在本端可见 / 不可见」；Issue 的现象是同一账号在另两端（Web、Desktop build 101）静默缺失（q4、q5、q8），android-app 上的结果既不能证实也不能否定它。因此即使补齐转发积木，本替代执行仍不能覆盖 Issue 的现象。",
+      "R10": "ok：未提交动作，无发消息、无社交动作、无 prepare-only / phase 误用、无 delayAfterMs 越界。",
+      "R11": "本版未提交标题（subcases 为空）；若要命名，应为「从单聊转发出去的转发消息：Web/Desktop(101) 是否缺失」，而不是群聊转发类的问题。",
+      "R12": "ok：quotes 全部从 Issue 原文逐字摘录（含中英文原话）；missing 的每一条都带 basis 片段编号。"
+    },
+    "risks": [
+      "即使补上转发 Node，本轮执行条件仍是「只在 android-app 上执行」，而 Issue 的现象是消息在 Web 与 Desktop（build 101）缺失（q4、q8），另两端不可达，所以这条 Issue 在当前执行条件下无法复现，需要回到执行端配置而不是修订计划。",
+      "Issue 自身没有指明转发入口（q2），截图中也没有展示 Web / Desktop 端（q11），「完全不存在」还是「空占位」也未确认（q10）；复现前需要反馈人补 Web/Desktop 截图、账号 ID 与消息链接。",
+      "截图 1 中 iOS 端标题显示「Updating...」且仍在转圈，说明截图时该端还在同步；存在「消息只是尚未同步到 Web/Desktop」的时间窗与真实缺陷混淆的可能，需要在另两端上做重复观察才能排除。",
+      "对象一致性风险：允许构造数据的会话只有群「黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2」，即使将来有转发积木，也只能在群里转发，而 Issue 的对象是「从与 Shok 的单聊转发出去的转发消息」（q1、q2），对象形态会与 Issue 不一致。",
+      "Issue 提到 Desktop 构建 101，且待确认「Desktop 101 是否只是能力落后于 iOS」；未确认版本差异前，任何跨端结论都要带上客户端版本号。"
+    ]
+  },
+  "planVersion": 1,
+  "modelCalls": 1,
+  "status": "needs-block",
+  "reason": "缺积木：node「一个「转发」动作 Node（例如 teamily.forwardMessage：在会话里长按/打开某条消息的操作菜单 → 选「转发」→ 选目标会话 → 发送），能产出带「Forwarded from <原发送者>」来源标记的转发消息。现有 Node 只有 sendMessage（plain / markdown-link 纯文本）、quoteReply（引用回复，不是转发）、tapSend、typeMention、clearComposer、switchConversation、openPage、tapRewrite、relogin、freezeMention，没有任何积木能发出转发消息，因此无法执行本 Issue 的触发动作」；precondition「一个与源账号（Shok）的单聊（1:1）会话，且该会话在允许构造数据的清单内。本次允许清单只有群会话「黄悦龙Aaron, 黄悦龙-AgentEval, aaron+test2」，没有与 Shok 的单聊，也没有创建/进入单聊的积木，Issue 的对象（「从单聊转发出去的转发消息」）无法构造」；observation「同一账号同一会话在 Web 浏览器与 Desktop 客户端 build 101 上的消息列表读取能力（判断该转发消息是完全不存在、为空占位还是显示为其他形态）。本轮只在 android-app 执行，网页端不运行，现有观察（text / element / region / crash / process-alive / keyboard / ai）都只读当前这台 android 端的画面，无法读到另两端的消息列表，也无法做三端对照」",
+  "subcases": [],
+  "designMs": 67284,
+  "issueFile": "D:\\projects\\Tools\\multi-test-agent\\fixtures\\issues\\2235.md",
+  "hash": "45ec8922d7541e00",
   "issueHash": "96a630e4b336f9a5",
   "env": "prod",
-  "version": 2
+  "version": 3
 }

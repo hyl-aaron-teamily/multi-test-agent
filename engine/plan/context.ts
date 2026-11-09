@@ -31,4 +31,6 @@ export interface RunCtx {
   wfr?: WebFlightRecorder;
   /** Pre-tap check (on during preparation / re-entry only). */
   guard?: import('../pretap').PreTapGuard;
+  /** Which pool account the App is signed in as (teamily.relogin as: other switches; teardown restores self). */
+  signedInAs?: () => 'self' | 'other';
 }

@@ -29,7 +29,8 @@ const mobileBand = (n: ScreenNode | undefined, vp: Size, h?: number): Box | unde
 const pad = (b: Box, p: number): Box => [b[0] - p, b[1] - p, b[2] + 2 * p, b[3] + 2 * p];
 const byLabel = (nodes: ScreenNode[], re: RegExp) => nodes.find((n) => re.test(label(n)));
 const ARTIFACT_CONTROLS = /^(更多操作|加入收藏|发送到聊天|筛选|通知|新建|新建子文档|查看全部|开启|网格视图|列表视图|收起侧边栏|搜索.*)$/;
-const isEdit = (n: ScreenNode) => /EditText|textbox/i.test(n.cls) && !/^(搜索|Search)/i.test(label(n));
+// A real input box has a size: an 8×8 EditText stub at the screen bottom was once cached as the composer (2026-11-09).
+const isEdit = (n: ScreenNode) => /EditText|textbox/i.test(n.cls) && !/^(搜索|Search)/i.test(label(n)) && n.box[2] >= 100 && n.box[3] >= 30;
 /** Phone browser: its own controls (address bar …) carry the browser's resource ids; the page's do not. */
 const inPage = (n: ScreenNode) => !/^com\.android\.browser:id\//.test(n.rid ?? '');
 

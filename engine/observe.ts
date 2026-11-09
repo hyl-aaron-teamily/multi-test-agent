@@ -104,9 +104,36 @@ export function scopeNodes(nodes: UiNode[], k: CheckPoint, targets: Record<strin
   if (s === 'composer') return nodes.filter((n) => /EditText/.test(n.cls)).sort((a, b) => b.y1 - a.y1).slice(0, 1);
   if (s === 'quote-cards') return nodes.filter((n) => n.clickable && /^[^,]{1,60}, .+/.test(n.desc) && n.x1 > viewportWidth * 0.1);
   if ('message' in s) return messageNodes(nodes, s.message) ?? [];
+  if ('targetBubble' in s) {
+    const p = targets[s.targetBubble];
+    return p ? bubbleNodes(nodes, p) ?? [] : [];
+  }
   const p = targets[s.target];
   if (!p) return [];
-  return nodes.filter((n) => Math.abs((n.y1 + n.y2) / 2 - p.y) <= (s.within ?? 250));
+  const wx = s.withinX ?? Math.round(viewportWidth * 0.45);
+  return nodes.filter((n) => Math.abs((n.y1 + n.y2) / 2 - p.y) <= (s.within ?? 250) && Math.abs((n.x1 + n.x2) / 2 - p.x) <= wx);
+}
+
+/** Height below a bubble where its reaction row sits (px, phone layout). */
+export const REACTION_ROW_PX = 140;
+
+/** Pure: a frozen target's message bubble — the smallest clickable container around the point (not the whole
+ *  list) — and every node in it, plus the reaction row right under it (overlapping the bubble horizontally).
+ *  undefined = nothing at that point. */
+export function bubbleNodes(nodes: UiNode[], p: Point): UiNode[] | undefined {
+  const b = bubbleAt(nodes, p);
+  return b && [...b.inner, ...b.below];
+}
+
+/** Pure: the bubble box at a point, its nodes, and the nodes of the row right under it. */
+export function bubbleAt(nodes: UiNode[], p: Point): { box: UiNode; inner: UiNode[]; below: UiNode[] } | undefined {
+  const at = nodes.filter((n) => p.x >= n.x1 && p.x <= n.x2 && p.y >= n.y1 && p.y <= n.y2 && n.y2 > n.y1);
+  if (!at.length) return undefined;
+  const leaf = at.sort((a, b) => (a.x2 - a.x1) * (a.y2 - a.y1) - (b.x2 - b.x1) * (b.y2 - b.y1))[0];
+  const box = (leaf.clickable ? leaf : clickableAncestor(nodes, leaf)) ?? leaf;
+  const inner = nodes.filter((n) => inside(n, box));
+  const below = nodes.filter((n) => !inner.includes(n) && n.y1 >= box.y2 - 4 && n.y1 <= box.y2 + REACTION_ROW_PX && n.x2 > box.x1 && n.x1 < box.x2);
+  return { box, inner, below };
 }
 
 /** Text on screen: ① accessibility tree (Android) / page text (Playwright, read-only) → ③ vision. */
@@ -126,6 +153,8 @@ export async function observeText(d: Driver, k: CheckPoint, targets: Record<stri
     if (!(d instanceof AndroidDriver)) return { check: k, pass: null, detail: 'message scope is read from the accessibility tree (Android) only — 未验证', ms: Date.now() - t0 };
     const nodes = await dumpTree(d.o.udid, pkg ?? d.o.packageName, 3);
     const scoped = nodes.length ? messageNodes(nodes, anchor) : undefined;
+    // No such message: nothing of it can be present — an "absent" check holds; a "present" check cannot apply (drift).
+    if (!scoped && k.want === 'absent') return { check: k, pass: true, detail: `no message containing "${anchor}" on screen (absent)`, tier: '①', ms: Date.now() - t0 };
     if (!scoped) return { check: k, pass: null, detail: `no message containing "${anchor}" on screen`, drift: `no message containing "${anchor}" on screen (not sent / not shown)`, tier: '①', ms: Date.now() - t0 };
     const hit = scoped.find((n) => matches(n, m));
     const all = [...new Set(scoped.map((n) => n.text || n.desc).filter(Boolean))].join(' | ').slice(0, 160);
