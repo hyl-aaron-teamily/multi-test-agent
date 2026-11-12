@@ -1,7 +1,6 @@
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { tmpDir } from '../../core/testing/tmp-dir';
 import { AccountPool } from './account-pool';
 import { parseAccountsYaml, type SecretBackend } from './secret-backend';
 
@@ -33,12 +32,12 @@ describe('account pool', () => {
     expect(records[2].surfaces).toEqual(['desktop-web']);
   });
   it('state never contains passwords', async () => {
-    const pool = new AccountPool(backend(), join(mkdtempSync(join(tmpdir(), 'acc-')), 'a.json'));
+    const pool = new AccountPool(backend(), join(tmpDir('acc-'), 'a.json'));
     const list = await pool.reload();
     expect(JSON.stringify(list)).not.toMatch(/s1|s2|s3/);
   });
   it('leases by env + surface, busy until released, then cools down', async () => {
-    const pool = new AccountPool(backend(), join(mkdtempSync(join(tmpdir(), 'acc-')), 'a.json'));
+    const pool = new AccountPool(backend(), join(tmpDir('acc-'), 'a.json'));
     await pool.reload();
     const l = pool.lease('task1', { env: 'prod', surface: 'mobile-web' });
     expect(l?.accounts.map((a) => a.id)).toEqual(['p1']);
@@ -47,6 +46,7 @@ describe('account pool', () => {
     expect(pool.get('p1')?.status).toBe('idle');
     expect(pool.pick({ env: 'prod', surface: 'mobile-web' })).toEqual([]);
     expect(pool.pick({ env: 'prod', surface: 'mobile-web' }, Date.now() + 60_000).map((a) => a.id)).toEqual(['p1']);
+    await pool.persist(); // lease/release write in the background: finish before the temp dir is removed
   });
   it('on a phone the lease takes the account signed in there, never another one', async () => {
     const { DevicePool, parsePoolConfig } = await import('../device-pool');
@@ -54,7 +54,7 @@ describe('account pool', () => {
     devices.config = parsePoolConfig('maxConcurrent: 2\ndevices:\n  - udid: ph1\n    accounts: { android-app: p2 }\n');
     await devices.refresh([{ udid: 'ph1', state: 'device' }]);
     const b = backend();
-    const pool = new AccountPool({ ...b, accounts: () => b.accounts().map((a) => ({ ...a, surfaces: ['android-app', 'desktop-web'] })) }, join(mkdtempSync(join(tmpdir(), 'acc-')), 'a.json'));
+    const pool = new AccountPool({ ...b, accounts: () => b.accounts().map((a) => ({ ...a, surfaces: ['android-app', 'desktop-web'] })) }, join(tmpDir('acc-'), 'a.json'));
     await pool.reload();
     expect(pool.lease('t1', { env: 'prod', surface: 'android-app', accountId: 'p1', devices })).toBeNull(); // p2 is signed in there
     const l = pool.lease('t1', { env: 'prod', surface: 'android-app', devices });
@@ -65,9 +65,10 @@ describe('account pool', () => {
     expect(h?.device?.udid).toBe('host:local');
     pool.release(l!, devices);
     expect(devices.get('ph1')?.status).toBe('idle');
+    await pool.persist();
   });
   it('count > free → nothing', async () => {
-    const pool = new AccountPool(backend(), join(mkdtempSync(join(tmpdir(), 'acc-')), 'a.json'));
+    const pool = new AccountPool(backend(), join(tmpDir('acc-'), 'a.json'));
     await pool.reload();
     expect(pool.pick({ env: 'test', surface: 'desktop-web', count: 2 })).toEqual([]);
   });

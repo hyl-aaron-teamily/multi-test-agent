@@ -5,15 +5,17 @@
 // once; still failing → the draft says 「无法生成计划」 with the errors. A revision (§8.2) is the same call
 // with the previous envelope and the run evidence.
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { join, resolve } from 'node:path';
 import { z } from 'zod';
-import { chatJson, modelConfigured, visionConfigured, visionJson } from '../core/model/llm';
+import { modelCall, type Slot } from '../core/context/assemble';
+import { modelConfigured, visionConfigured } from '../core/model/llm';
 import { observationOf } from '../engine/observe';
 import { loadConversations } from '../platform/conversations';
 import type { IssueContract } from '../platform/schema/contract';
 import { type Audit, DEFAULT_LIMITS, FeasibilityZ, OracleZ, QuoteZ, RevisionZ, type Surface, type TestPlan, TraceZ, UnderstandingZ, verdictRuleFor } from '../platform/schema/test-plan';
 import { SKILL_VERSION } from '../skills/teamily/vocab';
 import { blockCatalog } from './catalog';
+import { DRAFTS_DIR } from './drafts';
 import { issueImages } from './images';
 import type { NormalizedIssue } from './parse';
 import { expectsOf, validateAuthored, validatePlan } from './validate';
@@ -68,8 +70,16 @@ export interface Authored {
   calls: number;
 }
 
+/** The system prompt as slots: SKILL then the block catalog (both stable across Issues: a cacheable prefix). */
+export function systemSlots(): Slot[] {
+  return [
+    { name: 'skill', role: 'system', stable: true, content: readFileSync(SKILL_FILE, 'utf8') },
+    { name: 'catalog', role: 'system', stable: true, content: blockCatalog() },
+  ];
+}
+
 export function systemPrompt(): string {
-  return `${readFileSync(SKILL_FILE, 'utf8')}\n\n${blockCatalog()}`;
+  return systemSlots().map((x) => x.content as string).join('\n\n');
 }
 
 /** Pure: the user message — the Issue file verbatim plus what the executor fixed (surface, allow list, version). */
@@ -180,25 +190,45 @@ export function contractOf(p: TestPlan): IssueContract | undefined {
   };
 }
 
-type Ask = (system: string, user: string, images: Parameters<typeof issueImages>[0]) => Promise<unknown>;
+/** Per-call side channel: where to log, and why the call gave nothing (set by the default ask). Per call, not
+ *  module state: Issues are designed in parallel (regress-w3 --parallel 3). */
+export interface AskMeta {
+  logs?: { raw: string; manifest: string };
+  failure?: string;
+}
+type Ask = (system: string, user: string, images: Parameters<typeof issueImages>[0], meta?: AskMeta) => Promise<unknown>;
 
-/** The model call: with the Issue's screenshots when a vision model is configured (B7), text otherwise. */
-const defaultAsk: Ask = async (system, user, images) => {
+/** Pure: the per-Issue log files next to the draft (gitignored). */
+export const authorLogs = (issueId: string, dir = DRAFTS_DIR) => ({ raw: join(dir, `${issueId}.calls.jsonl`), manifest: join(dir, `${issueId}.context.jsonl`) });
+
+/** The model call: with the Issue's screenshots when a vision model is configured (B7), text otherwise.
+ *  The answer is never dropped silently: the raw text is in `<id>.calls.jsonl` and the failure reason is kept. */
+const defaultAsk: Ask = async (system, user, images, meta = {}) => {
   const shots = visionConfigured() && images.length ? await issueImages(images) : [];
-  return shots.length ? visionJson(system, [user, ...shots], 180_000) : chatJson(system, user, 180_000);
+  const sys = systemSlots();
+  const slots: Slot[] = [
+    ...(sys.map((x) => x.content).join('\n\n') === system ? sys : [{ name: 'system', role: 'system' as const, stable: true, content: system }]),
+    { name: 'issue', role: 'user', content: user },
+    { name: 'issue-images', role: 'user', content: shots },
+  ];
+  const r = await modelCall({ purpose: 'plan-author', slots, timeoutMs: 180_000, correct: true, rawLog: meta.logs?.raw, manifestLog: meta.logs?.manifest });
+  meta.failure = r.ok ? undefined : r.fail === 'parse' || r.fail === 'truncated' ? `模型输出无法解析（${r.error.slice(0, 160)}），原始输出已保存` : `模型调用失败（${r.error.slice(0, 160)}）`;
+  return r.ok ? r.value : undefined;
 };
 
 /** One delivery: ask, compile, validate; on errors ask once more with the error list. */
 export async function author(cx: AuthorContext, extra: { previous?: Envelope; materials?: RevisionMaterials } = {}, ask: Ask = defaultAsk): Promise<Authored> {
   if (!modelConfigured() && ask === defaultAsk) return { subcases: [], errors: ['未配置模型：W3-1 起计划只能由模型从原文设计（不再有规则模板）'], calls: 0 };
   const system = systemPrompt();
+  const logs = authorLogs(cx.issue.id);
   let errors: string[] = [];
   let last: Authored = { subcases: [], errors: [], calls: 0 };
   for (let attempt = 0; attempt < 2; attempt++) {
-    const ans = await ask(system, userPrompt(cx, { ...extra, errors: attempt ? errors : undefined }), cx.issue.images ?? []);
+    const meta: AskMeta = { logs };
+    const ans = await ask(system, userPrompt(cx, { ...extra, errors: attempt ? errors : undefined }), cx.issue.images ?? [], meta);
     const parsed = EnvelopeZ.safeParse(ans);
     if (!parsed.success) {
-      errors = ans === undefined ? ['模型没有返回可解析的 JSON'] : parsed.error.issues.slice(0, 20).map((i) => `envelope ${i.path.join('.')}: ${i.message}`);
+      errors = ans === undefined ? [meta.failure ?? '模型没有返回可解析的 JSON'] : parsed.error.issues.slice(0, 20).map((i) => `envelope ${i.path.join('.')}: ${i.message}`);
       last = { subcases: [], errors, calls: attempt + 1 };
       continue;
     }

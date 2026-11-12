@@ -18,6 +18,8 @@ export interface Stats {
   incidentalSnapshots?: number;
   visionCalls: number;
   textModelCalls: number;
+  /** Model tokens of this run (W3-2): input, output, and input served from the provider's prefix cache. */
+  tokens?: { input: number; output: number; cached: number };
   launches: number;
   /** Rounds discarded because the screen was not where the plan expected (re-entered). */
   drifts: number;

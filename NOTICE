@@ -1,0 +1,14 @@
+multi-test-agent
+Copyright 2026 the multi-test-agent authors.
+
+This product includes code ported to TypeScript from Artemis (https://github.com/google/artemis),
+Copyright 2026 Google LLC, licensed under the Apache License, Version 2.0
+(http://www.apache.org/licenses/LICENSE-2.0). Each ported file names its source in a header comment.
+
+Ported files:
+- core/model/structured.ts
+    from artemis/llm/structured.py L69-194 (extract_json_candidate, _balanced_span, repair_json, parse_structured)
+    and artemis/llm/parser.py L21-32 (extract_thinking_tags)
+- core/model/llm.ts
+    from artemis/llm/reliability.py L85-166 (classify_failure, _DEFAULT_RETRY_POLICIES)
+    and artemis/services/llm.py L805-860 (acomplete_structured: the correction re-ask)

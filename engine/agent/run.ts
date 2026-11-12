@@ -7,7 +7,9 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import * as llm from '../../core/model/llm';
-import { modelCalls, setModelPurpose, visionConfigured, visionJson } from '../../core/model/llm';
+import { modelCall } from '../../core/context/assemble';
+import { modelCalls, setModelPurpose, type Usage, visionConfigured } from '../../core/model/llm';
+import { useCallLogs } from '../../core/context/logs';
 
 const visionOutageNow = () => llm.visionOutage;
 import { label, type ScreenNode } from '../../core/screen-index';
@@ -107,7 +109,7 @@ export interface AgentResult {
   findings: Finding[];
   blocked: { step: number; action: string; reason: string }[];
   coverage: { screens: number; actions: number; byScreen: Record<string, number> };
-  usage: { steps: number; seconds: number; modelCalls: number };
+  usage: { steps: number; seconds: number; modelCalls: number; tokens?: Usage };
   steps: StepRecord[];
   /** SKILL candidates written to skill-candidates.json (W2-5 §7.3). */
   candidates?: { count: number; file: string };
@@ -160,8 +162,10 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
   const id = `agent-${o.mode}-${t0}`;
   await mkdir(join(o.runDir, 'steps'), { recursive: true });
   const traj = openTrajectory(join(o.runDir, 'trajectory.jsonl'));
+  const endCallLogs = useCallLogs(o.runDir);
   const res: AgentResult = { schemaVersion: 1, kind: 'agent', goal: o.goal, mode: o.mode, surface: o.surface, env: o.env, writable: !!o.writable, startedAt: new Date(t0).toISOString(), finishedAt: '', status: 'error', summary: '', findings: [], blocked: [], coverage: { screens: 0, actions: 0, byScreen: {} }, usage: { steps: 0, seconds: 0, modelCalls: 0 }, steps: [], runDir: o.runDir };
   const calls0 = modelCalls.vision + modelCalls.text;
+  const tokens0 = { ...modelCalls.tokens };
   const { maxSteps, maxMinutes } = agentLimits(o);
   const deadline = t0 + maxMinutes * 60_000;
   const tried = new Map<string, Set<string>>();
@@ -169,8 +173,9 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
   const candidates = new CandidateTracker();
   const ownNames = o.pool?.ownContent(o.env) ?? [];
   const finish = async (): Promise<AgentResult> => {
+    endCallLogs();
     res.finishedAt = new Date().toISOString();
-    res.usage = { steps: res.steps.length, seconds: Math.round((Date.now() - t0) / 1000), modelCalls: modelCalls.vision + modelCalls.text - calls0 };
+    res.usage = { steps: res.steps.length, seconds: Math.round((Date.now() - t0) / 1000), modelCalls: modelCalls.vision + modelCalls.text - calls0, tokens: { input: modelCalls.tokens.input - tokens0.input, output: modelCalls.tokens.output - tokens0.output, cached: modelCalls.tokens.cached - tokens0.cached } };
     res.coverage = { screens: tried.size, actions: [...tried.values()].reduce((n, s) => n + s.size, 0), byScreen: Object.fromEntries([...tried].map(([k, v]) => [k, v.size])) };
     if (!o.bench) {
       const list = candidates.list();
@@ -329,7 +334,19 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       const prompt = userPrompt({ goal: o.goal, mode: o.mode, plan, history: historyText(res.steps), screen, els, tried: [...triedHere], feedback, size: vp, instructions: res.instructions?.map((x) => x.text) });
       let ans: AgentAnswer | undefined;
       const system = bench ? BENCH_SYSTEM : SYSTEM(!!o.writable, ownNames);
-      for (let k = 0; k < 2 && !ans; k++) ans = parseAnswer(await visionJson(system, [prompt, { label: 'Screenshot (scaled; use the element coordinates for taps)', png: shot }], MODEL_TIMEOUT_MS).catch(() => undefined), !!bench);
+      for (let k = 0; k < 2 && !ans; k++) {
+        const r = await modelCall({
+          purpose: 'agent',
+          vision: true,
+          slots: [
+            { name: 'role', role: 'system', stable: true, content: system },
+            { name: 'step', role: 'user', content: prompt },
+            { name: 'screenshot', role: 'user', content: [{ label: 'Screenshot (scaled; use the element coordinates for taps)', png: shot }] },
+          ],
+          timeoutMs: MODEL_TIMEOUT_MS,
+        }).catch(() => undefined);
+        ans = parseAnswer(r?.ok ? r.value : undefined, !!bench);
+      }
       if (!ans) {
         // A service that stays busy is a tool failure, not the agent's: no conclusion from this run.
         const down = visionOutageNow();
@@ -430,6 +447,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
     }
   } finally {
     setModelPurpose('other');
+    endCallLogs();
     await afr?.stop().catch(() => {});
     await closeSession(sess);
     if (lease) o.pool!.release(lease, o.devices);

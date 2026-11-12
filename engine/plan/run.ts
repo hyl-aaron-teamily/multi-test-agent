@@ -5,6 +5,7 @@
 import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { modelCallListeners, modelCalls, setModelPurpose, visionConfigured } from '../../core/model/llm';
+import { useCallLogs } from '../../core/context/logs';
 import { isoMs, openTrajectory, type Trajectory } from '../../core/trajectory';
 import type { CoordOp } from '../recorder/recording-driver';
 import { TEAMILY_PACKAGE } from '../../drivers/factory';
@@ -166,9 +167,10 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   const plan = o.plan;
   const log = o.log ?? ((s) => console.log(`[run] ${s}`));
   await mkdir(o.runDir, { recursive: true });
+  const endCallLogs = useCallLogs(o.runDir);
   const t0 = Date.now();
   const stats = newStats();
-  const calls0 = { ...modelCalls, byPurpose: { ...modelCalls.byPurpose } };
+  const calls0 = { ...modelCalls, byPurpose: { ...modelCalls.byPurpose }, tokens: { ...modelCalls.tokens } };
   const locate0 = JSON.parse(JSON.stringify(locateTally)) as typeof locateTally;
   const tree0 = { reads: Object.fromEntries(Object.entries(treeStats.reads).map(([k, v]) => [k, v.n])), fallbacks: treeStats.fallbacks.length };
   let guard: PreTapGuard | undefined;
@@ -229,6 +231,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     if (Object.keys(reads).length || fb.length) stats.treeBackend = { reads, fallbacks: fb.length, ...(fb[0] ? { firstFallback: fb[0].reason } : {}) };
     stats.locateTiers = Object.fromEntries(Object.entries(locateTally).map(([k, v]) => [k, { n: v.n - (locate0[k]?.n ?? 0), ms: v.ms - (locate0[k]?.ms ?? 0) }]).filter(([, v]) => (v as { n: number }).n > 0));
     const out = finish(res, t0, stats, calls0);
+    endCallLogs();
     writeTrajectory(traj, out, opsOf());
     await traj.close({ runId: `${plan.id}-${t0}`, query: `Issue ${plan.issueRef} ${plan.title}`, startedAt: isoMs(t0), endedAt: isoMs(Date.now()), model: process.env.MIDSCENE_MODEL_NAME ?? '', account: res.account ?? '', output: { conclusion: out.conclusion, detail: out.conclusionDetail, stats: out.stats, coverage: out.coverage } });
     return out;
@@ -504,6 +507,7 @@ function finish(res: RunResult, t0: number, stats: Stats, calls0: typeof modelCa
   stats.durationSec = Math.round((Date.now() - t0) / 1000);
   stats.visionCalls = modelCalls.vision - calls0.vision;
   stats.textModelCalls = modelCalls.text - calls0.text;
+  stats.tokens = { input: modelCalls.tokens.input - calls0.tokens.input, output: modelCalls.tokens.output - calls0.tokens.output, cached: modelCalls.tokens.cached - calls0.tokens.cached };
   stats.modelCallsByPurpose = Object.fromEntries(Object.entries(modelCalls.byPurpose).map(([k, v]) => [k, v - (calls0.byPurpose[k] ?? 0)]).filter(([, v]) => (v as number) > 0));
   return res;
 }

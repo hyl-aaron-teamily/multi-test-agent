@@ -1,7 +1,7 @@
-import { mkdtempSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { tmpDir } from '../core/testing/tmp-dir';
 import { readFileSync } from 'node:fs';
 import { canonical, draftHash, loadSavedDraft, recordWarmupFailures, sha } from './drafts';
 import type { Draft } from './planner';
@@ -12,7 +12,7 @@ describe('draft store (confirmation = execution)', () => {
   it('canonical JSON ignores key order', () => expect(canonical({ b: 1, a: [{ d: 2, c: 3 }] })).toBe(canonical({ a: [{ c: 3, d: 2 }], b: 1 })));
   it('hash changes with plan content', () => expect(draftHash(draft('a'))).not.toBe(draftHash(draft('b'))));
   it('reuses a saved draft only for the same Issue text, env and intact content', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'drafts-'));
+    const dir = tmpDir('drafts-');
     const d = { ...draft('a'), env: 'prod', issueHash: sha('issue text') };
     d.hash = draftHash(d);
     writeFileSync(join(dir, 'x.json'), JSON.stringify(d));
@@ -23,7 +23,7 @@ describe('draft store (confirmation = execution)', () => {
     expect(loadSavedDraft('x', 'issue text', 'prod', dir)).toBeUndefined();
   });
   it('warm-up failures go back to the saved draft of the same version only (hash unchanged)', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'drafts-'));
+    const dir = tmpDir('drafts-');
     const d = { ...draft('a'), env: 'prod' };
     d.hash = draftHash(d);
     writeFileSync(join(dir, 'x.json'), JSON.stringify(d));

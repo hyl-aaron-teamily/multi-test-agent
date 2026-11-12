@@ -5,6 +5,8 @@ export default defineConfig({
   test: {
     // Pure checks only (no device, no model); one file at a time keeps shared state files sane.
     fileParallelism: false,
+    // Every test file's tmpDir() directories are removed when it finishes.
+    setupFiles: ['core/testing/tmp-cleanup.ts'],
     // Unit tests read a committed fixture, never the private allow-list of this machine.
     env: { CONVERSATIONS_FILE: 'issue/__fixtures__/conversations.yaml', AUTOTEST_ISSUES_DIR: 'fixtures/issues', AUTOTEST_DRAFTS_DIR: 'issue/__fixtures__/drafts' },
     projects: [

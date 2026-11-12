@@ -30,3 +30,6 @@ platform/plans/explore-*
 /issues/
 /CHANGELOG.md
 /PROJECT-SUMMARY.md
+# Model call logs next to the drafts (W3-2: raw answers, context manifests)
+platform/plans/drafts/*.calls.jsonl
+platform/plans/drafts/*.context.jsonl

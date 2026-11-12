@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { tmpDir } from '../core/testing/tmp-dir';
 import { diagnose, doctorText, type Facts } from './doctor';
 
 const base = (): Facts => ({
@@ -79,10 +80,9 @@ describe('platform/doctor diagnose (W2-4 T5: four cases)', () => {
 
 describe('platform/doctor --fix (local side only)', () => {
   it('removes stale lock files and reports what it did', async () => {
-    const { mkdtempSync, mkdirSync, writeFileSync, existsSync, utimesSync } = await import('node:fs');
+    const { mkdirSync, writeFileSync, existsSync, utimesSync } = await import('node:fs');
     const { join } = await import('node:path');
-    const { tmpdir } = await import('node:os');
-    const dir = mkdtempSync(join(tmpdir(), 'doctor-'));
+    const dir = tmpDir('doctor-');
     process.env.AUTOTEST_STATE_DIR = dir;
     try {
       mkdirSync(join(dir, 'locks'));

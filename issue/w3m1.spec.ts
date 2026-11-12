@@ -1,10 +1,10 @@
 // W3-1: model-authored plans (validator rules R1–R12, authoring loop, 2063 regression shape), executor pieces
 // (must, scopes, warm-up proof, revision triggers), wording (no upper bound), Issue import and GitHub.
-import { mkdtempSync, readFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
+import { tmpDir } from '../core/testing/tmp-dir';
 import type { UiNode } from '../core/ui-tree';
 import { checkMust } from '../engine/plan/expect';
 import { isControl, proveChecksCanFail, WarmupError } from '../engine/plan/warmup';
@@ -211,7 +211,7 @@ describe('executor pieces (§6)', () => {
     const pc = expandAction({ type: 'tap', delayAfterMs: 0, element: 'x', expect: { role: 'precondition', check: { kind: 'text', expect: '', want: 'present', match: { contains: 'autotest={token} {round}' } } } }, { token: 'rabc', round: 3 });
     expect(pc.expect?.check.match).toEqual({ contains: 'autotest=rabc 3' });
   });
-  const ctx = (plan: TestPlan): any => ({ plan, o: { runDir: mkdtempSync(join(tmpdir(), 'w3m1-')) }, log: () => {}, sess: { d: { screenshot: async () => Buffer.alloc(0) } }, res: {} });
+  const ctx = (plan: TestPlan): any => ({ plan, o: { runDir: tmpDir('w3m1-') }, log: () => {}, sess: { d: { screenshot: async () => Buffer.alloc(0) } }, res: {} });
   it('warm-up proof (§7.4): a phenomenon check that already passes before the trigger has no discrimination', async () => {
     const p = mainPlan();
     const steps: any[] = [];
@@ -271,7 +271,7 @@ describe('evaluation + revision (§8)', () => {
 
 describe('Issue import (§10, §12)', () => {
   const dirs = () => {
-    const d = mkdtempSync(join(tmpdir(), 'imp-'));
+    const d = tmpDir('imp-');
     return { uploadDir: join(d, 'upload'), assetsDir: join(d, 'assets') };
   };
   it('id: explicit → file name → "#<n>" → upload-<date>-<sha6>; bad ids refused', () => {
@@ -316,7 +316,7 @@ describe('Issue import (§10, §12)', () => {
     try {
       const md = '![a](https://github.com/Teamily-Inc/bug-screenshots/blob/main/issue-1.jpg?raw=true)\n![b](https://github.com/user-attachments/assets/k1)\n![c](https://example.com/x.png)';
       const html = '<img src="https://private-user-images.githubusercontent.com/1/k1.png?jwt=abc&amp;x=1">';
-      const r = await localizeImages(md, 't1', html, { fetch: f, dir: mkdtempSync(join(tmpdir(), 'as-')) });
+      const r = await localizeImages(md, 't1', html, { fetch: f, dir: tmpDir('as-') });
       expect(r.images.map((x) => !!x.local)).toEqual([true, true, false]);
       expect(r.images[2].error).toMatch(/HTTP 404/);
       expect(r.markdown).toMatch(/\]\([^)]*t1\/1\.png\)/);
@@ -356,7 +356,7 @@ describe('GitHub (§11)', () => {
     try {
       await expect(importIssue({ url: 'https://github.com/someone/else/issues/1', dryRun: true })).rejects.toThrow(/白名单/);
       const f = (async () => new Response(JSON.stringify({ title: 'T', body: '## Summary\nS', body_html: '', updated_at: '2026-11-01T00:00:00Z', html_url: 'https://github.com/Teamily-Inc/teamily-ai-all/issues/99999' }), { status: 200 })) as unknown as typeof fetch;
-      const d = mkdtempSync(join(tmpdir(), 'gh-'));
+      const d = tmpDir('gh-');
       const pv = await importIssue({ url: 'https://github.com/Teamily-Inc/teamily-ai-all/issues/99999' }, { fetch: f, uploadDir: d, assetsDir: d });
       expect(pv.id).toBe('99999');
       expect(readFileSync(pv.file, 'utf8')).toMatch(/^<!-- source: https:\/\/github\.com\/Teamily-Inc\/teamily-ai-all\/issues\/99999 · updated_at 2026-11-01T00:00:00Z · fetched_at .+ -->\n# T\n/);

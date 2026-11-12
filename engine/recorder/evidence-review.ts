@@ -9,7 +9,8 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { visionConfigured, visionJson } from '../../core/model/llm';
+import { modelCall } from '../../core/context/assemble';
+import { modelPurpose, visionConfigured } from '../../core/model/llm';
 import type { NormalizedIssue } from '../../issue/parse';
 import { type ReplayFile, type VideoSeg, videoTimeOf } from './bundle';
 import type { CoordOp } from './recording-driver';
@@ -209,7 +210,16 @@ export async function reviewIncident(dir: string, issue: Pick<NormalizedIssue, '
     const n = o.votes ?? 3;
     // Independent answers, majority wins; stop once a side has the majority.
     for (let i = 0; i < n; i++) {
-      const v = asVote(await visionJson(REVIEW_SYSTEM, parts));
+      const r = await modelCall({
+        purpose: modelPurpose(),
+        vision: true,
+        slots: [
+          { name: 'role', role: 'system', stable: true, content: REVIEW_SYSTEM },
+          { name: 'incident', role: 'user', content: prompt },
+          { name: 'frames', role: 'user', content: parts.slice(1) },
+        ],
+      });
+      const v = asVote(r.ok ? r.value : undefined);
       if (v) review.votes.push(v);
       const yes = review.votes.filter((x) => x.consistent === true).length;
       const no = review.votes.filter((x) => x.consistent === false).length;
