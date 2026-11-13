@@ -49,8 +49,18 @@ cp .env.example .env                 # 填 MIDSCENE_MODEL_*；可选 SCRCPY_PATH
 
 设备与执行端在 `platform/devices.yaml`（每台手机的端、登录账号、读树后端），审批策略在 `platform/policy.yaml`。
 
+### 启动 / 停止
+
+| 方式 | 启动 | 停止 |
+|---|---|---|
+| 命令行 | `pnpm start`（`--open` 同时打开控制台） | `pnpm stop` |
+| 本目录双击 / 输入 | `up.cmd`（启动并打开控制台） | `down.cmd` |
+| 快捷键（Windows） | `Ctrl + Alt + Shift + P`：运行中则停止，否则启动并打开控制台 | 同左 |
+
+另有 `pnpm restart`、`pnpm status`、`pnpm logs [-f]`。平台在后台运行，关掉终端不影响；日志在 `platform/state/logs/platform.log`。**每次启动都是一个新平台**：`pnpm stop`（以及下次启动时）会停掉运行中的任务，删除本次全部运行、报告和任务记录（`midscene_run/`、`platform/state/` 里的运行记录）；要保留某次运行，在任务页点「另存为…」或 `pnpm autotest runs save <任务 id>`，存到 `saved/`，不会被删。快捷键需先执行一次 `pnpm ctl shortcut`（在开始菜单建快捷方式；`--key CTRL+ALT+F9` 换键，`--remove` 删除）。
+
 ```bash
-pnpm platform                        # 平台服务 + Web 控制台 http://localhost:3210（马上监听；环境检查在后台）
+pnpm platform                        # 前台运行平台服务（开发用；日常用 pnpm start）→ http://localhost:3210
 npx tsx bin/autotest.ts doctor       # 能不能跑、缺什么、下一步（平台没启动也能答）
 npx tsx bin/autotest.ts env list     # 各环境状态：ready / leased / checking / unfit / offline
 ```
@@ -127,7 +137,7 @@ npx tsx bin/autotest.ts bench aw [--resume <目录>]        # 全量；--resume 
 
 ## 平台、命令行、MCP、Web
 
-- **平台服务**（`pnpm platform`，`platform/server.ts`）：`/api/v1` 一个服务，状态落盘在 `platform/state/`（JSON，没有数据库）。环境 = 端 × 设备 × 服务环境（如 `android-app:4f2ebdf2@prod`），开机、任务结束后自动检查；任务进程是否存活按 pid + 启动时间判断，停掉平台不影响正在跑的任务，重启后接管；取消在步骤边界生效，60 s 不停则强制结束。
+- **平台服务**（`pnpm platform`，`platform/server.ts`）：`/api/v1` 一个服务，状态落盘在 `platform/state/`（JSON，没有数据库）。环境 = 端 × 设备 × 服务环境（如 `android-app:4f2ebdf2@prod`），开机、任务结束后自动检查；任务进程是否存活按 pid + 启动时间判断，停掉平台会结束正在跑的任务并清空本次运行（只保留「另存为」的，见上）；取消在步骤边界生效，60 s 不停则强制结束。
 - **命令行**（`bin/autotest.ts`，面向 Agent）：`autotest <对象> <动作> [--json]`，22 条命令覆盖 issue / draft / plan / env / task / result / explore / doctor；`--json` 时 stdout 只有一个 JSON 信封；从不提问。全表见 `autotest help --json`。
 - **退出码**两位，十位是类别：
 

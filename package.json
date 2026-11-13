@@ -10,6 +10,12 @@
     "test:unit": "vitest run --project unit",
     "autotest": "tsx bin/autotest.ts",
     "platform": "tsx platform/server.ts",
+    "start": "tsx scripts/ctl.ts start",
+    "stop": "tsx scripts/ctl.ts stop",
+    "restart": "tsx scripts/ctl.ts restart",
+    "status": "tsx scripts/ctl.ts status",
+    "logs": "tsx scripts/ctl.ts logs",
+    "ctl": "tsx scripts/ctl.ts",
     "code-gate": "sh scripts/code-gate.sh"
   },
   "devDependencies": {
