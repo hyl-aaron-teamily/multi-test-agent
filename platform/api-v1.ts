@@ -22,6 +22,7 @@ import { parsePlanId, planIdOf, planIdsOf, resolvePlan, savedDraft, staleFacts, 
 import { envView, exploreSummary, syncSummary, planText, planView, resultText, resultView, taskView, type ResultView } from './views';
 import { EXPLORE_LIMITS } from './schema/test-plan';
 import { appendInstruction, readInstructions } from './lifecycle/inbox';
+import { goalWithFocus, MODULES } from '../engine/explore/modules';
 
 export interface Envelope {
   status: number;
@@ -148,7 +149,7 @@ function taskSteps(t: TaskRecord) {
   if (t.kind === 'explore') {
     const lines = existsSync(join(dir, 'trajectory.jsonl')) ? readFileSync(join(dir, 'trajectory.jsonl'), 'utf8').split('\n').filter(Boolean) : [];
     const ev = lines.map((l) => { try { return JSON.parse(l); } catch { return undefined; } }).filter(Boolean) as any[];
-    const steps = ev.filter((e) => e.kind === 'agent.step').map((e) => ({ step: e.step, at: e.t, action: e.action, thought: e.thought, thumb: e.thumb ? fileUrl(join(dir, e.thumb)) : undefined, blocked: ev.find((b) => b.kind === 'blocked' && b.step === e.step)?.reason, finding: ev.find((b) => b.kind === 'finding' && b.step === e.step)?.description }));
+    const steps = ev.filter((e) => e.kind === 'agent.step').map((e) => ({ step: e.step, at: e.t, action: e.action, thought: e.thought, page: e.page, thumb: e.thumb ? fileUrl(join(dir, e.thumb)) : undefined, blocked: ev.find((b) => b.kind === 'blocked' && b.step === e.step)?.reason, finding: ev.find((b) => b.kind === 'finding' && b.step === e.step)?.description }));
     return { steps, latest: steps.at(-1)?.thumb };
   }
   const p = newestPng(dir);
@@ -205,8 +206,13 @@ const EXPLORE_SURFACES = ['android-app', 'android-web', 'mobile-web', 'desktop-w
 /** Submit a exploration-tier task (§5.4, capability ②): a goal in plain words, run by the agent loop. Read-only
  *  by default; --writable needs full access (the risk rules still block payment / logout / delete …). */
 function submitExplore(b: any): Envelope {
-  const goal = String(b.explore ?? '').trim();
-  if (!goal) return fail('BAD_INPUT', '--explore 需要一句目标，例如 "看看个人主页的通知铃铛能不能打开"');
+  const goal0 = String(b.explore ?? '').trim();
+  if (!goal0) return fail('BAD_INPUT', '--explore 需要一句目标，例如 "看看个人主页的通知铃铛能不能打开"');
+  // W3-4 §8.5 ⑤: the chosen focus modules are written into the goal.
+  const focus = Array.isArray(b.focus) ? b.focus.map(String) : typeof b.focus === 'string' && b.focus ? b.focus.split(',').map((x: string) => x.trim()) : [];
+  const unknownFocus = focus.filter((id: string) => !MODULES.some((m) => m.id === id));
+  if (unknownFocus.length) return fail('BAD_INPUT', `--focus：不认识的模块 ${unknownFocus.join(', ')}（${MODULES.map((m) => m.id).join(' | ')}）`);
+  const goal = goalWithFocus(goal0, focus);
   const mode = b.mode === 'task' ? 'task' : 'explore';
   const surface = String(b.surface ?? 'android-app');
   if (!EXPLORE_SURFACES.includes(surface)) return fail('BAD_INPUT', `--surface: ${EXPLORE_SURFACES.join(' | ')}`);
@@ -529,6 +535,18 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
         return ok('OK', `已请求取消：${v.summary}`, v);
       }
     }
+    // W3-4 exploration judgment (platform/explore-v1.ts): checklist, focus modules, known issues, marks on a run.
+    if (seg[0] === 'explore' && ['expectations', 'modules', 'known'].includes(seg[1] ?? '')) {
+      const x = await import('./explore-v1');
+      if (M === 'GET' && seg[1] === 'expectations' && !seg[2]) return x.listExpectations();
+      if (M === 'POST' && seg[1] === 'expectations' && seg[2] === 'extract' && !seg[3]) return x.extractExpectations();
+      if (M === 'POST' && seg[1] === 'expectations' && seg[2] && !seg[3]) return x.putExpectation(seg[2], q.body ?? {});
+      if (M === 'DELETE' && seg[1] === 'expectations' && seg[2] && !seg[3]) return x.deleteExpectation(seg[2]);
+      if (M === 'GET' && seg[1] === 'modules') return x.listModules();
+      if (M === 'GET' && seg[1] === 'known') return x.listKnown();
+    }
+    if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'mark') return (await import('./explore-v1')).markStep(seg[1], q.body ?? {});
+    if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'triage') return (await import('./explore-v1')).triageFinding(seg[1], q.body ?? {});
     if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'issue') return exploreIssue(seg[1], Number(q.body.n));
     if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'inject') return exploreInject(seg[1], q.body.text);
     if (M === 'GET' && seg[0] === 'explore' && seg[1] && seg[2] === 'candidates') return exploreCandidates(seg[1]);

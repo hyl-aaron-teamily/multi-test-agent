@@ -6,6 +6,7 @@ import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import type { RunResult } from '../engine/plan/run';
 import type { AgentResult } from '../engine/agent/run';
+import { FINDING_SOURCE, findingState } from '../engine/explore/judge';
 import type { SyncResult } from '../engine/plan/sync';
 import { attemptsText } from '../engine/stats';
 import { nodeSpec } from '../skills/teamily/node-specs';
@@ -404,7 +405,9 @@ export interface ExploreSummary {
   mode: 'task' | 'explore';
   status: string;
   summary: string;
-  findings: { n: number; counted: boolean; source: string; kind: string; description: string; incident: string; review?: string }[];
+  findings: { n: number; counted: boolean; source: string; kind: string; description: string; incident: string; review?: string; step: number; page?: string; known?: { id: string; count: number; isNew: boolean }; excluded?: string; triage?: { verdict: string; note?: string; at: string }; state: string; expectation?: string }[];
+  /** W3-4 §8.5 ①: each checklist entry the run carried, with its result and steps. */
+  expectations?: { id: string; page: string; trigger: string; expect: string; source: string; result: string; steps: number[]; evidence?: string; finding?: number }[];
   coverage: { screens: number; actions: number };
   blocked: number;
   usage: { steps: number; seconds: number; modelCalls: number };
@@ -413,10 +416,17 @@ export interface ExploreSummary {
 }
 
 /** Pure: the conclusion sentence of a exploration-tier run. */
+/** Pure: a finding counts unless people marked it not the app's problem. */
+export const countsAsFound = (f: Pick<ExploreSummary['findings'][number], 'counted' | 'triage'>) => f.counted && (!f.triage || f.triage.verdict === 'issue');
+
 export function exploreSentence(e: ExploreSummary): string {
-  const found = e.findings.filter((f) => f.counted).length;
+  const counted = e.findings.filter(countsAsFound);
+  const again = counted.filter((f) => f.known && !f.known.isNew).length;
+  const found = counted.length;
+  const exp = e.expectations ?? [];
+  const expText = exp.length ? `；预期核对 ${exp.filter((x) => x.result !== '未核对').length}/${exp.length} 条（不符合 ${exp.filter((x) => x.result === '不符合').length}）` : '';
   const st: Record<string, string> = { completed: '完成', failed: '未能完成目标', limit: '到达上限', cancelled: '已取消（不完整）', 'env-unfit': '环境不合格', error: '执行出错' };
-  return `${e.mode === 'explore' ? '探索' : '任务'}${st[e.status] ?? e.status}：${found ? `${found} 个发现` : `未发现问题（覆盖 ${e.coverage.screens} 个界面、${e.coverage.actions} 个动作，拦截 ${e.blocked} 次）`}；${e.usage.steps} 步，模型调用 ${e.usage.modelCalls} 次`;
+  return `${e.mode === 'explore' ? '探索' : '任务'}${st[e.status] ?? e.status}：${found ? `${found} 个发现${again ? `（其中 ${again} 个是已知问题再次出现）` : ''}` : `未发现问题（覆盖 ${e.coverage.screens} 个界面、${e.coverage.actions} 个动作，拦截 ${e.blocked} 次）`}${expText}；${e.usage.steps} 步，模型调用 ${e.usage.modelCalls} 次`;
 }
 
 const SUGGEST: Record<'env' | 'tool', string> = { env: '环境问题：按环境页的建议处理（解锁 / 重连 / 重新检查），然后只重跑这一项', tool: '工具问题：查看报告里的错误与截图，修代码或重新标定 SKILL 后只重跑这一项' };
@@ -474,7 +484,7 @@ export function resultRun(r: RunResult): ResultRun {
 
 /** Pure: what the views keep of a exploration-tier result. */
 export function exploreSummary(a: AgentResult): ExploreSummary {
-  return { goal: a.goal, mode: a.mode, status: a.status, summary: a.summary, findings: a.findings.map((f) => ({ n: f.n, counted: f.counted, source: f.source, kind: f.detector ?? f.kind, description: f.description, incident: f.incident, review: f.review })), coverage: { screens: a.coverage.screens, actions: a.coverage.actions }, blocked: a.blocked.length, usage: a.usage, ...(a.candidates ? { candidates: a.candidates.count } : {}) };
+  return { goal: a.goal, mode: a.mode, status: a.status, summary: a.summary, findings: a.findings.map((f) => ({ n: f.n, counted: f.counted, source: f.source, kind: f.detector ?? f.kind, description: f.description, incident: f.incident, review: f.review, step: f.step, ...(f.page ? { page: f.page } : {}), ...(f.known ? { known: f.known } : {}), ...(f.excluded ? { excluded: f.excluded } : {}), ...(f.triage ? { triage: f.triage } : {}), ...(f.expectation ? { expectation: f.expectation.id } : {}), state: findingState(f) })), ...(a.expectations ? { expectations: a.expectations.map((x) => ({ id: x.id, page: x.page, trigger: x.trigger, expect: x.expect, source: x.source, result: x.result, steps: x.checks.map((c) => c.step), ...(x.checks.at(-1)?.evidence ? { evidence: x.checks.at(-1)!.evidence } : {}), ...(x.finding ? { finding: x.finding } : {}) })) } : {}), coverage: { screens: a.coverage.screens, actions: a.coverage.actions }, blocked: a.blocked.length, usage: a.usage, ...(a.candidates ? { candidates: a.candidates.count } : {}) };
 }
 
 export function resultView(t: TaskRecord, runs: RunResult[], code: Code, extra: { series?: ResultView['series']; report?: string; runDir?: string; explore?: ExploreSummary; sync?: SyncSummary; invalidated?: ResultView['invalidated'] } = {}): ResultView {
@@ -610,7 +620,8 @@ export function resultText(v: ResultView): string {
   if (v.sync) for (const r of v.sync.roles) out.push(`- ${r.id}：${r.endpoint} · ${r.account}${r.conversation ? ` · 「${r.conversation.slice(0, 30)}」` : ''}${r.ready ? '' : ` · 未就绪：${r.error ?? ''}`}`);
   if (v.explore) {
     out.push(`目标：${v.explore.goal}`, `说明：${v.explore.summary || '-'}`);
-    for (const f of v.explore.findings) out.push(`- 发现 #${f.n} ${f.counted ? '' : '（未计入）'}${f.source === 'hard' ? '硬异常' : f.source === 'detector' ? '确定性判定' : '模型报告'} ${f.kind}：${f.description.slice(0, 160)}${f.review ? `；复核 ${f.review}` : ''}；现场包 ${f.incident}`);
+    for (const f of v.explore.findings) out.push(`- 发现 #${f.n} ${FINDING_SOURCE[f.source as keyof typeof FINDING_SOURCE] ?? f.source} ${f.kind}：${f.description.slice(0, 160)}${f.review ? `；复核 ${f.review}` : ''}${f.state !== '计入' ? `；${f.state}` : ''}${f.page ? `；页面 ${f.page}` : ''}；第 ${f.step} 步；现场包 ${f.incident}`);
+    for (const x of v.explore.expectations ?? []) out.push(`- 预期 [${x.id}] ${x.result}${x.steps.length ? `（第 ${x.steps.join('、')} 步）` : ''}：${x.trigger} → ${x.expect}${x.evidence ? `；证据：${x.evidence}` : ''}`);
   }
   if (v.ended?.at) out.push(`结束：${v.ended.by ?? '-'}，${v.ended.at}`);
   if (v.evidence.report) out.push(`报告：${v.evidence.report}`);

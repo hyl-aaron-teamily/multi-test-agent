@@ -8,6 +8,7 @@ import { parseNodes, readUiXml } from '../core/ui-tree';
 import { AndroidDriver } from '../drivers/android';
 import { sleep, type Driver } from '../drivers/types';
 import { WebDriver } from '../drivers/web';
+import { observeSnapshot } from './pages';
 
 export interface SnapshotOptions {
   /** Skip the stability wait (the previous action did not change the screen). */
@@ -76,6 +77,9 @@ export async function snapshot(d: Driver, o: SnapshotOptions = {}): Promise<Scre
       })(),
     ]);
     const img = png.png ? (() => { try { return decodePng(png.png!); } catch { return undefined; } })() : undefined;
+    const nodes = normalizeNodes(parseNodes(tree.r.xml, o.pkg ?? d.o.packageName));
+    // Page recording (W3-4 §8.2′): only the app under test's own nodes ('' = every window, bench runs).
+    if (o.pkg !== '') observeSnapshot(nodes, d.surface);
     return {
       at,
       surface: d.surface,
@@ -84,7 +88,7 @@ export async function snapshot(d: Driver, o: SnapshotOptions = {}): Promise<Scre
       ms: { stable: st.ms, tree: tree.ms, shot: png.ms, total: Date.now() - t0 },
       width: img?.width ?? 0,
       height: img?.height ?? 0,
-      nodes: normalizeNodes(parseNodes(tree.r.xml, o.pkg ?? d.o.packageName)),
+      nodes,
       ...(o.keepPng && png.png ? { png: png.png } : {}),
     };
   }
@@ -94,6 +98,7 @@ export async function snapshot(d: Driver, o: SnapshotOptions = {}): Promise<Scre
     const vp = d.page.viewportSize();
     // Visible text through Playwright (innerText of the page body: what a user can read; no code put into the page).
     const texts = o.texts ? ((await d.page.locator('body').innerText({ timeout: 1500 }).catch(() => '')) as string).split('\n').map((t) => t.trim()).filter((t) => t && t.length <= 60).slice(0, 400) : undefined;
+    observeSnapshot(nodes.n, d.surface);
     return { at, surface: d.surface, source: 'playwright', ms: { stable: st.ms, tree: nodes.ms, shot: png.ms, total: Date.now() - t0 }, width: vp?.width ?? 0, height: vp?.height ?? 0, nodes: nodes.n, ...(texts ? { texts } : {}), ...(o.keepPng && png.png ? { png: png.png } : {}) };
   }
   throw new Error(`snapshot: unsupported driver (${d.surface})`);

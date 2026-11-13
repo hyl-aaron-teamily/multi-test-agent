@@ -47,6 +47,12 @@ import { categoryOf, Incidents, ScreenMemory, screenChanged } from './incident';
 import { failureKey, feedbackBlock, passes, revertPlan, runCheck } from './checker';
 import { toPx } from './coords';
 import { scalePng } from '../recorder/evidence-review';
+import { basename } from 'node:path';
+import { type PageMatch, pageOf, startPageRecording, UNKNOWN_PAGE } from '../pages';
+import { activeExpectations, type Expectation, expectationBlocks, type ExpectationOutcome, outcomeOf, readExpectations, readVerify } from '../explore/expectations';
+import { knownBlock, knownPath, type KnownIssue, readKnown, type TriageVerdict, updateKnown } from '../explore/known';
+import { FINDING_SOURCE, findingState, judgeFinding } from '../explore/judge';
+export { FINDING_SOURCE };
 
 export type AgentMode = 'task' | 'explore';
 
@@ -76,6 +82,9 @@ export interface AgentOptions {
   /** Bench mode (AndroidWorld on an emulator, W2-5 P1): no lease / preflight / sign-in, nothing blocked,
    *  no findings; open_app and answer go to the bench service. */
   bench?: BenchLink;
+  /** W3-4 exploration judgment: the checklist (explore mode) and the known-issues file. Default: the project's
+   *  platform/explore files; false = none (bench runs never judge). */
+  judge?: { expectations: Expectation[]; knownFile: string } | false;
 }
 
 export interface BenchLink {
@@ -86,10 +95,24 @@ export interface BenchLink {
 export interface Finding {
   n: number;
   /** hard = crash / ANR / app-exit / page-crash; reported = the agent's report_issue; detector = a deterministic
-   *  detector (engine/detect.ts). Reported and detector findings count after the evidence review agrees. */
-  source: 'hard' | 'reported' | 'detector';
+   *  detector (engine/detect.ts); expectation = a checklist entry the screen contradicts (W3-4 §8.5 ①); human = a
+   *  person marked the step 「这是问题」 (②). Reported, detector and expectation findings count after the evidence
+   *  review agrees. */
+  source: 'hard' | 'reported' | 'detector' | 'expectation' | 'human';
   /** source detector: which one. */
   detector?: DetectKind;
+  /** source detector: the node text it is about (the known-issue key uses it). */
+  text?: string;
+  /** The page it was found on (engine/pages.ts; W3-4). */
+  page?: string;
+  /** source expectation: the entry, verbatim. */
+  expectation?: { id: string; trigger: string; expect: string };
+  /** The known issue it is (W3-4 §8.5 ④); isNew = first seen in this run. */
+  known?: { id: string; count: number; isNew: boolean };
+  /** Why a finding does not count although the review agreed: D10, or a known issue people dismissed. */
+  excluded?: string;
+  /** A person's triage on the result page (§8.5 ②). */
+  triage?: { verdict: TriageVerdict; note?: string; at: string };
   kind: IncidentKind;
   description: string;
   step: number;
@@ -134,6 +157,8 @@ export interface AgentResult {
   inputNotCommitted?: number;
   /** Notes the agent wrote (W3-3 F5), by key. */
   notes?: Record<string, string>;
+  /** The checklist entries the run carried and what came of each (W3-4 §8.5 ①; explore mode). */
+  expectations?: ExpectationOutcome[];
   runDir: string;
   error?: string;
 }
@@ -197,8 +222,16 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
   const candidates = new CandidateTracker();
   const ownNames = o.pool?.ownContent(o.env) ?? [];
   const notes = new Notes(join(o.runDir, 'notes'));
+  // W3-4: the checklist (explore mode) and the known issues across runs; bench runs judge nothing.
+  const judging = !o.bench && o.judge !== false;
+  const knownFile = o.judge ? o.judge.knownFile : knownPath();
+  const expectations = judging && o.mode === 'explore' ? activeExpectations(o.judge ? o.judge.expectations : readExpectations(), !!o.writable) : [];
+  const outcomes = new Map<string, ExpectationOutcome>(expectations.map((e) => [e.id, { id: e.id, page: e.page, trigger: e.trigger, expect: e.expect, source: e.source, result: '未核对', checks: [] }]));
+  let known: KnownIssue[] = judging ? readKnown(knownFile) : [];
+  const runKey = o.taskId ?? basename(o.runDir);
   const finish = async (): Promise<AgentResult> => {
     endCallLogs();
+    if (outcomes.size) res.expectations = [...outcomes.values()];
     res.finishedAt = new Date().toISOString();
     res.usage = { steps: res.steps.length, seconds: Math.round((Date.now() - t0) / 1000), modelCalls: modelCalls.vision + modelCalls.text - calls0, ...(checkCalls ? { checkCalls } : {}), tokens: { input: modelCalls.tokens.input - tokens0.input, output: modelCalls.tokens.output - tokens0.output, cached: modelCalls.tokens.cached - tokens0.cached } };
     res.coverage = { screens: tried.size, actions: [...tried.values()].reduce((n, s) => n + s.size, 0), byScreen: Object.fromEntries([...tried].map(([k, v]) => [k, v.size])) };
@@ -253,6 +286,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
   let afr: AndroidFlightRecorder | undefined;
   let wfr: WebFlightRecorder | undefined;
   const flightDir = join(o.runDir, '.flight');
+  // W3-4 §8.2′: every snapshot of the app under test goes into the page recording.
+  const stopPages = bench ? undefined : startPageRecording(o.surface);
   try {
     if (!bench && onPlaywright(o.surface)) wfr = new WebFlightRecorder(flightDir);
     if (!bench && onAndroid(o.surface) && udid) afr = new AndroidFlightRecorder(udid, packageOf(o.surface) ?? TEAMILY_PACKAGE, flightDir);
@@ -279,6 +314,21 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       return dir;
     };
 
+    // The page of the current step (W3-4): findings, checklist and known issues are per page.
+    let page: PageMatch = { id: UNKNOWN_PAGE, name: '未知页面', lang: 'zh' };
+    let prevPage: PageMatch | undefined;
+    /** W3-4: every finding passes D10 and the known issues before it is kept. */
+    const pushFinding = (f: Finding): Finding => {
+      f.page = page.id;
+      if (judging)
+        updateKnown((items) => {
+          judgeFinding(f, res.steps, items, runKey);
+          known = items;
+        }, knownFile);
+      res.findings.push(f);
+      return f;
+    };
+
     const searchBoxes: Box[] = [];
     // The last screens seen, full size: an incident bundle carries them, so the evidence review has frames where
     // there is no recording (Web: a trace only).
@@ -290,10 +340,9 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
     const detectorFinding = async (h: DetectHit, step: number, screen: string): Promise<string> => {
       const dir = await incident('visual-anomaly', h.description, step);
       const review = await reviewIncident(dir, { id: 'explore', summary: o.goal, expected: DETECT_EXPECTED[h.kind], actual: h.description }, { log }).catch(() => undefined);
-      const counted = review?.verdict === 'consistent';
-      res.findings.push({ n: res.findings.length + 1, source: 'detector', detector: h.kind, kind: 'visual-anomaly', description: h.description, step, screen, incident: dir, review: review?.verdict, counted, path: [...path] });
-      traj.emit('finding', { step, description: h.description, detector: h.kind, review: review?.verdict, counted });
-      return `detector ${h.kind}: ${h.description} (evidence review: ${review?.verdict ?? 'unverified'})`;
+      const f = pushFinding({ n: res.findings.length + 1, source: 'detector', detector: h.kind, ...(h.text ? { text: h.text } : {}), kind: 'visual-anomaly', description: h.description, step, screen, incident: dir, review: review?.verdict, counted: review?.verdict === 'consistent', path: [...path] });
+      traj.emit('finding', { step, description: h.description, detector: h.kind, review: review?.verdict, counted: f.counted, known: f.known, excluded: f.excluded });
+      return `detector ${h.kind}: ${h.description} (evidence review: ${review?.verdict ?? 'unverified'}${f.known && !f.known.isNew ? `; already known (${f.known.id})` : ''})`;
     };
 
     // W3-3 state: execution incidents, screen memory, blocks for the top of the next prompt, the final review.
@@ -337,6 +386,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       const nodes: ScreenNode[] = snap?.nodes ?? [];
       const els = visibleElements(nodes);
       const screen = fingerprint(nodes);
+      prevPage = page;
+      page = pageOf(nodes);
       for (const n of els) if (isSearchLabel(label(n)) && !searchBoxes.some((b) => b.join() === n.box.join())) searchBoxes.push(n.box);
       if (searchBoxes.length > 20) searchBoxes.splice(0, searchBoxes.length - 20);
       if (!bench) candidates.see(step, screen, els);
@@ -391,7 +442,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
         }
         if (found.length) feedback = `${feedback ?? 'ok'}. ${found.join('; ')}`;
       }
-      const prompt = userPrompt({ goal: o.goal, mode: o.mode, plan, notes: notes.text(), history: historyText(res.steps), screen, els, tried: [...triedHere], feedback, size: vp, instructions: res.instructions?.map((x) => x.text), top: [incidents.block(), ...top.splice(0)].filter(Boolean) });
+      const prompt = userPrompt({ goal: o.goal, mode: o.mode, plan, notes: notes.text(), history: historyText(res.steps), screen, els, tried: [...triedHere], feedback, size: vp, instructions: res.instructions?.map((x) => x.text), top: [incidents.block(), ...top.splice(0)].filter(Boolean), extra: judging ? [...expectationBlocks(expectations, page, outcomes, prevPage), knownBlock(known, page.id)].filter(Boolean) : [] });
       const system = bench ? BENCH_SYSTEM : SYSTEM(!!o.writable, ownNames);
       // F2: an unusable answer goes back with its reason once, in the same turn.
       let got: ReturnType<typeof readAnswer> | undefined;
@@ -437,7 +488,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
           break;
         }
         lastUnusable = h;
-        const r: StepRecord = { step, screen, action: '(none)', result: 'no usable action', thought: why.slice(0, 300), thumb, at, ...(newText ? { newText } : {}) };
+        const r: StepRecord = { step, screen, action: '(none)', result: 'no usable action', thought: why.slice(0, 300), thumb, at, ...(newText ? { newText } : {}), ...(bench ? {} : { page: page.id }) };
         res.steps.push(r);
         o.onStep?.(r);
         top.push(`You did not give a usable action last turn (${why}). Please make progress with one action or done.`);
@@ -452,13 +503,40 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       const a = ans.action;
       const burst = [a, ...(ans.then ?? [])];
       const act = burst.map((x) => describe(x, els)).join(' → ');
-      const rec: StepRecord = { step, screen, action: act, result: '', thought, thumb, at, ...(newText ? { newText } : {}) };
+      const rec: StepRecord = { step, screen, action: act, result: '', thought, thumb, at, ...(newText ? { newText } : {}), ...(bench ? {} : { page: page.id }) };
       const record = (result: string) => {
         rec.result = result;
         res.steps.push(rec);
         o.onStep?.(rec);
       };
-      traj.emit('agent.step', { step, screen, thought, action: act, thumb });
+      traj.emit('agent.step', { step, screen, thought, action: act, thumb, ...(bench ? {} : { page: page.id }) });
+      // W3-4 §8.5 ①: checklist results judge the screen the model looked at (before this turn's actions).
+      if (outcomes.size && ans.verify !== undefined) {
+        const v = readVerify(ans.verify, new Set(outcomes.keys()));
+        const said: string[] = [];
+        for (const c of v.checks) {
+          const out = outcomes.get(c.id)!;
+          out.checks.push({ step, result: c.result, evidence: c.evidence });
+          out.result = outcomeOf(out.checks);
+          (rec.verified ??= []).push(`${c.id} ${c.result}`);
+          traj.emit('agent.verify', { step, id: c.id, result: c.result, evidence: c.evidence });
+          if (c.result !== '不符合' || out.finding !== undefined) {
+            said.push(`${c.id}: ${c.result} recorded`);
+            continue;
+          }
+          const e = expectations.find((x) => x.id === c.id)!;
+          const dir = await incident('check-failed', `不符合预期 [${e.id}] ${e.trigger} → ${e.expect}；实际：${c.evidence}`, step);
+          // The evidence review judges the frames against this entry, not "the app can be used normally".
+          const rv = await reviewIncident(dir, { id: e.source, summary: `${e.trigger} → ${e.expect}`, expected: e.expect, actual: c.evidence }, { log, subcase: `探索预期核对 [${e.id}]` }).catch(() => undefined);
+          setModelPurpose('agent');
+          const f = pushFinding({ n: res.findings.length + 1, source: 'expectation', kind: 'check-failed', description: `不符合预期「${e.expect}」：${c.evidence}`, expectation: { id: e.id, trigger: e.trigger, expect: e.expect }, step, screen, incident: dir, review: rv?.verdict, counted: rv?.verdict === 'consistent', path: [...path] });
+          out.finding = f.n;
+          traj.emit('finding', { step, description: f.description, expectation: e.id, review: rv?.verdict, counted: f.counted, known: f.known, excluded: f.excluded });
+          said.push(`${c.id}: 不符合 recorded as finding #${f.n} (evidence review: ${rv?.verdict ?? 'unverified'}${f.excluded ? `; not counted: ${f.excluded}` : ''})`);
+        }
+        if (v.error) said.push(`verify not used: ${v.error}`);
+        if (said.length) top.push(`Checklist: ${said.join('; ')}`);
+      }
       if (a.type === 'done') {
         if (a.status === 'completed' && o.mode === 'task') {
           // F6: a reported completion is reviewed before the run ends (explore runs have no end state to check).
@@ -501,11 +579,16 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       if (a.type === 'report_issue') {
         const dir = await incident('visual-anomaly', a.description, step);
         const rv = await reviewIncident(dir, { id: 'explore', summary: o.goal, expected: '应用可以正常使用：没有报错、白屏、卡住或显示错乱', actual: a.description }, { log }).catch(() => undefined);
-        const counted = rv?.verdict === 'consistent';
-        res.findings.push({ n: res.findings.length + 1, source: 'reported', kind: 'visual-anomaly', description: a.description, step, screen, incident: dir, review: rv?.verdict, counted, path: [...path] });
-        traj.emit('finding', { step, description: a.description, review: rv?.verdict, counted });
-        feedback = counted ? 'issue recorded and confirmed by the evidence review' : `issue recorded; the evidence review says ${rv?.verdict ?? 'unverified'} — look closer or move on`;
-        record(`issue ${counted ? 'confirmed' : rv?.verdict ?? 'unverified'}`);
+        const f = pushFinding({ n: res.findings.length + 1, source: 'reported', kind: 'visual-anomaly', description: a.description, step, screen, incident: dir, review: rv?.verdict, counted: rv?.verdict === 'consistent', path: [...path] });
+        traj.emit('finding', { step, description: a.description, review: rv?.verdict, counted: f.counted, known: f.known, excluded: f.excluded });
+        feedback = f.excluded
+          ? `issue not counted: ${f.excluded.startsWith('输入没有上屏') ? 'your typed text never reached the field (the executor read it back: input not committed) — that is a test-method problem, not the app’s; try typing again or move on' : `people already marked this known issue (${f.known?.id}) as not the app’s problem — move on`}`
+          : f.known && !f.known.isNew
+            ? `this is a known issue (${f.known.id}, seen ${f.known.count}×) — recorded; do not spend more steps on it`
+            : f.counted
+              ? 'issue recorded and confirmed by the evidence review'
+              : `issue recorded; the evidence review says ${rv?.verdict ?? 'unverified'} — look closer or move on`;
+        record(`issue ${f.excluded ? 'not counted' : f.counted ? (f.known && !f.known.isNew ? `known (${f.known.id})` : 'confirmed') : rv?.verdict ?? 'unverified'}`);
         continue;
       }
       if (a.type === 'search_history') {
@@ -591,7 +674,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
         const x = hard[0];
         const kind = incidentKind(x.kind);
         const dir = await incident(kind, x.detail, step);
-        res.findings.push({ n: res.findings.length + 1, source: 'hard', kind, description: `${x.kind}: ${x.detail}`, step, screen, incident: dir, counted: true, path: [...path] });
+        pushFinding({ n: res.findings.length + 1, source: 'hard', kind, description: `${x.kind}: ${x.detail}`, step, screen, incident: dir, counted: true, path: [...path] });
         traj.emit('finding', { step, description: x.detail, kind, counted: true });
         feedback = `the app ${x.kind === 'page-crash' ? 'page crashed' : x.kind === 'app-exit' ? 'exited' : x.kind} — it was relaunched`;
         await s.d.launch().catch(() => {});
@@ -613,6 +696,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       log(`error: ${res.error}`);
     }
   } finally {
+    stopPages?.();
     setModelPurpose('other');
     endCallLogs();
     await afr?.stop().catch(() => {});
@@ -824,8 +908,6 @@ async function typeInto(s: Session, a: Extract<AgentAction, { type: 'type' }>, e
   return `input not committed; field now: "${value ?? ''}"`;
 }
 
-/** How a finding was found, for people. */
-export const FINDING_SOURCE: Record<Finding['source'], string> = { hard: '硬异常', reported: '模型报告', detector: '确定性判定' };
 
 export function agentMarkdown(r: AgentResult): string {
   const counted = r.findings.filter((f) => f.counted);
@@ -844,7 +926,8 @@ export function agentMarkdown(r: AgentResult): string {
     r.inputNotCommitted ? `- 输入没上屏：${r.inputNotCommitted} 次` : '',
     r.plan ? `- 计划：完成 ${ps.done}，未完成 ${ps.todo}，失败 ${ps.failed}` : '',
     '',
-    ...(r.findings.length ? ['## 发现', '', ...r.findings.map((f) => `- #${f.n} ${f.counted ? '✅' : '⚠ 未计入'} ${FINDING_SOURCE[f.source]}（${f.detector ?? f.kind}）：${f.description}${f.review ? `；证据复核：${f.review}` : ''} — 第 ${f.step} 步，现场包 \`${f.incident}\``), ''] : []),
+    ...(r.findings.length ? ['## 发现', '', ...r.findings.map((f) => `- #${f.n} ${f.counted ? '✅' : '⚠'} ${findingState(f)} · ${FINDING_SOURCE[f.source]}（${f.detector ?? f.kind}${f.page ? `，${f.page}` : ''}）：${f.description}${f.review ? `；证据复核：${f.review}` : ''} — 第 ${f.step} 步，现场包 \`${f.incident}\``), ''] : []),
+    ...(r.expectations?.length ? ['## 预期核对', '', ...r.expectations.map((e) => `- [${e.id}] ${e.result}${e.checks.length ? `（第 ${e.checks.map((c) => c.step).join('、')} 步）` : ''}：${e.trigger} → ${e.expect}${e.checks.at(-1)?.evidence ? `；证据：${e.checks.at(-1)!.evidence}` : ''}${e.finding ? `；发现 #${e.finding}` : ''}`), ''] : []),
     ...(r.blocked.length ? ['## 拦截的动作', '', ...r.blocked.map((b) => `- 第 ${b.step} 步 ${b.action}：${b.reason}`), ''] : []),
     ...(r.plan ? ['## 计划（模型维护）', '', r.plan, ''] : []),
     ...(r.notes && Object.keys(r.notes).length ? ['## 笔记（模型记录）', '', ...Object.entries(r.notes).map(([k, v]) => `### ${k}\n\n${v}`), ''] : []),

@@ -311,6 +311,7 @@ async function exploreForm() {
         <label>最多步数 <input id="maxSteps" type="number" min="1" max="500" placeholder="500"></label>
         <label>最多分钟 <input id="maxMinutes" type="number" min="1" max="30" placeholder="30"></label></div>
       <div class="row"><label><input type="checkbox" id="writable" ${fa?.on ? '' : 'disabled'}> 可写（会真的发消息、改资料）</label>${fa?.on ? '' : '<span class="faint">需要先开启完全授权</span>'}</div>
+      <p class="muted">重点区域（可多选，按已有 Issue 的数量排序；选中的写进目标，模型优先去这些地方）</p><div class="row wrap" id="focus"><span class="faint">读取中…</span></div>
       <div class="row"><button class="btn" onclick="submitExplore(true)">先检查（不启动）</button><button class="btn primary" onclick="submitExplore(false)">开始</button></div>
       <div id="msg" class="msg"></div>`)}
     ${card('可信吗', '它会怎么做', `<ul>
@@ -318,15 +319,75 @@ async function exploreForm() {
       <li>点赞、关注、收藏只对测试账号自己的主页和内容做，真实用户的内容一律拦截。</li>
       <li>崩溃、ANR、App 退出、页面崩溃会立即保存${terms('现场包')}；模型报告的问题经${terms('证据复核')}一致才计入。</li>
       <li>上限 500 步 / 30 分钟（只能调小）。结果里列出覆盖了哪些界面、拦截了哪些动作、用了多少次模型。</li>
+      <li>探索时按页面带上<b>预期检查单</b>里这一页的条目（最多 8 条），模型核对后给出「符合 / 不符合 / 无法验证」；不符合记为发现，证据复核对照这条预期。</li>
+      <li>同一个问题跨运行只算一次（已知问题只加次数）；输入没上屏之后的「不显示输入」不计入。结果页上可以标注「这是问题 / 不是问题 / 环境问题」。</li>
       <li>探索的发现不是复现结论：可以一键转成 Issue，再由 Issue 主线复现。</li></ul>`, 60)}
-  </div>`;
+  </div>
+  <div id="expCard"></div>`;
+  const m = await api('GET', '/explore/modules');
+  $('#focus').innerHTML = (m.data ?? []).map((x) => `<label class="chip"><input type="checkbox" name="focus" value="${esc(x.id)}"> ${esc(x.name)} <span class="faint">${x.issues}</span></label>`).join('') || '<span class="faint">没有模块</span>';
+  await drawExpectations();
+}
+
+/** W3-4 §8.5 ①: the checklist — first drafts from the Issue drafts, people add / edit / disable. */
+async function drawExpectations(msg = '') {
+  const r = await api('GET', '/explore/expectations');
+  const items = r.data?.items ?? [];
+  const pages = r.data?.pages ?? [];
+  const pageName = (p) => pages.find((x) => x.id === p || x.name === p)?.name ?? (p || '—');
+  $('#expCard').innerHTML = card('要核对什么', `预期检查单 <span class="faint">${items.filter((e) => e.enabled).length} / ${items.length} 启用</span>`, `
+    <p class="muted">探索时只把当前页面的条目放进提示。「要写入」的条目（要发消息、上传…）只在可写探索里出现。来源 issue#… 的条目由草稿的「预期结果」自动提取。</p>
+    <div class="row"><button class="btn small" onclick="extractExpectations()">从 Issue 草稿提取</button><span class="muted">${esc(msg)}</span></div>
+    <table><tr><th>启用</th><th>页面</th><th>触发 → 预期</th><th>来源</th><th></th></tr>${items.map((e) => `<tr class="${e.enabled ? '' : 'faint'}">
+      <td><input type="checkbox" ${e.enabled ? 'checked' : ''} onchange="setExpectation('${esc(e.id)}', { enabled: this.checked })"></td>
+      <td style="white-space:nowrap">${esc(pageName(e.page))}</td>
+      <td><b class="mono">${esc(e.id)}</b> ${e.writes ? pill('warn', '要写入') : ''}<br>${esc(e.trigger)} → ${esc(e.expect)}${e.note ? `<br><span class="faint">${esc(e.note)}</span>` : ''}</td>
+      <td class="mono">${esc(e.source)}</td>
+      <td><button class="btn small" onclick="editExpectation('${esc(e.id)}')">改</button> <button class="btn small" onclick="deleteExpectation('${esc(e.id)}')">删</button></td></tr>`).join('')}</table>
+    <h3>新增 / 修改</h3>
+    <div class="row wrap"><input id="expId" placeholder="id，例如 msg-longpress-menu" style="width:200px">
+      <select id="expPage">${pages.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}<option value="">（不绑定页面）</option></select></div>
+    <div class="row wrap"><input id="expTrigger" placeholder="触发方式，例如 长按一条链接消息" style="flex:1"><input id="expExpect" placeholder="预期，例如 弹出菜单，含 回复 / 复制 / 转发" style="flex:1"></div>
+    <div class="row"><button class="btn primary small" onclick="saveExpectation()">保存</button><span id="expMsg" class="muted"></span></div>`, 80);
+  window._exp = { items, pages };
+}
+
+async function extractExpectations() {
+  const r = await api('POST', '/explore/expectations/extract', {});
+  await drawExpectations(r.summary);
+}
+async function setExpectation(id, patch) {
+  const r = await api('POST', `/explore/expectations/${enc(id)}`, patch);
+  await drawExpectations(r.code === 'OK' ? r.summary : `${r.code}：${r.summary}`);
+}
+function editExpectation(id) {
+  const { items = [], pages = [] } = window._exp ?? {};
+  const e = items.find((x) => x.id === id);
+  if (!e) return;
+  $('#expId').value = e.id;
+  $('#expPage').value = pages.find((p) => p.id === e.page || p.name === e.page)?.id ?? '';
+  $('#expTrigger').value = e.trigger;
+  $('#expExpect').value = e.expect;
+  $('#expId').scrollIntoView({ block: 'center' });
+}
+async function saveExpectation() {
+  const id = $('#expId').value.trim();
+  const r = await api('POST', `/explore/expectations/${enc(id)}`, { page: $('#expPage').value, trigger: $('#expTrigger').value, expect: $('#expExpect').value });
+  if (r.code !== 'OK') return ($('#expMsg').innerHTML = `<span class="bad">${esc(r.summary)}</span>`);
+  await drawExpectations(r.summary);
+}
+async function deleteExpectation(id) {
+  if (!confirm(`删除预期 ${id}？`)) return;
+  const r = await api('DELETE', `/explore/expectations/${enc(id)}`);
+  await drawExpectations(r.summary);
 }
 
 async function submitExplore(dryRun) {
   const goal = $('#goal').value.trim();
   if (!goal) return ($('#msg').innerHTML = '<p class="bad">先写一句目标。</p>');
   const num = (id) => ($(id).value ? Number($(id).value) : undefined);
-  const r = await api('POST', '/tasks', { explore: goal, mode: document.querySelector('input[name=mode]:checked').value, surface: $('#surface').value, maxSteps: num('#maxSteps'), maxMinutes: num('#maxMinutes'), writable: $('#writable').checked, dryRun });
+  const focus = [...document.querySelectorAll('input[name=focus]:checked')].map((x) => x.value);
+  const r = await api('POST', '/tasks', { explore: goal, mode: document.querySelector('input[name=mode]:checked').value, surface: $('#surface').value, maxSteps: num('#maxSteps'), maxMinutes: num('#maxMinutes'), writable: $('#writable').checked, focus, dryRun });
   if (r.code === 'ACCEPTED') return (location.hash = `#/task/${enc(r.data.id)}`);
   $('#msg').innerHTML = r.code === 'OK' ? `<p class="ok">${esc(r.summary)}</p>` : failMsg(r);
 }
@@ -603,12 +664,13 @@ async function resultPage(id) {
   parts.push(card('结果', '', `<p class="lead">${terms(v.sentence)}</p><p>${pill(good ? 'good' : hit ? 'bad' : 'warn', `${v.code} · ${v.status}`)} ${v.complete ? '' : pill('warn', '不完整，不给结论')}</p>${!v.complete && v.ended ? `<p class="muted">结束方式：${esc(v.ended.by ?? '')}${v.ended.at ? `，${esc(v.ended.at)}` : ''}</p>` : ''}`));
   if (v.series) parts.push(card('结果', '系列', `<div class="stats">${stat(v.series.runs, '次运行')}${stat(v.series.reachedLoop, '进入循环')}${stat(`${v.series.reproducedRuns}/${v.series.validRuns}`, '复现的次数')}${stat(v.series.valid, '有效尝试')}${stat(v.series.hits, '命中')}</div>`, 40));
   v.runs.forEach((x, i) => parts.push(runCard(x, v.taskId, i)));
-  if (v.explore) parts.push(exploreCards(v));
+  if (v.explore) parts.push(exploreCards(v), card('人工标注', '步骤', '<p class="muted">每一步的截图；「这是问题」写一句话就生成一个发现（附这一步的截图）。模型或规则报出的发现可以标「不是问题 / 环境问题」：写进标注，下次同一个问题按标注处理。</p><div class="steps" id="exploreSteps"><p class="faint">读取中…</p></div>', 120));
   if (v.sync) parts.push(syncCard(v));
   const inc = v.evidence.incidents ?? [];
   parts.push(card('可信吗', '证据', `<table><tr><th>报告</th><td>${v.evidence.report ? fileLink(v.evidence.report, 'report.md') : '-'}</td></tr><tr><th>${terms('现场包')}</th><td>${inc.map((i) => fileLink(`${i}/index.html`, i.split(/[\\/]/).pop())).join('<br>') || '无'}</td></tr><tr><th>运行目录</th><td class="mono">${esc(v.evidence.runDir ?? '-')}</td></tr></table>`, 200));
   parts.push(card('下一步', '', nextSteps(v), 240));
   $('#view').innerHTML = parts.join('');
+  if (v.explore) await drawExploreSteps(v);
 }
 
 const stat = (n, label) => `<div class="stat"><b>${esc(n)}</b><span>${esc(label)}</span></div>`;
@@ -636,18 +698,57 @@ async function incidentalToIssue(taskId, run, n, btn) {
   out.innerHTML = `Issue <b>${esc(r.data.issue)}</b> 已生成 <button class="btn small" onclick="draftThen('${esc(r.data.issue)}', this)">生成计划</button>`;
 }
 
+const SOURCE = { hard: '硬异常', detector: '确定性判定', reported: '模型报告', expectation: '预期核对', human: '人工' };
+const counts = (f) => f.counted && (!f.triage || f.triage.verdict === 'issue');
+const triageButtons = (taskId, f) => `<button class="btn small" onclick="triage('${esc(taskId)}', ${f.n}, 'issue')">是问题</button><button class="btn small" onclick="triage('${esc(taskId)}', ${f.n}, 'not-issue')">不是问题</button><button class="btn small" onclick="triage('${esc(taskId)}', ${f.n}, 'env')">环境问题</button>`;
+
 function exploreCards(v) {
   const e = v.explore;
-  const fs = e.findings.map((f) => `<div class="finding-card ${f.counted ? '' : 'uncounted'}">
-      <div class="row">${pill(f.counted ? 'bad' : 'offline', f.counted ? `发现 #${f.n}` : `#${f.n} 未计入`)} <span class="muted">${f.source === 'hard' ? '硬异常' : f.source === 'detector' ? '确定性判定' : '模型报告'} · ${esc(f.kind)}${f.review ? ` · ${terms('证据复核')} ${esc(f.review)}` : ''}</span></div>
-      <p>${esc(f.description)}</p>
-      <div class="row">${fileLink(`${f.incident}/index.html`, '打开现场包')}<button class="btn small" onclick="toIssue('${esc(v.taskId)}', ${f.n}, this)">转成 Issue</button><span class="muted" id="iss-${f.n}"></span></div></div>`);
+  const fs = e.findings.map((f) => `<div class="finding-card ${counts(f) ? '' : 'uncounted'}">
+      <div class="row">${pill(counts(f) ? 'bad' : 'offline', counts(f) ? `发现 #${f.n}` : `#${f.n} 未计入`)} ${f.known && !f.known.isNew ? pill('warn', `已知问题 ${f.known.id} · 累计 ${f.known.count} 次`) : f.known ? pill('offline', `新问题 ${f.known.id}`) : ''} <span class="muted">${esc(SOURCE[f.source] ?? f.source)} · ${esc(f.kind)}${f.page ? ` · ${esc(f.page)}` : ''} · 第 ${esc(f.step)} 步${f.review ? ` · ${terms('证据复核')} ${esc(f.review)}` : ''}</span></div>
+      <p>${esc(f.description)}</p>${f.excluded || f.triage ? `<p class="muted">${esc(f.state)}</p>` : ''}
+      <div class="row">${fileLink(`${f.incident}/index.html`, '打开现场包')}<button class="btn small" onclick="toIssue('${esc(v.taskId)}', ${f.n}, this)">转成 Issue</button>${triageButtons(v.taskId, f)}<span class="muted" id="iss-${f.n}"></span></div></div>`);
+  const RES = { 符合: 'good', 不符合: 'bad', 无法验证: 'warn', 未核对: 'offline' };
+  const exp = e.expectations ?? [];
+  const expHtml = exp.length ? `<h3>预期核对 <span class="faint">${exp.filter((x) => x.result !== '未核对').length} / ${exp.length}</span></h3><table><tr><th>结果</th><th>预期</th><th>步骤</th><th>证据</th></tr>${exp.map((x) => `<tr><td>${pill(RES[x.result] ?? 'offline', x.result)}</td><td><b class="mono">${esc(x.id)}</b> <span class="faint">${esc(x.page || '')}</span><br>${esc(x.trigger)} → ${esc(x.expect)}</td><td>${x.steps.map((n) => `#${n}`).join(' ') || '-'}</td><td>${esc(x.evidence ?? '')}${x.finding ? ` → 发现 #${x.finding}` : ''}</td></tr>`).join('')}</table>` : '';
   return card('结果', `${e.mode === 'explore' ? '探索' : '任务'}：「${esc(e.goal)}」`, `
     <p>${esc(e.summary || '-')}</p>
-    <div class="stats">${stat(e.findings.filter((f) => f.counted).length, '发现（计入）')}${stat(e.coverage.screens, '覆盖界面')}${stat(e.coverage.actions, '执行的动作')}${stat(e.blocked, '拦截的动作')}${stat(e.usage.steps, '步')}${stat(e.usage.modelCalls, '模型调用')}${stat(`${Math.round(e.usage.seconds / 60)} 分`, '用时')}</div>
+    <div class="stats">${stat(e.findings.filter(counts).length, '发现（计入）')}${stat(e.coverage.screens, '覆盖界面')}${stat(e.coverage.actions, '执行的动作')}${stat(e.blocked, '拦截的动作')}${stat(e.usage.steps, '步')}${stat(e.usage.modelCalls, '模型调用')}${stat(`${Math.round(e.usage.seconds / 60)} 分`, '用时')}</div>
     <h3>发现</h3>${fs.join('') || '<p class="empty">没有发现。</p>'}
+    ${expHtml}
     ${e.candidates !== undefined ? `<h3>SKILL 候选</h3><p class="muted">${e.candidates} 个反复出现、文字稳定的元素，人工审核后再进标定（不会自动写入 SKILL）。<button class="btn small" onclick="showCandidates('${esc(v.taskId)}', this)">查看</button></p><div id="cands"></div>` : ''}
     <p class="muted">探索的发现不是复现结论：转成 Issue 后由 Issue 主线（高确定性的计划）复现，给出带分母的结论。</p>`, 80);
+}
+
+/** W3-4 §8.5 ②: steps with 「这是问题」, and the triage buttons of the findings made at that step. */
+async function drawExploreSteps(v) {
+  const r = await api('GET', `/tasks/${enc(v.taskId)}/steps`);
+  const steps = r.data?.steps ?? [];
+  const byStep = new Map();
+  for (const f of v.explore.findings) byStep.set(f.step, [...(byStep.get(f.step) ?? []), f]);
+  const box = $('#exploreSteps');
+  if (!box) return;
+  box.innerHTML = steps.length ? steps.slice().reverse().map((x) => `<div class="step ${byStep.has(x.step) ? 'finding' : ''}">
+      ${x.thumb ? `<a href="${esc(x.thumb)}" target="_blank"><img loading="lazy" src="${esc(x.thumb)}" alt="第 ${x.step} 步截图"></a>` : ''}
+      <div class="step__body"><div><b>#${x.step}</b> ${x.page ? `<span class="faint">${esc(x.page)}</span>` : ''}</div><div class="step__act">${esc(x.action)}</div>
+      ${(byStep.get(x.step) ?? []).map((f) => `<div class="${counts(f) ? 'bad' : 'muted'}">发现 #${f.n}：${esc(f.description.slice(0, 80))}${f.triage ? `（${esc(f.state)}）` : ''}</div><div class="row">${triageButtons(v.taskId, f)}</div>`).join('')}
+      <div class="row"><button class="btn small" onclick="markStep('${esc(v.taskId)}', ${x.step})">这是问题</button></div></div></div>`).join('') : '<p class="empty">没有步骤记录。</p>';
+}
+
+async function markStep(taskId, step) {
+  const note = prompt(`第 ${step} 步有什么问题？（一句话）`);
+  if (!note?.trim()) return;
+  const r = await api('POST', `/explore/${enc(taskId)}/mark`, { step, note: note.trim() });
+  if (r.code !== 'OK') return alert(`${r.code}：${r.summary}`);
+  await resultPage(taskId);
+}
+
+async function triage(taskId, n, verdict) {
+  const note = verdict === 'issue' ? '' : prompt(`为什么「${verdict === 'env' ? '环境问题' : '不是问题'}」？（可空）`);
+  if (note === null) return;
+  const r = await api('POST', `/explore/${enc(taskId)}/triage`, { n, verdict, note });
+  if (r.code !== 'OK') return alert(`${r.code}：${r.summary}`);
+  await resultPage(taskId);
 }
 
 async function showCandidates(taskId, btn) {

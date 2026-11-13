@@ -49,6 +49,7 @@ import { AndroidDriver } from '../../drivers/android';
 import { CancelledError, type RunHooks } from '../../platform/lifecycle/runtime';
 import { stepText } from '../../platform/views';
 import { loadConversations } from '../../platform/conversations';
+import { startPageRecording } from '../pages';
 
 export { execAction } from './actions';
 export type { Stats } from '../stats';
@@ -174,6 +175,8 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   const locate0 = JSON.parse(JSON.stringify(locateTally)) as typeof locateTally;
   const tree0 = { reads: Object.fromEntries(Object.entries(treeStats.reads).map(([k, v]) => [k, v.n])), fallbacks: treeStats.fallbacks.length };
   let guard: PreTapGuard | undefined;
+  // W3-4 §8.2′: the plan run's snapshots go into the page recording too.
+  const stopPages = startPageRecording(plan.surface);
   const runTag = o.runTag ?? newRunToken();
   const res: RunResult = { planId: plan.id, issue: plan.issueRef, title: plan.title, category: plan.category, surface: plan.surface, substitution: plan.substitution, env: plan.env, coverage: plan.coverage, phenomenon: plan.contract?.observable.phenomenon, conclusion: '执行失败', conclusionDetail: '', startedAt: new Date(t0).toISOString(), finishedAt: '', stats, hits: [], incidents: [], targets: [], roundLog: [], runTag, phases: {}, ...(plan.audit ? { planVersion: plan.audit.version, sub: plan.audit.sub } : {}) };
   const phase = (name: string, since: number) => {
@@ -432,6 +435,7 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     if (cRef) await reset(cRef);
     return done();
   } finally {
+    stopPages();
     setModelPurpose('other');
     await afr?.stop().catch(() => {});
     // No verdict on the web (执行失败 / 计划不可执行): keep the last trace chunks for diagnosis.

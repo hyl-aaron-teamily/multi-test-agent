@@ -1,0 +1,185 @@
+{
+  "schemaVersion": 1,
+  "items": [
+    {
+      "id": "issue-1329",
+      "page": "chat",
+      "trigger": "点击输入框一次，不进行第二次点击",
+      "expect": "输入框被聚焦后键盘立即弹出；点赞立即显示；定位跳到目标消息",
+      "source": "issue#1329",
+      "enabled": true
+    },
+    {
+      "id": "issue-1594",
+      "page": "chat",
+      "trigger": "在输入框里输入 @ 弹出提及浮窗 → 按 Esc 关闭浮窗 → 删掉已输入的 @ → 再输入一个新的 @",
+      "expect": "输入 @ 就应弹出提及选择框，与之前是否打开/关闭过选择框、怎么进入会话无关；第二个 @ 才弹出说明第一个 @ 被吞掉了",
+      "source": "issue#1594",
+      "enabled": false,
+      "note": "草稿只有 desktop-web 的子用例；探索本期只在 android-app 上跑"
+    },
+    {
+      "id": "issue-1614",
+      "page": "chat",
+      "trigger": "发送一条 @ 段落为非法 userID 的消息（@12236097754431223609775443，26 位拼接串，不对应群内任何成员）",
+      "expect": "发送端应给出明确报错或降级提示（如「提及目标无效，已按普通文本发送」），或在发送前校验 userID 格式与成员存在性并拒绝发送或自动纠正，而不是直接返回成功",
+      "source": "issue#1614",
+      "enabled": true,
+      "writes": true
+    },
+    {
+      "id": "issue-1903",
+      "page": "chat",
+      "trigger": "在群聊输入框里键入正文、键入 @ 并选中一位群成员（让 mention 真正插入待发送内容），然后发送该消息",
+      "expect": "气泡里渲染出 @ 提及：出现被 @ 成员的显示名，与会话列表预览 / Web 端表现一致",
+      "source": "issue#1903",
+      "enabled": true,
+      "writes": true
+    },
+    {
+      "id": "issue-1922",
+      "page": "chat",
+      "trigger": "自己发出长消息后切出去（切后台/离开客户端）停留一段时间，然后重新打开 app 并回到该会话",
+      "expect": "气泡在首次布局和每次重新进入会话后的重排中都按内容完整渲染，超过一行的消息显示全部行（或提供展开入口）",
+      "source": "issue#1922",
+      "enabled": true,
+      "writes": true
+    },
+    {
+      "id": "issue-2044",
+      "page": "chat",
+      "trigger": "长按该消息 → 选择引用/回复 → 发送回复，然后打开会话查看回复气泡上方的引用块",
+      "expect": "引用块预览只显示一次链接的展示文本，不出现 '['、']('、')' 等 Markdown 语法，且与原消息气泡的链接展示一致",
+      "source": "issue#2044",
+      "enabled": true,
+      "writes": true
+    },
+    {
+      "id": "issue-2063",
+      "page": "chat",
+      "trigger": "在这条纯 link 消息上长按（按住 URL 或预览卡片区域）",
+      "expect": "弹出与文字消息相同的消息动作面板，至少包含引用/回复、转发、复制链接、加入 My Artifacts、删除以及 emoji 表情行",
+      "source": "issue#2063",
+      "enabled": true
+    },
+    {
+      "id": "issue-2122",
+      "page": "home",
+      "trigger": "把某个群设为免打扰后，由群内另一位成员在该群里发一条 @ 到我（@me）的消息（q3、q4）",
+      "expect": "任何 @ 到我（直接 @me，@所有人 按产品规则）都必然产生新消息提示，并使该会话未读角标与全局角标（Tab / 右上角 / App 图标）按未读 @我 条数累加，即使群处于免打扰；免打扰群的普通（非 @）消息保持静默、不计角标；另外提供按时间倒序聚合所有 @我 消息的「@我的 / Mentions」列表，点击可跳转到原消息（q5、q6、q11）",
+      "source": "issue#2122",
+      "enabled": false,
+      "writes": true,
+      "note": "要另一个端或另一个账号配合，单台手机上的探索做不了"
+    },
+    {
+      "id": "issue-2235",
+      "page": "chat",
+      "trigger": "在与 Shok 的单聊里把一条消息转发到一个目标会话（转发入口 Issue 未指明，见 q2）",
+      "expect": "同一账号的同一转发消息在 iOS / Web / Desktop 上都可见；若产品有意按端或按角色限制可见性，该规则须明确，且各端表现仍须一致，不能一端有、另一端静默缺失（q6）",
+      "source": "issue#2235",
+      "enabled": false,
+      "writes": true,
+      "note": "要另一个端或另一个账号配合，单台手机上的探索做不了"
+    },
+    {
+      "id": "issue-2255",
+      "page": "chat",
+      "trigger": "点开这条图片消息，在图片查看器里看清晰度，并找『查看原图』入口",
+      "expect": "图片以原始分辨率打开，或查看器提供「查看原图」（`view original`）操作",
+      "source": "issue#2255",
+      "enabled": true
+    },
+    {
+      "id": "issue-2336",
+      "page": "",
+      "trigger": "分别打开个人主页（/profile）、Artifacts 页面、CloudDoc 文档（从 Artifacts 卡片进入），读取每个页面头部右上角的 🔔 入口",
+      "expect": "只保留一个统一通知入口（如全局左栏的「通知」），聚合各模块通知并共用同一份未读状态；若保留模块级入口，也必须读取同一份未读状态，使各处角标永不互相矛盾",
+      "source": "issue#2336",
+      "enabled": false,
+      "note": "草稿只有 desktop-web 的子用例；探索本期只在 android-app 上跑"
+    },
+    {
+      "id": "issue-2485",
+      "page": "chat",
+      "trigger": "在会话里点相册入口，选一张 12 MP（3–5 MB）的照片发送出去（单图或图文混发）",
+      "expect": "照片保留原始分辨率与画质（至少用户选择时）：发送流程提供「原图」开关并上传未处理的原文件，查看和下载拿到的也是原图",
+      "source": "issue#2485",
+      "enabled": true,
+      "writes": true
+    },
+    {
+      "id": "issue-2559",
+      "page": "chat",
+      "trigger": "在同一个单聊里从网页端连续发送每条约 900KB 的纯文字（约 19 条，使当前 100-seq 块累计超过 16MB），之后再发一条任意大小的消息",
+      "expect": "服务端已接收并投递的消息也要能存进历史；存不了的消息要在发送时就告诉发送方，不能悄悄丢掉；存储写入失败要重试或报出来",
+      "source": "issue#2559",
+      "enabled": false,
+      "writes": true,
+      "note": "要另一个端或另一个账号配合，单台手机上的探索做不了"
+    },
+    {
+      "id": "issue-2669",
+      "page": "chat",
+      "trigger": "不发送，切到另一个会话，再切回原会话",
+      "expect": "草稿按会话保留，切回后原样恢复；若确有存储上限应显式提示而不是丢弃",
+      "source": "issue#2669",
+      "enabled": true,
+      "writes": true
+    },
+    {
+      "id": "issue-2674",
+      "page": "chat",
+      "trigger": "在桌面客户端（Windows 风格打包窗口、Windows 显示缩放 150%）里打开含合并转发记录的会话，点击合并转发卡片弹出该弹窗",
+      "expect": "两端都按显示器原生分辨率渲染，弹窗内文字/头像/边框/图标与周围应用界面同样清晰；桌面端与网页端不应在同一条记录上出现渲染分辨率差异",
+      "source": "issue#2674",
+      "enabled": false,
+      "writes": true,
+      "note": "要另一个端或另一个账号配合，单台手机上的探索做不了"
+    },
+    {
+      "id": "issue-2729",
+      "page": "settings",
+      "trigger": "从首页打开设置（我的 → ☰ → 全部设置），向下滚动到 PREFERENCES & SECURITY 分组（q2、q8）",
+      "expect": "该分组（或从移动端设置树可达的位置）提供与 Web 相同的两个开关：Show Link Previews 与 Task completion alerts（若 #2561 先合入则名为 Task completion notifications）（q11）",
+      "source": "issue#2729",
+      "enabled": true
+    },
+    {
+      "id": "issue-2730",
+      "page": "settings",
+      "trigger": "打开账号设置（我的 → ☰ → 全部设置）并向下滚动到『偏好与安全』分组，逐项读取该分组内容",
+      "expect": "该分组（或其子页）里存在 Show Link Previews 与 Task completion alerts 两个开关，默认值与账号级持久化状态与 Web 一致",
+      "source": "issue#2730",
+      "enabled": true
+    },
+    {
+      "id": "issue-2734",
+      "page": "chat",
+      "trigger": "在输入框里按上述顺序键入这些内容后点发送",
+      "expect": "气泡严格按输入顺序渲染：文字 A、其文档链接、文字 B、其文档链接，每个链接紧跟介绍它的那段文字",
+      "source": "issue#2734",
+      "enabled": false,
+      "writes": true,
+      "note": "草稿只有 desktop-web 的子用例；探索本期只在 android-app 上跑"
+    },
+    {
+      "id": "issue-2735",
+      "page": "chat",
+      "trigger": "在输入框里按「文字 → artifact 链接 → 文字 → artifact 链接」的交错顺序输入并发送",
+      "expect": "气泡内区块严格保持用户输入的原始顺序与位置，不按类型分组、不把链接提升到开头或末尾",
+      "source": "issue#2735",
+      "enabled": true,
+      "writes": true
+    },
+    {
+      "id": "issue-2775",
+      "page": "chat",
+      "trigger": "在任意会话中选图或拍照，作为图片消息发送，并等待上传结束",
+      "expect": "图片正常上传并送达；若上传确实失败，客户端应给出清晰可操作的错误（原因 + 重试入口），并在失败气泡里保留本地预览或正确的占位图，让用户知道哪张图失败、可以重试",
+      "source": "issue#2775",
+      "enabled": true,
+      "writes": true
+    }
+  ]
+}

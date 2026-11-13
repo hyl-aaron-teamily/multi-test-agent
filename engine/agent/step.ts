@@ -43,6 +43,8 @@ export interface AgentAnswer {
   action: AgentAction;
   /** A short burst on the same screen after `action` (Artemis Flash click_sequence): at most BURST_MAX - 1. */
   then?: AgentAction[];
+  /** W3-4 §8.5 ①: checklist results, as the model gave them (engine/explore/expectations.ts readVerify). */
+  verify?: unknown;
 }
 
 /** Actions per turn at most (the first plus the burst). */
@@ -74,6 +76,10 @@ export interface StepRecord {
   notes?: string[];
   /** Text that appeared on this screen and was not on the previous one (F8; search only, not in the ledger). */
   newText?: string;
+  /** The page the step acted on (engine/pages.ts pageOf; W3-4 §8.2′). */
+  page?: string;
+  /** Checklist entries checked in this step: `<id> 符合|不符合|无法验证` (W3-4 §8.5 ①). */
+  verified?: string[];
 }
 
 const INPUT = /EditText|textbox|textarea|searchbox|combobox/i;
@@ -191,7 +197,8 @@ ${SHARED_RULES}
 - Describe visible facts, never guess causes.
 ${writable ? '- Writable run: you may type and send, but never delete or recall anything.' : '- READ-ONLY run: never send, delete, change settings, pay, log out, invite or share, or edit a profile; typing is allowed only into a search box. Such actions are blocked and reported back to you.'}
 - Likes, follows, favourites and subscriptions change what real users see: do them only on the test accounts' own profiles and content (${ownContent.length ? ownContent.map((n) => `"${n}"`).join(', ') : 'none configured'}); elsewhere they are blocked. Tabs with those names on other people's pages are blocked too — check them on the own profiles.
-- When exploring, prefer entries you have not tried on this screen yet.`;
+- When exploring, prefer entries you have not tried on this screen yet.
+- Expectations (W3-4): when the prompt lists 本页待核对的预期 or 尚未核对, checking them is part of exploring. Do the trigger, look at the result on the next screen, then add "verify": {"id": "<id>", "result": "符合|不符合|无法验证", "evidence": "<visible facts>"} next to "action" (a list for several). A mismatch goes through verify, not report_issue. Issues listed under 已记录的问题 are already recorded: do not report them again.`;
 
 /** Bench mode (AndroidWorld on an emulator): complete the task; nothing is blocked, nothing is reported. */
 export const BENCH_SYSTEM = `You operate an Android phone to complete the user's task, one action per turn, like a careful human.
@@ -208,7 +215,7 @@ Several steps on the same screen (fill a form, type then press Enter, set a pick
 ${SHARED_RULES}
 - Never repeat an action whose effect you have not looked at (a second press of a button that already worked does it twice); read back the values the app shows after you enter them (names, numbers, dates, times) and correct them before moving on; to set a slider to its maximum or minimum, drag its thumb past the end of the track.`;
 
-export function userPrompt(o: { goal: string; mode: 'task' | 'explore'; plan?: string; notes?: string; history: string; screen: string; els: ScreenNode[]; tried: string[]; feedback?: string; size: { width: number; height: number }; instructions?: string[]; top?: string[] }): string {
+export function userPrompt(o: { goal: string; mode: 'task' | 'explore'; plan?: string; notes?: string; history: string; screen: string; els: ScreenNode[]; tried: string[]; feedback?: string; size: { width: number; height: number }; instructions?: string[]; top?: string[]; extra?: string[] }): string {
   return [
     // Open execution incident, final-review result, "no usable action last turn" (F6, F7): read first.
     ...(o.top ?? []),
@@ -220,6 +227,8 @@ export function userPrompt(o: { goal: string; mode: 'task' | 'explore'; plan?: s
     o.feedback ? `Result of your last action: ${o.feedback}` : '',
     `Screen ${o.screen}; already tried here: ${o.tried.length ? o.tried.slice(0, 20).join(', ') : 'nothing'}`,
     `Visible elements (Bounds on the 0-1000 scale):\n${elementList(o.els, o.size) || '(none read — use 0-1000 coordinates from the screenshot, with a description)'}`,
+    // Appended blocks (contract K4: later milestones add at the end): W3-4 checklist and known issues of the page.
+    ...(o.extra ?? []),
   ]
     .filter(Boolean)
     .join('\n\n');
@@ -349,7 +358,7 @@ export function parseAction(a: Record<string, unknown>, bench = false): AgentAct
  *  it, and an unusable burst action is dropped with its reason (the first action still runs). */
 export function readAnswer(raw: unknown, bench = false, elements?: number): { answer: AgentAnswer; dropped?: string } | { error: string } {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { error: 'The answer is not one JSON object.' };
-  const r = raw as { thought?: unknown; plan?: unknown; action?: unknown; then?: unknown };
+  const r = raw as { thought?: unknown; plan?: unknown; action?: unknown; then?: unknown; verify?: unknown };
   if (!r.action || typeof r.action !== 'object' || Array.isArray(r.action)) return { error: "The answer has no 'action' object." };
   const first = readAction(r.action as Record<string, unknown>, bench, elements);
   if ('error' in first) return first;
@@ -369,7 +378,7 @@ export function readAnswer(raw: unknown, bench = false, elements?: number): { an
       then.push(a.action);
     }
   }
-  return { answer: { thought: String(r.thought ?? ''), plan: typeof r.plan === 'string' ? r.plan : undefined, action: first.action, ...(then.length ? { then } : {}) }, ...(dropped ? { dropped } : {}) };
+  return { answer: { thought: String(r.thought ?? ''), plan: typeof r.plan === 'string' ? r.plan : undefined, action: first.action, ...(then.length ? { then } : {}), ...(r.verify !== undefined && !bench ? { verify: r.verify } : {}) }, ...(dropped ? { dropped } : {}) };
 }
 
 /** Pure: the model's answer; undefined = unusable. */
