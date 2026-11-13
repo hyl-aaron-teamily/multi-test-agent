@@ -5,6 +5,8 @@
 //   process death   : am_proc_died / "Process <pkg> (pid N) has died"
 //   left the app    : wm_set_resumed_activity / am_focused_* naming another package
 //   app E/ lines    : of the app's pid, matched against the SKILL table → suspect only
+// Must stay before @midscene/android: it sets APPIUM_TMP_DIR before @appium/support is loaded.
+import '../core/appium-tmp';
 import { AndroidDevice } from '@midscene/android';
 import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';

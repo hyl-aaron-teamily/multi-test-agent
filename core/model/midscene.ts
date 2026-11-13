@@ -27,6 +27,7 @@ function agentFor(t: VisionTarget): Promise<any> {
   if (!a) {
     a = (async () => {
       if (t.surface === 'android-app' || t.surface === 'android-web') {
+        await import('../appium-tmp'); // sets APPIUM_TMP_DIR before @appium/support is loaded
         const { AndroidAgent, AndroidDevice } = await import('@midscene/android');
         const dev = new AndroidDevice(t.o!.udid!);
         await dev.connect();
