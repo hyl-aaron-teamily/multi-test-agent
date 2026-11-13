@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { tmpDir } from '../core/testing/tmp-dir';
-import { KEEP_STATE, listSaved, savePath, saveTask, stopTaskProcesses, wipeSession } from './session';
+import { deleteSaved, KEEP_STATE, listSaved, openSaved, savedDir, savePath, saveTask, stopTaskProcesses, wipeSession } from './session';
 import { getTask } from './lifecycle/task';
 
 let state: string, runs: string, saved: string;
@@ -55,7 +55,7 @@ describe('platform/session (every start is a new platform; 「另存为」 keeps
     task('t-1', 'done', { runDir, report: join(runDir, 'report.md'), outcome: { code: 'EXPLORE_FINDINGS', summary: '2 个发现' } });
     const r = saveTask(getTask('t-1')!, '聊天 探索');
     expect(r.name).toBe('聊天-探索');
-    expect(r.items).toEqual(['task', join('run', 'android-app-t-1')]);
+    expect(r.items).toEqual(['task', 'run/android-app-t-1']);
     expect(existsSync(join(r.dir, 'run', 'android-app-t-1', 'report.md'))).toBe(true);
     expect(saveTask(getTask('t-1')!, '聊天 探索').name).toBe('聊天-探索-2');
     wipeSession();
@@ -68,5 +68,36 @@ describe('platform/session (every start is a new platform; 「另存为」 keeps
     expect(savePath(join(runs, 'bench', 'aw-1'), 'aw').items).toEqual(['aw-1']);
     expect(() => savePath(state)).toThrow(/midscene_run/);
     expect(() => savePath(runs)).toThrow(/midscene_run/);
+  });
+
+  it('打开存档 puts the task and its run back where they were; a wipe removes the copy, not the archive', () => {
+    const runDir = join(runs, 'explore', 'android-app-t-2');
+    mkdirSync(runDir, { recursive: true });
+    writeFileSync(join(runDir, 'report.md'), '# r');
+    task('t-2', 'done', { runDir, outcome: { code: 'EXPLORE_FINDINGS', summary: '1 个发现' } });
+    saveTask(getTask('t-2')!, '回放 种子');
+    wipeSession();
+    expect(getTask('t-2')).toBeUndefined();
+    const o = openSaved('回放-种子');
+    expect(o).toMatchObject({ taskId: 't-2', already: false });
+    expect(getTask('t-2')).toMatchObject({ id: 't-2', restoredFrom: '回放-种子', runDir });
+    expect(existsSync(join(runDir, 'report.md'))).toBe(true);
+    expect(openSaved('回放-种子').already).toBe(true);
+    wipeSession();
+    expect(existsSync(runDir)).toBe(false);
+    expect(listSaved().map((x) => x.name)).toEqual(['回放-种子']);
+  });
+
+  it('a saved path opens back under midscene_run/; delete removes the archive; names cannot escape saved/', () => {
+    mkdirSync(join(runs, 'bench', 'aw-2'), { recursive: true });
+    writeFileSync(join(runs, 'bench', 'aw-2', 'report.md'), 'x');
+    savePath(join(runs, 'bench', 'aw-2'), 'aw');
+    wipeSession();
+    expect(openSaved('aw').opened).toEqual([join(runs, 'bench', 'aw-2')]);
+    expect(existsSync(join(runs, 'bench', 'aw-2', 'report.md'))).toBe(true);
+    deleteSaved('aw');
+    expect(listSaved()).toEqual([]);
+    expect(() => savedDir('../sess')).toThrow(/没有存档/);
+    expect(() => openSaved('nope')).toThrow(/没有存档/);
   });
 });

@@ -529,6 +529,8 @@ export interface TaskView {
   ledger: { entered: string[]; typedInto: string[]; sent: number; settings: string[] };
   outcome?: { code: Code; status: number; exit: number; summary: string };
   cancelRequested: boolean;
+  /** Opened from saved/<name> (「打开存档」). */
+  restoredFrom?: string;
 }
 
 export const TASK_STATE_TEXT: Record<TaskRecord['state'], string> = { queued: '排队', 'waiting-env': '等环境', preflight: '预检', running: '运行中', finishing: '收尾', done: '完成', 'env-unfit': '环境不合格', failed: '失败', interrupted: '中断', cancelled: '已取消' };
@@ -564,6 +566,7 @@ export function taskView(t: TaskRecord, events: { at: string; type: string; stat
     ledger: { entered: uniq(ledger.filter((l) => l.kind === 'enter-conversation').map((l) => l.target)), typedInto: uniq(ledger.filter((l) => l.kind === 'type').map((l) => l.target)), sent: ledger.filter((l) => l.kind === 'send').length, settings: uniq(ledger.filter((l) => l.kind === 'setting').map((l) => l.value)) },
     outcome: t.outcome && { code: t.outcome.code, status: STATUS[t.outcome.code].status, exit: STATUS[t.outcome.code].exit, summary: t.outcome.summary },
     cancelRequested: !!t.cancelRequested,
+    ...(t.restoredFrom ? { restoredFrom: t.restoredFrom } : {}),
   };
 }
 

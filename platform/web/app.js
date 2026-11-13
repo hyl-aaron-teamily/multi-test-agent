@@ -142,6 +142,7 @@ const ROUTES = [
   [/^#\/plan\/([^?]+)/, planPage],
   [/^#\/env\/([^?]+)/, envPage],
   [/^#\/approvals$/, approvals],
+  [/^#\/saved$/, savedPage],
 ];
 
 function hashQuery() {
@@ -282,7 +283,7 @@ function taskTable(ts) {
     .map((t) => {
       const what = t.explore ? `${t.explore.mode === 'explore' ? '探索' : '任务'}「${esc(t.explore.goal.slice(0, 40))}」` : t.planId.startsWith('sync:') ? `多端同步 ${esc(t.planId.slice(5))}` : `<a href="#/plan/${enc(t.planId)}">${esc(t.planId)}</a>`;
       const prog = t.finishedAt ? `${t.outcome ? `${pill(OUTCOME_CLASS[t.outcome.code] ?? 'warn', t.outcome.code)} ` : ''}<a href="#/result/${enc(t.id)}">${esc((t.outcome?.summary ?? '查看结果').slice(0, 60))}</a>` : `${esc(t.progress.phaseText ?? '')}${t.progress.round !== undefined ? ` 第 ${t.progress.round} 轮` : ''}${t.progress.step !== undefined ? ` 第 ${t.progress.step} 步` : ''}${t.progress.summary ? ` <span class="muted">${esc(t.progress.summary.slice(0, 40))}</span>` : ''}`;
-      return `<tr><td><a class="mono" href="#/task/${enc(t.id)}">${esc(t.id.replace(/^t-/, ''))}</a><br><span class="faint">${time(t.createdAt)}</span></td><td>${what}<br><span class="faint">${esc([t.envId, ...(t.envIds ?? [])].join(' + '))}</span></td><td>${pill(t.state, t.stateText)}</td><td>${prog}</td></tr>`;
+      return `<tr><td><a class="mono" href="#/task/${enc(t.id)}">${esc(t.id.replace(/^t-/, ''))}</a>${t.restoredFrom ? ` <span class="pill" title="从存档「${esc(t.restoredFrom)}」打开">存档</span>` : ''}<br><span class="faint">${time(t.createdAt)}</span></td><td>${what}<br><span class="faint">${esc([t.envId, ...(t.envIds ?? [])].join(' + '))}</span></td><td>${pill(t.state, t.stateText)}</td><td>${prog}</td></tr>`;
     })
     .join('')}</table>`;
 }
@@ -502,7 +503,7 @@ function drawTask(t, s) {
   if (!t || !$('#taskNow')) return;
   const p = t.progress ?? {};
   for (const id of ['taskNowCard', 'taskShotsCard', 'taskLedgerCard', 'taskTimelineCard']) document.getElementById(id)?.classList.toggle('is-live', !t.finishedAt);
-  put('taskActions', t.finishedAt ? `<a class="btn primary" href="#/result/${enc(t.id)}">查看结果 →</a> <button class="btn" title="停止平台时会删除本次的全部运行和报告；另存为的不删" onclick="saveRun('${esc(t.id)}')">另存为…</button>` : `<button class="btn danger" onclick="cancelTask('${esc(t.id)}')">取消</button>`);
+  put('taskActions', t.finishedAt ? `${t.restoredFrom ? `<span class="pill" title="从存档打开：停止平台时这份副本会删除，存档本身保留">存档「${esc(t.restoredFrom)}」</span> ` : ''}<a class="btn primary" href="#/result/${enc(t.id)}">查看结果 →</a> <button class="btn" title="停止平台时会删除本次的全部运行和报告；另存为的不删" onclick="saveRun('${esc(t.id)}')">另存为…</button>` : `<button class="btn danger" onclick="cancelTask('${esc(t.id)}')">取消</button>`);
   const now = t.finishedAt
     ? `<p>${pill(t.state, t.stateText)} 结束于 ${time(t.finishedAt)}${t.endedBy ? `，方式：${esc(t.endedBy)}` : ''}${t.endedAt ? `，停在 ${esc(t.endedAt)}` : ''}</p><p class="lead">${esc(t.outcome?.summary ?? '')}</p>`
     : `<p>${pill(t.state, t.stateText)} ${esc(p.phaseText ?? '')}${p.round !== undefined ? ` · 第 ${p.round} 轮` : ''}${p.step !== undefined ? ` · 第 ${p.step} 步` : ''}</p>${p.summary ? `<p class="mono">${esc(p.summary)}</p>` : ''}<p class="faint">更新于 ${time(p.at)}${t.cancelRequested ? ' · 已请求取消' : ''}</p>`;
@@ -541,6 +542,34 @@ async function injectTask(id) {
   const r = await api('POST', `/explore/${enc(id)}/inject`, { text });
   if (r.code !== 'OK') return alert(r.summary);
   $('#inject').value = '';
+}
+
+// ---------------------------------------------------------------- 存档
+
+/** Saved runs (saved/): every start is a new platform, so a run is kept only when someone pressed 「另存为」.
+ *  「打开」 copies it back into this session (deleted again at stop); 「删除」 removes the archive for good. */
+async function savedPage() {
+  await shell('saved');
+  const r = await api('GET', '/saved');
+  if (r.code !== 'OK') return ($('#view').innerHTML = card('', '存档', failMsg(r)));
+  const rows = r.data.map((x) => `<tr><td><b>${esc(x.name)}</b><br><span class="faint">${time(x.savedAt)}</span></td><td class="mono">${esc(x.source)}</td><td>${esc(x.summary ?? '')}</td><td><button class="btn primary" onclick="openSaved('${esc(x.name)}')">打开</button> <button class="btn danger" onclick="deleteSaved('${esc(x.name)}')">删除</button></td></tr>`);
+  const body = r.data.length ? `<table><tr><th>名称</th><th>来源</th><th>结论</th><th></th></tr>${rows.join('')}</table>` : '<p class="empty">还没有存档。任务结束后，在任务页点「另存为…」。</p>';
+  $('#view').innerHTML = `<div class="page-head"><h1>存档<small>停止平台时会删除本次的全部运行和报告；点过「另存为」的保存在 saved/，在这里打开</small></h1></div>${card('', `${r.data.length} 份存档`, body)}`;
+}
+
+async function openSaved(name) {
+  const r = await api('POST', `/saved/${enc(name)}/open`);
+  if (r.code !== 'OK') return alert(r.summary);
+  if (r.data.taskId) return (location.hash = `#/task/${enc(r.data.taskId)}`);
+  const href = fileHref(r.data.opened[0]);
+  alert(`${r.summary}${href ? `\n${location.origin}${href}` : ''}`);
+}
+
+async function deleteSaved(name) {
+  if (!confirm(`永久删除存档「${name}」？删除后无法恢复。`)) return;
+  const r = await api('DELETE', `/saved/${enc(name)}`);
+  if (r.code !== 'OK') alert(r.summary);
+  route();
 }
 
 async function saveRun(id) {

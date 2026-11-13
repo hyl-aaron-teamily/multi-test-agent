@@ -65,6 +65,8 @@ export interface TaskRecord {
   /** Report / run dir of the executor (for links). */
   runDir?: string;
   report?: string;
+  /** Opened from a saved run (saved/<name>, platform/session.ts): read-only history, not run in this session. */
+  restoredFrom?: string;
 }
 
 export const TASK_FLOW: Record<TaskState, TaskState[]> = {

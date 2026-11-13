@@ -16,7 +16,7 @@ import { consentConfig, type EnvRecord, getEnv, listEnvs, unconsented } from './
 import { STATUS, type Code, CodedError, apiError, outcome } from './lifecycle/status';
 import { readAudit, writeJsonAtomic } from './lifecycle/store';
 import type { Supervisor } from './lifecycle/supervisor';
-import { listSaved, saveTask } from './session';
+import { deleteSaved, listSaved, openSaved, saveTask } from './session';
 import { createTask, getTask, isTerminal, listTasks, newTaskId, readEvents, readLedger, readResult, taskDir, type TaskRecord, updateTask } from './lifecycle/task';
 import { parsePlanId, planIdOf, planIdsOf, resolvePlan, savedDraft, staleFacts, versionFacts } from './plans-v1';
 import { envView, exploreSummary, syncSummary, planText, planView, resultText, resultView, taskView, type ResultView } from './views';
@@ -554,9 +554,24 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
       const v = getFullAccess();
       return ok('OK', v.on ? `完全授权开启中（${v.by}，${v.at}）` : '完全授权关闭', v);
     }
-    if (M === 'GET' && seg[0] === 'saved') {
-      const list = listSaved();
-      return ok('OK', `${list.length} 份另存`, list, list.map((x) => `${x.name}  ${x.source}  ${x.savedAt}`).join('\n'));
+    if (seg[0] === 'saved') {
+      // Saved runs (platform/session.ts): list, open into this session, delete for good.
+      if (M === 'GET' && !seg[1]) {
+        const list = listSaved();
+        return ok('OK', `${list.length} 份存档`, list, list.map((x) => `${x.name}  ${x.source}  ${x.savedAt}`).join('\n'));
+      }
+      try {
+        if (M === 'POST' && seg[1] && seg[2] === 'open') {
+          const r = openSaved(seg[1]);
+          return ok('OK', r.already ? `存档「${seg[1]}」已经打开` : `已打开存档「${seg[1]}」`, r);
+        }
+        if (M === 'DELETE' && seg[1]) {
+          deleteSaved(seg[1]);
+          return ok('OK', `已删除存档「${seg[1]}」`, { name: seg[1] });
+        }
+      } catch (e) {
+        return fail('NOT_FOUND', (e as Error).message, 'autotest runs saved');
+      }
     }
     if (M === 'GET' && seg[0] === 'audit') {
       const xs = readAudit().slice(-Number(q.query.get('limit') ?? 200));

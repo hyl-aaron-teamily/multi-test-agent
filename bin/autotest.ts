@@ -6,7 +6,7 @@
 //   pnpm autotest explore run "<goal>" [--mode task|explore] [--surface …]   (exploration tier, capability ②; explore local = no platform)
 //   pnpm autotest bench aw [--pilot | --tasks A,B]                                (AndroidWorld bench, W2-5 P1)
 //   pnpm autotest devices [--json]
-//   pnpm autotest runs save <task-id | path under midscene_run> [--name n] | runs saved   (「另存为」, platform/session.ts)
+//   pnpm autotest runs save <task-id | path> [--name n] | saved | open <name> | delete <name>   (存档, platform/session.ts)
 import 'dotenv/config';
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';

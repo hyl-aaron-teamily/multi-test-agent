@@ -64,14 +64,24 @@ export async function endSession(o: { keep?: string[] } = {}): Promise<WipeResul
   return { ...wipeSession(o), stopped };
 }
 
+/** Where a saved item goes back to when the archive is opened: platform/state/<rel> or midscene_run/<rel>. */
+export interface SavedPlace {
+  /** Path inside the saved folder. */
+  saved: string;
+  root: 'state' | 'runs';
+  rel: string;
+}
+
 export interface SavedMeta {
   name: string;
   savedAt: string;
   /** Task id, or the folder under midscene_run/ that was saved. */
   source: string;
+  taskId?: string;
   summary?: string;
   /** Saved paths, relative to the saved folder. */
   items: string[];
+  places: SavedPlace[];
 }
 
 /** Recursive copy. Not fs.cpSync: on Windows (Node 22) it copies nothing, silently, when the destination path
@@ -88,6 +98,7 @@ export function copyTree(src: string, dest: string): void {
 
 const safeName = (s: string) => s.replace(/[^\w.@一-鿿-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'run';
 const stamp = () => new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+const slash = (p: string) => p.replace(/\\/g, '/');
 
 function freeDir(name: string): string {
   const root = savedRoot();
@@ -103,21 +114,25 @@ export const insideRuns = (p: string, runs = runsRoot()) => {
   return r.startsWith(runs + sep) && r !== runs;
 };
 
+function writeMeta(dir: string, m: Omit<SavedMeta, 'name' | 'savedAt' | 'items'>): SavedMeta & { dir: string } {
+  const meta: SavedMeta = { name: basename(dir), savedAt: new Date().toISOString(), ...m, items: m.places.map((p) => p.saved) };
+  writeFileSync(join(dir, 'saved.json'), `${JSON.stringify(meta, null, 2)}\n`);
+  return { ...meta, dir };
+}
+
 /** 「另存为」 a task: its record folder, plus its run directory and report when they are under midscene_run/. */
 export function saveTask(t: TaskRecord, name?: string): SavedMeta & { dir: string } {
   const dir = freeDir(safeName(name || `${t.id}-${t.kind}`));
-  const items: string[] = [];
-  const copy = (src: string, to: string) => {
+  const places: SavedPlace[] = [];
+  const copy = (src: string, saved: string, root: SavedPlace['root'], rel: string) => {
     if (!existsSync(src)) return;
-    copyTree(src, join(dir, to));
-    items.push(to);
+    copyTree(src, join(dir, saved));
+    places.push({ saved: slash(saved), root, rel: slash(rel) });
   };
-  copy(taskDir(t.id), 'task');
-  if (t.runDir && insideRuns(t.runDir)) copy(t.runDir, join('run', basename(t.runDir)));
-  if (t.report && insideRuns(t.report) && !(t.runDir && resolve(t.report).startsWith(resolve(t.runDir) + sep))) copy(t.report, join('report', basename(t.report)));
-  const meta: SavedMeta = { name: basename(dir), savedAt: new Date().toISOString(), source: t.id, summary: t.outcome?.summary, items };
-  writeFileSync(join(dir, 'saved.json'), `${JSON.stringify(meta, null, 2)}\n`);
-  return { ...meta, dir };
+  copy(taskDir(t.id), 'task', 'state', join('tasks', t.id));
+  if (t.runDir && insideRuns(t.runDir)) copy(t.runDir, join('run', basename(t.runDir)), 'runs', relative(runsRoot(), t.runDir));
+  if (t.report && insideRuns(t.report) && !(t.runDir && resolve(t.report).startsWith(resolve(t.runDir) + sep))) copy(t.report, join('report', basename(t.report)), 'runs', relative(runsRoot(), t.report));
+  return writeMeta(dir, { source: t.id, taskId: t.id, summary: t.outcome?.summary, places });
 }
 
 /** 「另存为」 any folder or file under midscene_run/ (bench reports, CLI runs). */
@@ -127,17 +142,54 @@ export function savePath(p: string, name?: string): SavedMeta & { dir: string } 
   const rel = relative(runsRoot(), src);
   const dir = freeDir(safeName(name || `${rel.replace(/[\\/]/g, '-')}-${stamp()}`));
   copyTree(src, join(dir, basename(src)));
-  const meta: SavedMeta = { name: basename(dir), savedAt: new Date().toISOString(), source: `midscene_run/${rel.replace(/\\/g, '/')}`, items: [basename(src)] };
-  writeFileSync(join(dir, 'saved.json'), `${JSON.stringify(meta, null, 2)}\n`);
-  return { ...meta, dir };
+  return writeMeta(dir, { source: `midscene_run/${slash(rel)}`, places: [{ saved: basename(src), root: 'runs', rel: slash(rel) }] });
+}
+
+/** The folder of one saved run, by name (no path tricks: a direct child of saved/). Offline tools read it here. */
+export function savedDir(name: string): string {
+  const root = savedRoot();
+  const dir = resolve(root, name);
+  if (dirname(dir) !== root || !existsSync(join(dir, 'saved.json'))) throw new Error(`没有存档「${name}」`);
+  return dir;
+}
+
+export function readSaved(name: string): SavedMeta & { dir: string } {
+  const dir = savedDir(name);
+  return { ...(JSON.parse(readFileSync(join(dir, 'saved.json'), 'utf8')) as SavedMeta), dir };
 }
 
 export function listSaved(): (SavedMeta & { dir: string })[] {
   const root = savedRoot();
   if (!existsSync(root)) return [];
   return readdirSync(root)
-    .map((n) => join(root, n))
-    .filter((d) => statSync(d).isDirectory() && existsSync(join(d, 'saved.json')))
-    .map((d) => ({ ...(JSON.parse(readFileSync(join(d, 'saved.json'), 'utf8')) as SavedMeta), dir: d }))
+    .filter((n) => existsSync(join(root, n, 'saved.json')))
+    .map((n) => readSaved(n))
     .sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+}
+
+/** 「打开存档」: copy a saved run back where it was, so the task, result and report pages work as they did.
+ *  The copy belongs to this session (deleted at stop); the archive itself is untouched. Opening twice is a no-op. */
+export function openSaved(name: string): { taskId?: string; opened: string[]; already: boolean } {
+  const s = readSaved(name);
+  const opened: string[] = [];
+  let already = true;
+  for (const p of s.places) {
+    const base = p.root === 'state' ? stateRoot() : runsRoot();
+    const dest = resolve(base, p.rel);
+    if (!dest.startsWith(base + sep)) throw new Error(`存档「${name}」的位置不合法：${p.rel}`);
+    opened.push(dest);
+    if (existsSync(dest)) continue;
+    already = false;
+    copyTree(join(s.dir, p.saved), dest);
+  }
+  if (s.taskId && !already) {
+    const f = join(taskDir(s.taskId), 'task.json');
+    if (existsSync(f)) writeFileSync(f, `${JSON.stringify({ ...JSON.parse(readFileSync(f, 'utf8')), restoredFrom: s.name }, null, 2)}\n`);
+  }
+  return { taskId: s.taskId, opened, already };
+}
+
+/** Delete a saved run for good. */
+export function deleteSaved(name: string): void {
+  rmSync(savedDir(name), { recursive: true, force: true });
 }
