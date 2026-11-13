@@ -1,5 +1,6 @@
 import 'dotenv/config';
 import { defineConfig } from 'vitest/config';
+import { APPIUM_TEST_TMP } from './core/testing/appium-tmp';
 
 export default defineConfig({
   test: {
@@ -7,8 +8,10 @@ export default defineConfig({
     fileParallelism: false,
     // Every test file's tmpDir() directories are removed when it finishes.
     setupFiles: ['core/testing/tmp-cleanup.ts'],
+    // @appium/support's import-time temp directory goes under one folder, removed after the run.
+    globalSetup: ['core/testing/appium-tmp.ts'],
     // Unit tests read a committed fixture, never the private allow-list of this machine.
-    env: { CONVERSATIONS_FILE: 'issue/__fixtures__/conversations.yaml', AUTOTEST_ISSUES_DIR: 'fixtures/issues', AUTOTEST_DRAFTS_DIR: 'issue/__fixtures__/drafts' },
+    env: { CONVERSATIONS_FILE: 'issue/__fixtures__/conversations.yaml', AUTOTEST_ISSUES_DIR: 'fixtures/issues', AUTOTEST_DRAFTS_DIR: 'issue/__fixtures__/drafts', APPIUM_TMP_DIR: APPIUM_TEST_TMP },
     projects: [
       {
         extends: true,

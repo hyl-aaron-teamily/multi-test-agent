@@ -90,4 +90,34 @@ describe('core/context/assemble (W3-2 §1.3)', () => {
     const raw = JSON.parse(readFileSync(join(dir, 'model-raw.jsonl'), 'utf8').trim());
     expect(raw).toMatchObject({ kind: 'vision', purpose: 'agent', ok: true, raw: '{"ok":1}' });
   });
+
+  it('W2-R2: evidence review and Issue design send the same request body as W3-1 visionJson / chatJson', async () => {
+    vi.stubEnv('MIDSCENE_MODEL_BASE_URL', 'http://model.test/v1');
+    vi.stubEnv('MIDSCENE_MODEL_API_KEY', 'k');
+    vi.stubEnv('MIDSCENE_MODEL_NAME', 'm');
+    for (const k of ['MIDSCENE_PLANNING_MODEL_BASE_URL', 'MIDSCENE_PLANNING_MODEL_API_KEY', 'ISSUE_PLANNER_MODEL', 'MISSION_PLANNER_MODEL', 'EVIDENCE_VISION_MODEL', 'ISSUE_NO_MODEL', 'ISSUE_NO_VISION']) delete process.env[k];
+    const sent: string[] = [];
+    vi.stubGlobal('fetch', async (_u: string, init: { body: string }) => {
+      sent.push(init.body);
+      return new Response(JSON.stringify({ choices: [{ message: { content: '{"ok":1}' } }] }), { status: 200 });
+    });
+    // The W3-1 request bodies, copied from core/model/llm.ts @ bda52a2 (visionJson / chatJson).
+    type P = string | { label: string; png: Buffer };
+    const oldVision = (system: string, parts: P[]) =>
+      JSON.stringify({ model: 'm', temperature: 0.1, messages: [{ role: 'system', content: system }, { role: 'user', content: parts.flatMap((p) => (typeof p === 'string' ? [{ type: 'text', text: p }] : [{ type: 'text', text: p.label }, { type: 'image_url', image_url: { url: `data:image/png;base64,${p.png.toString('base64')}` } }])) }] });
+    const oldChat = (system: string, user: string) => JSON.stringify({ model: 'm', temperature: 0.1, messages: [{ role: 'system', content: system }, { role: 'user', content: user }] });
+    const frames = [{ label: 'Image 1: before', png: Buffer.from('a') }, { label: 'Image 2: after', png: Buffer.from('b') }];
+    // engine/recorder/evidence-review.ts: parts = [prompt, ...frames]; with and without frames.
+    for (const fr of [frames, []]) {
+      const parts = ['REVIEW PROMPT', ...fr];
+      await modelCall({ purpose: 'review', vision: true, slots: [{ name: 'role', role: 'system', stable: true, content: 'REVIEW SYS' }, { name: 'incident', role: 'user', content: 'REVIEW PROMPT' }, { name: 'frames', role: 'user', content: parts.slice(1) }] });
+      expect(sent.pop()).toBe(oldVision('REVIEW SYS', parts));
+    }
+    // issue/author.ts defaultAsk: SKILL + catalog as system; Issue text, then its screenshots (vision) or text only.
+    const sys = systemSlots();
+    for (const shots of [frames, []]) {
+      await modelCall({ purpose: 'plan-author', slots: [...sys, { name: 'issue', role: 'user', content: 'ISSUE' }, { name: 'issue-images', role: 'user', content: shots }] });
+      expect(sent.pop()).toBe(shots.length ? oldVision(systemPrompt(), ['ISSUE', ...shots]) : oldChat(systemPrompt(), 'ISSUE'));
+    }
+  });
 });
