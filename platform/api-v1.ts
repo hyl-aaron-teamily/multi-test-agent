@@ -16,6 +16,7 @@ import { consentConfig, type EnvRecord, getEnv, listEnvs, unconsented } from './
 import { STATUS, type Code, CodedError, apiError, outcome } from './lifecycle/status';
 import { readAudit, writeJsonAtomic } from './lifecycle/store';
 import type { Supervisor } from './lifecycle/supervisor';
+import { listSaved, saveTask } from './session';
 import { createTask, getTask, isTerminal, listTasks, newTaskId, readEvents, readLedger, readResult, taskDir, type TaskRecord, updateTask } from './lifecycle/task';
 import { parsePlanId, planIdOf, planIdsOf, resolvePlan, savedDraft, staleFacts, versionFacts } from './plans-v1';
 import { envView, exploreSummary, syncSummary, planText, planView, resultText, resultView, taskView, type ResultView } from './views';
@@ -514,6 +515,12 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
         if (!isTerminal(cur.state)) return ok('STILL_RUNNING', v.summary, v, taskText(v));
         return ok(cur.outcome?.code ?? 'OK', v.summary, v, taskText(v));
       }
+      if (M === 'POST' && seg[2] === 'save') {
+        // 「另存为」: copy the task's record and run out of the session (platform/session.ts); unsaved runs go at stop.
+        if (!isTerminal(t.state)) return fail('BAD_INPUT', `任务 ${t.id} 还在运行，结束后才能另存为`);
+        const r = saveTask(t, typeof q.body?.name === 'string' ? q.body.name : undefined);
+        return ok('OK', `已另存为 saved/${r.name}`, r);
+      }
       if (M === 'POST' && seg[2] === 'cancel') {
         if (!ctx.sup) return fail('PLATFORM_DOWN', '平台服务未启动', 'pnpm platform');
         const done = await ctx.sup.cancel(t.id, q.web ? reviewerName() : 'cli');
@@ -546,6 +553,10 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
       }
       const v = getFullAccess();
       return ok('OK', v.on ? `完全授权开启中（${v.by}，${v.at}）` : '完全授权关闭', v);
+    }
+    if (M === 'GET' && seg[0] === 'saved') {
+      const list = listSaved();
+      return ok('OK', `${list.length} 份另存`, list, list.map((x) => `${x.name}  ${x.source}  ${x.savedAt}`).join('\n'));
     }
     if (M === 'GET' && seg[0] === 'audit') {
       const xs = readAudit().slice(-Number(q.query.get('limit') ?? 200));

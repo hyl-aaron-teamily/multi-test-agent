@@ -1,6 +1,8 @@
 node_modules/
 .env
 midscene_run/
+# Runs kept with 「另存为」 (platform/session.ts); everything else is deleted when the platform stops.
+/saved/
 # legacy Allure output (no longer produced since refactor P1)
 allure-results/
 allure-report/

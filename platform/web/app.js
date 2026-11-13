@@ -502,7 +502,7 @@ function drawTask(t, s) {
   if (!t || !$('#taskNow')) return;
   const p = t.progress ?? {};
   for (const id of ['taskNowCard', 'taskShotsCard', 'taskLedgerCard', 'taskTimelineCard']) document.getElementById(id)?.classList.toggle('is-live', !t.finishedAt);
-  put('taskActions', t.finishedAt ? `<a class="btn primary" href="#/result/${enc(t.id)}">查看结果 →</a>` : `<button class="btn danger" onclick="cancelTask('${esc(t.id)}')">取消</button>`);
+  put('taskActions', t.finishedAt ? `<a class="btn primary" href="#/result/${enc(t.id)}">查看结果 →</a> <button class="btn" title="停止平台时会删除本次的全部运行和报告；另存为的不删" onclick="saveRun('${esc(t.id)}')">另存为…</button>` : `<button class="btn danger" onclick="cancelTask('${esc(t.id)}')">取消</button>`);
   const now = t.finishedAt
     ? `<p>${pill(t.state, t.stateText)} 结束于 ${time(t.finishedAt)}${t.endedBy ? `，方式：${esc(t.endedBy)}` : ''}${t.endedAt ? `，停在 ${esc(t.endedAt)}` : ''}</p><p class="lead">${esc(t.outcome?.summary ?? '')}</p>`
     : `<p>${pill(t.state, t.stateText)} ${esc(p.phaseText ?? '')}${p.round !== undefined ? ` · 第 ${p.round} 轮` : ''}${p.step !== undefined ? ` · 第 ${p.step} 步` : ''}</p>${p.summary ? `<p class="mono">${esc(p.summary)}</p>` : ''}<p class="faint">更新于 ${time(p.at)}${t.cancelRequested ? ' · 已请求取消' : ''}</p>`;
@@ -541,6 +541,13 @@ async function injectTask(id) {
   const r = await api('POST', `/explore/${enc(id)}/inject`, { text });
   if (r.code !== 'OK') return alert(r.summary);
   $('#inject').value = '';
+}
+
+async function saveRun(id) {
+  const name = prompt('另存为（停止平台时会删除本次的全部运行和报告，另存的不删）。名称：', id);
+  if (name === null) return;
+  const r = await api('POST', `/tasks/${enc(id)}/save`, { name });
+  alert(r.code === 'OK' ? `${r.summary}\n${r.data?.dir ?? ''}` : r.summary);
 }
 
 async function cancelTask(id) {

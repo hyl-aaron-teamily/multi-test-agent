@@ -6,6 +6,7 @@
 //   pnpm autotest explore run "<goal>" [--mode task|explore] [--surface …]   (exploration tier, capability ②; explore local = no platform)
 //   pnpm autotest bench aw [--pilot | --tasks A,B]                                (AndroidWorld bench, W2-5 P1)
 //   pnpm autotest devices [--json]
+//   pnpm autotest runs save <task-id | path under midscene_run> [--name n] | runs saved   (「另存为」, platform/session.ts)
 import 'dotenv/config';
 import { spawn } from 'node:child_process';
 import { resolve } from 'node:path';
@@ -38,7 +39,7 @@ async function main(): Promise<number> {
   if (cmd === 'explore' && rest[0] === 'local') return run(tsx, ['scripts/explore.ts', ...rest]);
   // bench aw: the exploration tier on AndroidWorld (emulator + bench/androidworld/server.py).
   if (cmd === 'bench') return run(tsx, ['scripts/bench-aw.ts', ...rest]);
-  if (cmd === 'runs') return run(tsx, ['scripts/runs-prune.ts', ...rest]);
+  if (cmd === 'runs') return run(tsx, ['scripts/runs.ts', ...rest]);
   if (cmd && (V1.includes(cmd) || (cmd === 'plan' && ['explain', 'approve', 'reject'].includes(rest[0])))) {
     const { cliV1 } = await import('../scripts/cli-v1');
     return cliV1(cmd, rest);
