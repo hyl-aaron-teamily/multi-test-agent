@@ -17,6 +17,7 @@ import { AccountPool } from './accounts/account-pool';
 import { apiV1 } from './api-v1';
 import { apiError, outcome } from './lifecycle/status';
 import { Supervisor } from './lifecycle/supervisor';
+import { pruneRuns } from './runs-prune';
 
 const PORT = Number(process.env.PLATFORM_PORT ?? 3210);
 const FILES_ROOT = resolve('midscene_run');
@@ -164,6 +165,17 @@ async function main() {
   }).listen(PORT, () => {
     // Who serves this port (W2-5 §9 acceptance: stop exactly this process, not the task processes it started).
     writeFileSync(join(stateRoot(), 'platform.pid'), String(process.pid));
+    // midscene_run/ retention (platform/runs-prune.ts): once a minute after start, then daily; never blocks requests.
+    const prune = () => {
+      try {
+        const r = pruneRuns({ apply: true });
+        if (r.delete.length) console.log(`[platform] midscene_run retention: removed ${r.delete.length} old entries (${(r.freedBytes / 1e9).toFixed(2)} GB)`);
+      } catch (e) {
+        console.error(`[platform] midscene_run retention failed: ${(e as Error).message}`);
+      }
+    };
+    setTimeout(prune, 60_000).unref();
+    setInterval(prune, 86_400_000).unref();
     console.log(`[platform] console → http://localhost:${PORT}  (maxConcurrent=${pool.config.maxConcurrent}, devices=${pool.config.devices.map((d) => d.udid).join(', ') || 'all adb'})`);
   });
 }
