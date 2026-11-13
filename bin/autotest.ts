@@ -4,6 +4,7 @@
 //   pnpm autotest accounts|nodes|plan|run|series|rerender|evidence ... (scripts/m5.ts)
 //   pnpm autotest replay <incident>/replay.json [--times 3]                     (coordinate replay)
 //   pnpm autotest explore run "<goal>" [--mode task|explore] [--surface …]   (exploration tier, capability ②; explore local = no platform)
+//   pnpm autotest explore suite [--only a,b] [--no-explore]                       (Teamily acceptance suite, W3-3 F11′)
 //   pnpm autotest bench aw [--pilot | --tasks A,B]                                (AndroidWorld bench, W2-5 P1)
 //   pnpm autotest devices [--json]
 //   pnpm autotest runs save <task-id | path> [--name n] | saved | open <name> | delete <name>   (存档, platform/session.ts)
@@ -37,6 +38,8 @@ async function main(): Promise<number> {
   if (cmd === 'task' && rest[0] === 'exec') return run(tsx, ['scripts/task-exec.ts', ...rest.slice(1)]);
   // explore local "<goal>": the exploration tier in this process, without the platform (development).
   if (cmd === 'explore' && rest[0] === 'local') return run(tsx, ['scripts/explore.ts', ...rest]);
+  // explore suite: the Teamily acceptance suite of the exploration executor (W3-3 F11′).
+  if (cmd === 'explore' && rest[0] === 'suite') return run(tsx, ['scripts/explore-suite.ts', ...rest.slice(1)]);
   // bench aw: the exploration tier on AndroidWorld (emulator + bench/androidworld/server.py).
   if (cmd === 'bench') return run(tsx, ['scripts/bench-aw.ts', ...rest]);
   if (cmd === 'runs') return run(tsx, ['scripts/runs.ts', ...rest]);

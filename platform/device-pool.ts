@@ -32,6 +32,9 @@ export interface EndpointConfig {
   accounts: Partial<Record<Surface, string>>;
   /** Phones: hierarchy read backend (W2-4 §4.1); default uiautomator. */
   treeBackend?: 'uiautomator' | 'a11y-service';
+  /** Phones: how the exploration tier types (W3-3 F9). direct (default) = yadb writes the text, bypassing the IME;
+   *  keys = `input text` key events (fine without a Chinese IME, e.g. the AndroidWorld emulator). */
+  inputMode?: 'direct' | 'keys';
 }
 
 export interface PoolConfig {
@@ -77,7 +80,7 @@ export function parsePoolConfig(text: string): PoolConfig {
     .filter((d: any) => d?.udid)
     .map((d: any) => {
       const surfaces = surfacesOf(d.surfaces, ANDROID_SURFACES);
-      return { udid: String(d.udid), name: d.name ? String(d.name) : undefined, kind: 'android' as const, capacity: Object.fromEntries((surfaces.length ? surfaces : ANDROID_SURFACES).map((s) => [s, 1])), accounts: accountsOf(d.accounts), ...(d.treeBackend === 'a11y-service' ? { treeBackend: 'a11y-service' as const } : {}) };
+      return { udid: String(d.udid), name: d.name ? String(d.name) : undefined, kind: 'android' as const, capacity: Object.fromEntries((surfaces.length ? surfaces : ANDROID_SURFACES).map((s) => [s, 1])), accounts: accountsOf(d.accounts), ...(d.treeBackend === 'a11y-service' ? { treeBackend: 'a11y-service' as const } : {}), ...(d.inputMode === 'keys' || d.inputMode === 'direct' ? { inputMode: d.inputMode as 'direct' | 'keys' } : {}) };
     });
   const hosts: EndpointConfig[] = (Array.isArray(raw.hosts) ? raw.hosts : [{ id: 'local' }]).map((h: any) => {
     const cap: Partial<Record<Surface, number>> = {};
@@ -203,6 +206,15 @@ export class DevicePool {
       await rename(`${STATE_FILE}.tmp`, STATE_FILE);
     }).catch(() => {});
     return this.writing;
+  }
+}
+
+/** A phone's declared input mode (`inputMode` in devices.yaml; default direct, W3-3 F9). */
+export function declaredInputMode(udid: string): 'direct' | 'keys' {
+  try {
+    return parsePoolConfig(readFileSync(CONFIG_FILE, 'utf8')).devices.find((d) => d.udid === udid)?.inputMode ?? 'direct';
+  } catch {
+    return 'direct';
   }
 }
 

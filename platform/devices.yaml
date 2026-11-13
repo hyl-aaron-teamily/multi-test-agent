@@ -16,8 +16,12 @@ devices:
     # W2-4: read the accessibility tree through the on-device read-only service (android/a11y-service);
     # installed / enabled by the env configuration item `a11y-service`; unusable → falls back to uiautomator.
     treeBackend: a11y-service
+    # W3-3 F9: how the exploration tier types. direct = yadb writes the text (the iFlytek pinyin IME keeps `input text`
+    # key events in its composition bar: 2026-11-06, 17 steps of input that never landed); keys = `input text`.
+    inputMode: direct
   - udid: emulator-5554
     name: placeholder emulator (offline unless started)
+    inputMode: keys   # no Chinese IME on the AndroidWorld emulator: key events are faster
 hosts:
   - id: local
     name: this Windows laptop

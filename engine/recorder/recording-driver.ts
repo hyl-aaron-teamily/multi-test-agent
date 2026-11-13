@@ -1,5 +1,5 @@
 // Records every primitive driver operation (coordinates, timing) — the source of replay.json and ops.srt.
-import { type Anomaly, type Driver, type LifecycleOp, lifecycle, type Point, sleep } from '../../drivers/types';
+import { type Anomaly, type Driver, type InputMode, type LifecycleOp, lifecycle, type Point, sleep } from '../../drivers/types';
 
 export interface CoordOp {
   /** Global step number (1-based) the op belongs to. */
@@ -72,6 +72,13 @@ export class RecordingDriver implements Driver {
 
   type(text: string) {
     return this.rec('type', { value: this.secret ? '<redacted>' : text }, () => this.inner.type(text));
+  }
+  /** Exploration tier (W3-3 F9): newlines and the device's input mode; drivers without it type plainly. */
+  typeText(text: string, mode?: InputMode) {
+    return this.rec('type', { value: this.secret ? '<redacted>' : text }, () => (this.inner.typeText ? this.inner.typeText(text, mode) : this.inner.type(text)));
+  }
+  get inputMode(): InputMode | undefined {
+    return this.inner.inputMode;
   }
   key(name: string) {
     return this.rec('key', { value: name }, () => this.inner.key(name));

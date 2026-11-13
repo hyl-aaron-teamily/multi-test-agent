@@ -12,3 +12,32 @@ Ported files:
 - core/model/llm.ts
     from artemis/llm/reliability.py L85-166 (classify_failure, _DEFAULT_RETRY_POLICIES)
     and artemis/services/llm.py L805-860 (acomplete_structured: the correction re-ask)
+- engine/agent/coords.ts
+    from artemis/utils/coordinates.py L315-328 (normalize_point, denormalize_point)
+    and artemis/mcp/actuators/adb.py L127-131 (_to_px)
+- engine/agent/step.ts
+    from artemis/utils/visualization.py L173-255 (_inject_mutual_occlusion_warnings), L334-440 (format_minimal_list_with_elements),
+    artemis/agents/validator/tool_declarations.py L189-226 (normalize_coordinate_target),
+    artemis/mcp/action_executor.py L399-547 (argument error texts),
+    and rules from artemis/agents/flash/flash_runner.md L26, L35-51 and artemis/agents/operator/operator.json tpl:39-40, 73
+- engine/agent/notes.ts
+    from artemis/utils/notes.py L127-367 (save / append / update note content, clean_line, find_relaxed_match,
+    find_fuzzy_match, apply_replacement)
+- engine/agent/history.ts
+    from artemis/memory/chunking.py L143-169 (build_action_ledger), artemis/memory/transcript.py L98-101
+    (format_session_offset), artemis/utils/task_tree.py L104-111 (format_action_clean)
+    and artemis/tools/history/search.py L80-102, L404-563 (_score, snippet windows, search_history)
+- engine/agent/incident.ts
+    from artemis/agents/validator/incidents.py L45-120 (ExecutionIncident, open_incident),
+    artemis/agents/operator/prompts.py L493-592 (render_execution_incident, render_closed_incident), L871-966
+    (ScreenshotSimilarityPromptComponent) and artemis/config/agent.py L565 (hamming threshold)
+- engine/agent/checker.ts
+    from artemis/agents/checker/checker.py L79-118, L354-381, L432-465, L791-859 (CheckVerdict, CheckReport,
+    verdicts_allow_release, _format_history, _normalize_report, revert_subgoal_status, run_final_check),
+    artemis/agents/checker/checker.json (system, base_rules, final_guide)
+    and artemis/agents/operator/prompts.py L408-432 (FeedbackPromptComponent)
+- engine/agent/run.ts (typeInto)
+    from artemis/mcp/actuators/adb.py L45-98 (ensure_focus_at_coords), L189-232 (input_text)
+    and third_party/mobile_use/controllers/unified_controller.py L141-157 (erase_text)
+- drivers/android.ts (escapeAdbText, typeText)
+    from artemis/drivers/android/adb_driver.py L50-69 (_escape_for_adb_text), L307-370 (input_text)

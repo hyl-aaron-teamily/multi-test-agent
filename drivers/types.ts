@@ -20,6 +20,8 @@ export interface Anomaly {
   suspect?: boolean;
 }
 
+export type InputMode = 'direct' | 'keys';
+
 export interface Driver {
   readonly surface: Surface;
   /** Launch / open the app (once per plan unless the plan says each-iteration). */
@@ -30,6 +32,12 @@ export interface Driver {
   /** Android: set the text exactly, bypassing the input method (credentials: an IME in pinyin mode eats ASCII). */
   typeExact?(text: string): Promise<void>;
   key(name: string): Promise<void>;
+  /** Exploration tier (W3-3 F9): type text with newlines (one line at a time, Enter between) in the device's input
+   *  mode, or `mode` for a retry. Absent → callers use type(). */
+  typeText?(text: string, mode?: InputMode): Promise<void>;
+  /** How this device types (devices.yaml `inputMode`): direct = yadb writes the text, bypassing the IME; keys =
+   *  `input text` key events (an IME in pinyin mode keeps them in its composition bar). */
+  readonly inputMode?: InputMode;
   swipe(from: Point, to: Point, ms?: number): Promise<void>;
   scroll(at: Point, dy: number): Promise<void>;
   back(): Promise<void>;

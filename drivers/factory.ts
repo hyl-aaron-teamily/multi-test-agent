@@ -1,7 +1,7 @@
 // One place that turns (surface, device / account) into a black-box Driver.
 import type { Surface } from '../platform/accounts/types';
 import { AndroidDriver } from './android';
-import type { Driver } from './types';
+import type { Driver, InputMode } from './types';
 import { WebDriver } from './web';
 
 export interface DriverSpec {
@@ -16,6 +16,8 @@ export interface DriverSpec {
   storageState?: string;
   headless?: boolean;
   onLog?: (at: number, line: string) => void;
+  /** Android: how text is typed by the exploration tier (devices.yaml `inputMode`, W3-3 F9). */
+  inputMode?: InputMode;
   onConsole?: (e: { at: number; type: string; text: string }) => void;
 }
 
@@ -37,6 +39,7 @@ export function createDriver(s: DriverSpec): Driver {
         url: s.surface === 'android-web' ? s.url : undefined,
         onLog: s.onLog,
         appErrorRe: s.surface === 'android-app' ? APP_ERROR_RE : undefined,
+        inputMode: s.inputMode,
       });
     default:
       return new WebDriver({ surface: s.surface, url: s.url, storageState: s.storageState, headless: s.headless, onConsole: s.onConsole, consoleIgnore: CONSOLE_IGNORE });

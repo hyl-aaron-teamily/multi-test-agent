@@ -15,6 +15,9 @@ export interface UiNode {
   desc: string;
   cls: string;
   clickable: boolean;
+  /** Has input focus (uiautomator `focused`; the a11y service writes it too). W3-3 F10: a focused field is not
+   *  tapped again before typing (that would move the cursor). */
+  focused?: boolean;
   /** resource-id (often empty in React Native apps). */
   rid?: string;
   /** Document order of the node in the dump, and its ancestors' (hierarchy for hit tests). */
@@ -58,7 +61,7 @@ export function parseNodes(xml: string, pkg: string): UiNode[] {
     const b = attr(n, 'bounds').match(/\[(\d+),(\d+)\]\[(\d+),(\d+)\]/);
     if (!b) continue;
     const [x1, y1, x2, y2] = b.slice(1).map(Number);
-    out.push({ x1, y1, x2, y2, text: unescape(attr(n, 'text')), hint: unescape(attr(n, 'hint')), desc: unescape(attr(n, 'content-desc')), cls: attr(n, 'class'), clickable: attr(n, 'clickable') === 'true', ...(attr(n, 'resource-id') ? { rid: attr(n, 'resource-id') } : {}), id, anc });
+    out.push({ x1, y1, x2, y2, text: unescape(attr(n, 'text')), hint: unescape(attr(n, 'hint')), desc: unescape(attr(n, 'content-desc')), cls: attr(n, 'class'), clickable: attr(n, 'clickable') === 'true', ...(attr(n, 'focused') === 'true' ? { focused: true } : {}), ...(attr(n, 'resource-id') ? { rid: attr(n, 'resource-id') } : {}), id, anc });
   }
   return out;
 }

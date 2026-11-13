@@ -1,0 +1,91 @@
+# W3-3 Teamily acceptance suite (docs/dev-week3-milestone3.md F11′; composition confirmed by the user 2026-11-13).
+# Run before the executor fixes (baseline) and after each round: `pnpm autotest explore suite` (platform running,
+# test phone ready). The runs are deleted when the platform stops: save the suite folder if you want it kept.
+#
+# Placeholders, filled from platform/conversations.local.yaml at run time (private names never go into git):
+#   {group}  = the allow-listed test group (construct.allow[0]) — the only conversation the suite sends into
+#   {member} = another pool account in that group (construct.member)
+#   {run}    = a token unique to this suite run (so a sent message can be recognised)
+# Social actions only on the agent accounts' own content (accounts.local.yaml ownContent).
+#
+# `covers` names the failure kinds of §8.6.1 the item exercises: ① unusable output, ② text editing / input,
+# ③ done without checking, ④ long-task memory. `pass` is what a person checks on the result (no automatic score).
+surface: android-app
+env: prod
+tasks:
+  - id: input-en
+    covers: [②]
+    goal: '打开「{group}」会话，在消息输入框输入 Hello from autotest {run} ，不要发送。确认输入框里的文字和要求完全一致后结束。'
+    writable: true
+    maxMinutes: 6
+    pass: 输入框里是 "Hello from autotest {run}"（读回一致），没有发出消息
+
+  - id: input-zh-symbols
+    covers: [②]
+    goal: '打开「{group}」会话，在输入框输入：测试 符号 & 空格 (A+B) $5 #tag {run} ，不要发送。确认输入框里的文字完全一致后结束。'
+    writable: true
+    maxMinutes: 6
+    pass: 输入框文字与要求逐字一致（中文、空格、& ( ) + $ # 都在），没有发出消息
+
+  - id: input-multiline
+    covers: [②]
+    goal: '打开「{group}」会话，在输入框输入两行文字，第一行是「第一行 {run}」，第二行是「第二行」，不要发送。确认输入框里是这两行后结束。'
+    writable: true
+    maxMinutes: 6
+    pass: 输入框里恰好两行（不是一行，也没有被发送出去）
+
+  - id: insert-at-start
+    covers: [②]
+    goal: '打开「{group}」会话，先在输入框输入 world {run} ，然后在这段文字的最前面插入 hello （注意是插到开头，不是清空重写），不要发送。最后输入框应为 hello world {run} 。'
+    writable: true
+    maxMinutes: 6
+    pass: 输入框最终为 "hello world {run}"，中途没有清空重打
+
+  - id: send-once
+    covers: [③]
+    goal: '在「{group}」会话里发送一条消息：autotest-{run} 只发一次。发送后确认这条消息在聊天里只出现一次，再结束。'
+    writable: true
+    maxMinutes: 6
+    pass: 聊天里恰好一条 "autotest-{run} 只发一次"（没有重复发送）
+
+  - id: read-nickname
+    covers: [③]
+    goal: '打开「我的」页面，读出当前登录账号显示的昵称，在 done 的 summary 里原样写出这个昵称。不要修改任何资料。'
+    writable: false
+    maxMinutes: 5
+    pass: summary 里的昵称与「我的」页面显示的一致；没有改任何资料
+
+  - id: count-conversations
+    covers: [④]
+    goal: '数一数会话列表里一共有多少个会话（需要往下滚动看完整个列表），把总数和最后一个会话的名字写在 done 的 summary 里。'
+    writable: false
+    maxMinutes: 8
+    pass: 总数与人工数的一致（允许 ±0），最后一个会话名字正确
+
+  - id: search-member
+    covers: [②]
+    goal: '在会话列表顶部的搜索框里搜索 {member} ，打开搜索结果里的这个联系人或会话，确认打开的是它之后返回，再结束。'
+    writable: false
+    maxMinutes: 6
+    pass: 搜索框里确实输入了 "{member}"（读回一致），打开了对应的联系人或会话
+
+  - id: read-setting
+    covers: [③]
+    goal: '打开设置，找到和「通知」有关的设置页，报告这一页上第一个开关的名字和当前状态（开或关），不要改动任何开关。'
+    writable: false
+    maxMinutes: 6
+    pass: 报告的开关名字和状态与手机上一致；没有改动任何设置
+
+  - id: remember-messages
+    covers: [④]
+    goal: '打开「{group}」会话，往上翻到能看到的最早的三条消息，把它们的文字按从早到晚的顺序记下来，最后在 done 的 summary 里按顺序写出这三条消息的文字。'
+    writable: false
+    maxMinutes: 10
+    pass: summary 里三条消息的文字和顺序与聊天记录一致
+
+explore:
+  - id: explore-chat
+    goal: 排查一下聊天模块有没有什么问题
+    writable: true
+    maxMinutes: 30
+    pass: 跑满 30 分钟或自行结束；没有因为「模型没给出可用动作」结束；没有连续重复无效输入；发现逐条人工判断
