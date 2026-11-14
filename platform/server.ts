@@ -24,7 +24,6 @@ const FILES_ROOT = resolve('midscene_run');
 const MIME: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.html': 'text/html; charset=utf-8', '.json': 'application/json', '.md': 'text/markdown; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.log': 'text/plain; charset=utf-8' };
 
 const pool = new DevicePool();
-const accounts = new AccountPool();
 let sup: Supervisor | undefined;
 
 function send(res: ServerResponse, status: number, body: unknown, type = 'application/json'): void {
@@ -149,6 +148,8 @@ async function main() {
   // logs/ stays: platform.log is this process's own open stdout (scripts/ctl.ts); `pnpm stop` removes it.
   const fresh = await endSession({ keep: ['logs'] });
   if (fresh.removed || fresh.stopped.length) console.log(`[platform] new session: removed ${fresh.removed} entries from the last one${fresh.stopped.length ? `, stopped ${fresh.stopped.length} task processes` : ''}`);
+  // Built here, not at import: tests import pure helpers from this module and CI has no accounts.local.yaml.
+  const accounts = new AccountPool();
   await pool.reloadConfig();
   await accounts.reload();
   await pool.refresh();
