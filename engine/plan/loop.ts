@@ -304,6 +304,7 @@ export async function restore(c: RunCtx, round: number): Promise<string> {
   const { d } = c.sess;
   for (const [i, a] of c.plan.afterCheck.entries()) {
     d.label = `after:${actionLabel(a)}`;
+    if (round === 0) c.res.at = `afterCheck[${i}]`;
     await c.exec(a);
     if (!a.expect) continue;
     const r = await readExpect(c, a, `afterCheck[${i}]`, round);

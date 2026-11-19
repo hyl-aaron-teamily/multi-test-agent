@@ -2,6 +2,7 @@
 // executes it — action types (PlannedActionZ), Nodes with their phase (node-specs.ts), fixed elements and
 // reference regions with their surfaces (vocab.ts), target kinds, observations (observe.ts). The planner
 // prompt is plan-authoring/SKILL.md + this catalog; the validator checks plans against the same lists.
+import { pageTextsSection } from './page-texts';
 import { z } from 'zod';
 import { APP_SURFACES, CheckPointZ, EXPECT_KINDS, PlannedActionZ, SURFACES, TargetMustZ } from '../platform/schema/test-plan';
 import { OBSERVATIONS } from '../engine/observe';
@@ -44,6 +45,8 @@ export function blockCatalog(): string {
     '- text 检查必须写 match（exact / contains / regex）；scope：screen | composer | quote-cards | {target, within, withinX} | {message: <锚点文字>} | {targetBubble: <目标 id>}（目标消息的气泡 + 它下面的反应行）',
     '- want: present（默认）| absent',
     '',
+    // W3-7 §8.2: texts seen on real pages (empty until the executor has recorded some).
+    ...(pageTextsSection() ? [pageTextsSection()] : []),
     '## 字段格式（JSON Schema，逐字遵守）',
     `- PlannedAction：${schemaOf(PlannedActionZ)}`,
     `- CheckPoint（checks / baseline / prepareCheck / expect.check）：${schemaOf(CheckPointZ)}`,

@@ -1,6 +1,7 @@
 // /api/v1/issues/:id/… of the plan record (W3-6 §6.3): the record, patches (a person's edit, a change applied from
 // the side chat), rollback, the diff of two revs, the runs grouped by rev, and the side chat (§7, D3: the model
 // suggests, a person applies). The execute button (POST /issues/:id/run) lives in api-v1.ts next to `submit`.
+import { pageTextWarnings } from '../issue/page-texts';
 import { readFileSync } from 'node:fs';
 import { modelCall } from '../core/context/assemble';
 import { modelConfigured } from '../core/model/llm';
@@ -36,7 +37,7 @@ export function loadRecord(id: string): PlanRecord | undefined {
 export const taskRev = (t: Pick<TaskRecord, 'planId'>) => Number(t.planId.match(/@v(\d+)$/)?.[1] ?? 0);
 
 /** Runs of an Issue, grouped by rev; one execution (the button pressed once) = one row, its sub-case tasks inside. */
-export function issueRuns(id: string): { rev: number; runs: { batch: string; at: string; tasks: { id: string; planId: string; state: string; summary?: string; code?: string }[] }[] }[] {
+export function issueRuns(id: string): { rev: number; runs: { batch: string; at: string; tasks: { id: string; planId: string; state: string; summary?: string; code?: string; repair?: TaskRecord['repair'] }[] }[] }[] {
   const tasks = listTasks().filter((t) => t.issue === id && t.kind !== 'explore' && !t.parent);
   const byRev = new Map<number, Map<string, TaskRecord[]>>();
   for (const t of tasks) {
@@ -51,7 +52,7 @@ export function issueRuns(id: string): { rev: number; runs: { batch: string; at:
     .map(([rev, m]) => ({
       rev,
       runs: [...m.entries()]
-        .map(([batch, ts]) => ({ batch, at: ts.map((t) => t.createdAt).sort()[0], tasks: ts.map((t) => ({ id: t.id, planId: t.planId, state: t.state, summary: t.outcome?.summary, code: t.outcome?.code })) }))
+        .map(([batch, ts]) => ({ batch, at: ts.map((t) => t.createdAt).sort()[0], tasks: ts.map((t) => ({ id: t.id, planId: t.planId, state: t.state, summary: t.outcome?.summary, code: t.outcome?.code, ...(t.repair ? { repair: t.repair } : {}) })) }))
         .sort((a, b) => b.at.localeCompare(a.at)),
     }));
 }
@@ -70,7 +71,8 @@ export function recordView(r: PlanRecord) {
     understanding: rec.envelope?.understanding,
     feasibility: rec.envelope?.feasibility,
     quotes: rec.envelope?.quotes,
-    subcases: rec.subcases.map((s) => ({ sub: s.sub, title: s.title, surface: s.surface, plan: s.plan, oracle: rec.envelope?.subcases.find((x) => x.sub === s.sub)?.oracle })),
+    // R13 (W3-7 §8.2): texts never seen on a real page — warnings, not errors.
+    subcases: rec.subcases.map((s) => ({ sub: s.sub, title: s.title, surface: s.surface, plan: s.plan, oracle: rec.envelope?.subcases.find((x) => x.sub === s.sub)?.oracle, warnings: pageTextWarnings(s.plan) })),
     partial: rec.partial ?? [],
     gaps: rec.gaps ?? [],
     envelope: rec.envelope,

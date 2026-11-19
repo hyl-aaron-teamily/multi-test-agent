@@ -4,7 +4,7 @@
 // "prepare-only" Nodes may also locate (hierarchy / vision) and never run in the loop.
 import { z } from 'zod';
 import type { Driver, Point } from '../../drivers/types';
-import { RoundDrift, sleep } from '../../drivers/types';
+import { NodeError, RoundDrift, sleep } from '../../drivers/types';
 import { type Credentials, mobileLayout } from '../../platform/accounts/types';
 import { decodePng, pixelDiff, type Rgba } from '../../core/image';
 import { hasElement, pointFor, type Profile } from '../profile';
@@ -47,7 +47,7 @@ export type NodeName = string;
 
 const target = (c: NodeContext, id: string): Point => {
   const p = c.targets[id];
-  if (!p) throw new Error(`target ${id} not frozen (preparation stage did not pick it)`);
+  if (!p) throw new NodeError(`target ${id} not frozen (preparation stage did not pick it)`, 'precondition');
   return p;
 };
 
@@ -104,7 +104,7 @@ const sendMessage: Exec<{ text: string; kind?: 'plain' | 'markdown-link' }> = as
     };
     if (!(await up())) {
       await tapEl(c, 'chat.composer');
-      if (!(await up())) throw new Error('teamily.sendMessage: the composer did not take focus (keyboard not up) — not typing');
+      if (!(await up())) throw await focusError(c, 'teamily.sendMessage: the composer did not take focus (keyboard not up) — not typing');
     }
   }
   await c.driver.type(input.text);
@@ -124,7 +124,7 @@ const sendMessage: Exec<{ text: string; kind?: 'plain' | 'markdown-link' }> = as
         await sleep(800);
         const left = await c.composerText();
         if (left === null || !left.includes(input.text.slice(0, 20))) break;
-        if (i) throw new Error('teamily.sendMessage: the text stayed in the composer (send did not go out)');
+        if (i) throw new NodeError('teamily.sendMessage: the text stayed in the composer (send did not go out)', 'executor');
         await tapEl(c, 'chat.send');
       }
     }
@@ -156,7 +156,7 @@ const quoteReply: Exec<{ quote: string; text: string }> = async ({ input, contex
     if (i) await sleep(1500);
     msg = await c.locate(`the message bubble containing "${input.quote}" (the newest one)`, [input.quote], true);
   }
-  if (!msg) throw new Error(`teamily.quoteReply: message "${input.quote}" not on screen`);
+  if (!msg) throw new NodeError(`teamily.quoteReply: message "${input.quote}" not on screen`, 'precondition');
   // The menu item must really be the message menu's: on the App it is read from the accessibility tree only
   // (a vision guess once picked a composer-toolbar icon and opened the meeting-minutes sheet). The menu is
   // polled a few times (slow to settle); one more long-press in place, never Back — on the App, Back with the
@@ -172,7 +172,7 @@ const quoteReply: Exec<{ quote: string; text: string }> = async ({ input, contex
       item = await c.locate('the Quote / Reply item of the message action menu', ['引用', '回复', 'Quote', 'Reply'], false, textOnly);
     }
   }
-  if (!item) throw new Error('teamily.quoteReply: the message menu (引用 / 回复) did not open');
+  if (!item) throw new NodeError('teamily.quoteReply: the message menu (引用 / 回复) did not open', 'executor');
   await c.driver.tap(item);
   await sleep(1000);
   await sendMessage({ input: { text: input.text }, context: c });
@@ -206,7 +206,7 @@ const relogin: Exec<{ as?: 'self' | 'other' }> = async ({ input, context: c }) =
       if (scroll) await c.driver.swipe({ x: c.profile.viewport.width / 2, y: c.profile.viewport.height * 0.75 }, { x: c.profile.viewport.width / 2, y: c.profile.viewport.height * 0.35 }, 300);
       await sleep(1200);
     }
-    throw new RoundDrift(`teamily.relogin: "${texts[0]}" not on screen (${what})`);
+    throw new RoundDrift(`teamily.relogin: "${texts[0]}" not on screen (${what})`, 'executor');
   };
   const edits = async () => ((await c.findAll?.([], /EditText/)) ?? []).filter((n) => n.box[2] >= 100 && n.box[3] >= 30).sort((a, b) => a.point.y - b.point.y);
   const button = async (texts: string[]) => ((await c.findAll?.(texts)) ?? []).filter((n) => n.clickable).sort((a, b) => b.point.y - a.point.y)[0];
@@ -228,7 +228,7 @@ const relogin: Exec<{ as?: 'self' | 'other' }> = async ({ input, context: c }) =
     // is not the item just tapped (2026-11-09, App 2.1.5: 「退出登录」 dialog, buttons 取消 / 退出登录).
     const cands = (await c.findAll?.(RELOGIN_TEXT.confirm)) ?? [];
     const ok = cands.filter((n) => n.clickable && /Button/.test(n.cls) && Math.abs(n.point.y - item.y) > 80).sort((a, b) => b.point.x - a.point.x)[0];
-    if (!ok) throw new RoundDrift('teamily.relogin: the log-out confirm button was not found');
+    if (!ok) throw new RoundDrift('teamily.relogin: the log-out confirm button was not found', 'executor');
     await c.driver.tap(ok.point);
     await sleep(4000);
   }
@@ -246,26 +246,26 @@ const relogin: Exec<{ as?: 'self' | 'other' }> = async ({ input, context: c }) =
     if (tab) await c.driver.tap(tab.point);
     await sleep(800);
     const email = (await edits())[0];
-    if (!email) throw new RoundDrift('teamily.relogin: the email input is not on screen');
+    if (!email) throw new RoundDrift('teamily.relogin: the email input is not on screen', 'executor');
     await c.driver.tap(email.point);
     await clearField();
     await (c.driver.typeExact ? c.driver.typeExact(cred.email) : c.driver.type(cred.email));
     await sleep(500);
     const next1 = await button(RELOGIN_TEXT.next);
-    if (!next1) throw new RoundDrift('teamily.relogin: no 继续 button after the email');
+    if (!next1) throw new RoundDrift('teamily.relogin: no 继续 button after the email', 'executor');
     await c.driver.tap(next1.point);
     for (let i = 0; i < 6 && !(await onPasswordPage()); i++) await sleep(1000);
   }
   // The password field is the last input (the email above it stays an EditText).
   const pw = (await edits()).at(-1);
-  if (!pw || !(await onPasswordPage())) throw new RoundDrift('teamily.relogin: the password page did not open');
+  if (!pw || !(await onPasswordPage())) throw new RoundDrift('teamily.relogin: the password page did not open', 'executor');
   await c.driver.tap(pw.point);
   await sleep(400);
   await clearField();
   await (c.driver.typeExact ? c.driver.typeExact(cred.password) : c.driver.type(cred.password));
   await sleep(500);
   const next2 = await button(RELOGIN_TEXT.next);
-  if (!next2) throw new RoundDrift('teamily.relogin: no 继续 / 登录 button after the password');
+  if (!next2) throw new RoundDrift('teamily.relogin: no 继续 / 登录 button after the password', 'executor');
   await c.driver.tap(next2.point);
   // Home list: the chat tab is back (literal text), within ~30 s.
   // The App resumes the last screen after signing in (e.g. the profile page): step back to the home list.
@@ -279,7 +279,7 @@ const relogin: Exec<{ as?: 'self' | 'other' }> = async ({ input, context: c }) =
     const back = (await c.findAll?.(['返回', 'Back']))?.find((n) => n.clickable && n.point.y < 400);
     if (back) await c.driver.tap(back.point);
   }
-  throw new RoundDrift('teamily.relogin: home list not reached after signing in');
+  throw new RoundDrift('teamily.relogin: home list not reached after signing in', 'executor');
 };
 
 /** App: open 全部设置 from the home list (avatar 我的 → ☰ 打开设置 → 全部设置), by literal texts on the tree. */
@@ -291,7 +291,7 @@ const openSettings: Exec<Record<string, never>> = async ({ context: c }) => {
       if (n) return c.driver.tap(n.point);
       await sleep(1200);
     }
-    throw new RoundDrift(`teamily.openSettings: ${what} not on screen`);
+    throw new RoundDrift(`teamily.openSettings: ${what} not on screen`, 'executor');
   };
   // Right after a cold start the first tap on the avatar may be dropped: tap again until the profile's ☰ shows.
   for (let i = 0; i < 3 && !((await c.findAll?.(['打开设置'])) ?? []).length; i++) {
@@ -306,7 +306,7 @@ const openSettings: Exec<Record<string, never>> = async ({ context: c }) => {
     await sleep(1000);
     if (((await c.findAll?.(['账户', 'Account', '偏好与安全'])) ?? []).length) return { summary: 'opened 全部设置' };
   }
-  throw new RoundDrift('teamily.openSettings: the 全部设置 page did not open');
+  throw new RoundDrift('teamily.openSettings: the 全部设置 page did not open', 'executor');
 };
 
 const typeMention: Exec<Record<string, never>> = async ({ context: c }) => {
@@ -336,8 +336,17 @@ const focusComposer = async (c: NodeContext) => {
       if ((await keyboardUp(c)) !== false) return;
     }
   }
-  throw new RoundDrift('the composer did not take focus (keyboard not up)');
+  const e = await focusError(c, 'the composer did not take focus (keyboard not up)');
+  throw new RoundDrift(e.message, e.kind);
 };
+
+/** W3-7 §4: a composer that will not take focus — on the chat page (an input on screen) it is the executor's;
+ *  off it, an earlier step left the wrong page (the plan's). One tree read, on the failure path only. */
+async function focusError(c: NodeContext, msg: string): Promise<NodeError> {
+  const inputs = c.findAll ? await c.findAll([], /EditText/).catch(() => null) : null;
+  if (inputs && !inputs.length) return new NodeError(`${msg} — not on the chat page (no input on screen)`, 'precondition');
+  return new NodeError(msg, 'executor');
+}
 
 const clearComposer: Exec<Record<string, never>> = async ({ context: c }) => {
   if (c.driver.surface === 'android-app') {
@@ -452,7 +461,8 @@ const freezeMention: Exec<{ member: string; as: string }> = async ({ input, cont
     await sleep(i ? 1000 : 1500);
     p = await c.locate(`the member "${input.member}" in the @ mention picker`, [input.member], true, true);
   }
-  if (!p) throw new Error(`teamily.freezeMention: "${input.member}" not in the @ picker`);
+  // Not a plan error: the conversation's members are the environment (W3-7 §4).
+  if (!p) throw new NodeError(`teamily.freezeMention: "${input.member}" not in the @ picker (check the conversation's members)`, 'environment');
   // The picker sheet slides up: a row read mid-animation sits ~500 px too high (2026-11-03). Freeze the point
   // only once two reads agree.
   for (let i = 0; i < 5; i++) {

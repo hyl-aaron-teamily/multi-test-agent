@@ -148,7 +148,17 @@ function stepText(a) {
   return `${what}${a.description ? ` <span class="muted">${esc(a.description.slice(0, 80))}</span>` : ''}${ex}`;
 }
 
-function subcaseBlock(issueId, sub, body, errors) {
+/** W3-7 §8.1 ⑩: one line per sub-case — the repair timeline of a task (failure → rev → result …), and where it stopped. */
+function repairLine(rep) {
+  if (!rep) return '';
+  return Object.entries(rep).map(([sub, r]) => {
+    const steps = r.steps.map((s) => `修补 rev${s.rev}（${s.source === 'auto-fix' ? '确定性' : s.source === 'patch' ? '模型' : s.source}）@ ${esc(s.path)}${s.result ? ` → ${esc(s.result)}` : ''}`).join(' → ');
+    const stop = r.handoff ? `<span class="warn">交给人：${esc(r.handoff.why)}（${esc(r.handoff.path)}：${esc(r.handoff.observed.slice(0, 80))}）</span>` : r.executor ? `<span class="warn">执行端失败 @ ${esc(r.executor.path)}：${esc(r.executor.detail.slice(0, 80))}</span>` : esc(r.stop);
+    return `<div class="faint small">${esc(sub)}：${steps ? `${steps} → ` : ''}${stop}</div>`;
+  }).join('');
+}
+
+function subcaseBlock(issueId, sub, body, errors, warnings = []) {
   const errsAt = (path) => errors.filter((e) => e.path === path || e.path.startsWith(`${path}/`));
   const used = new Set();
   const rows = PLAN_SECTIONS.flatMap(([key, label]) => {
@@ -167,6 +177,7 @@ function subcaseBlock(issueId, sub, body, errors) {
   const rest = errors.filter((e) => !used.has(e));
   return `<details open class="subcase"><summary><b>子用例 ${esc(sub)}</b>${body?.title ? ` · ${esc(body.title)}` : ''}${errors.length ? ` ${pill('bad', `${errors.length} 处错误`)}` : ''}</summary>
     ${rest.length ? `<p class="bad">${rest.map((e) => `✗ <span class="mono">${esc(e.path)}</span>：${esc(e.message)}`).join('<br>')}</p>` : ''}
+    ${warnings.length ? `<p class="warn">${warnings.map((w) => `⚠ ${esc(w)}`).join('<br>')}</p>` : ''}
     ${rows.length ? `<table class="steps">${rows.join('')}</table>` : '<p class="empty">这个子用例还没有步骤。</p>'}</details>`;
 }
 
@@ -185,12 +196,12 @@ async function issuePage(id) {
   const understand = u ? `<dl class="kv"><dt>对象</dt><dd>${esc(u.subject ?? '')}</dd><dt>现象</dt><dd>${esc(u.phenomenon ?? '')}</dd><dt>触发</dt><dd>${esc(u.trigger ?? '')}</dd><dt>预期</dt><dd>${esc(u.expected ?? '')}</dd></dl>
     ${(v.quotes ?? []).length ? `<details><summary>原文摘录 ${v.quotes.length} 段</summary>${v.quotes.map((q) => `<blockquote>${esc(q.text)}</blockquote>`).join('')}</details>` : ''}` : '<p class="empty">没有模型交付。</p>';
   const gaps = v.gaps.length ? `<p class="warn">缺积木：${v.gaps.map((g) => `${esc(g.kind)}「${esc(g.need)}」`).join('；')}</p>` : '';
-  const subs = (v.envelope?.subcases ?? []).map((sc) => subcaseBlock(v.issue, sc.sub, { ...sc.plan, title: v.subcases.find((x) => x.sub === sc.sub)?.title }, v.partial.find((p) => p.sub === sc.sub)?.errors ?? []));
+  const subs = (v.envelope?.subcases ?? []).map((sc) => subcaseBlock(v.issue, sc.sub, { ...sc.plan, title: v.subcases.find((x) => x.sub === sc.sub)?.title }, v.partial.find((p) => p.sub === sc.sub)?.errors ?? [], v.subcases.find((x) => x.sub === sc.sub)?.warnings ?? []));
   const plan = `${understand}${gaps}${v.partial.filter((p) => p.sub === '(交付)').map((p) => `<p class="bad">${p.errors.map((e) => esc(e.message)).join('<br>')}</p>`).join('')}${subs.join('') || ''}`;
   const revs = `<table><tr><th></th><th>rev</th><th>来源</th><th>原因</th></tr>${[...v.revs].reverse().map((x) => `<tr><td><input type="checkbox" class="revpick" value="${x.rev}"></td><td><b>${x.rev}</b>${x.rev === v.rev ? ' <span class="faint">当前</span>' : ''}<br><span class="faint">${time(x.at)}</span></td><td>${esc(REV_SOURCE[x.source] ?? x.source)}${x.by ? `<br><span class="faint">${esc(x.by)}</span>` : ''}</td><td>${esc(x.reason)}${x.paths.length ? `<br><span class="faint mono">${esc(x.paths.slice(0, 4).join(' '))}${x.paths.length > 4 ? ` …共 ${x.paths.length} 处` : ''}</span>` : ''}${x.rev !== v.rev ? `<br><button class="btn small" onclick="rollbackIssue('${esc(v.issue)}', ${x.rev})">回退到此版</button>` : ''}</td></tr>`).join('')}</table>
     <p><button class="btn small" onclick="diffIssue('${esc(v.issue)}')">对比勾选的两版</button></p><div id="revDiff"></div>`;
   const runRows = v.runs.flatMap((g) => g.runs.map((x) => ({ rev: g.rev, ...x })));
-  const runs = runRows.length ? `<table><tr><th>rev</th><th>时间</th><th>结论</th></tr>${runRows.map((x, i) => `<tr ${i >= 5 ? 'class="more" hidden' : ''}><td>${x.rev}</td><td class="faint">${time(x.at)}</td><td>${x.tasks.map((t) => `<a href="#/task/${enc(t.id)}">${esc(t.planId.replace(/^\d+\//, ''))}</a> ${t.code ? pill(OUTCOME_CLASS[t.code] ?? 'warn', t.code) : pill(t.state, t.state)} <span class="muted">${esc((t.summary ?? '').slice(0, 60))}</span>`).join('<br>')}</td></tr>`).join('')}</table>${runRows.length > 5 ? '<p><button class="btn small" onclick="document.querySelectorAll(\'tr.more\').forEach((x)=>x.hidden=false);this.remove()">显示全部</button></p>' : ''}` : '<p class="empty">还没有运行。</p>';
+  const runs = runRows.length ? `<table><tr><th>rev</th><th>时间</th><th>结论</th></tr>${runRows.map((x, i) => `<tr ${i >= 5 ? 'class="more" hidden' : ''}><td>${x.rev}</td><td class="faint">${time(x.at)}</td><td>${x.tasks.map((t) => `<a href="#/task/${enc(t.id)}">${esc(t.planId.replace(/^\d+\//, ''))}</a> ${t.code ? pill(OUTCOME_CLASS[t.code] ?? 'warn', t.code) : pill(t.state, t.state)} <span class="muted">${esc((t.summary ?? '').slice(0, 60))}</span>${repairLine(t.repair)}`).join('<br>')}</td></tr>`).join('')}</table>${runRows.length > 5 ? '<p><button class="btn small" onclick="document.querySelectorAll(\'tr.more\').forEach((x)=>x.hidden=false);this.remove()">显示全部</button></p>' : ''}` : '<p class="empty">还没有运行。</p>';
   const chat = `<div class="chat">${v.chat.map((c, n) => `<p class="${c.role === 'user' ? '' : 'muted'}"><b>${c.role === 'user' ? '你' : '模型'}</b>：${esc(c.text)}${c.ops ? `<br><span class="mono faint">${esc(c.ops.map((o) => `${o.op} ${o.path}`).join('；'))}</span> ${c.applied ? `<span class="faint">已应用为 rev ${c.applied}</span>` : `<button class="btn small primary" onclick="applyChat('${esc(v.issue)}', ${n})">应用</button>`}` : ''}</p>`).join('') || '<p class="empty">可以问模型：为什么这样设计、某一步该怎么改。模型给出修改时，点「应用」才会写入计划。</p>'}</div>
     <textarea id="chatMsg" rows="3" style="width:100%" placeholder="例如：复位检查读不到开关状态，换成读分组标题"></textarea><p><button class="btn" onclick="sendChat('${esc(v.issue)}', this)">发送</button> <button class="btn" onclick="makeDraft('${esc(v.issue)}', this)" title="整份重写，旧版本保留在历史里">重新设计</button></p>`;
   $('#view').innerHTML = `${head}<div class="grid two">${card('计划', `rev ${v.rev}`, plan, 40)}<div>${card('版本', `${v.revs.length} 个`, revs, 80)}${card('运行记录', '按 rev 分组，每按一次「执行」一行', runs, 120)}${card('和模型讨论', '修改建议点「应用」才写入', chat, 160)}</div></div>`;

@@ -44,7 +44,10 @@ const freeze = async (c: RunCtx, phase: 'rows' | 'inside' | 'after-prepare') => 
       c.log(`prep: target ${b.id} fails must (try ${tryNo}/${MUST_TRIES}): ${b.detail}`);
       (c.res.mustLog ??= []).push({ id: b.id, try: tryNo, detail: b.detail, point: b.point });
     }
-    if (tryNo >= MUST_TRIES) throw new Error(`目标核对连续 ${MUST_TRIES} 次不通过：${bad.map((b) => `${b.id} — ${b.detail}`).join('；')}`);
+    if (tryNo >= MUST_TRIES) {
+      c.res.at = `targets.${bad[0].id}.must`;
+      throw new Error(`目标核对连续 ${MUST_TRIES} 次不通过：${bad.map((b) => `${b.id} — ${b.detail}`).join('；')}`);
+    }
     // Pick again, away from what was just rejected.
     plan = { ...plan, targets: plan.targets.map((t) => (bad.some((b) => b.id === t.id) ? { ...t, guidance: `${t.guidance}（不是位于 (${bad.find((b) => b.id === t.id)!.point.x}, ${bad.find((b) => b.id === t.id)!.point.y}) 的那一条：${bad.find((b) => b.id === t.id)!.detail.slice(0, 80)}）` } : t)) };
   }
@@ -55,8 +58,9 @@ async function runSetup(c: RunCtx): Promise<void> {
   const { d } = c.sess;
   for (let attempt = 0; ; attempt++) {
     try {
-      for (const a of c.plan.setup) {
+      for (const [i, a] of c.plan.setup.entries()) {
         d.label = actionLabel(a);
+        c.res.at = `setup[${i}]`;
         await c.exec(a);
       }
       return;
@@ -134,11 +138,13 @@ export async function prepare(c: RunCtx, afterSetup?: () => Promise<void>): Prom
   await afterSetup?.();
   assertConstructionAllowed(c);
   if (c.plan.prepare.length) {
-    for (const a of c.plan.prepare) {
+    for (const [i, a] of c.plan.prepare.entries()) {
       d.label = `prepare:${actionLabel(a)}`;
+      c.res.at = `prepare[${i}]`;
       await c.exec(a);
     }
-    for (const k0 of [...(c.plan.prepareCheck ? [c.plan.prepareCheck] : []), ...(c.plan.prepareChecks ?? [])]) {
+    for (const [n, k0] of [...(c.plan.prepareCheck ? [c.plan.prepareCheck] : []), ...(c.plan.prepareChecks ?? [])].entries()) {
+      c.res.at = n === 0 && c.plan.prepareCheck ? 'prepareCheck' : `prepareChecks[${c.plan.prepareCheck ? n - 1 : n}]`;
       // {token} / {round} expanded like every other check (W3-1 plans name the run's own message).
       const k = expandCheck(k0, { token: c.res.runTag ?? '', round: 0 });
       const pc = k.kind === 'ai' ? await evaluateAi(k, c.ask) : k.kind === 'text' ? await observeText(c.sess.inner, k, c.targets, profile.viewport.width) : k.kind === 'keyboard' ? await observeKeyboard(c.sess.inner, k) : await evaluateVisual(d, profile, k, c.ask);
@@ -149,6 +155,7 @@ export async function prepare(c: RunCtx, afterSetup?: () => Promise<void>): Prom
     await freeze(c, 'after-prepare');
   }
   c.setupOps = d.ops.filter((x) => x.op !== 'launch');
+  c.res.at = undefined;
 }
 
 /** Prepare steps that post into a conversation (send / quote-reply) construct data: only in a conversation

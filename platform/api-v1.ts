@@ -333,6 +333,7 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
   const maxRounds = b.maxRounds !== undefined ? Number(b.maxRounds) : undefined;
   if (maxRounds !== undefined && !(Number.isInteger(maxRounds) && maxRounds >= 1 && maxRounds <= 1000)) return fail('BAD_INPUT', '--max-rounds: 1..1000');
   const r = resolvePlan(planId);
+  const also: ReturnType<typeof resolvePlan>[] = (Array.isArray(b.also) ? (b.also as unknown[]) : []).map((p) => resolvePlan(String(p)));
   if (b.hash && b.hash !== r.hash) return fail('PLAN_HASH_MISMATCH', `给出的计划哈希 ${b.hash} ≠ 当前计划 ${r.hash}`, '重新 plan explain 后用新的哈希');
   const env = envFor(r.plan.surface, r.plan.env, b.envId);
   if (!env) return fail(b.envId ? 'NOT_FOUND' : 'ENV_OFFLINE', b.envId ? `没有环境 ${b.envId}` : `没有 ${r.plan.surface}@${r.plan.env} 的环境`, 'autotest env list');
@@ -381,6 +382,11 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
   // Confirmation = execution: the exact plan and draft are frozen into the task dir.
   writeJsonAtomic(join(taskDir(id), 'plan.json'), r.plan);
   writeJsonAtomic(join(taskDir(id), 'draft.json'), r.draft);
+  // W3-7 §8.3: the Issue's other sub-cases (already approved with this batch) run in this task after the main one.
+  if (also.length) {
+    writeJsonAtomic(join(taskDir(id), 'also.json'), also.map((x) => x.plan));
+    updateTask(id, (x) => void (x.also = also.map((x) => x.plan.id)));
+  }
   return ok('ACCEPTED', `任务 ${id} 已排队：${planId} @ ${env.id}${n > 1 ? `，系列 ${n} 次` : ''}${checkingNote([env])}`, tv(t));
 }
 
@@ -403,11 +409,13 @@ function runIssue(issueId: string, b: any, via: 'cli' | 'web', reviewer?: string
     for (const x of sensitive) approve({ planId: x.planId, planHash: x.e.r.hash, confirmedHash: x.e.r.hash, facts: versionFacts(x.e.r.plan, x.e.env?.udid, x.e.env?.appVersion), classified: x.e.classified, runs: 1, via, reviewer });
   }
   const batch = `b-${Date.now().toString(36)}`;
-  const out = planIds.map((planId) => submit({ planId, batch, envId: b.envId }, via));
+  // W3-7 §8.3: one task for all sub-cases (main first): one press, one task, one result page.
+  for (const x of ex.slice(1)) if (x.e.classified.category === 'default' || getFullAccess().on) approve({ planId: x.planId, planHash: x.e.r.hash, confirmedHash: x.e.r.hash, facts: versionFacts(x.e.r.plan, x.e.env?.udid, x.e.env?.appVersion), classified: x.e.classified, runs: 1, via, auto: true });
+  const out = [submit({ planId: planIds[0], batch, envId: b.envId, also: planIds.slice(1) }, via)];
   const bad = out.find((x) => x.error);
   const ids = out.filter((x) => !x.error).map((x) => (x.data as { id?: string })?.id).filter(Boolean);
   if (!ids.length && bad) return bad;
-  return ok('ACCEPTED', `Issue ${issueId} rev ${rev}：${ids.length} 个子用例已排队${bad ? `；另有 ${out.length - ids.length} 个没排上（${bad.summary}）` : ''}${sensitive.length ? '' : '；按策略自动批准'}`, { batch, rev, tasks: ids });
+  return ok('ACCEPTED', `Issue ${issueId} rev ${rev}：${planIds.length} 个子用例在一个任务里排队${bad ? `；另有 ${out.length - ids.length} 个没排上（${bad.summary}）` : ''}${sensitive.length ? '' : '；按策略自动批准'}`, { batch, rev, tasks: ids });
 }
 
 export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {

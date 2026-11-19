@@ -199,7 +199,7 @@ export function mergePages(into: PagesFile, add: PagesFile): PagesFile {
   return into;
 }
 
-export const PAGES_FILE = resolve('skills/teamily/pages.local.json');
+export const PAGES_FILE = resolve(process.env.AUTOTEST_PAGES_FILE ?? 'skills/teamily/pages.local.json');
 
 export function readPages(file = PAGES_FILE): PagesFile {
   try {

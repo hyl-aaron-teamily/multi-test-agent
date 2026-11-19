@@ -8,6 +8,7 @@
 //   pnpm autotest bench aw [--pilot | --tasks A,B]                                (AndroidWorld bench, W2-5 P1)
 //   pnpm autotest devices [--json]
 //   pnpm autotest emulator <create|prepare|start|stop|snapshot|reset|status>          (Teamily emulator, W3-4 E1)
+//   pnpm autotest blocks check [--device <udid>] [--n 20] [--only a,b] [--send]    (block health, W3-7 §4)
 //   pnpm autotest runs save <task-id | path> [--name n] | saved | open <name> | delete <name>   (存档, platform/session.ts)
 import 'dotenv/config';
 import { spawn } from 'node:child_process';
@@ -46,6 +47,8 @@ async function main(): Promise<number> {
   if (cmd === 'runs') return run(tsx, ['scripts/runs.ts', ...rest]);
   // emulator: the Teamily emulator as a test device (W3-4 E1).
   if (cmd === 'emulator') return run(tsx, ['scripts/emulator.ts', ...rest]);
+  // blocks check: block health per device (W3-7 §4, E5 ①).
+  if (cmd === 'blocks' && rest[0] === 'check') return run(tsx, ['scripts/block-check.ts', ...rest.slice(1)]);
   if (cmd && (V1.includes(cmd) || (cmd === 'plan' && ['explain', 'approve', 'reject'].includes(rest[0])))) {
     const { cliV1 } = await import('../scripts/cli-v1');
     return cliV1(cmd, rest);
@@ -61,7 +64,7 @@ async function main(): Promise<number> {
     else for (const d of devices) console.log(`${d.udid.padEnd(20)} ${d.state.padEnd(13)} ${d.model ?? ''}`);
     return 0;
   }
-  console.error('Usage: pnpm autotest help | <issue|draft|plan|env|task|result> <action> [--json] | <doctor|mcp|explore|bench|runs|emulator|accounts|nodes|plan|run|series|rerender|evidence|replay|devices> [...args]');
+  console.error('Usage: pnpm autotest help | <issue|draft|plan|env|task|result> <action> [--json] | <doctor|mcp|explore|bench|runs|emulator|blocks|accounts|nodes|plan|run|series|rerender|evidence|replay|devices> [...args]');
   return 2;
 }
 

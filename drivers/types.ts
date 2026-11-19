@@ -80,11 +80,36 @@ export async function lifecycle(d: Driver, op: LifecycleOp): Promise<void> {
 
 /** The round cannot count: its own precondition did not hold or an input did not land (operation drift).
  *  The loop discards the round (not an attempt, never a hit) and re-enters; the warm-up treats it as a failed step. */
+/** W3-7 §8.1 ②: whose failure an error is. executor = on the right page but the action did not take effect;
+ *  precondition = not on the page the step needs (an earlier step of the plan is wrong); environment = the
+ *  device / account / conversation set-up. Untagged errors are 「不确定」. */
+export type FailureKind = 'executor' | 'precondition' | 'environment';
+
 export class RoundDrift extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly kind?: FailureKind,
+  ) {
     super(message);
     this.name = 'RoundDrift';
   }
 }
+
+/** A Node failure with its cause (W3-7 §8.1 ②). */
+export class NodeError extends Error {
+  constructor(
+    message: string,
+    readonly kind: FailureKind,
+  ) {
+    super(message);
+    this.name = 'NodeError';
+  }
+}
+
+/** The cause an error carries (NodeError / tagged RoundDrift), if any. */
+export const errorKind = (e: unknown): FailureKind | undefined => {
+  const k = (e as { kind?: unknown } | null)?.kind;
+  return k === 'executor' || k === 'precondition' || k === 'environment' ? k : undefined;
+};
 
 export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));

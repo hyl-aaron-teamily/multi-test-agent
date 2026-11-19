@@ -9,7 +9,7 @@ import { AVAILABLE, type Classification, classify } from './classify';
 import type { NormalizedIssue } from './parse';
 import type { IssueContract } from '../platform/schema/contract';
 import { validatePlan } from './validate';
-import { author, type Authored, type AuthorContext, type Envelope, MAX_PLAN_VERSIONS, type RevisionMaterials } from './author';
+import { author, type Authored, type AuthorContext, type Envelope, type RevisionMaterials } from './author';
 import { issuePath } from './paths';
 import { compileRecord } from './record';
 
@@ -68,7 +68,7 @@ export interface Draft {
   warmupFailures?: { planId: string; at: string; detail: string }[];
   /** The model's delivery this draft was compiled from (fed back on revision). */
   envelope?: Envelope;
-  /** Plan version (W3-1: 1 = first design, +1 per revision, at most 3). */
+  /** Plan version (W3-1: 1 = first design, +1 per revision; W3-6: = rev). */
   planVersion?: number;
   /** Validator errors when no plan could be generated. */
   errors?: string[];
@@ -172,10 +172,11 @@ function keepPartial(d: Draft, a: Authored, cx: AuthorContext): Draft {
   return Object.assign(d, r);
 }
 
-/** Next plan version from run evidence (W3-1 §8.2). Returns undefined when no revision is allowed. */
+/** A whole new version from run evidence — only for the person's 「重新设计」 since W3-7 (failures are repaired
+ *  step by step, issue/repair-loop.ts; no version cap). Returns undefined when the draft cannot be revised. */
 export async function reviseIssue(prev: Draft, m: RevisionMaterials, opts: { raw?: string; ask?: Parameters<typeof author>[2] } = {}): Promise<Draft | undefined> {
   const version = (prev.planVersion ?? 1) + 1;
-  if (version > MAX_PLAN_VERSIONS || !prev.envelope || prev.status !== 'plannable') return undefined;
+  if (!prev.envelope || prev.status !== 'plannable') return undefined;
   const i = prev.issue;
   const { surface, subst } = surfaceOf(i, prev.classification);
   const raw = opts.raw ?? readFileSync(issuePath(i.id), 'utf8');

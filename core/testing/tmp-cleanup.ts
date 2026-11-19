@@ -10,5 +10,6 @@ process.env.AUTOTEST_EMULATOR_RESTORE ??= '0';
 process.env.MEMORY_CORE_IDS_FILE ??= 'no-such-memory-ids.json';
 process.env.MEMORY_CORE_KEY_FILE ??= 'no-such-memory-key';
 process.env.AUTOTEST_LESSON_MODEL ??= '0';
+process.env.AUTOTEST_PAGES_FILE ??= 'no-such-pages.local.json';
 
 afterAll(cleanTmpDirs);

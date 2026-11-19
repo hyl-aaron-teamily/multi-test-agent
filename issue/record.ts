@@ -14,7 +14,7 @@ import { draftHash } from './drafts';
 import { issuePath } from './paths';
 import { type Draft, draftOf, surfaceOf } from './planner';
 
-export type RevSource = 'model' | 'patch' | 'human' | 'chat' | 'rollback' | 'redesign';
+export type RevSource = 'model' | 'patch' | 'auto-fix' | 'human' | 'chat' | 'rollback' | 'redesign';
 
 export interface PathError {
   /** JSON pointer into the envelope (`/subcases/main/plan/actions/1/expect/check`), or '' for the delivery. */
@@ -120,11 +120,14 @@ export function applyOps(env: Envelope, ops: PatchOp[]): Envelope {
     }
     if (segs[0] === 'subcases' && segs[2] === 'plan' && segs[3] && EXECUTOR_FIELDS.has(segs[3])) throw new Error(`${o.path}：${segs[3]} 由执行器负责，不能修改`);
     let cur: any = out;
-    for (const s of segs.slice(0, -1)) {
-      if (cur === null || typeof cur !== 'object' || !(s in cur)) throw new Error(`${o.path}：路径不存在（在「${s}」处）`);
+    // An array item may be named by its `id` (targets.<id>), as validation errors and failure points name it.
+    const byId = (arr: any, s: string) => (Array.isArray(arr) && !/^\d+$/.test(s) && s !== '-' ? String(arr.findIndex((x: any) => x?.id === s)) : s);
+    for (const s0 of segs.slice(0, -1)) {
+      const s = byId(cur, s0);
+      if (cur === null || typeof cur !== 'object' || !(s in cur)) throw new Error(`${o.path}：路径不存在（在「${s0}」处）`);
       cur = cur[s];
     }
-    const last = segs[segs.length - 1];
+    const last = byId(cur, segs[segs.length - 1]);
     if (Array.isArray(cur)) {
       const i = last === '-' ? cur.length : Number(last);
       if (!Number.isInteger(i) || i < 0 || i > cur.length || (o.op !== 'add' && i >= cur.length)) throw new Error(`${o.path}：下标 ${last} 越界`);

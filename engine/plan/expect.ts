@@ -35,7 +35,7 @@ function keep(c: RunCtx, r: ExpectRecord): void {
 export async function readExpect(c: RunCtx, a: PlannedAction, at: string, round: number): Promise<ExpectRecord | undefined> {
   if (!a.expect) return undefined;
   const r = await observeCheck(c, a.expect.check).catch((e) => ({ check: a.expect!.check, pass: null, detail: `read failed: ${(e as Error).message.split('\n')[0]}` }) as const);
-  const rec: ExpectRecord = { round, at, role: a.expect.role, pass: r ? r.pass : null, detail: r ? r.detail : `${a.expect.check.kind} cannot be read on ${c.plan.surface}`, ms: r && 'ms' in r ? r.ms : undefined };
+  const rec: ExpectRecord = { round, at, role: a.expect.role, pass: r ? r.pass : null, detail: r ? r.detail : `${a.expect.check.kind} has no reader on ${c.plan.surface}`, ms: r && 'ms' in r ? r.ms : undefined };
   if (rec.pass !== true) keep(c, rec);
   return rec;
 }
@@ -43,9 +43,10 @@ export async function readExpect(c: RunCtx, a: PlannedAction, at: string, round:
 /** The round's baseline: the first check that does not hold (false or unreadable), else undefined. */
 export async function readBaseline(c: RunCtx, round: number): Promise<ExpectRecord | undefined> {
   for (const [i, k] of c.plan.baseline.entries()) {
-    const r = await observeCheck(c, k).catch(() => undefined);
+    // W3-7 P0 (E): an exception is kept verbatim (it used to become 「cannot be read」 and read like a plan error).
+    const r = await observeCheck(c, k).catch((e) => ({ check: k, pass: null, detail: `read failed: ${(e as Error).message.split('\n')[0]}` }) as const);
     if (r?.pass === true) continue;
-    const rec: ExpectRecord = { round, at: `baseline[${i}]`, role: 'baseline', pass: r ? r.pass : null, detail: r ? `${k.expect} — ${r.detail}` : `${k.kind} cannot be read on ${c.plan.surface}` };
+    const rec: ExpectRecord = { round, at: `baseline[${i}]`, role: 'baseline', pass: r ? r.pass : null, detail: r ? `${k.expect} — ${r.detail}` : `${k.kind} has no reader on ${c.plan.surface}` };
     keep(c, rec);
     return rec;
   }

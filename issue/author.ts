@@ -22,7 +22,6 @@ import { expectsOf, validateAuthored, validatePlan } from './validate';
 
 export const SKILL_FILE = resolve('skills/plan-authoring/SKILL.md');
 /** Revision cap (W3-1 defaults): v1 + at most two revisions. */
-export const MAX_PLAN_VERSIONS = 3;
 /** Per-version run budget (W3-1 defaults): 30 valid attempts or 15 minutes, no early stop on a hit. */
 export const VERSION_BUDGET = { maxRounds: 30, maxMinutes: 15 } as const;
 

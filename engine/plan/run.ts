@@ -9,7 +9,7 @@ import { useCallLogs } from '../../core/context/logs';
 import { isoMs, openTrajectory, type Trajectory } from '../../core/trajectory';
 import type { CoordOp } from '../recorder/recording-driver';
 import { TEAMILY_PACKAGE } from '../../drivers/factory';
-import { sleep } from '../../drivers/types';
+import { errorKind, sleep } from '../../drivers/types';
 import { AndroidFlightRecorder } from '../recorder/android-recorder';
 import type { EvidenceVerdict } from '../recorder/evidence-review';
 import { type JankStats, parseGfxinfo } from '../stats';
@@ -49,7 +49,7 @@ import { AndroidDriver } from '../../drivers/android';
 import { CancelledError, type RunHooks } from '../../platform/lifecycle/runtime';
 import { stepText } from '../../platform/views';
 import { loadConversations } from '../../platform/conversations';
-import { startPageRecording } from '../pages';
+import { pageOf, startPageRecording } from '../pages';
 
 export { execAction } from './actions';
 export type { Stats } from '../stats';
@@ -146,6 +146,12 @@ export interface RunResult {
   executability?: { validated: boolean; warmup: 'passed' | 'failed' | 'not-run'; driftRate: number; unstable: boolean };
   /** Sub-case of a model-authored plan (main / control / s1 …). */
   sub?: string;
+  /** W3-7 §8.1 ①: the plan path being executed when the run stopped (preparation / warm-up). */
+  at?: string;
+  /** W3-7 §8.1 ②: the cause the stopping error carried (NodeError / tagged RoundDrift). */
+  errorKind?: import('../../drivers/types').FailureKind;
+  /** W3-7 §8.1 ③: the screen when the run stopped (texts with centres, <= 200; the page it matches). */
+  evidence?: { page: string; texts: { t: string; x: number; y: number }[] };
   /** Plan version (audit.version) the run executed; undefined = a plan from before W3-1 ("v1 计划"). */
   planVersion?: number;
   /** Report lead (W2-2 §3.2): trigger path / location / suspected mechanism, each with its basis. */
@@ -427,6 +433,9 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     }
     if (err instanceof CancelledError) res.cancelled = true;
     o.hooks?.phase('finishing');
+    res.errorKind = errorKind(err) ?? (err instanceof WarmupError ? err.step.kind : undefined);
+    // W3-7 §8.1 ③: what was on screen when it stopped — gone after the reset / next cold start.
+    if (sess && udid && onAndroid(plan.surface)) res.evidence = await screenEvidence(udid).catch(() => undefined);
     res.error = errorLine(err);
     log(`error: ${res.error}`);
     // The screen and the device state at the moment of the error (diagnosis: environment or tool).
@@ -450,6 +459,17 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
     await closeSession(sess);
     o.pool.release(lease, o.devices);
   }
+}
+
+/** W3-7 §8.1 ③: the screen's texts (with centres, at most 200) and the page they match, read from the tree. */
+export async function screenEvidence(udid: string): Promise<NonNullable<RunResult['evidence']>> {
+  const { dumpTree } = await import('../../core/ui-tree');
+  const nodes = await dumpTree(udid, '', 2);
+  const texts = nodes
+    .map((n) => ({ t: (n.text || n.desc).trim(), x: Math.round((n.x1 + n.x2) / 2), y: Math.round((n.y1 + n.y2) / 2) }))
+    .filter((n) => n.t)
+    .slice(0, 200);
+  return { page: pageOf(nodes).id, texts };
 }
 
 /** Pure: where a check looks (report lead). */
