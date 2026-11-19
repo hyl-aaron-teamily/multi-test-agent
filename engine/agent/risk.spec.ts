@@ -5,12 +5,19 @@ const tap = (label: string, writable = false) => classifyRisk({ type: 'tap', lab
 
 describe('exploration tier risk rules (read-only by default)', () => {
   it('blocks the high-risk categories in Chinese and English', () => {
-    for (const [l, c] of [['发送', 'send'], ['删除', 'delete'], ['设置', 'settings'], ['立即支付', 'payment'], ['退出登录', 'logout'], ['邀请成员', 'invite-share'], ['编辑资料', 'profile-edit'], ['Send', 'send'], ['Log out', 'logout'], ['Share', 'invite-share'], ['Upgrade', 'payment'], ['Settings', 'settings'], ['关注', 'social'], ['+ 关注', 'social'], ['点赞', 'social'], ['Follow', 'social']] as const)
+    for (const [l, c] of [['发送', 'send'], ['删除', 'delete'], ['立即支付', 'payment'], ['退出登录', 'logout'], ['邀请成员', 'invite-share'], ['编辑资料', 'profile-edit'], ['Send', 'send'], ['Log out', 'logout'], ['Share', 'invite-share'], ['Upgrade', 'payment'], ['免打扰', 'settings'], ['Turn off', 'settings'], ['关注', 'social'], ['+ 关注', 'social'], ['点赞', 'social'], ['Follow', 'social']] as const)
       expect(tap(l), l).toMatchObject({ blocked: true, category: c });
   });
 
   it('word boundaries: "address", "spin", "recall list" style words inside others are not blocked by add / pin / call', () => {
     for (const l of ['Address book', 'Spinner', 'Callback info', 'Pinboard', '聊天', '我', 'Artifacts', '发现', '智能体', '查看全部']) expect(tap(l).blocked, l).toBe(false);
+  });
+
+  it('settings pages may be opened and read; switches and state words are not touched', () => {
+    for (const l of ['设置', '打开设置', '全部设置', '隐私设置', '通知设置', 'Settings', 'Privacy']) expect(tap(l).blocked, l).toBe(false);
+    expect(classifyRisk({ type: 'tap', label: '消息通知' }, false, { toggle: true })).toMatchObject({ blocked: true, category: 'settings' });
+    expect(classifyRisk({ type: 'tap', label: '消息通知' }, true, { toggle: true }).blocked).toBe(false);
+    expect(tap('开启通知')).toMatchObject({ blocked: true, category: 'settings' });
   });
 
   it('typing: only into a search box in read-only mode', () => {

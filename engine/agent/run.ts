@@ -622,7 +622,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
         const yPx = el ? el.center.y : 'y' in b && b.y !== undefined ? toPx({ x: 0, y: b.y }, vp.width || 1, vp.height || 1).y : undefined;
         const own = yPx !== undefined && nearOwnContent(yPx, nodes.map((n) => ({ label: label(n), y: n.center.y })), ownNames, vp.height);
         const searchBox = b.type === 'type' && !!el && wasSearchBox(el.box, searchBoxes);
-        const risk = classifyRisk({ type: b.type, label: lbl, text: b.type === 'type' ? b.text : undefined, free: !el }, !!o.writable, { ownContent: own, bench: !!bench, searchBox });
+        const risk = classifyRisk({ type: b.type, label: lbl, text: b.type === 'type' ? b.text : undefined, free: !el }, !!o.writable, { ownContent: own, bench: !!bench, searchBox, toggle: !!el && /Switch|CheckBox|ToggleButton|RadioButton|CompoundButton/i.test(el.cls) });
         if (risk.blocked) {
           res.blocked.push({ step, action: bAct, reason: risk.reason });
           traj.emit('blocked', { step, action: bAct, reason: risk.reason });
