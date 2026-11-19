@@ -3,7 +3,9 @@
 // how it ended, steps, time, model calls (final reviews apart), reviews passed / not passed, turns without a
 // usable answer, typed text that did not land, "screen did not change" marks, and the §8.6.1 attribution where
 // it can be told automatically. Whether a task really succeeded is checked by a person against `pass`.
-//   pnpm autotest explore suite [--only id1,id2] [--no-explore] [--file <yaml>]
+//   pnpm autotest explore suite [--only id1,id2] [--no-explore] [--file <yaml>] [--env <environment id>]
+// --env (W3-4 E1 ⑧): run on that environment, e.g. android-app:emulator-5556@prod (the Teamily emulator);
+// default: any android-app environment of the suite's service env.
 // Output: midscene_run/explore-suite/<stamp>/ (report.md, summary.json). Deleted when the platform stops unless
 // saved: pnpm autotest runs save midscene_run/explore-suite/<stamp>
 import 'dotenv/config';
@@ -69,6 +71,19 @@ export function fill(text: string, v: Record<string, string | undefined>): strin
   });
 }
 
+/** Pure: {member} = another pool account in the group — not the one signed in on the device under test
+ *  (construct.members lists candidates; construct.member is the default). `self` = that account's nickname. */
+export function memberFor(c: { member?: string; members?: string[] }, self?: string): string | undefined {
+  const all = [...(c.members ?? []), ...(c.member ? [c.member] : [])];
+  return all.find((m) => m !== self) ?? (self ? undefined : all[0]);
+}
+
+/** Pure: surface / service env of an environment id `surface:device@env`. */
+export function parseEnvId(id: string): { surface: string; device: string; env: string } | undefined {
+  const m = id.match(/^([a-z-]+):(.+)@(test|prod)$/);
+  return m ? { surface: m[1], device: m[2], env: m[3] } : undefined;
+}
+
 /** Pure: one row of the table from the agent's result. */
 export function rowOf(item: SuiteItem, mode: 'task' | 'explore', r: AgentResult | undefined, taskId: string | undefined, status: string, pass: string): SuiteRow {
   const checks = r?.checks ?? [];
@@ -97,14 +112,14 @@ export function rowOf(item: SuiteItem, mode: 'task' | 'explore', r: AgentResult 
 }
 
 /** Pure: the report. */
-export function suiteMarkdown(rows: SuiteRow[], o: { started: string; run: string }): string {
+export function suiteMarkdown(rows: SuiteRow[], o: { started: string; run: string; env?: string }): string {
   const tasks = rows.filter((r) => r.mode === 'task');
   const sum = (k: keyof SuiteRow) => rows.reduce((n, r) => n + (r[k] as number), 0);
   const steps = sum('steps');
   return [
     `# Teamily 验收集（W3-3）`,
     '',
-    `- 开始：${o.started}；本次标记 \`${o.run}\``,
+    `- 开始：${o.started}；本次标记 \`${o.run}\`${o.env ? `；环境 \`${o.env}\`` : ''}`,
     `- task 自报完成 ${tasks.filter((r) => r.status === 'completed').length} / ${tasks.length}（是否真的做对，按「通过条件」人工核对）`,
     `- 合计：${steps} 步，${sum('seconds')} 秒，模型调用 ${sum('modelCalls')} 次（其中结束复核 ${sum('checkCalls')} 次）；每步 ${steps ? (sum('seconds') / steps).toFixed(1) : '-'} 秒、${steps ? ((sum('modelCalls') - sum('checkCalls')) / steps).toFixed(2) : '-'} 次调用`,
     `- 没给出可用动作 ${sum('unusable')} 轮；输入没上屏 ${sum('inputNotCommitted')} 次；画面没变 ${sum('unchanged')} 次`,
@@ -118,13 +133,34 @@ export function suiteMarkdown(rows: SuiteRow[], o: { started: string; run: strin
   ].join('\n');
 }
 
+/** The nickname of a pool account = the local part of its email (aaron+test2@… → aaron+test2). */
+async function nickname(accountId: string): Promise<string | undefined> {
+  const { AccountPool } = await import('../platform/accounts/account-pool');
+  const pool = new AccountPool();
+  await pool.reload();
+  return pool.get(accountId)?.email.split('@')[0];
+}
+
 async function main(): Promise<number> {
   const file = resolve(opt('file') ?? 'fixtures/explore-suite/teamily.yaml');
   const suite = yaml.load(readFileSync(file, 'utf8')) as Suite;
   const only = opt('only')?.split(',').map((s) => s.trim());
   const conv = loadConversations();
   const run = `r${Date.now().toString(36).slice(-5)}`;
-  const vars = { group: conv.construct.allow[0], member: conv.construct.member, run };
+  const envId = opt('env');
+  const envP = envId ? parseEnvId(envId) : undefined;
+  if (envId && !envP) {
+    console.error(`--env: an environment id like android-app:emulator-5556@prod (pnpm autotest env list)`);
+    return 2;
+  }
+  const envRec = envId ? await call('GET', `/envs/${encodeURIComponent(envId)}`).catch(() => undefined) : undefined;
+  if (envId && envRec?.code !== 'OK') {
+    console.error(`--env ${envId}: ${envRec?.summary ?? 'platform not reachable'}`);
+    return 2;
+  }
+  const selfAccount: string | undefined = envRec?.data?.account;
+  const self = selfAccount ? await nickname(selfAccount) : undefined;
+  const vars = { group: conv.construct.allow[0], member: memberFor(conv.construct, self), run };
   const items = [...(suite.tasks ?? []).map((t) => ({ t, mode: 'task' as const })), ...(args.includes('--no-explore') ? [] : (suite.explore ?? []).map((t) => ({ t, mode: 'explore' as const })))].filter((x) => !only || only.includes(x.t.id));
   const ping = await call('GET', '/tasks?limit=1').catch(() => undefined);
   if (!ping) {
@@ -139,7 +175,7 @@ async function main(): Promise<number> {
     const goal = fill(t.goal, vars);
     const pass = t.pass ? fill(t.pass, vars) : '';
     console.log(`[suite] ${t.id} (${mode}): ${goal}`);
-    const sub = await call('POST', '/tasks', { explore: goal, mode, surface: suite.surface ?? 'android-app', env: suite.env ?? 'prod', writable: !!t.writable, maxMinutes: t.maxMinutes, maxSteps: t.maxSteps });
+    const sub = await call('POST', '/tasks', { explore: goal, mode, surface: envP?.surface ?? suite.surface ?? 'android-app', env: envP?.env ?? suite.env ?? 'prod', ...(envId ? { envId } : {}), writable: !!t.writable, maxMinutes: t.maxMinutes, maxSteps: t.maxSteps });
     if (sub.code !== 'ACCEPTED') {
       console.log(`[suite] ${t.id}: not started — ${sub.code} ${sub.summary}`);
       rows.push(rowOf(t, mode, undefined, undefined, `not started: ${sub.code} ${sub.summary}`, pass));
@@ -156,7 +192,7 @@ async function main(): Promise<number> {
     writeFileSync(join(dir, 'summary.json'), JSON.stringify({ started, run, file, rows }, null, 2));
   }
   writeFileSync(join(dir, 'summary.json'), JSON.stringify({ started, run, file, rows }, null, 2));
-  writeFileSync(join(dir, 'report.md'), suiteMarkdown(rows, { started, run }));
+  writeFileSync(join(dir, 'report.md'), suiteMarkdown(rows, { started, run, env: envId }));
   console.log(`[suite] report: ${join(dir, 'report.md')}`);
   console.log(`[suite] 停平台时会被删除；要保留：pnpm autotest runs save ${join('midscene_run', 'explore-suite', started.replace(/[:.]/g, '-'))}（任务本身用 runs save <任务 id>）`);
   return 0;

@@ -5,11 +5,19 @@ import { a11yHealth, A11Y_PKG, enableA11y, installA11y } from '../../core/a11y-s
 import { parseDeviceState, taplusWith } from '../../engine/preflight';
 import type { PhoneDriver } from './check';
 import type { ConfigItem } from './env';
+import { declaredEmulator } from '../device-pool';
+import { apkState, upgradeApp } from '../emulator-ops';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Environment configuration items of an Android phone (§3.1): consented once at registration. */
-export function androidConfigItems(pkg: string, treeBackend?: 'uiautomator' | 'a11y-service'): ConfigItem[] {
+export function androidConfigItems(pkg: string, treeBackend?: 'uiautomator' | 'a11y-service', emulator = false): ConfigItem[] {
+  // An emulator (W3-4 E1): no HyperOS item; the app comes from apk/teamily/ (installed / upgraded by the check).
+  if (emulator) return [
+    ...(treeBackend === 'a11y-service' ? androidConfigItems(pkg, treeBackend).filter((c) => c.id === 'a11y-service') : []),
+    { id: 'apk', what: `从 apk/teamily/ 安装或升级 ${pkg}（只升不降）`, why: '模拟器上的 App 由平台按用户放的 APK 安装；强制更新后旧版本无法使用', restore: `adb uninstall ${pkg}` },
+    { id: 'stayon', what: '屏幕常亮：stay_on_while_plugged_in 含 USB 位', why: '运行中熄屏会让任务停住', restore: 'settings put global stay_on_while_plugged_in 0' },
+  ];
   return [
     ...(treeBackend === 'a11y-service'
       ? [{ id: 'a11y-service', what: `安装并启用只读无障碍服务 ${A11Y_PKG}（只导出界面树，不做手势、不外发数据）`, why: '读界面树从 uiautomator 每次 2.5–3.7 s 降到常驻服务即时返回', restore: `关闭该无障碍服务并卸载：autotest 环境配置项撤销，或 adb uninstall ${A11Y_PKG}`, optional: true }]
@@ -42,6 +50,11 @@ export function adbPhoneDriver(udid: string, pkg: string): PhoneDriver {
         const ok = s.stayOn !== undefined && !!(s.stayOn & 2);
         return { ok, detail: `stay_on_while_plugged_in=${s.stayOn ?? '?'}` };
       }
+      if (c.id === 'apk') {
+        const a = await apkState(udid, pkg);
+        const v = (x?: { versionName?: string; versionCode: number }) => (x ? `${x.versionName ?? ''}（${x.versionCode}）` : '无');
+        return { ok: !!a.installed && !a.behind, detail: a.installed ? `装的 ${v(a.installed)}，apk/teamily/ 最新 ${v(a.newest)}${a.behind ? '：要升级' : ''}` : `没装 ${pkg}${a.newest ? '' : '，apk/teamily/ 也没有 APK：需要新版本 APK，放进 apk/teamily/'}` };
+      }
       if (c.id === 'a11y-service') {
         const h = await a11yHealth(udid);
         return { ok: h.responding, detail: `读树服务：${h.detail}` };
@@ -55,6 +68,7 @@ export function adbPhoneDriver(udid: string, pkg: string): PhoneDriver {
         if (v) await sh(`settings put global taplus_blacklist '${v}'`);
       }
       if (c.id === 'stayon') await sh('svc power stayon usb');
+      if (c.id === 'apk') await upgradeApp(udid, declaredEmulator(udid)?.emulator ?? {}, pkg);
       if (c.id === 'a11y-service') {
         const h0 = await a11yHealth(udid);
         if (!h0.installed || h0.outdated) {

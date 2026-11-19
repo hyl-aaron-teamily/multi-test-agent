@@ -16,7 +16,9 @@ import { findScrcpy } from '../core/screen-recorder';
 import { uiautomatorBackend } from '../core/tree-backend';
 import { readDeviceState } from '../engine/preflight';
 import { listDevices } from './adb-devices';
-import { CONFIG_FILE, declaredTreeBackend, parsePoolConfig } from './device-pool';
+import { avdExists, listSnapshots } from '../core/emulator';
+import { CONFIG_FILE, declaredEmulator, declaredTreeBackend, parsePoolConfig } from './device-pool';
+import { apkState } from './emulator-ops';
 import { endLease, listEnvs } from './lifecycle/env';
 import { alive } from './lifecycle/proc';
 import type { Code } from './lifecycle/status';
@@ -50,6 +52,8 @@ export interface DeviceFact {
   awake?: boolean;
   backend: 'uiautomator' | 'a11y-service';
   a11y?: A11yHealth;
+  /** W3-4 E1: a declared emulator — its AVD, snapshot and the app against apk/teamily/. */
+  emulator?: { avd: string; avdExists: boolean; snapshot?: string; snapshotSaved?: boolean; apk?: { installed?: string; newest?: string; behind: boolean } };
 }
 
 export interface Facts {
@@ -105,6 +109,11 @@ export function diagnose(f: Facts): Diagnosis {
   if (f.adb.ok) {
     for (const d of phones) {
       const name = `${d.udid}${d.model ? `（${d.model}）` : ''}`;
+      if (d.emulator && d.state !== 'device') {
+        const e = d.emulator;
+        add({ id: `device:${d.udid}`, title: `模拟器 ${d.udid}`, level: 'fail', code: 'ENV_OFFLINE', detail: e.avdExists ? `未启动（AVD ${e.avd}）` : `AVD ${e.avd} 不存在`, next: e.avdExists ? [{ kind: 'run', text: '启动 Teamily 模拟器（从快照）', cmd: 'pnpm autotest emulator start' }] : [{ kind: 'run', text: '创建并准备 Teamily 模拟器（先把 APK 放进 apk/teamily/）', cmd: 'pnpm autotest emulator prepare' }] });
+        continue;
+      }
       if (d.state === 'absent') {
         add({ id: `device:${d.udid}`, title: `手机 ${name}`, level: 'fail', code: 'ENV_OFFLINE', detail: 'adb 看不到这台手机', next: [{ kind: 'human', text: `把手机 ${d.udid} 用 USB 线连上电脑，并开启 USB 调试` }] });
         continue;
@@ -122,7 +131,11 @@ export function diagnose(f: Facts): Diagnosis {
         continue;
       }
       usable++;
-      add({ id: `device:${d.udid}`, title: `手机 ${name}`, level: 'ok', detail: `在线、已授权、未锁屏${d.awake === false ? '（屏幕未亮，运行时会唤醒）' : ''}` });
+      if (d.emulator) {
+        const e = d.emulator;
+        const nx: Next[] = [...(e.snapshot && !e.snapshotSaved ? [{ kind: 'run' as const, text: '准备模拟器并保存快照', cmd: 'pnpm autotest emulator prepare' }] : []), ...(e.apk?.behind ? [{ kind: 'run' as const, text: '升级模拟器上的 Teamily（检查环境时按配置项安装）', cmd: `pnpm autotest env check android-app:${d.udid}@prod` }] : []), ...(!e.apk?.newest ? [{ kind: 'human' as const, text: '把 Teamily 的 APK 放进 apk/teamily/（强制更新后放新版本）' }] : [])];
+        add({ id: `device:${d.udid}`, title: `模拟器 ${d.udid}`, level: nx.length ? 'warn' : 'ok', detail: `在线（AVD ${e.avd}）；快照 ${e.snapshot ?? '-'}${e.snapshot ? (e.snapshotSaved ? ' 已保存' : ' 没有') : ''}；Teamily 装的 ${e.apk?.installed ?? '无'}，apk/teamily/ 最新 ${e.apk?.newest ?? '无'}${e.apk?.behind ? '（要升级）' : ''}`, next: nx.length ? nx : undefined });
+      } else add({ id: `device:${d.udid}`, title: `手机 ${name}`, level: 'ok', detail: `在线、已授权、未锁屏${d.awake === false ? '（屏幕未亮，运行时会唤醒）' : ''}` });
       if (d.backend === 'a11y-service') {
         const h = d.a11y;
         const nx: Next[] = !h?.installed || h.outdated
@@ -195,7 +208,7 @@ export async function gatherFacts(o: { probe?: boolean } = {}): Promise<Facts> {
   }
   let declared: string[] = [];
   try {
-    declared = parsePoolConfig(readFileSync(CONFIG_FILE, 'utf8')).devices.filter((d) => !/^emulator-/.test(d.udid)).map((d) => d.udid);
+    declared = parsePoolConfig(readFileSync(CONFIG_FILE, 'utf8')).devices.filter((d) => !/^emulator-/.test(d.udid) || d.emulator).map((d) => d.udid);
   } catch {
     /* no file */
   }
@@ -204,6 +217,13 @@ export async function gatherFacts(o: { probe?: boolean } = {}): Promise<Facts> {
   for (const udid of [...new Set([...declared, ...live.map((d) => d.udid)])]) {
     const l = live.find((d) => d.udid === udid);
     const d: DeviceFact = { udid, state: l?.state ?? 'absent', model: l?.model, declared: declared.includes(udid), backend: declaredTreeBackend(udid) };
+    const emu = declaredEmulator(udid);
+    if (emu) {
+      const up = l?.state === 'device';
+      const a = up ? await apkState(udid).catch(() => undefined) : undefined;
+      const v = (x?: { versionName?: string; versionCode: number }) => (x ? `${x.versionName ?? ''}（${x.versionCode}）` : undefined);
+      d.emulator = { avd: emu.emulator.avd, avdExists: avdExists(emu.emulator.avd), snapshot: emu.emulator.snapshot, snapshotSaved: up && emu.emulator.snapshot ? (await listSnapshots(udid)).includes(emu.emulator.snapshot) : undefined, apk: a && { installed: v(a.installed), newest: v(a.newest), behind: a.behind } };
+    }
     if (d.state === 'device') {
       const s = await readDeviceState(udid);
       d.locked = !!s.keyguard || /Keyguard|NotificationShade/i.test(s.focus ?? '');

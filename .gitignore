@@ -39,3 +39,6 @@ platform/plans/drafts/*.context.jsonl
 skills/teamily/pages.local.json
 platform/explore/known.json
 platform/explore/triage.json
+
+# W3-4 E1: Teamily APKs dropped in by the user (and the re-signed emulator copies)
+/apk/

@@ -19,8 +19,21 @@ devices:
     # W3-3 F9: how the exploration tier types. direct = yadb writes the text (the iFlytek pinyin IME keeps `input text`
     # key events in its composition bar: 2026-11-06, 17 steps of input that never landed); keys = `input text`.
     inputMode: direct
+  # W3-4 E1: the Teamily emulator on this computer (`pnpm autotest emulator prepare` creates and prepares it;
+  # the platform restores its snapshot at start). A separate AVD from the AndroidWorld bench (5554): the bench
+  # resets apps per task. Same screen as the test phone (1080×2400). Account: not the phone's (V19).
+  - udid: emulator-5556
+    name: Teamily emulator (TeamilyAvd, Android 14)
+    surfaces: [android-app]
+    accounts:
+      android-app: prod-aaron2   # aaron+test2
+    treeBackend: a11y-service
+    inputMode: keys   # no Chinese IME on the emulator
+    # patchApk: the shipped APK keeps its native libraries packed (extractNativeLibs=false) and React Native
+    # cannot load them under ARM translation (V18, 2026-11-19); the emulator gets a re-signed copy that extracts them.
+    emulator: { avd: TeamilyAvd, port: 5556, snapshot: teamily-ready, patchApk: true, locale: zh-CN }
   - udid: emulator-5554
-    name: placeholder emulator (offline unless started)
+    name: AndroidWorld bench emulator (offline unless started)
     inputMode: keys   # no Chinese IME on the AndroidWorld emulator: key events are faster
 hosts:
   - id: local
