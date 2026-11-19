@@ -136,7 +136,8 @@ export function detect(o: Observation, st: DetectState): DetectHit[] {
     for (const p of PLACEHOLDER) {
       const m = t.match(p.re);
       if (m && (!p.ok || p.ok(m))) {
-        hits.push({ kind: 'placeholder-text', description: `界面上出现${p.what}「${t}」`, text: t, box: n.box });
+        // The placeholder itself is the issue's text (the same [自定义消息] on every row is one issue, 2026-11-19).
+        hits.push({ kind: 'placeholder-text', description: `界面上出现${p.what}「${t}」`, text: m[0].trim() || t, box: n.box });
         break;
       }
     }

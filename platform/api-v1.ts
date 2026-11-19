@@ -18,10 +18,12 @@ import { readAudit, writeJsonAtomic } from './lifecycle/store';
 import type { Supervisor } from './lifecycle/supervisor';
 import { deleteSaved, listSaved, openSaved, saveTask } from './session';
 import { createTask, getTask, isTerminal, listTasks, newTaskId, readEvents, readLedger, readResult, taskDir, type TaskRecord, updateTask } from './lifecycle/task';
+import { asRecord, stateOf } from '../issue/record';
 import { parsePlanId, planIdOf, planIdsOf, resolvePlan, savedDraft, staleFacts, versionFacts } from './plans-v1';
 import { envView, exploreSummary, syncSummary, planText, planView, resultText, resultView, taskView, type ResultView } from './views';
 import { EXPLORE_LIMITS } from './schema/test-plan';
 import { appendInstruction, readInstructions } from './lifecycle/inbox';
+import { goalWithFocus, MODULES } from '../engine/explore/modules';
 
 export interface Envelope {
   status: number;
@@ -56,7 +58,9 @@ function issueSummary(id: string) {
   const c = classifyRules(i);
   const d = savedDraft(id);
   const plans = d && d.status === 'plannable' ? planIdsOf(d) : [];
-  return { id, title: i.title, frequency: i.frequency, platforms: i.platforms, category: c.category, reason: c.reason, draft: d ? { version: d.version ?? 1, planVersion: d.planVersion, hash: d.hash, status: d.status, reason: d.reason, stale: d.stale } : undefined, plans: d?.stale ? [] : plans.map((p) => ({ id: p, approval: approvalState(p) })) };
+  // W3-6 §6.1: the card shows the record's state and the last conclusion.
+  const last = listTasks().filter((t) => t.issue === id && t.outcome && t.kind !== 'explore').sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+  return { id, title: i.title, frequency: i.frequency, platforms: i.platforms, category: c.category, reason: c.reason, last: last ? `${last.outcome!.code}（${last.planId.replace(/^[^/]+\//, '')}，${last.createdAt.slice(5, 10)}）` : undefined, draft: d ? { version: d.version ?? 1, planVersion: d.planVersion, hash: d.hash, status: d.status, state: stateOf(asRecord(d)), reason: d.reason, stale: d.stale } : undefined, plans: d?.stale ? [] : plans.map((p) => ({ id: p, approval: approvalState(p) })) };
 }
 
 function approvalState(planId: string): string {
@@ -148,7 +152,7 @@ function taskSteps(t: TaskRecord) {
   if (t.kind === 'explore') {
     const lines = existsSync(join(dir, 'trajectory.jsonl')) ? readFileSync(join(dir, 'trajectory.jsonl'), 'utf8').split('\n').filter(Boolean) : [];
     const ev = lines.map((l) => { try { return JSON.parse(l); } catch { return undefined; } }).filter(Boolean) as any[];
-    const steps = ev.filter((e) => e.kind === 'agent.step').map((e) => ({ step: e.step, at: e.t, action: e.action, thought: e.thought, thumb: e.thumb ? fileUrl(join(dir, e.thumb)) : undefined, blocked: ev.find((b) => b.kind === 'blocked' && b.step === e.step)?.reason, finding: ev.find((b) => b.kind === 'finding' && b.step === e.step)?.description }));
+    const steps = ev.filter((e) => e.kind === 'agent.step').map((e) => ({ step: e.step, at: e.t, action: e.action, thought: e.thought, page: e.page, thumb: e.thumb ? fileUrl(join(dir, e.thumb)) : undefined, blocked: ev.find((b) => b.kind === 'blocked' && b.step === e.step)?.reason, finding: ev.find((b) => b.kind === 'finding' && b.step === e.step)?.description }));
     return { steps, latest: steps.at(-1)?.thumb };
   }
   const p = newestPng(dir);
@@ -205,8 +209,13 @@ const EXPLORE_SURFACES = ['android-app', 'android-web', 'mobile-web', 'desktop-w
 /** Submit a exploration-tier task (§5.4, capability ②): a goal in plain words, run by the agent loop. Read-only
  *  by default; --writable needs full access (the risk rules still block payment / logout / delete …). */
 function submitExplore(b: any): Envelope {
-  const goal = String(b.explore ?? '').trim();
-  if (!goal) return fail('BAD_INPUT', '--explore 需要一句目标，例如 "看看个人主页的通知铃铛能不能打开"');
+  const goal0 = String(b.explore ?? '').trim();
+  if (!goal0) return fail('BAD_INPUT', '--explore 需要一句目标，例如 "看看个人主页的通知铃铛能不能打开"');
+  // W3-4 §8.5 ⑤: the chosen focus modules are written into the goal.
+  const focus = Array.isArray(b.focus) ? b.focus.map(String) : typeof b.focus === 'string' && b.focus ? b.focus.split(',').map((x: string) => x.trim()) : [];
+  const unknownFocus = focus.filter((id: string) => !MODULES.some((m) => m.id === id));
+  if (unknownFocus.length) return fail('BAD_INPUT', `--focus：不认识的模块 ${unknownFocus.join(', ')}（${MODULES.map((m) => m.id).join(' | ')}）`);
+  const goal = goalWithFocus(goal0, focus);
   const mode = b.mode === 'task' ? 'task' : 'explore';
   const surface = String(b.surface ?? 'android-app');
   if (!EXPLORE_SURFACES.includes(surface)) return fail('BAD_INPUT', `--surface: ${EXPLORE_SURFACES.join(' | ')}`);
@@ -230,7 +239,7 @@ function submitExplore(b: any): Envelope {
   if (b.dryRun) return ok('OK', `演练：${what}「${goal}」将在 ${env.id} 上运行（${writable ? '可写' : '只读'}）`, { envId: env.id, envState: env.state, mode, writable });
   const id = newTaskId();
   const num = (v: unknown) => (v === undefined || v === null ? undefined : Number(v));
-  const t = createTask({ id, kind: 'explore', issue: 'explore', planId: `explore:${mode}`, planHash: '-', envId: env.id, options: { maxSteps: num(b.maxSteps), maxMinutes: num(b.maxMinutes) }, explore: { goal, mode, writable }, idempotencyKey: b.idempotencyKey ? String(b.idempotencyKey) : undefined });
+  const t = createTask({ id, kind: 'explore', issue: 'explore', planId: `explore:${mode}`, planHash: '-', envId: env.id, options: { maxSteps: num(b.maxSteps), maxMinutes: num(b.maxMinutes) }, explore: { goal, mode, writable, ...(b.noMemory ? { noMemory: true } : {}) }, idempotencyKey: b.idempotencyKey ? String(b.idempotencyKey) : undefined });
   return ok('ACCEPTED', `任务 ${id} 已排队：${what} @ ${env.id}${checkingNote([env])}`, tv(t));
 }
 
@@ -324,6 +333,7 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
   const maxRounds = b.maxRounds !== undefined ? Number(b.maxRounds) : undefined;
   if (maxRounds !== undefined && !(Number.isInteger(maxRounds) && maxRounds >= 1 && maxRounds <= 1000)) return fail('BAD_INPUT', '--max-rounds: 1..1000');
   const r = resolvePlan(planId);
+  const also: ReturnType<typeof resolvePlan>[] = (Array.isArray(b.also) ? (b.also as unknown[]) : []).map((p) => resolvePlan(String(p)));
   if (b.hash && b.hash !== r.hash) return fail('PLAN_HASH_MISMATCH', `给出的计划哈希 ${b.hash} ≠ 当前计划 ${r.hash}`, '重新 plan explain 后用新的哈希');
   const env = envFor(r.plan.surface, r.plan.env, b.envId);
   if (!env) return fail(b.envId ? 'NOT_FOUND' : 'ENV_OFFLINE', b.envId ? `没有环境 ${b.envId}` : `没有 ${r.plan.surface}@${r.plan.env} 的环境`, 'autotest env list');
@@ -368,11 +378,44 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
   if (er) return er;
   const ap = useApproval(planId, r.hash, facts, n);
   const id = newTaskId();
-  const t = createTask({ id, kind: r.plan.sync ? 'sync' : series && series > 1 ? 'series' : 'issue', issue: r.ref.issue, planId, planHash: r.hash, approvalId: ap.id, envId: env.id, ...(r.plan.sync ? { envIds: all.slice(1).map((e) => e.id), sync: { rounds: maxRounds ?? r.plan.sync.rounds } } : {}), series: series && series > 1 ? { runs: series } : undefined, options: { maxRounds, maxSteps: b.maxSteps, maxMinutes: b.maxMinutes }, idempotencyKey: b.idempotencyKey ? String(b.idempotencyKey) : undefined });
+  const t = createTask({ id, kind: r.plan.sync ? 'sync' : series && series > 1 ? 'series' : 'issue', issue: r.ref.issue, planId, ...(b.batch ? { batch: String(b.batch) } : {}), planHash: r.hash, approvalId: ap.id, envId: env.id, ...(r.plan.sync ? { envIds: all.slice(1).map((e) => e.id), sync: { rounds: maxRounds ?? r.plan.sync.rounds } } : {}), series: series && series > 1 ? { runs: series } : undefined, options: { maxRounds, maxSteps: b.maxSteps, maxMinutes: b.maxMinutes }, idempotencyKey: b.idempotencyKey ? String(b.idempotencyKey) : undefined });
   // Confirmation = execution: the exact plan and draft are frozen into the task dir.
   writeJsonAtomic(join(taskDir(id), 'plan.json'), r.plan);
   writeJsonAtomic(join(taskDir(id), 'draft.json'), r.draft);
+  // W3-7 §8.3: the Issue's other sub-cases (already approved with this batch) run in this task after the main one.
+  if (also.length) {
+    writeJsonAtomic(join(taskDir(id), 'also.json'), also.map((x) => x.plan));
+    updateTask(id, (x) => void (x.also = also.map((x) => x.plan.id)));
+  }
   return ok('ACCEPTED', `任务 ${id} 已排队：${planId} @ ${env.id}${n > 1 ? `，系列 ${n} 次` : ''}${checkingNote([env])}`, tv(t));
+}
+
+/** W3-6 §6.2 ①: the Issue's one execute button — every sub-case of the current rev, one press = one batch.
+ *  Approval folded in (D6): default → by policy; sensitive → `confirm` + the record hash (unless full access);
+ *  refused → not executable. */
+function runIssue(issueId: string, b: any, via: 'cli' | 'web', reviewer?: string): Envelope {
+  const d = savedDraft(issueId);
+  if (!d) return fail('NOT_FOUND', `Issue ${issueId} 还没有计划`, `autotest draft create ${issueId}`);
+  if (d.stale || d.status !== 'plannable') return fail('PLAN_NOT_EXECUTABLE', `计划不能运行（${d.stale ? '待重写' : d.status}）：${d.stale?.reason ?? d.reason}`);
+  const rev = d.version ?? 1;
+  const planIds = d.subcases.map((s) => planIdOf({ issue: issueId, sub: s.sub, surface: s.surface, version: rev }));
+  const ex = planIds.map((p) => ({ planId: p, e: explain(p) }));
+  const refused = ex.filter((x) => x.e.classified.category === 'refused');
+  if (refused.length) return fail('PLAN_NOT_EXECUTABLE', `计划触及硬约束：${refused.flatMap((x) => x.e.classified.reasons).join('；')}`);
+  const sensitive = ex.filter((x) => x.e.classified.category === 'sensitive');
+  if (sensitive.length && !getFullAccess().on) {
+    const reasons = [...new Set(sensitive.flatMap((x) => x.e.classified.reasons))];
+    if (!b.confirm || b.hash !== d.hash) return { ...fail('APPROVAL_REQUIRED', `敏感计划，确认后执行：${reasons.join('；')}`), data: { hash: d.hash, reasons, rev } };
+    for (const x of sensitive) approve({ planId: x.planId, planHash: x.e.r.hash, confirmedHash: x.e.r.hash, facts: versionFacts(x.e.r.plan, x.e.env?.udid, x.e.env?.appVersion), classified: x.e.classified, runs: 1, via, reviewer });
+  }
+  const batch = `b-${Date.now().toString(36)}`;
+  // W3-7 §8.3: one task for all sub-cases (main first): one press, one task, one result page.
+  for (const x of ex.slice(1)) if (x.e.classified.category === 'default' || getFullAccess().on) approve({ planId: x.planId, planHash: x.e.r.hash, confirmedHash: x.e.r.hash, facts: versionFacts(x.e.r.plan, x.e.env?.udid, x.e.env?.appVersion), classified: x.e.classified, runs: 1, via, auto: true });
+  const out = [submit({ planId: planIds[0], batch, envId: b.envId, also: planIds.slice(1) }, via)];
+  const bad = out.find((x) => x.error);
+  const ids = out.filter((x) => !x.error).map((x) => (x.data as { id?: string })?.id).filter(Boolean);
+  if (!ids.length && bad) return bad;
+  return ok('ACCEPTED', `Issue ${issueId} rev ${rev}：${planIds.length} 个子用例在一个任务里排队${bad ? `；另有 ${out.length - ids.length} 个没排上（${bad.summary}）` : ''}${sensitive.length ? '' : '；按策略自动批准'}`, { batch, rev, tasks: ids });
 }
 
 export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
@@ -399,6 +442,20 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
       const v = await githubStatus(fetch, q.query.get('fresh') === '1');
       const repos = v.repos.map((r) => `${r.repo} ${r.ok ? '✓' : `✗ ${r.detail}`}`).join('；');
       return ok('OK', v.configured ? `GitHub：${v.login ?? '(未识别账号)'}（${v.source}）；${repos}${v.error ? `；${v.error}` : ''}` : 'GitHub：未配置 token（.env GITHUB_TOKEN 或 platform/secrets/github.token）', v);
+    }
+    // W3-6 §6.3: the plan record of an Issue.
+    if (seg[0] === 'issues' && seg[1] && seg[2]) {
+      if (!issueExists(seg[1])) return fail('NOT_FOUND', `没有 Issue ${seg[1]}`);
+      const x = await import('./issue-v1');
+      const by = q.web ? reviewerName() : 'cli';
+      if (M === 'GET' && seg[2] === 'record') return x.getRecord(seg[1]);
+      if (M === 'GET' && seg[2] === 'runs') return ok('OK', `Issue ${seg[1]} 的运行记录`, x.issueRuns(seg[1]));
+      if (M === 'POST' && seg[2] === 'run') return runIssue(seg[1], q.body ?? {}, q.web ? 'web' : 'cli', q.web ? reviewerName() : undefined);
+      if (M === 'PATCH' && seg[2] === 'plan' && !seg[3]) return x.patchPlan(seg[1], q.body ?? {}, by);
+      if (M === 'POST' && seg[2] === 'plan' && seg[3] === 'rollback') return x.rollbackPlan(seg[1], q.body ?? {}, by);
+      if (M === 'GET' && seg[2] === 'plan' && seg[3] === 'diff') return x.diffPlan(seg[1], Number(q.query.get('a')), Number(q.query.get('b')));
+      if (M === 'POST' && seg[2] === 'chat' && !seg[3]) return x.chat(seg[1], q.body ?? {});
+      if (M === 'POST' && seg[2] === 'chat' && seg[3] && seg[4] === 'apply') return x.applyChat(seg[1], Number(seg[3]), by);
     }
     if (M === 'GET' && seg[0] === 'issues' && seg[1]) {
       if (!issueExists(seg[1])) return fail('NOT_FOUND', `没有 Issue ${seg[1]}`);
@@ -528,6 +585,39 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
         const v = tv(getTask(t.id)!);
         return ok('OK', `已请求取消：${v.summary}`, v);
       }
+    }
+    // W3-4 exploration judgment (platform/explore-v1.ts): checklist, focus modules, known issues, marks on a run.
+    if (seg[0] === 'explore' && ['expectations', 'modules', 'known'].includes(seg[1] ?? '')) {
+      const x = await import('./explore-v1');
+      if (M === 'GET' && seg[1] === 'expectations' && !seg[2]) return x.listExpectations();
+      if (M === 'POST' && seg[1] === 'expectations' && seg[2] === 'extract' && !seg[3]) return x.extractExpectations();
+      if (M === 'POST' && seg[1] === 'expectations' && seg[2] && !seg[3]) return x.putExpectation(seg[2], q.body ?? {});
+      if (M === 'DELETE' && seg[1] === 'expectations' && seg[2] && !seg[3]) return x.deleteExpectation(seg[2]);
+      if (M === 'GET' && seg[1] === 'modules') return x.listModules();
+      if (M === 'GET' && seg[1] === 'known') return x.listKnown();
+    }
+    if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'mark') return (await import('./explore-v1')).markStep(seg[1], q.body ?? {});
+    if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'triage') {
+      const r = (await import('./explore-v1')).triageFinding(seg[1], q.body ?? {});
+      // W3-5 D12: 「不是问题 / 环境问题」 with a sentence becomes a lesson at once (gated by the replay).
+      const v = String(q.body?.verdict ?? '');
+      if (!r.error && (v === 'not-issue' || v === 'env') && typeof q.body?.note === 'string' && q.body.note.trim() && q.body.learn !== false) {
+        const l = await (await import('./memory-v1')).learnFromMark({ task: seg[1], n: q.body.n, note: q.body.note, verdict: v });
+        return { ...r, summary: `${r.summary}；${l.summary}`, data: { finding: r.data, lesson: l.data ?? null, lessonError: l.error ? l.summary : undefined } };
+      }
+      return r;
+    }
+    // W3-5 lessons and the memory service (platform/memory-v1.ts).
+    if (seg[0] === 'memory') {
+      const m = await import('./memory-v1');
+      const by = q.web ? reviewerName() : 'cli';
+      if (M === 'GET' && seg[1] === 'lessons' && !seg[2]) return m.listLessons(q.query.get('status') ?? undefined);
+      if (M === 'POST' && seg[1] === 'lessons' && seg[2] === 'learn') return m.learnFromMark(q.body ?? {});
+      if (M === 'POST' && seg[1] === 'lessons' && seg[2] && seg[3]) return m.setLessonStatus(seg[2], seg[3], by);
+      if (M === 'PUT' && seg[1] === 'lessons' && seg[2]) return m.editLesson(seg[2], q.body ?? {}, by);
+      if (M === 'POST' && seg[1] === 'candidates' && seg[2] === 'pull') return m.pullCandidates(String(q.body?.surface ?? 'android-app'));
+      if (M === 'GET' && seg[1] === 'replay') return m.replayReport();
+      if (M === 'GET' && seg[1] === 'status') return m.memoryStatus();
     }
     if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'issue') return exploreIssue(seg[1], Number(q.body.n));
     if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'inject') return exploreInject(seg[1], q.body.text);

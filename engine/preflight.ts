@@ -8,6 +8,8 @@ import { adb } from '../core/adb';
 import { sleep } from '../drivers/types';
 import type { Surface } from '../platform/schema/test-plan';
 import type { EnvSnapshot } from './failure';
+import { declaredEmulator } from '../platform/device-pool';
+import { upgradeApp } from '../platform/emulator-ops';
 
 export interface PreflightItem {
   id: string;
@@ -52,6 +54,7 @@ export function parseDeviceState(out: string): {
   keyboard?: boolean;
   stayOn?: number;
   taplus?: string;
+  maker?: string;
 } {
   const get = (re: RegExp) => out.match(re)?.[1]?.trim();
   const level = get(/^\s*level: (\d+)/m);
@@ -70,6 +73,7 @@ export function parseDeviceState(out: string): {
     keyboard: /mInputShown=true/.test(out) ? true : /mInputShown=false/.test(out) ? false : undefined,
     stayOn: get(/^stayon=(\d+)/m) ? Number(get(/^stayon=(\d+)/m)) : undefined,
     taplus: get(/^taplus=(.*)$/m),
+    maker: get(/^maker=(.*)$/m) || undefined,
   };
 }
 
@@ -83,6 +87,7 @@ const STATE_CMD = [
   'echo "ime=$(settings get secure default_input_method)"',
   'echo "stayon=$(settings get global stay_on_while_plugged_in)"',
   'echo "taplus=$(settings get global taplus_blacklist)"',
+  'echo "maker=$(getprop ro.product.manufacturer)"',
 ].join('; ');
 
 /** One batched read of the device state (≈ 1 s). */
@@ -149,7 +154,10 @@ export async function preflightAndroid(udid: string, pkg: string, surface: Surfa
     changes.push(`充电（USB）时屏幕常亮：stay_on_while_plugged_in ${s.stayOn} → 2`);
   }
   // HyperOS 「文本识别」(Taplus) grabs long-presses: keep the app under test on its per-app blacklist.
-  const tap = taplusWith(s.taplus, pkg);
+  // Xiaomi-only items (HyperOS Taplus) only on Xiaomi devices (W3-4 E1 ⑥): skipped on an emulator, and said so.
+  const xiaomi = !s.maker || /xiaomi|redmi|poco/i.test(s.maker);
+  if (!xiaomi) items.push({ id: 'vendor', ok: true, detail: `${s.maker}：不是小米设备，跳过 HyperOS 项（Taplus 黑名单）` });
+  const tap = xiaomi ? taplusWith(s.taplus, pkg) : undefined;
   if (tap) {
     await sh(`settings put global taplus_blacklist '${tap}'`);
     // The system restores the list later (seen 2026-10-28): written again by every run's preflight; the
@@ -171,6 +179,15 @@ export async function preflightAndroid(udid: string, pkg: string, surface: Surfa
     changes.push('收起软键盘（Escape）');
   }
 
+  // A declared emulator (W3-4 E1 ③): the app comes from apk/teamily/ — upgrade when the folder has a newer one.
+  const emu = surface === 'android-app' ? declaredEmulator(udid) : undefined;
+  if (emu) {
+    const up = await upgradeApp(udid, emu.emulator, pkg).catch((e) => {
+      items.push({ id: 'apk', ok: false, detail: `安装 apk/teamily/ 的 APK 失败：${(e as Error).message.split('\n')[0].slice(0, 160)}` });
+      return undefined;
+    });
+    if (up) changes.push(up);
+  }
   const info = await sh(`getprop ro.product.model; getprop ro.build.version.release; getprop ro.mi.os.version.name; getprop ro.mi.os.version.incremental; dumpsys package ${pkg} | grep -E -m2 'versionName=|versionCode='`).catch(() => '');
   const lines = info.split(/\r?\n/).map((l) => l.trim());
   const versionName = info.match(/versionName=(\S+)/)?.[1];

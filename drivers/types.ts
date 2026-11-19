@@ -20,6 +20,8 @@ export interface Anomaly {
   suspect?: boolean;
 }
 
+export type InputMode = 'direct' | 'keys';
+
 export interface Driver {
   readonly surface: Surface;
   /** Launch / open the app (once per plan unless the plan says each-iteration). */
@@ -30,6 +32,12 @@ export interface Driver {
   /** Android: set the text exactly, bypassing the input method (credentials: an IME in pinyin mode eats ASCII). */
   typeExact?(text: string): Promise<void>;
   key(name: string): Promise<void>;
+  /** Exploration tier (W3-3 F9): type text with newlines (one line at a time, Enter between) in the device's input
+   *  mode, or `mode` for a retry. Absent → callers use type(). */
+  typeText?(text: string, mode?: InputMode): Promise<void>;
+  /** How this device types (devices.yaml `inputMode`): direct = yadb writes the text, bypassing the IME; keys =
+   *  `input text` key events (an IME in pinyin mode keeps them in its composition bar). */
+  readonly inputMode?: InputMode;
   swipe(from: Point, to: Point, ms?: number): Promise<void>;
   scroll(at: Point, dy: number): Promise<void>;
   back(): Promise<void>;
@@ -72,11 +80,36 @@ export async function lifecycle(d: Driver, op: LifecycleOp): Promise<void> {
 
 /** The round cannot count: its own precondition did not hold or an input did not land (operation drift).
  *  The loop discards the round (not an attempt, never a hit) and re-enters; the warm-up treats it as a failed step. */
+/** W3-7 §8.1 ②: whose failure an error is. executor = on the right page but the action did not take effect;
+ *  precondition = not on the page the step needs (an earlier step of the plan is wrong); environment = the
+ *  device / account / conversation set-up. Untagged errors are 「不确定」. */
+export type FailureKind = 'executor' | 'precondition' | 'environment';
+
 export class RoundDrift extends Error {
-  constructor(message: string) {
+  constructor(
+    message: string,
+    readonly kind?: FailureKind,
+  ) {
     super(message);
     this.name = 'RoundDrift';
   }
 }
+
+/** A Node failure with its cause (W3-7 §8.1 ②). */
+export class NodeError extends Error {
+  constructor(
+    message: string,
+    readonly kind: FailureKind,
+  ) {
+    super(message);
+    this.name = 'NodeError';
+  }
+}
+
+/** The cause an error carries (NodeError / tagged RoundDrift), if any. */
+export const errorKind = (e: unknown): FailureKind | undefined => {
+  const k = (e as { kind?: unknown } | null)?.kind;
+  return k === 'executor' || k === 'precondition' || k === 'environment' ? k : undefined;
+};
 
 export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));

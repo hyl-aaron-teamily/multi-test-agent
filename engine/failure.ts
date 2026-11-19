@@ -31,6 +31,8 @@ const ENV_TEXT: [string, RegExp][] = [
   ['screen-locked', /keyguard|锁屏|熄屏|screen (is )?(off|locked)|NotificationShade/i],
   ['system-overlay', /system (float|overlay)|文本识别|taplus|contentextension/i],
   ['network', /no (usable )?network|network (is )?unreachable|断网|ENETUNREACH|EAI_AGAIN|getaddrinfo|net::ERR_(INTERNET_DISCONNECTED|NAME_NOT_RESOLVED|NETWORK_CHANGED)/i],
+  // W3-4 E1 ③: a forced update took the screen — the device needs a newer APK (apk/teamily/).
+  ['app-update', /需要新版本 APK|com.android.vending/],
   ['app-killed', /background death|lowmemorykiller|killed by (the )?system|am_kill/i],
 ];
 

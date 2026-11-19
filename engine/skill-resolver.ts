@@ -82,7 +82,13 @@ export class SkillResolver implements SkillResolverLike {
     if (spec && !spec.surfaces.includes(this.p.surface)) return false;
     if (this.p.elements[id] && this.seen.has(id)) return true;
     const t0 = Date.now();
-    const { nodes } = await this.nodes();
+    let { nodes } = await this.nodes();
+    // An empty read is a transient tree-service gap, not a screen without the element: read again before vision
+    // (W3-7 E5: a vision guess on an empty read cached chat.composer as an 8×8 box above the input).
+    for (let i = 0; i < 2 && !nodes.length; i++) {
+      await new Promise((r) => setTimeout(r, 800));
+      ({ nodes } = await this.nodes());
+    }
     let r = await this.find(id, nodes);
     if (!r && (o.vision !== false || process.env.AUTOTEST_LOCATE_DEBUG)) this.log(`no rule match for ${id} among ${nodes.length} nodes${process.env.AUTOTEST_LOCATE_DEBUG ? `: ${nodes.map((n) => labelsOf(n).join('/')).filter(Boolean).slice(0, 60).join(' | ')}` : ''}`);
     // Cached and not found by rules now (vision-only control, or another page is showing): keep the cache.

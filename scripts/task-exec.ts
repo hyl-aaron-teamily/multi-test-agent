@@ -69,7 +69,7 @@ async function execExplore(id: string, rt: TaskRuntime): Promise<number> {
   const runDir = resolve('midscene_run/explore', `${env.surface}-${id}`);
   updateTask(id, (t) => void (t.runDir = runDir));
   const { inboxReader } = await import('../platform/lifecycle/inbox');
-  const r = await runAgent({ goal: x.goal, mode: x.mode, surface: env.surface as Surface, env: env.serviceEnv, pool, devices, udid: env.udid, account: env.account, writable: x.writable, maxSteps: t0.options.maxSteps, maxMinutes: t0.options.maxMinutes, runDir, taskId: id, hooks, onStep, inbox: inboxReader(id) });
+  const r = await runAgent({ goal: x.goal, mode: x.mode, surface: env.surface as Surface, env: env.serviceEnv, pool, devices, udid: env.udid, account: env.account, writable: x.writable, maxSteps: t0.options.maxSteps, maxMinutes: t0.options.maxMinutes, runDir, taskId: id, hooks, onStep, inbox: inboxReader(id), ...(x.noMemory ? { memory: false as const } : {}) });
   const code = exploreCode(r);
   const report = join(runDir, 'report.md');
   writeResult(id, { schemaVersion: 1, taskId: id, planId: t0.planId, code, agent: r, report, runDir });
@@ -223,6 +223,29 @@ export async function execTask(id: string): Promise<number> {
     // A series stops on a locked / offline phone: the remaining runs would all be 环境不合格.
     if (r.conclusion === '环境不合格' && ['ENV_LOCKED', 'ENV_OFFLINE'].includes(unfitCode(r.conclusionDetail.replace(/^预检不合格：/, '')))) break;
   }
+  // W3-7 §8.1: a model-authored plan that stopped is repaired in this task (no new task, no whole rewrite).
+  // §8.3: the other sub-cases of the Issue (control …) run after it in the same task, each with its own warm-up,
+  // repair and conclusion.
+  const runOne = async (p: TestPlan) => {
+    const r = await runPlan({ plan: p, runDir: join(dir, `${p.id}-${results.length + 1}`), pool, devices, udid: env.udid, maxRounds: t0.options.maxRounds, maxSteps: t0.options.maxSteps, maxMinutes: t0.options.maxMinutes, taskId: id, hooks });
+    results.push(r);
+    writeOut('STILL_RUNNING');
+    return r;
+  };
+  /** The final run of each sub-case (main first). */
+  const finals: RunResult[] = [];
+  if (n === 1 && results[0]) {
+    if (results[0].planVersion && !results[0].cancelled && !rt.shouldStop()) await repairFollowUp(id, plan, results, runOne, rt.shouldStop.bind(rt));
+    finals.push(results.at(-1)!);
+    for (const p of readJson<TestPlan[]>(join(taskDir(id), 'also.json')) ?? []) {
+      if (rt.shouldStop() || results.at(-1)?.cancelled) break;
+      const ap = TestPlanZ.parse(p);
+      const first = await runOne(ap);
+      if (first.planVersion && !first.cancelled && !rt.shouldStop()) await repairFollowUp(id, ap, results, runOne, rt.shouldStop.bind(rt));
+      finals.push(results.at(-1)!);
+    }
+  }
+  const repaired = results.length > finals.length;
   rt.phase('finishing');
   // Warm-up gate feedback to the saved draft (W2-1 §6.1), as the old `run` entry does.
   const unexecutable = results.filter((r) => r.conclusion === '计划不可执行').map((r) => ({ planId: r.planId, at: r.finishedAt, detail: r.conclusionDetail }));
@@ -239,7 +262,9 @@ export async function execTask(id: string): Promise<number> {
     code = unfitCode(last.conclusionDetail.replace(/^预检不合格：/, ''));
     state = 'env-unfit';
   } else {
-    code = n > 1 ? 'SERIES_DONE' : codeOfRuns(results);
+    // The task's result is the main sub-case's final run (earlier runs are repair history; a control's own
+    // conclusion is in the summary — a control hit is not the Issue reproduced).
+    code = n > 1 ? 'SERIES_DONE' : codeOfRuns(finals.length ? finals.slice(0, 1) : results);
     state = 'done';
   }
   writeOut(code);
@@ -248,7 +273,7 @@ export async function execTask(id: string): Promise<number> {
   const hits = results.reduce((s, r) => s + (r.attempts?.hits ?? 0), 0);
   const cur = getTask(id)!.state;
   const patch = (x: Parameters<Parameters<typeof updateTask>[1]>[0]) => {
-    x.outcome = { code, summary: cancelled ? `已取消（完成 ${results.filter((r) => !r.cancelled).length}/${n} 次运行）` : n > 1 ? `系列 ${results.length}/${n} 次` : (last?.conclusion ?? code) };
+    x.outcome = { code, summary: cancelled ? `已取消（完成 ${results.filter((r) => !r.cancelled).length}/${n} 次运行）` : n > 1 ? `系列 ${results.length}/${n} 次` : finals.length > 1 ? finals.map((r) => `${r.sub ?? 'main'}：${r.conclusion}`).join('；') + (repaired ? `（含修补重跑，共 ${results.length} 次运行）` : '') : (last?.conclusion ?? code) + (repaired ? `（修补后；共 ${results.length} 次运行）` : '') };
     x.endedBy = cancelled ? 'cancel' : 'normal';
     x.endedAt = pos;
     x.report = report;
@@ -257,28 +282,41 @@ export async function execTask(id: string): Promise<number> {
   if (state === 'done' && cur === 'preflight') advance(id, ['running'], 'run ended');
   if (state === 'done') advance(id, ['finishing'], 'run ended');
   moveTask(id, state, 'task', `run ended: ${code}`, patch);
-  if (n === 1 && last && !cancelled && last.planVersion) await reviseFollowUp(id, t0.envId, plan, last);
   return 0;
 }
 
-/** W3-1 §8.2: after a model-authored plan's run — record the version, revise when it did not reproduce, and
- *  with full access on queue the next version at once (otherwise it waits for the usual approval). */
-export async function reviseFollowUp(id: string, envId: string, plan: TestPlan, r: RunResult): Promise<void> {
-  const { reviseAfterRun } = await import('../issue/revise');
-  const out = await reviseAfterRun(r, id, plan.audit?.sub ?? 'main').catch((e) => ({ note: `修订失败：${(e as Error).message.split('\n')[0]}`, planId: undefined }));
-  let next: string | undefined;
-  let note = out.note;
-  if (out.planId) {
-    const { getFullAccess } = await import('../platform/approval');
-    if (getFullAccess().on) {
-      const { apiV1 } = await import('../platform/api-v1');
-      const env = await apiV1({ method: 'POST', path: '/api/v1/tasks', query: new URLSearchParams(), body: { planId: out.planId, envId }, web: false }, {});
-      next = (env.data as { id?: string } | undefined)?.id;
-      note += next ? `；已自动排队任务 ${next}（完全授权）` : `；未能自动排队：${env.summary}`;
-    } else note += '；完全授权关闭：新版本走审批后再运行';
-  }
-  updateTask(id, (t) => void (t.revision = { note, planId: out.planId, next }));
-  console.log(`[revise] ${note}`);
+/** W3-7 §8.1: repair the plan's broken step and run it again, in this task, while the failure point moves on.
+ *  Replaces W3-1's whole-version revision (reviseFollowUp): a whole redesign is only the person's 「重新设计」. */
+export async function repairFollowUp(id: string, plan: TestPlan, results: RunResult[], run: (p: TestPlan) => Promise<RunResult>, cancelled: () => boolean): Promise<void> {
+  const { repairLoop } = await import('../issue/repair-loop');
+  const { loadRecord } = await import('../platform/issue-v1');
+  const { saveRecord } = await import('../issue/drafts');
+  const { issuePath } = await import('../issue/paths');
+  const { classifyPlan, getFullAccess, allowList } = await import('../platform/approval');
+  const { memoryClient, memoryUser } = await import('../core/memory/client');
+  const { pageTextWarnings } = await import('../issue/page-texts');
+  const { existsSync, readFileSync } = await import('node:fs');
+  const sub = plan.audit?.sub ?? 'main';
+  const file = issuePath(plan.issueRef);
+  const out = await repairLoop(results.at(-1)!, sub, {
+    run,
+    plan,
+    load: () => loadRecord(plan.issueRef),
+    save: (r) => saveRecord(r),
+    raw: existsSync(file) ? readFileSync(file, 'utf8') : undefined,
+    approve: (p) => {
+      const c = classifyPlan(p, { allow: p.env === 'prod' ? allowList() : undefined });
+      if (c.category === 'refused') return { ok: false, why: `审批拒绝：${c.reasons.join('；')}` };
+      if (c.category === 'sensitive' && !getFullAccess().on) return { ok: false, why: `敏感类，完全授权关闭：${c.reasons.join('；')}` };
+      return { ok: true, why: c.category };
+    },
+    log: (s) => console.log(s),
+    remember: (c) => memoryClient().createSkill({ agent: 'plan-run', user: memoryUser(plan.surface), task: id }, c),
+    warnings: (p) => pageTextWarnings(p),
+    cancelled,
+  }).catch((e) => ({ runs: [], steps: [], stop: `修补失败：${(e as Error).message.split('\n')[0]}` }) as Awaited<ReturnType<typeof repairLoop>>);
+  updateTask(id, (t) => void (t.repair = { ...(t.repair ?? {}), [sub]: { steps: out.steps.map(({ hash: _h, ...s }) => s), stop: out.stop, ...(out.handoff ? { handoff: out.handoff } : {}), ...(out.executor ? { executor: out.executor } : {}) } }));
+  console.log(`[repair] ${out.stop}`);
 }
 
 if (process.argv[1] && /task-exec\.ts$/.test(process.argv[1])) {

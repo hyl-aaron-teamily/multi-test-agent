@@ -12,7 +12,7 @@ import type { ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { adb, launchApp, resolveAdbPath, screencap, spawnAdb } from '../core/adb';
 import { keyboardShown } from '../core/ui-tree';
-import { type Anomaly, type Driver, type Point, sleep } from './types';
+import { type Anomaly, type Driver, type InputMode, type Point, sleep } from './types';
 
 /** OS floats seen grabbing long-presses on test phones (HyperOS Taplus 「文本识别」). */
 const SYSTEM_OVERLAY = /Taplus|ContentCatcher/i;
@@ -27,9 +27,26 @@ export interface AndroidDriverOptions {
   appErrorRe?: RegExp;
   /** Every logcat line, host-timestamped (flight recorder). */
   onLog?: (at: number, line: string) => void;
+  /** How text is typed by typeText (devices.yaml `inputMode`; default direct). */
+  inputMode?: InputMode;
 }
 
-const KEYCODES: Record<string, number> = { enter: 66, back: 4, home: 3, backspace: 67, del: 67, escape: 111, tab: 61, up: 19, down: 20, left: 21, right: 22, space: 62 };
+const KEYCODES: Record<string, number> = { enter: 66, back: 4, home: 3, backspace: 67, del: 67, escape: 111, tab: 61, up: 19, down: 20, left: 21, right: 22, space: 62, moveend: 123, movehome: 122 };
+/** Key combinations (Android 13+): CTRL_LEFT + A selects all; CTRL_LEFT + MOVE_HOME / MOVE_END go to the start /
+ *  end of the whole text, not just the line (W3-3 F9 `at: start` / `end`). */
+const KEYCOMBOS: Record<string, string> = { selectall: '113 29', ctrlhome: '113 122', ctrlend: '113 123' };
+
+/** Pure: text for `input text` (unquoted in the device shell): spaces as %s, shell metacharacters escaped.
+ *  Ported from ref/artemis/artemis/drivers/android/adb_driver.py L50-69 (_escape_for_adb_text) (Apache-2.0). */
+export function escapeAdbText(text: string): string {
+  return text.replace(/[\\"'`$&|;<>()*?~]/g, (c) => `\\${c}`).replace(/ /g, '%s');
+}
+
+/** Pure: the lines to type (a literal "\n" from the model is a newline too; Artemis adb_driver.py L330). */
+export const textLines = (text: string) => text.replace(/\\n/g, '\n').split(/\r?\n/);
+
+/** Pure: can this line go through `input text` key events (printable ASCII)? */
+export const keyable = (line: string) => /^[\x20-\x7e]*$/.test(line);
 
 /** Pure: classify one logcat line for the anomaly gate. */
 export function classifyLogLine(line: string, pkg: string, pid?: number, appErrorRe?: RegExp): Anomaly | undefined {
@@ -262,9 +279,33 @@ export class AndroidDriver implements Driver {
     await this.device.execYadb(text);
   }
 
+  /** Exploration tier (W3-3 F9): one line at a time with Enter between; per line `input text` (keys mode, printable
+   *  ASCII) or yadb (direct mode, or anything else). Ported from ref/artemis/artemis/drivers/android/adb_driver.py
+   *  L307-370 (input_text) (Apache-2.0), with the mode per device instead of per character set: on the test phone
+   *  `input text` stays in the pinyin IME's composition bar (2026-11-06 zmpg, 17 steps of input that never landed). */
+  get inputMode(): InputMode {
+    return this.o.inputMode ?? 'direct';
+  }
+
+  async typeText(text: string, mode: InputMode = this.inputMode): Promise<void> {
+    const lines = textLines(text);
+    for (const [i, line] of lines.entries()) {
+      if (i) await this.key('enter');
+      if (!line) continue;
+      if (mode === 'keys' && keyable(line)) await this.sh(`input text ${escapeAdbText(line)}`);
+      else {
+        if (!this.device) {
+          const adbPath = resolveAdbPath();
+          this.device = new AndroidDevice(this.o.udid, adbPath === 'adb' ? {} : { androidAdbPath: adbPath });
+        }
+        await this.device.execYadb(line);
+      }
+    }
+  }
+
   async key(name: string): Promise<void> {
-    // Select all in the focused field (CTRL_LEFT + A).
-    if (name.toLowerCase() === 'selectall') return this.sh('input keycombination 113 29');
+    const combo = KEYCOMBOS[name.toLowerCase()];
+    if (combo) return this.sh(`input keycombination ${combo}`);
     const code = KEYCODES[name.toLowerCase()] ?? Number(name);
     if (!Number.isFinite(code)) throw new Error(`unknown key ${name}`);
     await this.sh(`input keyevent ${code}`);

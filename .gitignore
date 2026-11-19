@@ -35,3 +35,16 @@ platform/plans/explore-*
 # Model call logs next to the drafts (W3-2: raw answers, context manifests)
 platform/plans/drafts/*.calls.jsonl
 platform/plans/drafts/*.context.jsonl
+# Page recording (W3-4 §8.2′) and exploration judgment state across runs (known issues, triage)
+skills/teamily/pages.local.json
+platform/explore/known.json
+platform/explore/triage.json
+
+# W3-4 E1: Teamily APKs dropped in by the user (and the re-signed emulator copies)
+/apk/
+# W3-5 E2: generated memory-service config (holds a model key)
+/.docker/
+# W3-5: device lessons, lesson counts, exported replay runs (texts of real runs)
+/platform/memory/*.local.*
+/fixtures/replay/*.local.json
+__pycache__/

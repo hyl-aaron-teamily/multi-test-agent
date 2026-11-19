@@ -32,6 +32,28 @@ export interface EndpointConfig {
   accounts: Partial<Record<Surface, string>>;
   /** Phones: hierarchy read backend (W2-4 §4.1); default uiautomator. */
   treeBackend?: 'uiautomator' | 'a11y-service';
+  /** Phones: how the exploration tier types (W3-3 F9). direct (default) = yadb writes the text, bypassing the IME;
+   *  keys = `input text` key events (fine without a Chinese IME, e.g. the AndroidWorld emulator). */
+  inputMode?: 'direct' | 'keys';
+  /** W3-4 E1 (K8): this device is an emulator on this computer — its AVD, console port, the snapshot restored
+   *  when the platform starts, whether the APK needs the emulator copy (core/apk#emulatorCopy), app locale. */
+  emulator?: EmulatorConfig;
+}
+
+export interface EmulatorConfig {
+  avd: string;
+  port: number;
+  snapshot?: string;
+  patchApk?: boolean;
+  locale?: string;
+}
+
+/** Pure: the emulator block of a device entry (undefined when absent or unusable). */
+export function emulatorOf(v: any, udid: string): EmulatorConfig | undefined {
+  if (!v || typeof v !== 'object' || !v.avd) return undefined;
+  const port = Number(v.port ?? udid.match(/^emulator-(\d+)$/)?.[1]);
+  if (!Number.isInteger(port) || port < 5554 || port % 2) return undefined;
+  return { avd: String(v.avd), port, ...(v.snapshot ? { snapshot: String(v.snapshot) } : {}), ...(v.patchApk ? { patchApk: true } : {}), ...(v.locale ? { locale: String(v.locale) } : {}) };
 }
 
 export interface PoolConfig {
@@ -77,7 +99,7 @@ export function parsePoolConfig(text: string): PoolConfig {
     .filter((d: any) => d?.udid)
     .map((d: any) => {
       const surfaces = surfacesOf(d.surfaces, ANDROID_SURFACES);
-      return { udid: String(d.udid), name: d.name ? String(d.name) : undefined, kind: 'android' as const, capacity: Object.fromEntries((surfaces.length ? surfaces : ANDROID_SURFACES).map((s) => [s, 1])), accounts: accountsOf(d.accounts), ...(d.treeBackend === 'a11y-service' ? { treeBackend: 'a11y-service' as const } : {}) };
+      return { udid: String(d.udid), name: d.name ? String(d.name) : undefined, kind: 'android' as const, capacity: Object.fromEntries((surfaces.length ? surfaces : ANDROID_SURFACES).map((s) => [s, 1])), accounts: accountsOf(d.accounts), ...(d.treeBackend === 'a11y-service' ? { treeBackend: 'a11y-service' as const } : {}), ...(d.inputMode === 'keys' || d.inputMode === 'direct' ? { inputMode: d.inputMode as 'direct' | 'keys' } : {}), ...(emulatorOf(d.emulator, String(d.udid)) ? { emulator: emulatorOf(d.emulator, String(d.udid)) } : {}) };
     });
   const hosts: EndpointConfig[] = (Array.isArray(raw.hosts) ? raw.hosts : [{ id: 'local' }]).map((h: any) => {
     const cap: Partial<Record<Surface, number>> = {};
@@ -206,6 +228,15 @@ export class DevicePool {
   }
 }
 
+/** A phone's declared input mode (`inputMode` in devices.yaml; default direct, W3-3 F9). */
+export function declaredInputMode(udid: string): 'direct' | 'keys' {
+  try {
+    return parsePoolConfig(readFileSync(CONFIG_FILE, 'utf8')).devices.find((d) => d.udid === udid)?.inputMode ?? 'direct';
+  } catch {
+    return 'direct';
+  }
+}
+
 /** A phone's declared hierarchy read backend (`treeBackend` in devices.yaml; AUTOTEST_TREE_BACKEND overrides). */
 export function declaredTreeBackend(udid: string): 'uiautomator' | 'a11y-service' {
   const o = process.env.AUTOTEST_TREE_BACKEND;
@@ -216,3 +247,14 @@ export function declaredTreeBackend(udid: string): 'uiautomator' | 'a11y-service
     return 'uiautomator';
   }
 }
+
+/** Declared emulators (W3-4 E1): udid → its emulator block. */
+export function declaredEmulators(file = CONFIG_FILE): { udid: string; name?: string; account?: string; emulator: EmulatorConfig; treeBackend?: 'uiautomator' | 'a11y-service' }[] {
+  try {
+    return parsePoolConfig(readFileSync(file, 'utf8')).devices.filter((d) => d.emulator).map((d) => ({ udid: d.udid, name: d.name, account: d.accounts['android-app'], emulator: d.emulator!, treeBackend: d.treeBackend }));
+  } catch {
+    return [];
+  }
+}
+
+export const declaredEmulator = (udid: string) => declaredEmulators().find((e) => e.udid === udid);

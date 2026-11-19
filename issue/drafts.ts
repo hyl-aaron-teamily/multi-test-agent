@@ -39,11 +39,27 @@ export async function saveDraft(d: Draft, issueText: string, env: string): Promi
   d.env = env;
   // Plan ids carry the draft version: the same content keeps its version, new content gets the next one.
   const f = join(DRAFTS_DIR, `${d.issue.id}.json`);
-  const prev = existsSync(f) ? (JSON.parse(readFileSync(f, 'utf8')) as Draft) : undefined;
+  const prev = existsSync(f) ? (JSON.parse(readFileSync(f, 'utf8')) as Draft & RecordCarry) : undefined;
   d.version = nextVersion(prev, d.hash);
+  // W3-6 §5: the version is the record's rev; history and side chat stay with the Issue across deliveries.
+  const r = d as Draft & RecordCarry;
+  const same = !!prev && prev.version === d.version;
+  r.rev = d.version;
+  r.chat = r.chat ?? prev?.chat ?? [];
+  const prevRevs = prev?.revs ?? (prev ? [{ rev: prev.version ?? 1, source: 'model', at: new Date(0).toISOString(), paths: [], reason: '迁移：W3-6 之前的草稿', snapshot: { status: prev.status, reason: prev.reason, envelope: prev.envelope } }] : []);
+  r.revs = same ? prevRevs : [...prevRevs, { rev: d.version, source: prev ? (d.planVersion && d.planVersion > 1 ? 'model' : 'redesign') : 'model', at: new Date().toISOString(), paths: [], reason: prev ? (d.planVersion && d.planVersion > 1 ? `模型修订（计划 v${d.planVersion}）` : '重新设计') : '首次设计', snapshot: { status: d.status, reason: d.reason, envelope: d.envelope } }];
   await mkdir(DRAFTS_DIR, { recursive: true });
   await writeFile(join(DRAFTS_DIR, `${d.issue.id}.json`), JSON.stringify(d, null, 2));
   return d;
+}
+
+/** Record fields carried in the draft file (issue/record.ts owns their meaning). */
+type RecordCarry = { rev?: number; revs?: { rev: number; source: string; at: string; paths: string[]; reason: string; snapshot: unknown }[]; chat?: unknown[] };
+
+/** Write a plan record as it is (issue/record.ts made rev, hash and history). */
+export async function saveRecord(d: Draft, dir = DRAFTS_DIR): Promise<void> {
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, `${d.issue.id}.json`), JSON.stringify(d, null, 2));
 }
 
 /** Warm-up gate feedback (W2-1 §6.1): runs that ended 计划不可执行 are appended to the saved draft they ran

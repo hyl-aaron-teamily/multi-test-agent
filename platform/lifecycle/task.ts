@@ -27,12 +27,20 @@ export interface Position {
   step?: number;
 }
 
+/** W3-7 §8.1: one sub-case's local repairs in a task. */
+export interface RepairRecord {
+  steps: { rev: number; path: string; source: string; reason: string; result?: string }[];
+  stop: string;
+  handoff?: { path: string; cause: string; observed: string; why: string; suggestion?: unknown };
+  executor?: { path: string; detail: string };
+}
+
 export interface TaskRecord {
   schemaVersion: 1;
   id: string;
   kind: 'issue' | 'series' | 'explore' | 'sync';
   /** kind explore: the exploration tier's goal (capability ②). */
-  explore?: { goal: string; mode: 'task' | 'explore'; writable: boolean };
+  explore?: { goal: string; mode: 'task' | 'explore'; writable: boolean; noMemory?: boolean };
   issue: string;
   /** Plan ids `<Issue>/<sub>:<surface>@<version>`, and the approval they run under. */
   planId: string;
@@ -44,6 +52,8 @@ export interface TaskRecord {
   /** kind sync: one role per environment (same order as taskEnvs), N rounds. */
   sync?: { rounds: number };
   parent?: string;
+  /** W3-6: tasks started by one press of an Issue's execute button share this id (one row in its runs). */
+  batch?: string;
   series?: { runs: number };
   options: { maxRounds?: number; maxSteps?: number; maxMinutes?: number; dryRun?: boolean };
   idempotencyKey?: string;
@@ -61,6 +71,11 @@ export interface TaskRecord {
   partial?: { valid: number; hits: number; note: string };
   /** W3-1 §8.2: what the revision step did after this run (next plan version / why none), and the task it queued. */
   revision?: { note: string; planId?: string; next?: string };
+  /** W3-7 §8.1: the local repairs made in this task (rev, path, source, reason, result), why it stopped, and what
+   *  waits for a person or for a block fix. */
+  repair?: Record<string, RepairRecord>;
+  /** W3-7 §8.3: the other sub-cases run in this task after the main one (control …), with their plan ids. */
+  also?: string[];
   outcome?: { code: Code; summary: string };
   /** Report / run dir of the executor (for links). */
   runDir?: string;

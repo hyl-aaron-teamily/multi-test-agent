@@ -19,7 +19,9 @@ const ZH: [RiskCategory, RegExp][] = [
   ['logout', /退出登录|注销|登出|切换账号/],
   ['send', /^发送$|发送消息|^发送(到|给)|^转发|^回复$|^提交$|^发布/],
   ['invite-share', /邀请|分享|^复制链接|添加好友|加好友/],
-  ['settings', /设置|开关|启用|停用|免打扰|置顶|通知权限|隐私|权限申请|开启通知|^开启$/],
+  // Changing a setting, not opening a settings page (2026-11-19: the W3-3 suite reads a settings page read-only;
+  // "设置" / "隐私设置" are navigation). Switches / check boxes are caught by their class (ctx.toggle).
+  ['settings', /开关|^启用|^停用|免打扰|置顶|通知权限|权限申请|开启通知|^开启|^恢复默认|^重置/],
   ['profile-edit', /编辑资料|修改(昵称|头像|签名|资料|密码)|更换头像|^保存$|^确定$|^确认$/],
 ];
 
@@ -29,7 +31,7 @@ const EN: [RiskCategory, RegExp][] = [
   ['logout', /\b(log ?out|sign ?out|switch account|delete account)\b/i],
   ['send', /^\s*send\s*$|\bsend (message|to)\b|^\s*(submit|post|publish|forward|reply)\s*$/i],
   ['invite-share', /\b(invite|share|copy link|add friend)\b/i],
-  ['settings', /\b(settings?|toggle|enable|disable|mute|pin to top|permissions?|privacy|turn on|turn off)\b/i],
+  ['settings', /\b(toggle|enable|disable|mute|unmute|pin to top|grant|allow access|turn on|turn off|reset)\b/i],
   ['profile-edit', /\b(edit profile|change (avatar|name|password)|save|confirm)\b/i],
 ];
 
@@ -48,7 +50,7 @@ const SEARCH = /搜索|search|查找|find/i;
  *  `free`: the label is the model's description of a coordinate tap). Social actions run only on the agent
  *  accounts' own profiles and content (`ownContent`, see nearOwnContent) — in writable runs too.
  *  `bench`: AndroidWorld on an emulator (W2-5 N9) — no real users, nothing is blocked. */
-export function classifyRisk(a: { type: string; label?: string; text?: string; free?: boolean }, writable = false, ctx: { ownContent?: boolean; bench?: boolean; searchBox?: boolean } = {}): Risk {
+export function classifyRisk(a: { type: string; label?: string; text?: string; free?: boolean }, writable = false, ctx: { ownContent?: boolean; bench?: boolean; searchBox?: boolean; toggle?: boolean } = {}): Risk {
   if (ctx.bench) return { blocked: false, reason: 'bench (emulator)' };
   const label = (a.label ?? '').trim();
   if (HARD.test(label) || (a.type === 'type' && HARD.test(a.text ?? '') && /密码|password/i.test(label))) return { blocked: true, category: label.match(/锁屏|lock/i) ? 'lock' : 'delete', reason: `硬约束：${label || a.type}` };
@@ -62,6 +64,8 @@ export function classifyRisk(a: { type: string; label?: string; text?: string; f
     return { blocked: true, category: 'type', reason: `只读探索不键入（目标「${label || '未知输入框'}」）` };
   }
   if (!tapLike) return { blocked: false, reason: 'no target' };
+  // A switch / check box changes a setting whatever its label says.
+  if (ctx.toggle) return { blocked: true, category: 'settings', reason: `只读探索拦截开关「${label || '未命名开关'}」（settings）` };
   for (const [category, re] of [...ZH, ...EN]) if (re.test(label)) return { blocked: true, category, reason: `只读探索拦截「${label}」（${category}）` };
   return { blocked: false, reason: 'read-only safe' };
 }

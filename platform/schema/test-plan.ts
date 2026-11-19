@@ -82,7 +82,8 @@ export const TargetMustZ = z.object({
   contains: z.string().optional(),
 });
 
-export const QuoteZ = z.object({ id: z.string(), text: z.string().min(1) });
+/** `lines` (W3-6 §8.4 ⑤): the line range the model wrote; `text` is expanded from it by the executor. */
+export const QuoteZ = z.object({ id: z.string(), text: z.string().min(1), lines: z.string().optional() });
 export const UnderstandingZ = z.object({
   subject: z.string(),
   trigger: z.string(),

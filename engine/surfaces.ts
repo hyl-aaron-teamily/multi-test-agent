@@ -6,6 +6,11 @@ import { decodePng, pixelDiff, type Rgba } from '../core/image';
 import { type Driver, type Point, sleep } from '../drivers/types';
 import { notifyPromptClose } from '../drivers/web-dialogs';
 import { ensureUiLogin } from './login/ui-login';
+import { loginApp, loginStep } from './login/app-login';
+import { adb } from '../core/adb';
+import { dumpTree, type UiNode } from '../core/ui-tree';
+import { TEAMILY_PACKAGE } from '../drivers/factory';
+import { forcedUpdate } from './app-update';
 import type { Surface } from '../platform/accounts/types';
 import { hasElement, pointFor, type Profile } from '../skills/profile';
 import { visionAsk } from '../core/model/midscene';
@@ -64,7 +69,19 @@ const androidAppAdapter: SurfaceAdapter = {
   // A cold start shows a splash first: wait (≤ 20 s) until the home list or a restored chat is drawn, so the
   // SKILL check never judges the splash (and never presses Back on it — that leaves the app).
   async waitFirstScreen(s) {
-    await waitForRegion(s.d, s.profile, ['home/nav', 'chat/composer'], 20_000, 1000);
+    if (await waitForRegion(s.d, s.profile, ['home/nav', 'chat/composer'], 20_000, 1000)) return;
+    // Not home after 20 s (W3-4 E1 ③④): a forced update took the screen (environment: a newer APK is needed),
+    // or a fresh device shows the login form (sign in with the leased account, from the hierarchy).
+    if (!s.udid) return;
+    const focus = (await adb(['shell', 'dumpsys window | grep -m1 mCurrentFocus'], s.udid, 10_000).catch(() => '')).trim();
+    const ns = await dumpTree(s.udid, '').catch(() => [] as UiNode[]);
+    if (forcedUpdate(focus, ns.map((n) => `${n.text} ${n.desc}`))) throw new Error(`需要新版本 APK：Teamily 启动后被强制更新（${focus.slice(0, 80)}），把新版本 APK 放进 apk/teamily/ 后重新检查环境`);
+    if (loginStep(ns) !== 'none' && s.pool) {
+      s.log('login form shown — signing in from the hierarchy');
+      await s.d.redacted(() => loginApp(s.udid!, TEAMILY_PACKAGE, s.pool!.backend.get(s.account), s.log));
+      await s.pool.markLogin(s.account, true).catch(() => {});
+      await waitForRegion(s.d, s.profile, ['home/nav', 'chat/composer'], 30_000, 1000);
+    }
   },
   async dismissDialogs() {},
   async ensureLogin() {},

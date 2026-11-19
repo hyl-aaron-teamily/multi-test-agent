@@ -8,7 +8,7 @@ import { join } from 'node:path';
 import { decodePng, pixelDiff } from '../../core/image';
 import { dumpTree, keyboardShown, nodeAt, type UiNode } from '../../core/ui-tree';
 import { AndroidDriver } from '../../drivers/android';
-import { HARD_ANOMALIES, type Point, RoundDrift, sleep } from '../../drivers/types';
+import { type FailureKind, HARD_ANOMALIES, type Point, RoundDrift, sleep } from '../../drivers/types';
 import { incidentKind } from '../recorder/bundle';
 import type { PlannedAction } from '../../platform/schema/test-plan';
 import { nodeSpec } from '../../skills/teamily/node-specs';
@@ -20,6 +20,7 @@ import type { RunCtx } from './context';
 import { recordIncident } from '../recorder/incident-hook';
 import { observeCheck } from './checkpoint';
 import { readBaseline, readExpect } from './expect';
+import { bubbleAt } from '../observe';
 import { restore } from './loop';
 
 export interface WarmupStep {
@@ -36,6 +37,10 @@ export interface WarmupStep {
   healed?: string;
   /** W3-1: the action's post-condition read in the warm-up. */
   expect?: { role: string; pass: boolean | null; detail: string };
+  /** W3-7 §8.1 ①: the plan path the failure lands on (written here, never parsed from the text). */
+  path?: string;
+  /** W3-7 §8.1 ②: the cause a Node error carried. */
+  kind?: FailureKind;
 }
 
 /** Fraction of the screen's pixels a navigation / popup changes at least. */
@@ -100,7 +105,7 @@ export async function proveChecksCanFail(c: RunCtx, steps: WarmupStep[], observe
   };
   if (c.plan.baseline.length) {
     const b = await baseline(c, 0);
-    const st: WarmupStep = { step: 0, action: '基线', expected: '基线成立', observed: b ? `${b.at}: ${b.detail}` : 'baseline holds', pass: !b, ms: 0, tier: '①' };
+    const st: WarmupStep = { step: 0, action: '基线', expected: '基线成立', observed: b ? `${b.at}: ${b.detail}` : 'baseline holds', pass: !b, ms: 0, tier: '①', ...(b ? { path: b.at } : {}) };
     if (b) await fail(st);
     steps.push(st);
   }
@@ -109,7 +114,7 @@ export async function proveChecksCanFail(c: RunCtx, steps: WarmupStep[], observe
     if (a.expect?.role !== 'phenomenon') continue;
     const t0 = Date.now();
     const r = await observe(c, a.expect.check).catch(() => undefined);
-    const st: WarmupStep = { step: 0, action: `反证 actions[${i}]`, expected: '触发前现象检查判「不通过」（检查有区分度）', observed: r ? r.detail : '读不出', pass: r?.pass === false, ms: Date.now() - t0, tier: r?.tier };
+    const st: WarmupStep = { step: 0, action: `反证 actions[${i}]`, expected: '触发前现象检查判「不通过」（检查有区分度）', observed: r ? r.detail : '读不出', pass: r?.pass === false, ms: Date.now() - t0, tier: r?.tier, path: `actions[${i}].expect` };
     if (r?.pass === true) await fail({ ...st, observed: `检查无区分度：触发前就判「通过」— ${r.detail}` });
     // Unreadable before the trigger (e.g. its anchor message is sent inside the round) cannot pass either: fine.
     // Only a check that already passes proves nothing (§7.4).
@@ -139,11 +144,12 @@ export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
       const url0 = web?.page?.url() ?? '';
       const before = eff?.kind === 'change' || eff?.kind === 'navigate' || eff?.kind === 'soft-change' || (eff?.kind === 'focus' && android) ? decodePng(await d.screenshot()) : undefined;
       d.label = `warmup:${actionLabel(a)}`;
+      c.res.at = `actions[${i}]`;
       try {
         await c.exec(a);
       } catch (e) {
         // The step's input did not land / the round precondition does not hold: the step failed.
-        if (e instanceof RoundDrift) return { pass: false as boolean | null, observed: e.message, tier: '①' as string | undefined };
+        if (e instanceof RoundDrift) return { pass: false as boolean | null, observed: e.message, tier: '①' as string | undefined, kind: e.kind };
         throw e;
       }
       if (!eff) return { pass: null as boolean | null, observed: 'not verified', tier: undefined as string | undefined };
@@ -202,19 +208,28 @@ export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
         }
       }
     };
-    let r = await attempt();
+    let r: { pass: boolean | null; observed: string; tier?: string; kind?: FailureKind; path?: string } = await attempt();
     // W3-1: the post-condition read right after the action (before any other observation of the step).
     const readX = async () => {
       const x = await readExpect(c, a, `actions[${i}]`, 0);
       if (!x) return;
       st.expect = { role: x.role, pass: x.pass, detail: x.detail };
-      if (x.role === 'precondition' && x.pass !== true) r = { pass: false, observed: `expect（前置）不成立：${x.detail}`, tier: '①' };
-      else if (x.role === 'phenomenon' && isControl(c.plan) && x.pass !== true) r = { pass: false, observed: `对照组的现象检查不通过（正常时它应通过）：${x.detail}`, tier: '①' };
+      if (x.role === 'precondition' && x.pass !== true) r = { pass: false, observed: `expect（前置）不成立：${x.detail}`, tier: '①', path: `actions[${i}].expect` };
+      else if (x.role === 'phenomenon' && isControl(c.plan) && x.pass !== true) r = { pass: false, observed: `对照组的现象检查不通过（正常时它应通过）：${x.detail}`, tier: '①', path: `actions[${i}].expect` };
     };
     if (r.pass !== false) await readX();
     if (r.pass === false) {
       // One redo; a fixed element is first located again on the live screen (its cached point may be stale).
       if (a.element && !a.element.startsWith('target.') && (await c.sess.profile.resolver?.refresh(a.element).catch(() => false))) st.healed = `重新定位 ${a.element}`;
+      // W3-7 §4: a long-press that changed nothing (Δ0) — press the middle of the target's bubble on the redo.
+      if (a.type === 'longPress' && a.element?.startsWith('target.') && android && pt) {
+        const b = bubbleAt(await dumpTree(android.o.udid, android.o.packageName, 2), pt);
+        if (b) {
+          const mid = { x: Math.round((b.box.x1 + b.box.x2) / 2), y: Math.round((b.box.y1 + b.box.y2) / 2) };
+          c.targets[a.element.slice('target.'.length)] = mid;
+          st.healed = `长按改到气泡中心 (${mid.x}, ${mid.y})`;
+        }
+      }
       st.redo = true;
       r = await attempt();
       if (r.pass !== false) await readX();
@@ -222,6 +237,10 @@ export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
     st.pass = r.pass;
     st.observed = r.observed;
     st.tier = r.tier;
+    if (r.pass === false) {
+      st.path = r.path ?? `actions[${i}]`;
+      if (r.kind) st.kind = r.kind;
+    }
     st.ms = Date.now() - t0;
     steps.push(st);
     c.log(`warm-up ${st.step} ${st.action}: ${st.pass === null ? '—' : st.pass ? 'ok' : 'FAILED'} (${st.observed})`);
@@ -242,8 +261,9 @@ export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
   c.res.warmup = { steps, checks: results.map((x) => ({ kind: x.check.kind, pass: x.pass, detail: x.detail })) };
   // The restore steps, each verified (W3-1 §6.4): an unverified restore makes the plan not executable.
   const rf = await restore(c, 0);
+  c.res.at = undefined;
   if (rf) {
-    const st: WarmupStep = { step: steps.length + 1, action: '复位（afterCheck）', expected: '复位后的 expect 成立', observed: rf, pass: false, ms: 0, tier: '①' };
+    const st: WarmupStep = { step: steps.length + 1, action: '复位（afterCheck）', expected: '复位后的 expect 成立', observed: rf, pass: false, ms: 0, tier: '①', path: rf.match(/^afterCheck\[\d+\]/)?.[0] ?? 'afterCheck' };
     steps.push(st);
     await writeFile(join(c.o.runDir, 'warmup.json'), JSON.stringify(steps, null, 2));
     await writeFile(join(c.o.runDir, 'warmup-failed-restore.png'), await d.screenshot()).catch(() => {});

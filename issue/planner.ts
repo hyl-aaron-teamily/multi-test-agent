@@ -9,8 +9,9 @@ import { AVAILABLE, type Classification, classify } from './classify';
 import type { NormalizedIssue } from './parse';
 import type { IssueContract } from '../platform/schema/contract';
 import { validatePlan } from './validate';
-import { author, type Authored, type AuthorContext, type Envelope, MAX_PLAN_VERSIONS, type RevisionMaterials } from './author';
+import { author, type Authored, type AuthorContext, type Envelope, type RevisionMaterials } from './author';
 import { issuePath } from './paths';
+import { compileRecord } from './record';
 
 export interface SubCase {
   sub: string;
@@ -67,7 +68,7 @@ export interface Draft {
   warmupFailures?: { planId: string; at: string; detail: string }[];
   /** The model's delivery this draft was compiled from (fed back on revision). */
   envelope?: Envelope;
-  /** Plan version (W3-1: 1 = first design, +1 per revision, at most 3). */
+  /** Plan version (W3-1: 1 = first design, +1 per revision; W3-6: = rev). */
   planVersion?: number;
   /** Validator errors when no plan could be generated. */
   errors?: string[];
@@ -155,21 +156,34 @@ export async function draftIssue(i: NormalizedIssue, opts: { env?: 'test' | 'pro
   const raw = opts.raw ?? readFileSync(issuePath(i.id), 'utf8');
   const cx: AuthorContext = { issue: i, raw, surface, env, category: cat, version: 1, substitution: subst ? { from: subst.from, to: surface, reason: subst.reason } : undefined };
   const t0 = Date.now();
-  const d = draftOf(i, cls, await author(cx, {}, opts.ask), cx, subst);
+  const a = await author(cx, {}, opts.ask);
+  const d = keepPartial(draftOf(i, cls, a, cx, subst), a, cx);
   d.designMs = Date.now() - t0;
   return d;
 }
 
-/** Next plan version from run evidence (W3-1 §8.2). Returns undefined when no revision is allowed. */
+/** W3-6 §5 ③: a delivery that fails validation (or needs a block) is kept with its errors / gaps by path. */
+function keepPartial(d: Draft, a: Authored, cx: AuthorContext): Draft {
+  if (d.status === 'plannable' || !a.envelope) return d;
+  const r = compileRecord(d, a.envelope, cx);
+  // Delivery-level errors (e.g. a revision without `revision`) stay errors even when the sub-cases compile.
+  const own = a.errors.filter((e) => !/^subcases\[/.test(e));
+  if (r.status === 'plannable' && own.length) return Object.assign(d, { status: 'unplannable' as const, reason: `校验未过：${own.slice(0, 6).join('；')}`, subcases: [], partial: [{ sub: '(交付)', errors: own.map((message) => ({ path: '', message })) }], errors: a.errors });
+  return Object.assign(d, r);
+}
+
+/** A whole new version from run evidence — only for the person's 「重新设计」 since W3-7 (failures are repaired
+ *  step by step, issue/repair-loop.ts; no version cap). Returns undefined when the draft cannot be revised. */
 export async function reviseIssue(prev: Draft, m: RevisionMaterials, opts: { raw?: string; ask?: Parameters<typeof author>[2] } = {}): Promise<Draft | undefined> {
   const version = (prev.planVersion ?? 1) + 1;
-  if (version > MAX_PLAN_VERSIONS || !prev.envelope || prev.status !== 'plannable') return undefined;
+  if (!prev.envelope || prev.status !== 'plannable') return undefined;
   const i = prev.issue;
   const { surface, subst } = surfaceOf(i, prev.classification);
   const raw = opts.raw ?? readFileSync(issuePath(i.id), 'utf8');
   const cx: AuthorContext = { issue: i, raw, surface, env: (prev.env as 'test' | 'prod') ?? 'prod', category: prev.classification.category as TestPlan['category'], version, substitution: subst ? { from: subst.from, to: surface, reason: subst.reason } : undefined };
   const t0 = Date.now();
-  const d = draftOf(i, prev.classification, await author(cx, { previous: prev.envelope, materials: m }, opts.ask), cx, subst);
+  const a = await author(cx, { previous: prev.envelope, materials: m }, opts.ask);
+  const d = keepPartial(draftOf(i, prev.classification, a, cx, subst), a, cx);
   d.designMs = Date.now() - t0;
   d.history = [...(prev.history ?? [])];
   return d;

@@ -8,7 +8,8 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { RunResult } from '../engine/plan/run';
 import { DRIFT_THRESHOLD } from '../engine/plan/loop';
-import { MAX_PLAN_VERSIONS, type RevisionMaterials } from './author';
+import type { RevisionMaterials } from './author';
+import { failurePoint } from '../engine/plan/failure-point';
 import { DRAFTS_DIR, saveDraft } from './drafts';
 import { issuePath } from './paths';
 import { type Draft, reviseIssue, type VersionRecord } from './planner';
@@ -17,8 +18,11 @@ export type RevisionTrigger = RevisionMaterials['trigger'];
 
 /** Pure: why a run of a model-authored plan should be revised (undefined = no revision: reproduced, legacy
  *  plan, cancelled, or a failure of the environment / tool that says nothing about the plan). */
-export function revisionTrigger(r: Pick<RunResult, 'planVersion' | 'conclusion' | 'executability' | 'cancelled' | 'error' | 'conclusionDetail' | 'sub'>): RevisionTrigger | undefined {
+export function revisionTrigger(r: Pick<RunResult, 'planVersion' | 'conclusion' | 'executability' | 'cancelled' | 'error' | 'conclusionDetail' | 'sub'> & Partial<Pick<RunResult, 'failure' | 'warmup' | 'at' | 'errorKind' | 'roundLog' | 'mustLog'>>): RevisionTrigger | undefined {
   if (!r.planVersion || r.cancelled) return undefined;
+  // W3-7 §4: an executor (or environment) failure says nothing about the plan — it never costs a version.
+  const fp = failurePoint({ roundLog: [], ...r });
+  if (fp && (fp.cause === 'executor' || fp.cause === 'environment')) return undefined;
   if (r.conclusion === '计划不可执行') return 'warmup';
   if (r.conclusion === '执行失败' && /目标核对连续|前置条件未建立|not in the @ picker/.test(`${r.error ?? ''} ${r.conclusionDetail}`)) return 'warmup';
   // Control: no hit is the expected result; a hit means the check / environment is wrong.
@@ -108,11 +112,6 @@ export async function reviseAfterRun(r: RunResult, taskId: string, sub: string, 
   if (!trigger) {
     await saveDraft(prev, issueText, prev.env ?? r.env);
     return { note: `计划 v${r.planVersion}：${r.conclusion}，不需要修订` };
-  }
-  if (r.planVersion >= MAX_PLAN_VERSIONS) {
-    rec.attribution = 'plan';
-    await saveDraft(prev, issueText, prev.env ?? r.env);
-    return { note: `计划 v1–v${r.planVersion} 未能复现：已到修订上限 ${MAX_PLAN_VERSIONS} 版，归因于计划` };
   }
   const next = await (o.revise ?? reviseIssue)(prev, materialsOf(r, trigger), { raw: issueText });
   if (!next) return { note: '没有生成新版本（草稿不可修订）' };

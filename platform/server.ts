@@ -12,7 +12,8 @@ import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { stateRoot } from './lifecycle/store';
-import { DevicePool } from './device-pool';
+import { declaredEmulators, DevicePool } from './device-pool';
+import { restoreOnStart } from './emulator-ops';
 import { AccountPool } from './accounts/account-pool';
 import { apiV1 } from './api-v1';
 import { apiError, outcome } from './lifecycle/status';
@@ -148,6 +149,8 @@ async function main() {
   // logs/ stays: platform.log is this process's own open stdout (scripts/ctl.ts); `pnpm stop` removes it.
   const fresh = await endSession({ keep: ['logs'] });
   if (fresh.removed || fresh.stopped.length) console.log(`[platform] new session: removed ${fresh.removed} entries from the last one${fresh.stopped.length ? `, stopped ${fresh.stopped.length} task processes` : ''}`);
+  // W3-4 E1 ②: a running Teamily emulator goes back to its snapshot (installed, signed in, tree service on).
+  if (process.env.AUTOTEST_EMULATOR_RESTORE !== '0') await restoreOnStart(declaredEmulators(), (s) => console.log(`[platform] emulator ${s}`)).catch((e) => console.log(`[platform] emulator restore skipped: ${(e as Error).message.split('\n')[0]}`));
   // Built here, not at import: tests import pure helpers from this module and CI has no accounts.local.yaml.
   const accounts = new AccountPool();
   await pool.reloadConfig();
@@ -161,6 +164,12 @@ async function main() {
     stopping = true;
     console.log(`[platform] ${sig}: scheduling stopped — running task processes keep their leases and are adopted on the next start`);
     await sup?.shutdown().catch((e) => console.error(e));
+    // W3-5 E2 ⑤: in the container `docker compose down` is `pnpm stop` — task processes stopped, this session's runs
+    // and records removed (saved/ stays). On this computer `pnpm stop` does it from scripts/ctl.ts.
+    if (process.env.AUTOTEST_END_SESSION_ON_STOP === '1') {
+      const r = await endSession({ keep: ['logs'] }).catch((e) => (console.error(e), undefined));
+      if (r) console.log(`[platform] session ended: stopped ${r.stopped.length} task processes, removed ${r.removed} entries`);
+    }
     process.exit(0);
   };
   process.on('SIGINT', () => void stop('SIGINT'));

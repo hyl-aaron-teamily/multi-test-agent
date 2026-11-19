@@ -19,7 +19,7 @@ import { adapterFor, type SurfaceAdapter } from './surfaces';
 import { a11yBackend, activateA11y, enableA11y, installA11y } from '../core/a11y-service';
 import { AndroidDriver } from '../drivers/android';
 import { setTreeBackend, treeStats } from '../core/tree-backend';
-import { declaredTreeBackend } from '../platform/device-pool';
+import { declaredInputMode, declaredTreeBackend } from '../platform/device-pool';
 
 export interface SessionOptions {
   surface: Surface;
@@ -82,7 +82,7 @@ export async function openSession(o: SessionOptions): Promise<Session> {
   }
   if ((o.surface === 'android-app' || o.surface === 'android-web') && !o.udid) throw new Error(`${o.surface} session without a device`);
   if (o.udid) await selectTreeBackend(o.udid, o.log ?? ((s) => console.log(`[session] ${s}`)));
-  const inner = createDriver({ surface: o.surface, packageName: profile.packageName, url, udid: o.udid, storageState, headless: !o.headed, onLog: o.onLog, onConsole: o.onConsole });
+  const inner = createDriver({ surface: o.surface, packageName: profile.packageName, url, udid: o.udid, ...(o.udid ? { inputMode: declaredInputMode(o.udid) } : {}), storageState, headless: !o.headed, onLog: o.onLog, onConsole: o.onConsole });
   return { surface: o.surface, profile, url, inner, d: new RecordingDriver(inner), web: inner instanceof WebDriver ? inner : undefined, adapter: adapterFor(o.surface), account: o.account, udid: o.udid, pool: o.pool, log: o.log ?? ((s) => console.log(`[session] ${s}`)) };
 }
 
@@ -101,7 +101,7 @@ export async function openBenchSession(udid: string, log: (s: string) => void): 
   const r = await activateA11y(udid);
   setTreeBackend(udid, r.ok ? a11yBackend() : undefined);
   log(`tree backend: ${r.ok ? 'a11y-service' : `uiautomator (${r.reason})`}`);
-  const inner = new AndroidDriver({ udid, surface: 'android-app', packageName: BENCH_HOME_PACKAGE });
+  const inner = new AndroidDriver({ udid, surface: 'android-app', packageName: BENCH_HOME_PACKAGE, inputMode: declaredInputMode(udid) });
   const profile: Profile = { surface: 'android-app', name: 'bench', skillVersion: '-', env: 'test', viewport: { width: 0, height: 0 }, packageName: BENCH_HOME_PACKAGE, elements: {}, refs: {} };
   return { surface: 'android-app', profile, url: '', inner, d: new RecordingDriver(inner), adapter: adapterFor('android-app'), account: 'bench', udid, log };
 }
