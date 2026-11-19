@@ -18,6 +18,7 @@ import { readAudit, writeJsonAtomic } from './lifecycle/store';
 import type { Supervisor } from './lifecycle/supervisor';
 import { deleteSaved, listSaved, openSaved, saveTask } from './session';
 import { createTask, getTask, isTerminal, listTasks, newTaskId, readEvents, readLedger, readResult, taskDir, type TaskRecord, updateTask } from './lifecycle/task';
+import { asRecord, stateOf } from '../issue/record';
 import { parsePlanId, planIdOf, planIdsOf, resolvePlan, savedDraft, staleFacts, versionFacts } from './plans-v1';
 import { envView, exploreSummary, syncSummary, planText, planView, resultText, resultView, taskView, type ResultView } from './views';
 import { EXPLORE_LIMITS } from './schema/test-plan';
@@ -57,7 +58,9 @@ function issueSummary(id: string) {
   const c = classifyRules(i);
   const d = savedDraft(id);
   const plans = d && d.status === 'plannable' ? planIdsOf(d) : [];
-  return { id, title: i.title, frequency: i.frequency, platforms: i.platforms, category: c.category, reason: c.reason, draft: d ? { version: d.version ?? 1, planVersion: d.planVersion, hash: d.hash, status: d.status, reason: d.reason, stale: d.stale } : undefined, plans: d?.stale ? [] : plans.map((p) => ({ id: p, approval: approvalState(p) })) };
+  // W3-6 §6.1: the card shows the record's state and the last conclusion.
+  const last = listTasks().filter((t) => t.issue === id && t.outcome && t.kind !== 'explore').sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+  return { id, title: i.title, frequency: i.frequency, platforms: i.platforms, category: c.category, reason: c.reason, last: last ? `${last.outcome!.code}（${last.planId.replace(/^[^/]+\//, '')}，${last.createdAt.slice(5, 10)}）` : undefined, draft: d ? { version: d.version ?? 1, planVersion: d.planVersion, hash: d.hash, status: d.status, state: stateOf(asRecord(d)), reason: d.reason, stale: d.stale } : undefined, plans: d?.stale ? [] : plans.map((p) => ({ id: p, approval: approvalState(p) })) };
 }
 
 function approvalState(planId: string): string {
@@ -374,11 +377,37 @@ function submit(b: any, via: 'cli' | 'web'): Envelope {
   if (er) return er;
   const ap = useApproval(planId, r.hash, facts, n);
   const id = newTaskId();
-  const t = createTask({ id, kind: r.plan.sync ? 'sync' : series && series > 1 ? 'series' : 'issue', issue: r.ref.issue, planId, planHash: r.hash, approvalId: ap.id, envId: env.id, ...(r.plan.sync ? { envIds: all.slice(1).map((e) => e.id), sync: { rounds: maxRounds ?? r.plan.sync.rounds } } : {}), series: series && series > 1 ? { runs: series } : undefined, options: { maxRounds, maxSteps: b.maxSteps, maxMinutes: b.maxMinutes }, idempotencyKey: b.idempotencyKey ? String(b.idempotencyKey) : undefined });
+  const t = createTask({ id, kind: r.plan.sync ? 'sync' : series && series > 1 ? 'series' : 'issue', issue: r.ref.issue, planId, ...(b.batch ? { batch: String(b.batch) } : {}), planHash: r.hash, approvalId: ap.id, envId: env.id, ...(r.plan.sync ? { envIds: all.slice(1).map((e) => e.id), sync: { rounds: maxRounds ?? r.plan.sync.rounds } } : {}), series: series && series > 1 ? { runs: series } : undefined, options: { maxRounds, maxSteps: b.maxSteps, maxMinutes: b.maxMinutes }, idempotencyKey: b.idempotencyKey ? String(b.idempotencyKey) : undefined });
   // Confirmation = execution: the exact plan and draft are frozen into the task dir.
   writeJsonAtomic(join(taskDir(id), 'plan.json'), r.plan);
   writeJsonAtomic(join(taskDir(id), 'draft.json'), r.draft);
   return ok('ACCEPTED', `任务 ${id} 已排队：${planId} @ ${env.id}${n > 1 ? `，系列 ${n} 次` : ''}${checkingNote([env])}`, tv(t));
+}
+
+/** W3-6 §6.2 ①: the Issue's one execute button — every sub-case of the current rev, one press = one batch.
+ *  Approval folded in (D6): default → by policy; sensitive → `confirm` + the record hash (unless full access);
+ *  refused → not executable. */
+function runIssue(issueId: string, b: any, via: 'cli' | 'web', reviewer?: string): Envelope {
+  const d = savedDraft(issueId);
+  if (!d) return fail('NOT_FOUND', `Issue ${issueId} 还没有计划`, `autotest draft create ${issueId}`);
+  if (d.stale || d.status !== 'plannable') return fail('PLAN_NOT_EXECUTABLE', `计划不能运行（${d.stale ? '待重写' : d.status}）：${d.stale?.reason ?? d.reason}`);
+  const rev = d.version ?? 1;
+  const planIds = d.subcases.map((s) => planIdOf({ issue: issueId, sub: s.sub, surface: s.surface, version: rev }));
+  const ex = planIds.map((p) => ({ planId: p, e: explain(p) }));
+  const refused = ex.filter((x) => x.e.classified.category === 'refused');
+  if (refused.length) return fail('PLAN_NOT_EXECUTABLE', `计划触及硬约束：${refused.flatMap((x) => x.e.classified.reasons).join('；')}`);
+  const sensitive = ex.filter((x) => x.e.classified.category === 'sensitive');
+  if (sensitive.length && !getFullAccess().on) {
+    const reasons = [...new Set(sensitive.flatMap((x) => x.e.classified.reasons))];
+    if (!b.confirm || b.hash !== d.hash) return { ...fail('APPROVAL_REQUIRED', `敏感计划，确认后执行：${reasons.join('；')}`), data: { hash: d.hash, reasons, rev } };
+    for (const x of sensitive) approve({ planId: x.planId, planHash: x.e.r.hash, confirmedHash: x.e.r.hash, facts: versionFacts(x.e.r.plan, x.e.env?.udid, x.e.env?.appVersion), classified: x.e.classified, runs: 1, via, reviewer });
+  }
+  const batch = `b-${Date.now().toString(36)}`;
+  const out = planIds.map((planId) => submit({ planId, batch, envId: b.envId }, via));
+  const bad = out.find((x) => x.error);
+  const ids = out.filter((x) => !x.error).map((x) => (x.data as { id?: string })?.id).filter(Boolean);
+  if (!ids.length && bad) return bad;
+  return ok('ACCEPTED', `Issue ${issueId} rev ${rev}：${ids.length} 个子用例已排队${bad ? `；另有 ${out.length - ids.length} 个没排上（${bad.summary}）` : ''}${sensitive.length ? '' : '；按策略自动批准'}`, { batch, rev, tasks: ids });
 }
 
 export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
@@ -405,6 +434,20 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
       const v = await githubStatus(fetch, q.query.get('fresh') === '1');
       const repos = v.repos.map((r) => `${r.repo} ${r.ok ? '✓' : `✗ ${r.detail}`}`).join('；');
       return ok('OK', v.configured ? `GitHub：${v.login ?? '(未识别账号)'}（${v.source}）；${repos}${v.error ? `；${v.error}` : ''}` : 'GitHub：未配置 token（.env GITHUB_TOKEN 或 platform/secrets/github.token）', v);
+    }
+    // W3-6 §6.3: the plan record of an Issue.
+    if (seg[0] === 'issues' && seg[1] && seg[2]) {
+      if (!issueExists(seg[1])) return fail('NOT_FOUND', `没有 Issue ${seg[1]}`);
+      const x = await import('./issue-v1');
+      const by = q.web ? reviewerName() : 'cli';
+      if (M === 'GET' && seg[2] === 'record') return x.getRecord(seg[1]);
+      if (M === 'GET' && seg[2] === 'runs') return ok('OK', `Issue ${seg[1]} 的运行记录`, x.issueRuns(seg[1]));
+      if (M === 'POST' && seg[2] === 'run') return runIssue(seg[1], q.body ?? {}, q.web ? 'web' : 'cli', q.web ? reviewerName() : undefined);
+      if (M === 'PATCH' && seg[2] === 'plan' && !seg[3]) return x.patchPlan(seg[1], q.body ?? {}, by);
+      if (M === 'POST' && seg[2] === 'plan' && seg[3] === 'rollback') return x.rollbackPlan(seg[1], q.body ?? {}, by);
+      if (M === 'GET' && seg[2] === 'plan' && seg[3] === 'diff') return x.diffPlan(seg[1], Number(q.query.get('a')), Number(q.query.get('b')));
+      if (M === 'POST' && seg[2] === 'chat' && !seg[3]) return x.chat(seg[1], q.body ?? {});
+      if (M === 'POST' && seg[2] === 'chat' && seg[3] && seg[4] === 'apply') return x.applyChat(seg[1], Number(seg[3]), by);
     }
     if (M === 'GET' && seg[0] === 'issues' && seg[1]) {
       if (!issueExists(seg[1])) return fail('NOT_FOUND', `没有 Issue ${seg[1]}`);

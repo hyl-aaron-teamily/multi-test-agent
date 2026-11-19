@@ -239,3 +239,15 @@ ul.quotes { margin: 6px 0 0; padding-left: 18px; }
 ul.quotes q { font-style: italic; }
 .drop { border: 1px dashed rgba(0, 0, 0, .2); border-radius: 10px; padding: 10px; margin: 8px 0; }
 .drop textarea { width: 100%; min-height: 120px; }
+
+/* W3-6 Issue page */
+.step-bad td { background: rgba(200, 80, 60, 0.08); }
+table.steps th { text-align: left; font-weight: 600; padding-top: 10px; }
+details.subcase { margin: 10px 0; }
+.issue-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.issue-card { display: block; padding: 10px 12px; border: 1px solid var(--line, #ddd); border-radius: 8px; text-decoration: none; color: inherit; }
+.issue-card:hover { border-color: var(--clay, #b55); }
+table.diff td { vertical-align: top; font-size: 12px; }
+.chat p { margin: 6px 0; }
+dl.kv { display: grid; grid-template-columns: 4em 1fr; gap: 4px 10px; }
+table.steps { width: 100%; }

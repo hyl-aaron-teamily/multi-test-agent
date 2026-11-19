@@ -151,7 +151,7 @@ describe('authoring loop (§7.2)', () => {
     const b = answer([bad, bad]);
     const d = await draftIssue(ISSUE, { raw: RAW, ask: b.ask });
     expect(d.status).toBe('unplannable');
-    expect(d.reason).toMatch(/^无法生成计划：.*R2/);
+    expect(d.reason).toMatch(/^校验未过（.*）：.*R2/);
     expect(b.calls).toHaveLength(2);
   });
   it('needs-block (K5): no stand-in, the missing block is the reason', async () => {

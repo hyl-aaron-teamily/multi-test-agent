@@ -44,6 +44,8 @@ export interface TaskRecord {
   /** kind sync: one role per environment (same order as taskEnvs), N rounds. */
   sync?: { rounds: number };
   parent?: string;
+  /** W3-6: tasks started by one press of an Issue's execute button share this id (one row in its runs). */
+  batch?: string;
   series?: { runs: number };
   options: { maxRounds?: number; maxSteps?: number; maxMinutes?: number; dryRun?: boolean };
   idempotencyKey?: string;

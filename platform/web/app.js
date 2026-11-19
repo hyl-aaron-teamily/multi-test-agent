@@ -134,12 +134,154 @@ async function toggleFA(on) {
   route();
 }
 
+// ---------------------------------------------------------------- Issue 页（W3-6 §6）：一份 Issue 一份计划、一个执行按钮
+
+const PLAN_SECTIONS = [['setup', '准备（进入）'], ['prepare', '准备（构造数据）'], ['prepareChecks', '准备后检查'], ['baseline', '每轮开始前读数'], ['actions', '触发（每轮）'], ['checks', '检查'], ['afterCheck', '复位']];
+const REV_SOURCE = { model: '模型', patch: '修补', human: '人工', chat: '对话', rollback: '回退', redesign: '重新设计' };
+const RECORD_STATE_CLASS = { 可运行: 'ok', 校验未过: 'bad', 缺积木: 'warn', 无法构造: 'warn', 待重写: 'bad' };
+
+function stepText(a) {
+  if (!a || typeof a !== 'object') return esc(JSON.stringify(a));
+  if (a.kind) return `${esc(a.kind)}${a.expect ? `：${esc(String(a.expect).slice(0, 120))}` : ''}${a.match ? ` <span class="mono faint">${esc(JSON.stringify(a.match))}</span>` : ''}`;
+  const what = a.node?.name ? `<b>${esc(a.node.name)}</b> <span class="mono faint">${esc(JSON.stringify(a.node.input ?? {}))}</span>` : `<b>${esc(a.type ?? '?')}</b>${a.element ? ` ${esc(a.element)}` : ''}${a.value !== undefined ? ` <span class="mono">${esc(String(a.value))}</span>` : ''}`;
+  const ex = a.expect?.check ? `<br><span class="faint">期望（${esc(a.expect.role ?? '')}）：${esc(a.expect.check.kind ?? '')} ${esc(String(a.expect.check.expect ?? '').slice(0, 100))}</span>` : '';
+  return `${what}${a.description ? ` <span class="muted">${esc(a.description.slice(0, 80))}</span>` : ''}${ex}`;
+}
+
+function subcaseBlock(issueId, sub, body, errors) {
+  const errsAt = (path) => errors.filter((e) => e.path === path || e.path.startsWith(`${path}/`));
+  const used = new Set();
+  const rows = PLAN_SECTIONS.flatMap(([key, label]) => {
+    const list = Array.isArray(body?.[key]) ? body[key] : body?.[key] ? [body[key]] : [];
+    if (!list.length) return [];
+    return [`<tr><th colspan="3">${label}</th></tr>`, ...list.map((a, i) => {
+      const path = Array.isArray(body[key]) ? `/subcases/${sub}/plan/${key}/${i}` : `/subcases/${sub}/plan/${key}`;
+      const errs = errsAt(path);
+      errs.forEach((e) => used.add(e));
+      return `<tr class="${errs.length ? 'step-bad' : ''}"><td class="mono faint">${esc(key)}[${i}]</td><td>${stepText(a)}${errs.map((e) => `<br><span class="bad">✗ ${esc(e.message)}</span>`).join('')}
+        <div class="step-edit" id="edit-${esc(sub)}-${esc(key)}-${i}" hidden><textarea rows="8" class="mono" style="width:100%">${esc(JSON.stringify(a, null, 2))}</textarea>
+        <input placeholder="修改原因（必填）" style="width:70%"> <button class="btn primary small" onclick="saveStep('${esc(issueId)}','${esc(path)}', this)">保存（rev+1）</button></div></td>
+        <td><button class="btn small" onclick="toggleEdit('edit-${esc(sub)}-${esc(key)}-${i}')">编辑</button></td></tr>`;
+    })];
+  });
+  const rest = errors.filter((e) => !used.has(e));
+  return `<details open class="subcase"><summary><b>子用例 ${esc(sub)}</b>${body?.title ? ` · ${esc(body.title)}` : ''}${errors.length ? ` ${pill('bad', `${errors.length} 处错误`)}` : ''}</summary>
+    ${rest.length ? `<p class="bad">${rest.map((e) => `✗ <span class="mono">${esc(e.path)}</span>：${esc(e.message)}`).join('<br>')}</p>` : ''}
+    ${rows.length ? `<table class="steps">${rows.join('')}</table>` : '<p class="empty">这个子用例还没有步骤。</p>'}</details>`;
+}
+
+async function issuePage(id) {
+  await shell('');
+  const r = await api('GET', `/issues/${enc(id)}/record`);
+  if (r.code !== 'OK') return ($('#view').innerHTML = card('', `Issue ${esc(id)}`, `${failMsg(r)}<p><button class="btn primary" onclick="makeDraft('${esc(id)}', this)">让模型设计计划</button></p>`));
+  const v = r.data;
+  const running = v.runs.flatMap((g) => g.runs).some((x) => x.tasks.some((t) => !['done', 'failed', 'cancelled', 'interrupted', 'crashed'].includes(t.state)));
+  const can = v.state === '可运行';
+  const head = `<div class="page-head"><h1>Issue ${esc(v.issue)}<small>${esc(v.title ?? '')}</small></h1>
+    <div class="row"><span>计划 rev ${v.rev} · ${pill(RECORD_STATE_CLASS[v.state] ?? 'warn', v.state)}</span>
+    ${running ? '<span class="pill">运行中</span>' : `<button class="btn primary" ${can ? '' : 'disabled'} title="${can ? '执行当前 rev 的全部子用例' : esc(v.reason)}" onclick="runIssue('${esc(v.issue)}', '${esc(v.hash ?? '')}')">执行</button>`}</div></div>
+    ${can ? '' : `<p class="muted">不能执行：${esc(v.reason)}</p>`}`;
+  const u = v.understanding;
+  const understand = u ? `<dl class="kv"><dt>对象</dt><dd>${esc(u.subject ?? '')}</dd><dt>现象</dt><dd>${esc(u.phenomenon ?? '')}</dd><dt>触发</dt><dd>${esc(u.trigger ?? '')}</dd><dt>预期</dt><dd>${esc(u.expected ?? '')}</dd></dl>
+    ${(v.quotes ?? []).length ? `<details><summary>原文摘录 ${v.quotes.length} 段</summary>${v.quotes.map((q) => `<blockquote>${esc(q.text)}</blockquote>`).join('')}</details>` : ''}` : '<p class="empty">没有模型交付。</p>';
+  const gaps = v.gaps.length ? `<p class="warn">缺积木：${v.gaps.map((g) => `${esc(g.kind)}「${esc(g.need)}」`).join('；')}</p>` : '';
+  const subs = (v.envelope?.subcases ?? []).map((sc) => subcaseBlock(v.issue, sc.sub, { ...sc.plan, title: v.subcases.find((x) => x.sub === sc.sub)?.title }, v.partial.find((p) => p.sub === sc.sub)?.errors ?? []));
+  const plan = `${understand}${gaps}${v.partial.filter((p) => p.sub === '(交付)').map((p) => `<p class="bad">${p.errors.map((e) => esc(e.message)).join('<br>')}</p>`).join('')}${subs.join('') || ''}`;
+  const revs = `<table><tr><th></th><th>rev</th><th>来源</th><th>原因</th></tr>${[...v.revs].reverse().map((x) => `<tr><td><input type="checkbox" class="revpick" value="${x.rev}"></td><td><b>${x.rev}</b>${x.rev === v.rev ? ' <span class="faint">当前</span>' : ''}<br><span class="faint">${time(x.at)}</span></td><td>${esc(REV_SOURCE[x.source] ?? x.source)}${x.by ? `<br><span class="faint">${esc(x.by)}</span>` : ''}</td><td>${esc(x.reason)}${x.paths.length ? `<br><span class="faint mono">${esc(x.paths.slice(0, 4).join(' '))}${x.paths.length > 4 ? ` …共 ${x.paths.length} 处` : ''}</span>` : ''}${x.rev !== v.rev ? `<br><button class="btn small" onclick="rollbackIssue('${esc(v.issue)}', ${x.rev})">回退到此版</button>` : ''}</td></tr>`).join('')}</table>
+    <p><button class="btn small" onclick="diffIssue('${esc(v.issue)}')">对比勾选的两版</button></p><div id="revDiff"></div>`;
+  const runRows = v.runs.flatMap((g) => g.runs.map((x) => ({ rev: g.rev, ...x })));
+  const runs = runRows.length ? `<table><tr><th>rev</th><th>时间</th><th>结论</th></tr>${runRows.map((x, i) => `<tr ${i >= 5 ? 'class="more" hidden' : ''}><td>${x.rev}</td><td class="faint">${time(x.at)}</td><td>${x.tasks.map((t) => `<a href="#/task/${enc(t.id)}">${esc(t.planId.replace(/^\d+\//, ''))}</a> ${t.code ? pill(OUTCOME_CLASS[t.code] ?? 'warn', t.code) : pill(t.state, t.state)} <span class="muted">${esc((t.summary ?? '').slice(0, 60))}</span>`).join('<br>')}</td></tr>`).join('')}</table>${runRows.length > 5 ? '<p><button class="btn small" onclick="document.querySelectorAll(\'tr.more\').forEach((x)=>x.hidden=false);this.remove()">显示全部</button></p>' : ''}` : '<p class="empty">还没有运行。</p>';
+  const chat = `<div class="chat">${v.chat.map((c, n) => `<p class="${c.role === 'user' ? '' : 'muted'}"><b>${c.role === 'user' ? '你' : '模型'}</b>：${esc(c.text)}${c.ops ? `<br><span class="mono faint">${esc(c.ops.map((o) => `${o.op} ${o.path}`).join('；'))}</span> ${c.applied ? `<span class="faint">已应用为 rev ${c.applied}</span>` : `<button class="btn small primary" onclick="applyChat('${esc(v.issue)}', ${n})">应用</button>`}` : ''}</p>`).join('') || '<p class="empty">可以问模型：为什么这样设计、某一步该怎么改。模型给出修改时，点「应用」才会写入计划。</p>'}</div>
+    <textarea id="chatMsg" rows="3" style="width:100%" placeholder="例如：复位检查读不到开关状态，换成读分组标题"></textarea><p><button class="btn" onclick="sendChat('${esc(v.issue)}', this)">发送</button> <button class="btn" onclick="makeDraft('${esc(v.issue)}', this)" title="整份重写，旧版本保留在历史里">重新设计</button></p>`;
+  $('#view').innerHTML = `${head}<div class="grid two">${card('计划', `rev ${v.rev}`, plan, 40)}<div>${card('版本', `${v.revs.length} 个`, revs, 80)}${card('运行记录', '按 rev 分组，每按一次「执行」一行', runs, 120)}${card('和模型讨论', '修改建议点「应用」才写入', chat, 160)}</div></div>`;
+}
+
+function toggleEdit(id) {
+  const el = document.getElementById(id);
+  el.hidden = !el.hidden;
+}
+
+async function saveStep(issueId, path, btn) {
+  const box = btn.parentElement;
+  let value;
+  try {
+    value = JSON.parse(box.querySelector('textarea').value);
+  } catch {
+    return alert('不是合法的 JSON');
+  }
+  const reason = box.querySelector('input').value.trim();
+  if (!reason) return alert('写一句修改原因');
+  const r = await api('PATCH', `/issues/${enc(issueId)}/plan`, { ops: [{ op: 'replace', path, value }], reason });
+  if (r.code !== 'OK') return alert(r.summary);
+  await issuePage(issueId);
+}
+
+async function runIssue(id, hash) {
+  let r = await api('POST', `/issues/${enc(id)}/run`, {});
+  if (r.code === 'APPROVAL_REQUIRED' && r.data?.reasons) {
+    if (!confirm(`这份计划是敏感类：\n${r.data.reasons.join('\n')}\n\n确认并执行？`)) return;
+    r = await api('POST', `/issues/${enc(id)}/run`, { confirm: true, hash: r.data.hash });
+  }
+  if (r.code !== 'ACCEPTED') return alert(r.summary);
+  await issuePage(id);
+}
+
+async function rollbackIssue(id, rev) {
+  if (!confirm(`把 rev ${rev} 的内容复制成新的 rev？（不删除任何版本）`)) return;
+  const r = await api('POST', `/issues/${enc(id)}/plan/rollback`, { rev });
+  if (r.code !== 'OK') return alert(r.summary);
+  await issuePage(id);
+}
+
+async function diffIssue(id) {
+  const picked = [...document.querySelectorAll('.revpick:checked')].map((x) => Number(x.value)).sort((a, b) => a - b);
+  if (picked.length !== 2) return alert('勾选两版');
+  const r = await api('GET', `/issues/${enc(id)}/plan/diff?a=${picked[0]}&b=${picked[1]}`);
+  put('revDiff', r.code === 'OK' ? `<table class="diff">${r.data.changes.map((c) => `<tr><td class="mono">${esc(c.path)}</td><td class="bad mono">${esc(JSON.stringify(c.a) ?? '')}</td><td class="good mono">${esc(JSON.stringify(c.b) ?? '')}</td></tr>`).join('') || '<tr><td>没有不同</td></tr>'}</table>` : `<p class="bad">${esc(r.summary)}</p>`);
+}
+
+async function sendChat(id, btn) {
+  const message = $('#chatMsg').value.trim();
+  if (!message) return;
+  btn.disabled = true;
+  btn.textContent = '模型思考中…';
+  const r = await api('POST', `/issues/${enc(id)}/chat`, { message });
+  if (r.code !== 'OK') alert(r.summary);
+  else if (r.data?.check) alert(`模型给出了修改：${r.data.check}`);
+  await issuePage(id);
+}
+
+async function applyChat(id, n) {
+  const r = await api('POST', `/issues/${enc(id)}/chat/${n}/apply`);
+  if (r.code !== 'OK') return alert(r.summary);
+  await issuePage(id);
+}
+
+// ---------------------------------------------------------------- 首页的 Issue 卡片（W3-6 §6.1）
+
+async function drawIssueCards() {
+  const r = await api('GET', '/issues');
+  if (!r.data) return put('homeIssues', failMsg(r));
+  put('homeIssues', `<div class="issue-cards">${r.data.map((i) => `<a class="issue-card" href="#/issue/${enc(i.id)}"><b>${esc(i.id)}</b> <span class="muted">${esc(i.title.slice(0, 60))}</span><br>${i.draft ? `rev ${esc(i.draft.version)} ${pill(RECORD_STATE_CLASS[i.draft.state] ?? 'warn', i.draft.state ?? i.draft.status)}` : '<span class="faint">还没有计划</span>'}${i.last ? `<br><span class="faint">上次：${esc(i.last)}</span>` : ''}</a>`).join('')}</div>`);
+}
+
+// ---------------------------------------------------------------- 探索列表（和 Issue 分开）
+
+async function explorePage() {
+  await shell('explore');
+  const r = await api('GET', '/tasks?limit=60');
+  const ts = (r.data ?? []).filter((t) => t.explore);
+  $('#view').innerHTML = `<div class="page-head"><h1>探索<small>自然语言任务和探索的运行；Issue 的运行在各自的 Issue 页上</small></h1><a class="btn primary" href="#/new?tab=explore">新建探索</a></div>${card('', `${ts.length} 次`, ts.length ? taskTable(ts) : '<p class="empty">还没有探索。</p>')}`;
+}
+
 const ROUTES = [
   [/^#?\/?$/, home],
   [/^#\/new$/, newTask],
   [/^#\/task\/([^?]+)/, taskPage],
   [/^#\/result\/([^?]+)/, resultPage],
   [/^#\/plan\/([^?]+)/, planPage],
+  [/^#\/issue\/([^?]+)/, issuePage],
+  [/^#\/explore$/, explorePage],
   [/^#\/env\/([^?]+)/, envPage],
   [/^#\/approvals$/, approvals],
   [/^#\/saved$/, savedPage],
@@ -198,14 +340,14 @@ async function home() {
       ${card('设备', '手机与浏览器', '<div id="homeDevices"></div>', 80)}
     </div>
     ${card('环境', '环境（端 × 设备 × 服务环境）', '<div class="envs" id="homeEnvs"></div>', 120)}
-    ${card('结果', '最近结束的任务', '<div id="homeDone"></div>', 160)}`;
+    ${card('Issue', '一份 Issue 一张卡：计划状态、当前 rev、上次结论（点开是唯一的工作页）', '<div id="homeIssues"></div>', 160)}`;
   redraw = refreshHome;
   await refreshHome();
   scheduleRefresh(pref);
 }
 
 function refreshHome() {
-  return Promise.all([drawEnvs(), drawDevices(), drawTasks()]);
+  return Promise.all([drawEnvs(), drawDevices(), drawTasks(), drawIssueCards()]);
 }
 
 function scheduleRefresh(pref) {
@@ -237,10 +379,9 @@ async function drawTasks() {
   if (tasks.code === 'PLATFORM_DOWN') return put('homeLive', failMsg(tasks));
   const ts = tasks.data ?? [];
   const live = ts.filter((t) => !t.finishedAt);
-  const done = ts.filter((t) => t.finishedAt).slice(0, 20);
+  // W3-6 §6.1: no flat table of finished tasks — finished runs live on their Issue page (explorations: 探索).
   put('homeLiveN', String(live.length));
   put('homeLive', live.length ? taskTable(live) : '<p class="empty">没有运行中的任务。</p>');
-  put('homeDone', done.length ? taskTable(done) : '<p class="empty">还没有结束的任务。</p>');
 }
 
 function deviceList(ds) {
@@ -282,7 +423,7 @@ const OUTCOME_CLASS = { NOT_REPRODUCED: 'good', IMPLEMENTED: 'good', EXPLORE_DON
 function taskTable(ts) {
   return `<table><tr><th>任务</th><th>要做什么</th><th>状态</th><th>结果 / 进度</th></tr>${ts
     .map((t) => {
-      const what = t.explore ? `${t.explore.mode === 'explore' ? '探索' : '任务'}「${esc(t.explore.goal.slice(0, 40))}」` : t.planId.startsWith('sync:') ? `多端同步 ${esc(t.planId.slice(5))}` : `<a href="#/plan/${enc(t.planId)}">${esc(t.planId)}</a>`;
+      const what = t.explore ? `${t.explore.mode === 'explore' ? '探索' : '任务'}「${esc(t.explore.goal.slice(0, 40))}」` : t.planId.startsWith('sync:') ? `多端同步 ${esc(t.planId.slice(5))}` : `<a href="#/issue/${enc(t.issue)}">Issue ${esc(t.issue)}</a> <span class="faint">${esc(t.planId.replace(/^[^/]+\//, ''))}</span>`;
       const prog = t.finishedAt ? `${t.outcome ? `${pill(OUTCOME_CLASS[t.outcome.code] ?? 'warn', t.outcome.code)} ` : ''}<a href="#/result/${enc(t.id)}">${esc((t.outcome?.summary ?? '查看结果').slice(0, 60))}</a>` : `${esc(t.progress.phaseText ?? '')}${t.progress.round !== undefined ? ` 第 ${t.progress.round} 轮` : ''}${t.progress.step !== undefined ? ` 第 ${t.progress.step} 步` : ''}${t.progress.summary ? ` <span class="muted">${esc(t.progress.summary.slice(0, 40))}</span>` : ''}`;
       return `<tr><td><a class="mono" href="#/task/${enc(t.id)}">${esc(t.id.replace(/^t-/, ''))}</a>${t.restoredFrom ? ` <span class="pill" title="从存档「${esc(t.restoredFrom)}」打开">存档</span>` : ''}<br><span class="faint">${time(t.createdAt)}</span></td><td>${what}<br><span class="faint">${esc([t.envId, ...(t.envIds ?? [])].join(' + '))}</span></td><td>${pill(t.state, t.stateText)}</td><td>${prog}</td></tr>`;
     })
@@ -408,7 +549,7 @@ async function issueList() {
           : '<span class="faint">无</span>';
         return `<tr><td><b>${esc(i.id)}</b><br><span class="muted">${esc(i.title.slice(0, 90))}</span></td><td>${esc(i.category)}</td>
         <td>${draft}<br><button class="btn small" onclick="makeDraft('${esc(i.id)}', this)">${i.draft ? '重新生成' : '生成草稿'}</button></td>
-        <td>${i.plans.map((p) => `<a href="#/plan/${enc(p.id)}">${esc(p.id)}</a> <span class="faint">${esc(p.approval)}</span>`).join('<br>') || '<span class="faint">-</span>'}</td></tr>`;
+        <td><a href="#/issue/${enc(i.id)}">打开 Issue 页 →</a></td></tr>`;
       })
       .join('')}</table>`, 60);
 }

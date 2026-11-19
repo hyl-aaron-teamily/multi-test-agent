@@ -132,13 +132,19 @@ def main() -> None:
   p.add_argument('--console-port', type=int, default=5554)
   p.add_argument('--grpc-port', type=int, default=8554)
   p.add_argument('--adb', default=os.environ.get('AW_ADB') or shutil.which('adb'))
+  p.add_argument('--host', default='127.0.0.1', help='0.0.0.0 in the container (W3-6 E4)')
+  p.add_argument('--a11y-port', type=int, default=0, help='fixed port for the accessibility forwarder (container: published to the host, which the emulator reaches as 10.0.2.2); 0 = any free port')
   a = p.parse_args()
+  if a.a11y_port:
+    # android_env picks a random free port; in a container that port must be known to be published.
+    from android_env.wrappers import a11y_grpc_wrapper  # pylint: disable=g-import-not-at-top
+    a11y_grpc_wrapper.portpicker.pick_unused_port = lambda: a.a11y_port
   if not a.adb:
     raise SystemExit('adb not found: set AW_ADB or put adb on PATH')
   env = env_launcher.load_and_setup_env(console_port=a.console_port, emulator_setup=a.setup, freeze_datetime=True, adb_path=a.adb, grpc_port=a.grpc_port)
   suite = suite_utils.create_suite(registry.TaskRegistry().get_registry(registry.TaskRegistry.ANDROID_WORLD_FAMILY), n_task_combinations=a.combos, seed=a.seed)
-  print(f'[bench] {len(suite)} tasks, seed {a.seed}, {a.combos} combination(s) each; http://127.0.0.1:{a.port}', flush=True)
-  uvicorn.run(build_app(env, suite), host='127.0.0.1', port=a.port, log_level='warning')
+  print(f'[bench] {len(suite)} tasks, seed {a.seed}, {a.combos} combination(s) each; http://{a.host}:{a.port}', flush=True)
+  uvicorn.run(build_app(env, suite), host=a.host, port=a.port, log_level='warning')
 
 
 if __name__ == '__main__':

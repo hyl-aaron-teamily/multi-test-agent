@@ -1,0 +1,17 @@
+# W3-6 E3: the device pool of the `emulator` compose profile (docker compose --profile emulator up): the Teamily
+# emulator runs in its own container and the platform reaches it as `emulator:5555` (adb connect over the compose
+# network). Same settings as emulator-5556 in devices.yaml, without the `emulator:` block: the AVD and its
+# snapshot are the emulator container's (volume `avd`), not started or restored by the platform.
+# No web surfaces in this setup (no browser in the platform image, D8).
+maxConcurrent: 1
+scheduling:
+  strategy: first-idle
+devices:
+  - udid: emulator:5555
+    name: Teamily emulator (container, Android 14)
+    surfaces: [android-app]
+    accounts:
+      android-app: prod-aaron2   # aaron+test2
+    treeBackend: a11y-service
+    inputMode: keys
+hosts: []

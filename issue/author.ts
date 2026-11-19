@@ -219,8 +219,12 @@ const defaultAsk: Ask = async (system, user, images, meta = {}) => {
 /** One delivery: ask, compile, validate; on errors ask once more with the error list. */
 export async function author(cx: AuthorContext, extra: { previous?: Envelope; materials?: RevisionMaterials } = {}, ask: Ask = defaultAsk): Promise<Authored> {
   if (!modelConfigured() && ask === defaultAsk) return { subcases: [], errors: ['未配置模型：W3-1 起计划只能由模型从原文设计（不再有规则模板）'], calls: 0 };
-  const system = systemPrompt();
   const logs = authorLogs(cx.issue.id);
+  // W3-6 §8.4 ④: a first design is two stages (+ an ops-only fix); a revision stays one call.
+  // AUTOTEST_PLAN_TWO_STAGE=0 keeps the one-call path; injected asks (tests) use it unless set to 1.
+  const two = process.env.AUTOTEST_PLAN_TWO_STAGE ?? (ask === defaultAsk ? '1' : '0');
+  if (!extra.previous && cx.version === 1 && two === '1') return (await import('./design')).authorTwoStage(cx, { ask, userPrompt: (c) => userPrompt(c), logs });
+  const system = systemPrompt();
   let errors: string[] = [];
   let last: Authored = { subcases: [], errors: [], calls: 0 };
   for (let attempt = 0; attempt < 2; attempt++) {

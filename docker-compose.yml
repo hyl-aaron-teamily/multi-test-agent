@@ -2,6 +2,10 @@
 #   pnpm start --docker      = docker compose up -d --build platform memory-core   (writes the memory config first)
 #   pnpm stop --docker       = docker compose down    (SIGTERM: task processes stopped, this session's runs removed)
 #   docker compose run --rm test                       (typecheck + unit tests in Linux, V20)
+#   docker compose --profile bench up -d --build bench (W3-6 E4: AndroidWorld service; the bench emulator on the host)
+#   docker compose --profile bench run --rm bench-run  (pilot set, 10 tasks; report into ./saved/bench)
+#   docker compose --profile emulator up -d            (W3-6 E3: Teamily emulator in a container; needs /dev/kvm =
+#                                                       a Linux host; config only until V21)
 # Every `up` is a fresh platform: midscene_run/ is not a volume; platform/state keeps only what platform/session.ts
 # keeps (accounts, full access, audit, skill cache); 「另存为」 archives live in ./saved on the host.
 name: multi-test-agent
@@ -72,6 +76,92 @@ services:
       MEMORY_OFF: "1"
       AUTOTEST_EMULATOR_RESTORE: "0"
 
+  # ---- W3-6 E4: AndroidWorld bench service. AndroidWorldAvd (emulator-5554, `-grpc 8554`) runs on the host and
+  # is for the bench only; the service reaches it through the host's adb server and gRPC port (entrypoint.sh).
+  bench:
+    profiles: ["bench"]
+    build:
+      context: ./bench/androidworld
+      additional_contexts:
+        aw: ./ref/android_world
+    image: multi-test-agent-bench:local
+    command: ["--seed", "42", "--combos", "1"]
+    environment:
+      AW_HOST_GATEWAY: host.docker.internal
+      AW_A11Y_PORT: "5056"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:5055:5055"
+      # the accessibility forwarder in the emulator dials 10.0.2.2:5056 = the host's loopback → here
+      - "127.0.0.1:5056:5056"
+
+  # One-off: the exploration executor runs the pilot set against the service. Reports go straight to ./saved/bench
+  # (the bench's 「另存为」: kept across sessions, unlike midscene_run/).
+  bench-run:
+    <<: *app
+    profiles: ["bench"]
+    command: ["npx", "tsx", "bin/autotest.ts", "bench", "aw", "--pilot", "--udid", "emulator-5554", "--server", "http://bench:5055"]
+    environment:
+      ADB_SERVER_SOCKET: tcp:host.docker.internal:5037
+      MEMORY_OFF: "1"
+      AUTOTEST_EMULATOR_RESTORE: "0"
+    volumes:
+      - ./platform/devices.yaml:/app/platform/devices.yaml:ro
+      - ./saved/bench:/app/midscene_run/bench
+    depends_on:
+      - bench
+
+  # ---- W3-6 E3: the Teamily emulator in a container (open-source docker-android image; needs KVM, so a Linux
+  # host — Docker Desktop on Windows has none). Same spec as W3-4 E1: 1080×2400, API 34. The platform then talks
+  # to it over the compose network (`adb connect emulator:5555`), with its own adb server: no host forwarding
+  # (the V17 question does not arise). Acceptance: V21 on a Linux host.
+  emulator:
+    profiles: ["emulator"]
+    image: ${EMULATOR_IMAGE:-budtmo/docker-android:emulator_14.0}
+    devices:
+      - /dev/kvm
+    environment:
+      EMULATOR_DEVICE: ${EMULATOR_DEVICE:-Samsung Galaxy S10}
+      EMULATOR_ADDITIONAL_ARGS: "-skin 1080x2400 -memory 4096 -cores 4"
+      WEB_VNC: "true"
+    ports:
+      - "127.0.0.1:6080:6080"
+    volumes:
+      # the APKs the user supplies (W3-4 E1) and the AVD with its snapshots (teamily-ready survives restarts)
+      - ./apk:/apk:ro
+      - avd:/home/androidusr
+
+  platform-emu:
+    <<: *app
+    profiles: ["emulator"]
+    ports:
+      - "3210:3210"
+    # the container's own adb server, connected to the emulator container (no host adb in this setup)
+    command: ["sh", "-c", "adb start-server && until adb connect emulator:5555 | grep -q connected; do sleep 5; done && pnpm platform"]
+    environment:
+      ADB_SERVER_SOCKET: tcp:localhost:5037
+      MEMORY_CORE_URL: http://memory-core:8420
+      AUTOTEST_EMULATOR_RESTORE: "0"
+      AUTOTEST_END_SESSION_ON_STOP: "1"
+      # devices.emulator.yaml declares `emulator:5555` (same entry as emulator-5556 in devices.yaml, serial changed)
+      PLATFORM_DEVICES_FILE: platform/devices.emulator.yaml
+    stop_grace_period: 90s
+    volumes:
+      - ./platform/accounts.local.yaml:/app/platform/accounts.local.yaml:ro
+      - ./platform/conversations.local.yaml:/app/platform/conversations.local.yaml:ro
+      - ./platform/devices.emulator.yaml:/app/platform/devices.emulator.yaml:ro
+      - ./apk:/app/apk:ro
+      - state:/app/platform/state
+      - ./saved:/app/saved
+      - ./platform/explore:/app/platform/explore
+      - ./platform/memory:/app/platform/memory
+      - ./.docker/memory-core:/app/.docker/memory-core:ro
+    depends_on:
+      - emulator
+      - memory-core
+
 volumes:
   state:
   memory:
+  avd:
