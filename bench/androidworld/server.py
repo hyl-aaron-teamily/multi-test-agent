@@ -139,6 +139,23 @@ def main() -> None:
     # android_env picks a random free port; in a container that port must be known to be published.
     from android_env.wrappers import a11y_grpc_wrapper  # pylint: disable=g-import-not-at-top
     a11y_grpc_wrapper.portpicker.pick_unused_port = lambda: a.a11y_port
+    # Its server takes local credentials (loopback peers only); in a container the emulator's forwarder arrives
+    # through Docker's port publishing, i.e. from the gateway, and is refused. Serve the port plain instead: it is
+    # published on the host's 127.0.0.1 only (docker-compose.yml), which is what local credentials protected.
+    # The port is fixed, so when android_world rebuilds the wrapper ("reinitializing AndroidEnv, and restarting
+    # a11y forwarding") the old server must let go of it first — with a random port that never came up.
+    make_server = a11y_grpc_wrapper.grpc.server
+    live = []
+
+    def plain_server(*args, **kwargs):
+      while live:
+        live.pop().stop(0).wait(5)
+      s = make_server(*args, **kwargs)
+      s.add_secure_port = lambda address, credentials: s.add_insecure_port(address)
+      live.append(s)
+      return s
+
+    a11y_grpc_wrapper.grpc.server = plain_server
   if not a.adb:
     raise SystemExit('adb not found: set AW_ADB or put adb on PATH')
   env = env_launcher.load_and_setup_env(console_port=a.console_port, emulator_setup=a.setup, freeze_datetime=True, adb_path=a.adb, grpc_port=a.grpc_port)
