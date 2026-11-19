@@ -293,6 +293,11 @@ const openSettings: Exec<Record<string, never>> = async ({ context: c }) => {
     }
     throw new RoundDrift(`teamily.openSettings: ${what} not on screen`, 'executor');
   };
+  // W3-7 §4: start from the home list — a chat or sheet left open hides the 我的 entry (at most 3 backs).
+  for (let i = 0; i < 3 && !((await c.findAll?.(['我的', '我', 'Me', '打开设置'])) ?? []).length; i++) {
+    await c.driver.back();
+    await sleep(1000);
+  }
   // Right after a cold start the first tap on the avatar may be dropped: tap again until the profile's ☰ shows.
   for (let i = 0; i < 3 && !((await c.findAll?.(['打开设置'])) ?? []).length; i++) {
     await click(['我的', '我', 'Me'], 'the avatar / 我的 entry');
@@ -457,9 +462,14 @@ const freezeMention: Exec<{ member: string; as: string }> = async ({ input, cont
   else await tapEl(c, 'chat.composer');
   await c.driver.type('@');
   let p: Point | null = null;
-  for (let i = 0; i < 3 && !p; i++) {
+  for (let i = 0; i < 5 && !p; i++) {
     await sleep(i ? 1000 : 1500);
     p = await c.locate(`the member "${input.member}" in the @ mention picker`, [input.member], true, true);
+    // W3-7 §4: a long member list — scroll the picker (lower part of the screen) and look again.
+    if (!p && i >= 1) {
+      const { width, height } = c.profile.viewport;
+      if (width && height) await c.driver.scroll({ x: Math.round(width / 2), y: Math.round(height * 0.75) }, Math.round(height * 0.25)).catch(() => {});
+    }
   }
   // Not a plan error: the conversation's members are the environment (W3-7 §4).
   if (!p) throw new NodeError(`teamily.freezeMention: "${input.member}" not in the @ picker (check the conversation's members)`, 'environment');

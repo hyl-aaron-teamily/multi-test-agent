@@ -20,6 +20,7 @@ import type { RunCtx } from './context';
 import { recordIncident } from '../recorder/incident-hook';
 import { observeCheck } from './checkpoint';
 import { readBaseline, readExpect } from './expect';
+import { bubbleAt } from '../observe';
 import { restore } from './loop';
 
 export interface WarmupStep {
@@ -220,6 +221,15 @@ export async function runWarmup(c: RunCtx): Promise<WarmupStep[]> {
     if (r.pass === false) {
       // One redo; a fixed element is first located again on the live screen (its cached point may be stale).
       if (a.element && !a.element.startsWith('target.') && (await c.sess.profile.resolver?.refresh(a.element).catch(() => false))) st.healed = `重新定位 ${a.element}`;
+      // W3-7 §4: a long-press that changed nothing (Δ0) — press the middle of the target's bubble on the redo.
+      if (a.type === 'longPress' && a.element?.startsWith('target.') && android && pt) {
+        const b = bubbleAt(await dumpTree(android.o.udid, android.o.packageName, 2), pt);
+        if (b) {
+          const mid = { x: Math.round((b.box.x1 + b.box.x2) / 2), y: Math.round((b.box.y1 + b.box.y2) / 2) };
+          c.targets[a.element.slice('target.'.length)] = mid;
+          st.healed = `长按改到气泡中心 (${mid.x}, ${mid.y})`;
+        }
+      }
       st.redo = true;
       r = await attempt();
       if (r.pass !== false) await readX();
