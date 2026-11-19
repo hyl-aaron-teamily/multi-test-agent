@@ -300,6 +300,7 @@ export async function repairFollowUp(id: string, plan: TestPlan, results: RunRes
   const file = issuePath(plan.issueRef);
   const out = await repairLoop(results.at(-1)!, sub, {
     run,
+    plan,
     load: () => loadRecord(plan.issueRef),
     save: (r) => saveRecord(r),
     raw: existsSync(file) ? readFileSync(file, 'utf8') : undefined,

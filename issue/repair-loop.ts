@@ -24,6 +24,8 @@ export interface LoopDeps {
   /** R13 warnings for the plan (W3-7 §8.2). */
   warnings?: (plan: TestPlan) => string[];
   cancelled?: () => boolean;
+  /** The plan the first run executed (the task's frozen plan): reruns use it until a repair replaces it. */
+  plan?: TestPlan;
 }
 
 export interface LoopOutcome {
@@ -60,7 +62,7 @@ export async function repairLoop(first: RunResult, sub: string, d: LoopDeps): Pr
   const steps: RepairStep[] = [];
   let r = first;
   let rerunFor: string | undefined;
-  let plan: TestPlan | undefined;
+  let plan: TestPlan | undefined = d.plan;
   for (;;) {
     if (d.cancelled?.()) return { runs, steps, stop: '已取消' };
     const fp = failurePoint(r);

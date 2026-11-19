@@ -74,7 +74,7 @@ export function recordView(r: PlanRecord) {
     // R13 (W3-7 §8.2): texts never seen on a real page — warnings, not errors.
     subcases: rec.subcases.map((s) => ({ sub: s.sub, title: s.title, surface: s.surface, plan: s.plan, oracle: rec.envelope?.subcases.find((x) => x.sub === s.sub)?.oracle, warnings: pageTextWarnings(s.plan) })),
     partial: rec.partial ?? [],
-    gaps: rec.gaps ?? [],
+    gaps: rec.gaps ?? rec.envelope?.feasibility?.missing ?? [],
     envelope: rec.envelope,
     revs: (rec.revs ?? []).map(({ snapshot, ...x }) => ({ ...x, status: snapshot.status })),
     chat: rec.chat ?? [],
