@@ -125,5 +125,7 @@ export async function restoreOnStart(list: { udid: string; emulator: EmulatorCon
       continue;
     }
     await loadSnapshot(d.udid, d.emulator.snapshot).then(() => log(`${d.udid}: restored snapshot ${d.emulator.snapshot}`), (err) => log(`${d.udid}: snapshot restore failed — ${(err as Error).message.split('\n')[0]}`));
+    // A snapshot saved before W3-7 E5 has the soft keyboard hidden: set it after every restore (idempotent).
+    await adb(['shell', 'settings', 'put', 'secure', 'show_ime_with_hard_keyboard', '1'], d.udid, 15_000).catch(() => {});
   }
 }
