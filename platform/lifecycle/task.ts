@@ -32,7 +32,7 @@ export interface TaskRecord {
   id: string;
   kind: 'issue' | 'series' | 'explore' | 'sync';
   /** kind explore: the exploration tier's goal (capability ②). */
-  explore?: { goal: string; mode: 'task' | 'explore'; writable: boolean };
+  explore?: { goal: string; mode: 'task' | 'explore'; writable: boolean; noMemory?: boolean };
   issue: string;
   /** Plan ids `<Issue>/<sub>:<surface>@<version>`, and the approval they run under. */
   planId: string;

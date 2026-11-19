@@ -25,6 +25,8 @@ export interface Slot {
   /** Soft budget in characters: above it, `degrade` is used instead (full → summary → reference). */
   budget?: number;
   degrade?: () => string | Part[];
+  /** A remark for the manifest (W3-5: 「记忆服务不可用」 on the memory slot). */
+  note?: string;
 }
 
 export interface SlotEntry {
@@ -35,6 +37,7 @@ export interface SlotEntry {
   stable?: boolean;
   degraded?: boolean;
   empty?: boolean;
+  note?: string;
 }
 
 export interface Manifest {
@@ -71,7 +74,7 @@ export function assemble(purpose: string, slots: Slot[], o: { systemJoin?: strin
   for (const s of slots) {
     const degraded = s.budget !== undefined && !!s.degrade && textOf(s.content).length > s.budget;
     const content = degraded ? s.degrade!() : s.content;
-    const entry: SlotEntry = { name: s.name, role: s.role, chars: textOf(content).length, images: imagesOf(content), ...(s.stable ? { stable: true } : {}), ...(degraded ? { degraded } : {}) };
+    const entry: SlotEntry = { name: s.name, role: s.role, chars: textOf(content).length, images: imagesOf(content), ...(s.stable ? { stable: true } : {}), ...(degraded ? { degraded } : {}), ...(s.note ? { note: s.note } : {}) };
     if (isEmpty(content)) {
       entries.push({ ...entry, empty: true });
       continue;

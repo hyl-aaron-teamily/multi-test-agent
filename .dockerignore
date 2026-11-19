@@ -1,0 +1,29 @@
+# W3-5 E2: nothing of a session, nothing private, nothing large goes into the image. Private config is mounted
+# read-only at run time (docker-compose.yml).
+node_modules
+midscene_run
+saved
+docs
+ref
+apk
+issues
+.m5tmp
+.git
+.env
+.env.*
+platform/state
+platform/secrets
+platform/*.local.yaml
+platform/explore/known.json
+platform/explore/triage.json
+platform/memory/*.local.*
+skills/teamily/pages.local.json
+tools/platform-tools
+*.log
+tools/android-sdk
+tools/tdai*
+allure-results
+allure-report
+.playwright-mcp
+.docker
+bench/**/__pycache__

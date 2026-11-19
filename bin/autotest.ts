@@ -32,7 +32,7 @@ function run(bin: string, args: string[]): Promise<number> {
 
 const tsx = resolve('node_modules/tsx/dist/cli.mjs');
 
-const V1 = ['issue', 'draft', 'env', 'task', 'result', 'explore', 'help', 'doctor'];
+const V1 = ['issue', 'draft', 'env', 'task', 'result', 'explore', 'memory', 'help', 'doctor'];
 
 async function main(): Promise<number> {
   // `task exec <id>` is the platform's internal child; the rest of the v1 objects are thin service clients.

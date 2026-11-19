@@ -26,6 +26,7 @@ const state = { fieldText: '', frame: 10 };
 const prompts: string[] = [];
 const answers: unknown[] = [];
 const reviews: { expected: string; actual: string }[] = [];
+const mems: { content: unknown; note?: string }[] = [];
 
 vi.mock('../snapshot', () => ({
   snapshot: async () => ({ at: '', surface: 'android-app', source: 'fake', ms: { stable: 0, tree: 0, shot: 0, total: 0 }, width: 40, height: 80, nodes: [search(state.fieldText), ...chat], png: png(state.frame) }),
@@ -62,8 +63,10 @@ vi.mock('../session', () => ({
 }));
 vi.mock('../../core/context/assemble', async (orig) => ({
   ...(await orig<typeof import('../../core/context/assemble')>()),
-  modelCall: async (req: { slots: { name: string; content: unknown }[] }) => {
+  modelCall: async (req: { slots: { name: string; content: unknown; note?: string }[] }) => {
     prompts.push(req.slots.filter((s) => s.name === 'step').map((s) => s.content).join(''));
+    const m = req.slots.find((s) => s.name === 'memory');
+    if (m) mems.push({ content: m.content, note: m.note });
     const v = answers.shift();
     return { ok: true, value: v, raw: JSON.stringify(v), usage: { input: 0, output: 0, cached: 0 }, ms: 1, requests: 1, manifest: {} };
   },
@@ -77,6 +80,7 @@ beforeEach(() => {
   prompts.length = 0;
   answers.length = 0;
   reviews.length = 0;
+  mems.length = 0;
 });
 afterEach(() => {
   process.env = { ...env0 };
@@ -139,5 +143,33 @@ describe('exploration judgment in the loop (W3-4, fakes)', () => {
     expect(known).toHaveLength(1);
     expect(known[0]).toMatchObject({ id: 'K001', page: 'chat', type: 'expectation:issue-2063', count: 2 });
     expect(known[0].runs.map((x) => x.run)).toEqual(['t1', 't2']);
+  }, 60_000);
+});
+
+describe('lessons in the loop (W3-5, fakes)', () => {
+  it('a lesson is injected after a type, its L2 makes the report not count; the memory service down is noted', async () => {
+    const { runAgent } = await import('./run');
+    const echo = { id: 'L-input-echo', scope: { surface: 'android-app' }, when: ['after:type'], class: 'test-method' as const, do: { L2: 'suppress:input-echo', L3: '输入没上屏时先读回，再继续' }, counter: '读回有文字仍报', preview: 'p', evidence: [], status: 'active' as const, source: 'human' as const, createdAt: '' };
+    answers.push(
+      { thought: 'search', action: { type: 'type', target: 1, text: 'aaron' } },
+      { thought: 'empty', action: { type: 'report_issue', description: '搜索框里不显示输入的文字' } },
+      { thought: 'done', action: { type: 'done', status: 'completed', summary: 'explored' } },
+    );
+    const r = await runAgent({ goal: '探索搜索', mode: 'explore', surface: 'android-app', env: 'prod', pool, runDir: tmpDir('w3m5-loop-'), taskId: 'm1', maxSteps: 5, judge: { expectations: [], knownFile: join(tmpDir('w3m5-k-'), 'known.json') }, memory: { lessons: [echo] } });
+    // step 1: nothing typed yet → no lesson; step 2 (after the type) → the lesson, in the memory slot
+    expect(mems[0].content).toBe('');
+    expect(String(mems[1].content)).toContain('[L-input-echo] 输入没上屏时先读回，再继续');
+    expect(mems[1].note).toMatch(/记忆服务不可用/);
+    const f = r.findings.find((x) => x.source === 'reported')!;
+    expect(f).toMatchObject({ counted: false, lesson: 'L-input-echo' });
+    expect(f.excluded).toMatch(/^教训 L-input-echo/);
+    expect(r.memory).toMatchObject({ injected: ['L-input-echo'], applied: ['L-input-echo'], service: 'down' });
+  }, 60_000);
+  it('the 不用记忆 switch: no lessons, no memory slot content', async () => {
+    const { runAgent } = await import('./run');
+    answers.push({ thought: 'done', action: { type: 'done', status: 'completed', summary: 'x' } });
+    const r = await runAgent({ goal: 'x', mode: 'explore', surface: 'android-app', env: 'prod', pool, runDir: tmpDir('w3m5-off-'), taskId: 'm2', maxSteps: 3, judge: { expectations: [], knownFile: join(tmpDir('w3m5-k-'), 'known.json') }, memory: false });
+    expect(r.memory).toMatchObject({ off: true, service: 'off' });
+    expect(mems.every((m) => m.content === '')).toBe(true);
   }, 60_000);
 });

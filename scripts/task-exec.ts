@@ -69,7 +69,7 @@ async function execExplore(id: string, rt: TaskRuntime): Promise<number> {
   const runDir = resolve('midscene_run/explore', `${env.surface}-${id}`);
   updateTask(id, (t) => void (t.runDir = runDir));
   const { inboxReader } = await import('../platform/lifecycle/inbox');
-  const r = await runAgent({ goal: x.goal, mode: x.mode, surface: env.surface as Surface, env: env.serviceEnv, pool, devices, udid: env.udid, account: env.account, writable: x.writable, maxSteps: t0.options.maxSteps, maxMinutes: t0.options.maxMinutes, runDir, taskId: id, hooks, onStep, inbox: inboxReader(id) });
+  const r = await runAgent({ goal: x.goal, mode: x.mode, surface: env.surface as Surface, env: env.serviceEnv, pool, devices, udid: env.udid, account: env.account, writable: x.writable, maxSteps: t0.options.maxSteps, maxMinutes: t0.options.maxMinutes, runDir, taskId: id, hooks, onStep, inbox: inboxReader(id), ...(x.noMemory ? { memory: false as const } : {}) });
   const code = exploreCode(r);
   const report = join(runDir, 'report.md');
   writeResult(id, { schemaVersion: 1, taskId: id, planId: t0.planId, code, agent: r, report, runDir });

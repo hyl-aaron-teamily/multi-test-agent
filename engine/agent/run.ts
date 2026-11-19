@@ -50,8 +50,11 @@ import { scalePng } from '../recorder/evidence-review';
 import { basename } from 'node:path';
 import { type PageMatch, pageOf, startPageRecording, UNKNOWN_PAGE } from '../pages';
 import { activeExpectations, type Expectation, expectationBlocks, type ExpectationOutcome, outcomeOf, readExpectations, readVerify } from '../explore/expectations';
-import { knownBlock, knownPath, type KnownIssue, normText as knownText, readKnown, type TriageVerdict, updateKnown } from '../explore/known';
-import { FINDING_SOURCE, findingState, judgeFinding } from '../explore/judge';
+import { knownBlock, knownPath, type KnownIssue, matchKnown, normText as knownText, readKnown, type TriageVerdict, updateKnown } from '../explore/known';
+import { FINDING_SOURCE, findingKey, findingState, judgeFinding } from '../explore/judge';
+import { addStats, type Lesson, lessonBlock, lessonsForStep, readLessons, type StepContext, suppressingLesson } from '../../platform/memory/lessons';
+import { actionType } from '../../platform/memory/replay';
+import { type MemoryClient, type MemoryMessage, memoryClient, memoryUser } from '../../core/memory/client';
 export { FINDING_SOURCE };
 
 export type AgentMode = 'task' | 'explore';
@@ -85,6 +88,9 @@ export interface AgentOptions {
   /** W3-4 exploration judgment: the checklist (explore mode) and the known-issues file. Default: the project's
    *  platform/explore files; false = none (bench runs never judge). */
   judge?: { expectations: Expectation[]; knownFile: string } | false;
+  /** W3-5 lessons and the memory service: default on (bench runs never, D16); false = the "不用记忆" switch, or
+   *  a given set (tests: lessons + a client). */
+  memory?: false | { lessons: Lesson[]; client?: MemoryClient };
 }
 
 export interface BenchLink {
@@ -111,6 +117,8 @@ export interface Finding {
   known?: { id: string; count: number; isNew: boolean };
   /** Why a finding does not count although the review agreed: D10, or a known issue people dismissed. */
   excluded?: string;
+  /** W3-5: the lesson that made it not count (L2). */
+  lesson?: string;
   /** A person's triage on the result page (§8.5 ②). */
   triage?: { verdict: TriageVerdict; note?: string; at: string };
   kind: IncidentKind;
@@ -159,6 +167,8 @@ export interface AgentResult {
   notes?: Record<string, string>;
   /** The checklist entries the run carried and what came of each (W3-4 §8.5 ①; explore mode). */
   expectations?: ExpectationOutcome[];
+  /** W3-5: lessons put into prompts / applied in judging, and the memory service's state for this run. */
+  memory?: { off?: boolean; injected: string[]; applied: string[]; service: 'ok' | 'down' | 'off'; l0?: boolean };
   runDir: string;
   error?: string;
 }
@@ -229,8 +239,22 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
   const outcomes = new Map<string, ExpectationOutcome>(expectations.map((e) => [e.id, { id: e.id, page: e.page, trigger: e.trigger, expect: e.expect, source: e.source, result: '未核对', checks: [] }]));
   let known: KnownIssue[] = judging ? readKnown(knownFile) : [];
   const runKey = o.taskId ?? basename(o.runDir);
+  // W3-5: the repository's lessons (deterministic path) and the memory service (search, L0). Off for bench runs
+  // (D16: lessons learnt on the same tasks would leak answers) and with the "不用记忆" switch.
+  const memOn = !o.bench && o.memory !== false;
+  const lessons = memOn ? (o.memory ? o.memory.lessons : readLessons()).filter((l) => l.status === 'active') : [];
+  const mem = memOn ? ((o.memory && o.memory.client) || memoryClient()) : undefined;
+  const memIso = { agent: 'explore' as const, user: memoryUser(o.surface), session: runKey, task: runKey };
+  const memUp = mem ? (await mem.health(1500)).ok : false;
+  res.memory = { ...(memOn ? {} : { off: true }), injected: [], applied: [], service: !memOn ? 'off' : memUp ? 'ok' : 'down' };
+  const lessonDelta: Record<string, { injected?: number; applied?: number }> = {};
   const finish = async (): Promise<AgentResult> => {
     endCallLogs();
+    if (memOn) {
+      addStats(lessonDelta);
+      // L0: the run's rounds as text (screenshots by path) — the service extracts experience from them (§8.9).
+      if (memUp && mem && res.steps.length) res.memory!.l0 = await mem.addConversation(memIso, l0Messages(o.goal, res.steps), 10_000);
+    }
     if (outcomes.size) res.expectations = [...outcomes.values()];
     res.finishedAt = new Date().toISOString();
     res.usage = { steps: res.steps.length, seconds: Math.round((Date.now() - t0) / 1000), modelCalls: modelCalls.vision + modelCalls.text - calls0, ...(checkCalls ? { checkCalls } : {}), tokens: { input: modelCalls.tokens.input - tokens0.input, output: modelCalls.tokens.output - tokens0.output, cached: modelCalls.tokens.cached - tokens0.cached } };
@@ -317,14 +341,35 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
     // The page of the current step (W3-4): findings, checklist and known issues are per page.
     let page: PageMatch = { id: UNKNOWN_PAGE, name: '未知页面', lang: 'zh' };
     let prevPage: PageMatch | undefined;
+    /** What the executor knows at a step, for the lessons' `when` (W3-5): the page, the previous action, its read-back. */
+    const stepContext = (step: number): StepContext => {
+      const prev = [...res.steps].reverse().find((x) => x.step < step);
+      return { surface: o.surface, page: page.id, lastAction: prev ? actionType(prev.action) : undefined, readback: prev?.readback };
+    };
     /** W3-4: every finding passes D10 and the known issues before it is kept. */
     const pushFinding = (f: Finding): Finding => {
       f.page = page.id;
+      // W3-5 L2: a lesson covering this finding makes it not count (before the known issues count it).
+      if (f.counted && lessons.length) {
+        const l = suppressingLesson(lessons, { source: f.source, type: findingKey(f).type, text: f.source === 'detector' ? (f.text ?? f.description) : f.description, page: f.page, knownId: matchKnown(known, findingKey(f))?.id, step: f.step }, stepContext(f.step));
+        if (l) {
+          f.counted = false;
+          f.lesson = l.id;
+          f.excluded = `教训 ${l.id}：${l.preview}`;
+          (lessonDelta[l.id] ??= {}).applied = (lessonDelta[l.id].applied ?? 0) + 1;
+          if (!res.memory!.applied.includes(l.id)) res.memory!.applied.push(l.id);
+        }
+      }
       if (judging)
         updateKnown((items) => {
           judgeFinding(f, res.steps, items, runKey);
           known = items;
         }, knownFile);
+      // The lesson stays the stated reason; another rule that also applies (D10) is kept after it.
+      if (f.lesson) {
+        const lessonWhy = `教训 ${f.lesson}：${lessons.find((l) => l.id === f.lesson)?.preview ?? ''}`;
+        if (f.excluded !== lessonWhy) f.excluded = f.excluded ? `${lessonWhy}；${f.excluded}` : lessonWhy;
+      }
       res.findings.push(f);
       return f;
     };
@@ -445,6 +490,21 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
       }
       const prompt = userPrompt({ goal: o.goal, mode: o.mode, plan, notes: notes.text(), history: historyText(res.steps), screen, els, tried: [...triedHere], feedback, size: vp, instructions: res.instructions?.map((x) => x.text), top: [incidents.block(), ...top.splice(0)].filter(Boolean), extra: judging ? [...expectationBlocks(expectations, page, outcomes, prevPage), knownBlock(known, page.id)].filter(Boolean) : [] });
       const system = bench ? BENCH_SYSTEM : SYSTEM(!!o.writable, ownNames);
+      // W3-5 §8.7 ④: lessons for this step (deterministic, always) + related experience (best effort, 300 ms).
+      let memoryText = '';
+      let memoryNote: string | undefined;
+      if (memOn) {
+        const ctx = stepContext(step);
+        const ls = lessonsForStep(lessons, ctx, 5);
+        for (const l of ls) {
+          (lessonDelta[l.id] ??= {}).injected = (lessonDelta[l.id].injected ?? 0) + 1;
+          if (!res.memory!.injected.includes(l.id)) res.memory!.injected.push(l.id);
+        }
+        const hits = memUp && mem ? await mem.searchAtoms(memIso, `${page.name} ${ctx.lastAction ?? ''} ${o.goal}`.slice(0, 200), { limit: Math.max(0, Math.min(3, 5 - ls.length)), timeoutMs: 300 }) : undefined;
+        if (memUp && !hits) memoryNote = '记忆服务检索超时或失败：只用仓库里的教训';
+        else if (!memUp) memoryNote = '记忆服务不可用：只用仓库里的教训';
+        memoryText = lessonBlock(ls, (hits ?? []).map((h) => h.content.slice(0, 200)));
+      }
       // F2: an unusable answer goes back with its reason once, in the same turn.
       let got: ReturnType<typeof readAnswer> | undefined;
       let raw = '';
@@ -456,6 +516,7 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
           slots: [
             { name: 'role', role: 'system', stable: true, content: system },
             { name: 'step', role: 'user', content: prompt },
+            { name: 'memory', role: 'user', content: memoryText, ...(memoryNote ? { note: memoryNote } : {}) },
             { name: 'screenshot', role: 'user', content: [{ label: 'Screenshot (scaled; coordinates are on the 0-1000 scale)', png: shot }] },
             { name: 'correction', role: 'user', content: correction },
           ],
@@ -939,4 +1000,15 @@ export function agentMarkdown(r: AgentResult): string {
   ]
     .filter((l) => l !== '')
     .join('\n');
+}
+
+/** Pure: a run's rounds as L0 messages (W3-5 §8.9): the goal, then per step the model's thought and action
+ *  (assistant) and what came of it (user). Text only — a screenshot is named by its path. */
+export function l0Messages(goal: string, steps: StepRecord[]): MemoryMessage[] {
+  const out: MemoryMessage[] = [{ role: 'user', content: `探索目标：${goal}` }];
+  for (const st of steps) {
+    out.push({ role: 'assistant', content: `#${st.step} [${st.page ?? '-'}] ${st.thought ? `${st.thought.slice(0, 400)} → ` : ''}${st.action}` });
+    out.push({ role: 'user', content: `${st.result}${st.readback?.length ? ` | 读回：${st.readback.join(' / ')}` : ''}${st.thumb ? ` | 截图 ${st.thumb}` : ''}` });
+  }
+  return out;
 }

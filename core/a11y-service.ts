@@ -11,6 +11,7 @@ import { randomBytes } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { adb, resolveAdbPath } from './adb';
+import { deviceHttpGet } from './adb-socket';
 import type { TreeBackend } from './tree-backend';
 
 export const A11Y_PKG = 'ai.autotest.a11y';
@@ -44,12 +45,14 @@ async function forward(udid: string): Promise<number> {
 }
 
 async function get(udid: string, path: string, timeoutMs: number): Promise<{ status: number; body: string }> {
+  // W3-5 E2 (K9): through the adb server's own socket (core/adb-socket.ts), not an `adb forward` on its loopback —
+  // the same in the platform container and on this computer. AUTOTEST_A11Y_FORWARD=1 keeps the old forward path.
+  if (process.env.AUTOTEST_A11Y_FORWARD !== '1') return deviceHttpGet(udid, A11Y_PORT, path, timeoutMs);
   const port = await forward(udid);
   try {
     const r = await fetch(`http://127.0.0.1:${port}${path}`, { signal: AbortSignal.timeout(timeoutMs) });
     return { status: r.status, body: await r.text() };
   } catch (e) {
-    // A stale forward (device reconnected) — remove it so the next call makes a new one.
     ports.delete(udid);
     await adb(['forward', '--remove', `tcp:${port}`], udid, 5000).catch(() => '');
     throw e;

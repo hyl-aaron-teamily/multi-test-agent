@@ -164,6 +164,12 @@ async function main() {
     stopping = true;
     console.log(`[platform] ${sig}: scheduling stopped — running task processes keep their leases and are adopted on the next start`);
     await sup?.shutdown().catch((e) => console.error(e));
+    // W3-5 E2 ⑤: in the container `docker compose down` is `pnpm stop` — task processes stopped, this session's runs
+    // and records removed (saved/ stays). On this computer `pnpm stop` does it from scripts/ctl.ts.
+    if (process.env.AUTOTEST_END_SESSION_ON_STOP === '1') {
+      const r = await endSession({ keep: ['logs'] }).catch((e) => (console.error(e), undefined));
+      if (r) console.log(`[platform] session ended: stopped ${r.stopped.length} task processes, removed ${r.removed} entries`);
+    }
     process.exit(0);
   };
   process.on('SIGINT', () => void stop('SIGINT'));

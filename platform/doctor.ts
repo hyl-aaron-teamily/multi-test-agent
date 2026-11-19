@@ -60,12 +60,16 @@ export interface Facts {
   node: { version: string; missing: string[] };
   platform: { up: boolean; url: string };
   model: { text: boolean; vision: boolean };
-  adb: { ok: boolean; path: string; version?: string; error?: string };
+  adb: { ok: boolean; path: string; version?: string; error?: string; /** W3-5 E2 ⑦: where the adb server is and its protocol version. */ server?: string; serverProtocol?: number; clientProtocol?: number };
+  /** W3-5 E2 ⑦: on this computer or in the platform container. */
+  runtime?: 'host' | 'container';
   devices: DeviceFact[];
   recorder: { scrcpy: boolean };
   envs: { id: string; state: string; reason?: string; suggestion?: string; lease?: string }[];
   stale: { locks: string[]; forwards: { serial: string; local: string }[]; leases: { env: string; task: string; why: string }[] };
   probe?: ProbeResult[];
+  /** W3-5: the memory service (memory-core). Undefined = not checked. */
+  memory?: { ok: boolean; detail: string };
   /** W3-1 P7: GitHub Issue import (token state; never the token). Undefined = not checked. */
   github?: { configured: boolean; login?: string; repos: { repo: string; ok: boolean; detail: string }[]; error?: string };
 }
@@ -103,7 +107,10 @@ export function diagnose(f: Facts): Diagnosis {
 
   const phones = f.devices.filter((d) => d.declared || d.state === 'device');
   const wantPhones = f.devices.some((d) => d.declared) || f.envs.some((e) => /^android-/.test(e.id));
-  add({ id: 'adb', title: 'adb', level: f.adb.ok ? 'ok' : wantPhones ? 'fail' : 'warn', blocking: wantPhones, code: 'ENV_OFFLINE', detail: f.adb.ok ? `${f.adb.version ?? 'adb'}（${f.adb.path}）` : `adb 不可用：${f.adb.error ?? f.adb.path}`, next: f.adb.ok ? undefined : [{ kind: 'human', text: '安装 Android platform-tools，并把 adb 放到 PATH 或在 .env 设 MIDSCENE_ADB_PATH' }] });
+  // A client of another protocol version makes the adb server restart: the test phone drops off (E2 risk).
+  const mismatch = !!f.adb.serverProtocol && !!f.adb.clientProtocol && f.adb.serverProtocol !== f.adb.clientProtocol;
+  if (mismatch) add({ id: 'adb-version', title: 'adb 版本', level: 'fail', blocking: true, code: 'ENV_UNFIT', detail: `本${f.runtime === 'container' ? '容器' : '机'}的 adb 客户端是 1.0.${f.adb.clientProtocol}，adb 服务（${f.adb.server}）是 1.0.${f.adb.serverProtocol}：一连上服务就会重启，测试手机会掉线`, next: [{ kind: 'human', text: '让镜像里的 platform-tools 和本机同一版本（Dockerfile 的 ADB_VERSION），重新构建' }] });
+  add({ id: 'adb', title: 'adb', level: f.adb.ok ? 'ok' : wantPhones ? 'fail' : 'warn', blocking: wantPhones, code: 'ENV_OFFLINE', detail: f.adb.ok ? `${f.adb.version ?? 'adb'}（${f.adb.path}）${f.adb.server ? `；服务 ${f.adb.server}${f.adb.serverProtocol ? `（1.0.${f.adb.serverProtocol}）` : ''}` : ''}${f.runtime === 'container' ? '；平台在容器里' : ''}` : `adb 不可用：${f.adb.error ?? f.adb.path}`, next: f.adb.ok ? undefined : [{ kind: 'human', text: '安装 Android platform-tools，并把 adb 放到 PATH 或在 .env 设 MIDSCENE_ADB_PATH' }] });
 
   let usable = 0;
   if (f.adb.ok) {
@@ -162,6 +169,8 @@ export function diagnose(f: Facts): Diagnosis {
   }
   add({ id: 'model', title: '模型配置', level: f.model.text && f.model.vision ? 'ok' : 'warn', detail: f.model.text || f.model.vision ? `文本模型 ${f.model.text ? '有' : '无'}，视觉模型 ${f.model.vision ? '有' : '无'}${f.model.vision ? '' : '（视觉判定 / 证据复核记为未验证）'}` : '未配置：无法起草计划（W3-1 起计划由模型从原文设计），视觉判定与证据复核记为未验证', next: f.model.text && f.model.vision ? undefined : modelNext });
 
+  if (f.memory) add({ id: 'memory', title: '记忆服务', level: f.memory.ok ? 'ok' : 'warn', detail: f.memory.ok ? f.memory.detail : `${f.memory.detail} — 只用仓库里的教训（platform/memory/lessons.jsonl），运行不受影响`, next: f.memory.ok ? undefined : [{ kind: 'run', text: '启动记忆服务（Docker）', cmd: 'docker compose up -d memory-core' }] });
+
   add({ id: 'recorder', title: '录屏工具链', level: 'ok', detail: f.recorder.scrcpy ? 'scrcpy 可用' : 'scrcpy 不在，录屏用手机自带 screenrecord（每段最长 3 分钟）' });
 
   for (const e of f.envs) {
@@ -203,6 +212,11 @@ export async function gatherFacts(o: { probe?: boolean } = {}): Promise<Facts> {
   let adbF: Facts['adb'] = { ok: false, path: resolveAdbPath() };
   try {
     adbF = { ok: true, path: adbF.path, version: (await adb(['version'], undefined, 10_000)).split(/\r?\n/)[0].trim() };
+    const { adbClientProtocol, adbServerAddress, adbServerVersion } = await import('../core/adb-socket');
+    const sa = adbServerAddress();
+    adbF.server = `${sa.host}:${sa.port}`;
+    adbF.clientProtocol = adbClientProtocol(adbF.version ?? '');
+    adbF.serverProtocol = await adbServerVersion();
   } catch (e) {
     adbF.error = (e as Error).message.split('\n')[0];
   }
@@ -236,7 +250,9 @@ export async function gatherFacts(o: { probe?: boolean } = {}): Promise<Facts> {
   const stale = await findStale(up, adbF.ok);
   const { githubStatus } = await import('../issue/github');
   const g = await githubStatus().catch(() => undefined);
-  const f: Facts = { node: { version: process.versions.node, missing }, platform: { up, url }, model: { text: modelConfigured(), vision: visionConfigured() }, adb: adbF, devices, recorder: { scrcpy: !!findScrcpy() }, envs, stale, ...(g ? { github: { configured: g.configured, login: g.login, repos: g.repos, error: g.error } } : {}) };
+  const { memoryClient } = await import('../core/memory/client');
+  const mh = process.env.MEMORY_OFF === '1' ? undefined : await memoryClient().health(2000);
+  const f: Facts = { runtime: process.env.AUTOTEST_IN_CONTAINER === '1' ? 'container' : 'host', node: { version: process.versions.node, missing }, platform: { up, url }, model: { text: modelConfigured(), vision: visionConfigured() }, adb: adbF, devices, recorder: { scrcpy: !!findScrcpy() }, envs, stale, ...(mh ? { memory: { ok: mh.ok, detail: mh.detail } } : {}), ...(g ? { github: { configured: g.configured, login: g.login, repos: g.repos, error: g.error } } : {}) };
   if (o.probe) f.probe = await Promise.all(devices.filter((d) => d.state === 'device' && !d.locked).map((d) => probe(d)));
   return f;
 }

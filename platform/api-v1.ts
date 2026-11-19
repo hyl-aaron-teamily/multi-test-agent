@@ -236,7 +236,7 @@ function submitExplore(b: any): Envelope {
   if (b.dryRun) return ok('OK', `演练：${what}「${goal}」将在 ${env.id} 上运行（${writable ? '可写' : '只读'}）`, { envId: env.id, envState: env.state, mode, writable });
   const id = newTaskId();
   const num = (v: unknown) => (v === undefined || v === null ? undefined : Number(v));
-  const t = createTask({ id, kind: 'explore', issue: 'explore', planId: `explore:${mode}`, planHash: '-', envId: env.id, options: { maxSteps: num(b.maxSteps), maxMinutes: num(b.maxMinutes) }, explore: { goal, mode, writable }, idempotencyKey: b.idempotencyKey ? String(b.idempotencyKey) : undefined });
+  const t = createTask({ id, kind: 'explore', issue: 'explore', planId: `explore:${mode}`, planHash: '-', envId: env.id, options: { maxSteps: num(b.maxSteps), maxMinutes: num(b.maxMinutes) }, explore: { goal, mode, writable, ...(b.noMemory ? { noMemory: true } : {}) }, idempotencyKey: b.idempotencyKey ? String(b.idempotencyKey) : undefined });
   return ok('ACCEPTED', `任务 ${id} 已排队：${what} @ ${env.id}${checkingNote([env])}`, tv(t));
 }
 
@@ -546,7 +546,28 @@ export async function apiV1(q: Req, ctx: Ctx): Promise<Envelope> {
       if (M === 'GET' && seg[1] === 'known') return x.listKnown();
     }
     if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'mark') return (await import('./explore-v1')).markStep(seg[1], q.body ?? {});
-    if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'triage') return (await import('./explore-v1')).triageFinding(seg[1], q.body ?? {});
+    if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'triage') {
+      const r = (await import('./explore-v1')).triageFinding(seg[1], q.body ?? {});
+      // W3-5 D12: 「不是问题 / 环境问题」 with a sentence becomes a lesson at once (gated by the replay).
+      const v = String(q.body?.verdict ?? '');
+      if (!r.error && (v === 'not-issue' || v === 'env') && typeof q.body?.note === 'string' && q.body.note.trim() && q.body.learn !== false) {
+        const l = await (await import('./memory-v1')).learnFromMark({ task: seg[1], n: q.body.n, note: q.body.note, verdict: v });
+        return { ...r, summary: `${r.summary}；${l.summary}`, data: { finding: r.data, lesson: l.data ?? null, lessonError: l.error ? l.summary : undefined } };
+      }
+      return r;
+    }
+    // W3-5 lessons and the memory service (platform/memory-v1.ts).
+    if (seg[0] === 'memory') {
+      const m = await import('./memory-v1');
+      const by = q.web ? reviewerName() : 'cli';
+      if (M === 'GET' && seg[1] === 'lessons' && !seg[2]) return m.listLessons(q.query.get('status') ?? undefined);
+      if (M === 'POST' && seg[1] === 'lessons' && seg[2] === 'learn') return m.learnFromMark(q.body ?? {});
+      if (M === 'POST' && seg[1] === 'lessons' && seg[2] && seg[3]) return m.setLessonStatus(seg[2], seg[3], by);
+      if (M === 'PUT' && seg[1] === 'lessons' && seg[2]) return m.editLesson(seg[2], q.body ?? {}, by);
+      if (M === 'POST' && seg[1] === 'candidates' && seg[2] === 'pull') return m.pullCandidates(String(q.body?.surface ?? 'android-app'));
+      if (M === 'GET' && seg[1] === 'replay') return m.replayReport();
+      if (M === 'GET' && seg[1] === 'status') return m.memoryStatus();
+    }
     if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'issue') return exploreIssue(seg[1], Number(q.body.n));
     if (M === 'POST' && seg[0] === 'explore' && seg[1] && seg[2] === 'inject') return exploreInject(seg[1], q.body.text);
     if (M === 'GET' && seg[0] === 'explore' && seg[1] && seg[2] === 'candidates') return exploreCandidates(seg[1]);

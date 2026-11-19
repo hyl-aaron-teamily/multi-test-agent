@@ -1,0 +1,77 @@
+# W3-5 E2: platform + memory service (+ the unit tests, one-off). Devices stay on the host (see Dockerfile).
+#   pnpm start --docker      = docker compose up -d --build platform memory-core   (writes the memory config first)
+#   pnpm stop --docker       = docker compose down    (SIGTERM: task processes stopped, this session's runs removed)
+#   docker compose run --rm test                       (typecheck + unit tests in Linux, V20)
+# Every `up` is a fresh platform: midscene_run/ is not a volume; platform/state keeps only what platform/session.ts
+# keeps (accounts, full access, audit, skill cache); 「另存为」 archives live in ./saved on the host.
+name: multi-test-agent
+
+x-app: &app
+  build: .
+  image: multi-test-agent:local
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    # K9: the host's adb server (Docker Desktop: host.docker.internal reaches the host's loopback). The client in
+    # the image is the host's adb version (37.0.1).
+    ADB_SERVER_SOCKET: tcp:host.docker.internal:5037
+    MEMORY_CORE_URL: http://memory-core:8420
+    AUTOTEST_EMULATOR_RESTORE: "1"
+  extra_hosts:
+    - "host.docker.internal:host-gateway"
+
+services:
+  platform:
+    <<: *app
+    ports:
+      - "3210:3210"
+    environment:
+      ADB_SERVER_SOCKET: tcp:host.docker.internal:5037
+      MEMORY_CORE_URL: http://memory-core:8420
+      AUTOTEST_EMULATOR_RESTORE: "1"
+      AUTOTEST_END_SESSION_ON_STOP: "1"
+    stop_grace_period: 90s
+    volumes:
+      # private config, read-only
+      - ./platform/accounts.local.yaml:/app/platform/accounts.local.yaml:ro
+      - ./platform/conversations.local.yaml:/app/platform/conversations.local.yaml:ro
+      - ./platform/devices.yaml:/app/platform/devices.yaml:ro
+      - ./apk:/app/apk:ro
+      # kept across sessions
+      - state:/app/platform/state
+      - ./saved:/app/saved
+      - ./platform/explore:/app/platform/explore
+      - ./platform/memory:/app/platform/memory
+      - ./skills/teamily/pages.local.json:/app/skills/teamily/pages.local.json
+      # memory service: the v3 key and our team / agent ids (scripts/memory-config.ts --init)
+      - ./.docker/memory-core:/app/.docker/memory-core:ro
+    depends_on:
+      - memory-core
+
+  memory-core:
+    image: ${MEMORY_CORE_IMAGE:-agentmemory/memory-core:latest}
+    ports:
+      - "127.0.0.1:8420:8420"
+    environment:
+      TDAI_GATEWAY_PORT: "8420"
+      TDAI_GATEWAY_HOST: 0.0.0.0
+      TDAI_GATEWAY_API_KEY: ${MEMORY_CORE_API_KEY:-}
+      TDAI_DATA_DIR: /data/tdai-memory
+      STORE_MODE: sqlite
+    volumes:
+      - memory:/data/tdai-memory
+      # generated from .env by scripts/memory-config.ts (holds the extraction model's key: not in git)
+      - ./.docker/memory-core/tdai-gateway.yaml:/data/config/tdai-gateway.yaml:ro
+
+  test:
+    <<: *app
+    profiles: ["test"]
+    command: ["sh", "-c", "pnpm typecheck && pnpm test:unit"]
+    environment:
+      MEMORY_OFF: "1"
+      AUTOTEST_EMULATOR_RESTORE: "0"
+
+volumes:
+  state:
+  memory:

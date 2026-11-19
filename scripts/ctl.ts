@@ -357,18 +357,44 @@ const HELP = `用法: pnpm <start|stop|restart|status|logs>   或   tsx scripts/
   restart [--open]      停止后再启动
   status                运行状态
   logs [-f] [-n 40]     平台日志；-f 持续输出
+  start --docker        在 Docker 里启动（平台 + 记忆服务；设备仍在本机，经本机 adb 服务）
+  stop --docker         docker compose down：停任务、删本次运行（saved/ 保留）
   toggle [--open]       运行中 → 停止，否则启动
   shortcut [--key K]    Windows：创建开始菜单快捷方式 + 全局快捷键（默认 Ctrl+Alt+Shift+P）；--remove 删除
 
   本目录双击/输入：up.cmd（启动并打开控制台） · down.cmd（停止）
   端口：PLATFORM_PORT（默认 3210，可写在 .env）`;
 
+// ── docker (W3-5 E2) ──────────────────────────────────────────────────────────────────────────────────
+/** `start --docker` / `stop --docker`: the same session semantics through compose (down = stop + wipe). */
+async function docker(action: 'start' | 'stop'): Promise<number> {
+  const { spawnSync } = await import('node:child_process');
+  const { existsSync, writeFileSync } = await import('node:fs');
+  const dc = (a: string[]) => spawnSync('docker', ['compose', ...a], { stdio: 'inherit', windowsHide: true }).status ?? 1;
+  if (action === 'stop') {
+    const rc = dc(['down']);
+    if (rc === 0) ok('容器已停止：本次的运行和报告已删除（saved/ 里的存档保留）');
+    return rc;
+  }
+  const { writeGatewayConfig } = await import('./memory-config');
+  info(`记忆服务配置：${writeGatewayConfig()}`);
+  // Bind-mounted files must exist before the container starts.
+  for (const f of ['skills/teamily/pages.local.json']) if (!existsSync(f)) writeFileSync(f, '{}');
+  // The memory service first: its admin key and our team / agent ids must exist before the platform reads them.
+  if (dc(['up', '-d', 'memory-core'])) return 1;
+  const { ensureAdminKey } = await import('./memory-config');
+  info(`记忆服务：${await ensureAdminKey('http://localhost:8420').catch((e) => `注册失败（${(e as Error).message}）：记忆功能降级为只用仓库里的教训`)}`);
+  const rc = dc(['up', '-d', '--build', 'platform']);
+  if (rc === 0) ok(`容器已启动  http://localhost:${process.env.PLATFORM_PORT ?? 3210}（日志：docker compose logs -f platform）`);
+  return rc;
+}
+
 async function main(): Promise<number> {
   switch (args[0]) {
     case 'start':
-      return start();
+      return flag('--docker') ? docker('start') : start();
     case 'stop':
-      return stop();
+      return flag('--docker') ? docker('stop') : stop();
     case 'restart': {
       const rc = await stop();
       return rc === 0 ? start() : rc;

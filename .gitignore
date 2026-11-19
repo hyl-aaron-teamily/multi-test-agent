@@ -42,3 +42,8 @@ platform/explore/triage.json
 
 # W3-4 E1: Teamily APKs dropped in by the user (and the re-signed emulator copies)
 /apk/
+# W3-5 E2: generated memory-service config (holds a model key)
+/.docker/
+# W3-5: device lessons, lesson counts, exported replay runs (texts of real runs)
+/platform/memory/*.local.*
+/fixtures/replay/*.local.json

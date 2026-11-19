@@ -13,6 +13,7 @@ import { TEAMILY_PAGES } from '../skills/teamily/page-rules';
 import { apiError, type Code, outcome } from './lifecycle/status';
 import { getTask, readResult, writeResult } from './lifecycle/task';
 import type { Envelope } from './api-v1';
+import { addStats, updateLessons } from './memory/lessons';
 
 const ok = (code: Code, summary: string, data?: unknown, text?: string): Envelope => ({ ...outcome(code), summary, data, text });
 const fail = (code: Code, message: string, hint?: string): Envelope => ({ ...outcome(code), summary: message, error: apiError(code, message, hint) });
@@ -138,6 +139,22 @@ export function triageFinding(taskId: string, b: any): Envelope {
   const note = typeof b.note === 'string' && b.note.trim() ? b.note.trim().slice(0, 500) : undefined;
   const at = new Date().toISOString();
   f.triage = { verdict, ...(note ? { note } : {}), at };
+  // W3-5 §8.7 ⑤: a finding a lesson hid, marked a real problem → the lesson is overturned: back to candidate.
+  let overturned: string | undefined;
+  if (verdict === 'issue' && f.lesson) {
+    overturned = f.lesson;
+    updateLessons((items) => {
+      const l = items.find((x) => x.id === f.lesson);
+      if (l && l.status === 'active') {
+        l.status = 'candidate';
+        l.reason = `被推翻：${taskId}#${f.n} 被标为真问题（${at}），请收窄范围后再确认`;
+        l.updatedAt = at;
+      }
+    });
+    addStats({ [f.lesson]: { overturned: 1 } });
+    f.counted = true;
+    f.excluded = undefined;
+  }
   // The known issue carries the triage, so the next run's same finding is judged by it (§8.5 ④).
   const knownId = updateKnown((items) => {
     const key = findingKey(f);
@@ -149,5 +166,5 @@ export function triageFinding(taskId: string, b: any): Envelope {
   });
   saveRun(taskId, stored, r);
   addTriage({ run: taskId, n: f.n, step: f.step, verdict, ...(note ? { note } : {}), description: f.description, page: f.page, known: knownId, at });
-  return ok('OK', `发现 #${f.n} 标注为「${TRIAGE_TEXT[verdict]}」（已知问题 ${knownId}）`, f);
+  return ok('OK', `发现 #${f.n} 标注为「${TRIAGE_TEXT[verdict]}」（已知问题 ${knownId}）${overturned ? `；教训 ${overturned} 被推翻，降为候选` : ''}`, f);
 }

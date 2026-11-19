@@ -143,6 +143,7 @@ const ROUTES = [
   [/^#\/env\/([^?]+)/, envPage],
   [/^#\/approvals$/, approvals],
   [/^#\/saved$/, savedPage],
+  [/^#\/lessons$/, lessonsPage],
 ];
 
 function hashQuery() {
@@ -618,6 +619,60 @@ async function savedPage() {
   $('#view').innerHTML = `<div class="page-head"><h1>存档<small>停止平台时会删除本次的全部运行和报告；点过「另存为」的保存在 saved/，在这里打开</small></h1></div>${card('', `${r.data.length} 份存档`, body)}`;
 }
 
+// ---------------------------------------------------------------- 教训 (W3-5 §8.7 ⑤)
+
+const LESSON_STATUS = { active: '生效', candidate: '候选', disabled: '停用', undone: '已撤销' };
+
+async function lessonsPage() {
+  await shell('lessons');
+  const [r, st, rp] = await Promise.all([api('GET', '/memory/lessons'), api('GET', '/memory/status'), api('GET', '/memory/replay')]);
+  if (r.code !== 'OK') return ($('#view').innerHTML = card('', '教训', failMsg(r)));
+  const act = (l) => {
+    const b = [];
+    if (l.status === 'candidate') b.push(`<button class="btn primary" onclick="lessonAct('${esc(l.id)}','confirm')">确认生效</button>`);
+    if (l.status === 'active') b.push(`<button class="btn" onclick="lessonAct('${esc(l.id)}','disable')">停用</button> <button class="btn danger" onclick="lessonAct('${esc(l.id)}','undo')">撤销</button>`);
+    if (l.status === 'disabled' || l.status === 'undone') b.push(`<button class="btn" onclick="lessonAct('${esc(l.id)}','enable')">重新启用</button>`);
+    b.push(`<button class="btn" onclick="lessonEdit('${esc(l.id)}')">修改</button>`);
+    return b.join(' ');
+  };
+  const rule = (l) => [l.do.L1 && `L1 执行端：${esc(l.do.L1)}`, l.do.L2 && `L2 判定：<span class="mono">${esc(l.do.L2)}</span>`, l.do.L3 && `L3 提示：${esc(l.do.L3)}`].filter(Boolean).join('<br>');
+  const rows = r.data.map((l) => `<tr><td><b class="mono">${esc(l.id)}</b><br><span class="tag">${LESSON_STATUS[l.status] ?? esc(l.status)}</span> <span class="faint">${l.source === 'memory-service' ? '记忆服务抽取' : '人工标注'}</span></td><td>${esc(l.preview)}<br><span class="faint">仍要报：${esc(l.counter)}</span>${l.reason ? `<br><span class="warn">${esc(l.reason)}</span>` : ''}</td><td>${rule(l)}<br><span class="faint">when ${esc(l.when.join(' & '))}${l.scope.page ? `；页面 ${esc(l.scope.page)}` : ''}</span></td><td class="mono">${l.stats ? `注入 ${l.stats.injected}<br>生效 ${l.stats.applied}<br>推翻 ${l.stats.overturned}` : '-'}</td><td>${act(l)}</td></tr>`);
+  const body = r.data.length ? `<table><tr><th>教训</th><th>说明</th><th>规则</th><th>次数</th><th></th></tr>${rows.join('')}</table>` : '<p class="empty">还没有教训。在探索结果页把一个发现标为「不是问题 / 环境问题」并写一句话，就会生成一条。</p>';
+  const svc = st.data?.service;
+  const head = `<p>记忆服务：${svc?.ok ? '<span class="good">正常</span>' : '<span class="warn">不可用</span>'}（${esc(svc?.detail ?? '-')}）。不可用时只用仓库里的教训，运行不受影响。 <button class="btn" onclick="pullCandidates()">从记忆服务拉取候选</button></p>${rp.code === 'OK' ? `<pre class="mono">${esc(rp.text ?? rp.summary)}</pre>` : ''}`;
+  $('#view').innerHTML = `<div class="page-head"><h1>教训<small>一句标注 → 一条教训，以后不再犯；以仓库 platform/memory/lessons.jsonl 为准，记忆服务里只是副本</small></h1></div>${card('', '记忆服务与回放', head)}${card('', r.summary, body)}`;
+}
+
+async function lessonAct(id, action) {
+  if (action === 'undo' && !confirm(`撤销教训 ${id}？撤销后不再注入、不再影响判定。`)) return;
+  const r = await api('POST', `/memory/lessons/${enc(id)}/${action}`);
+  if (r.code !== 'OK') alert(r.summary);
+  route();
+}
+
+async function lessonEdit(id) {
+  const r = await api('GET', '/memory/lessons');
+  const l = (r.data ?? []).find((x) => x.id === id);
+  if (!l) return;
+  const text = prompt('修改教训（JSON：scope / when / do / counter / preview）', JSON.stringify({ scope: l.scope, when: l.when, do: l.do, counter: l.counter, preview: l.preview }));
+  if (text === null) return;
+  let body;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return alert('不是合法的 JSON');
+  }
+  const x = await api('PUT', `/memory/lessons/${enc(id)}`, body);
+  alert(x.summary);
+  route();
+}
+
+async function pullCandidates() {
+  const r = await api('POST', '/memory/candidates/pull');
+  alert(r.summary);
+  route();
+}
+
 async function openSaved(name) {
   const r = await api('POST', `/saved/${enc(name)}/open`);
   if (r.code !== 'OK') return alert(r.summary);
@@ -744,10 +799,16 @@ async function markStep(taskId, step) {
 }
 
 async function triage(taskId, n, verdict) {
-  const note = verdict === 'issue' ? '' : prompt(`为什么「${verdict === 'env' ? '环境问题' : '不是问题'}」？（可空）`);
+  const note = verdict === 'issue' ? '' : prompt(`为什么「${verdict === 'env' ? '环境问题' : '不是问题'}」？写一句话会生成一条教训，以后不再犯（可空：只标注）`);
   if (note === null) return;
   const r = await api('POST', `/explore/${enc(taskId)}/triage`, { n, verdict, note });
   if (r.code !== 'OK') return alert(`${r.code}：${r.summary}`);
+  // W3-5: the lesson made from the sentence — its preview, with 「修改」「撤销」 on the 教训 page.
+  const l = r.data?.lesson?.lesson;
+  if (l) alert(`${r.summary}
+
+预览：${l.preview}
+（在「教训」页可以修改或撤销）`);
   await resultPage(taskId);
 }
 
