@@ -44,6 +44,9 @@ services:
       - ./apk:/app/apk:ro
       # kept across sessions
       - state:/app/platform/state
+      # the Issue line: local Issues (private, not in the image) and their plan records
+      - ./issues:/app/issues
+      - ./platform/plans:/app/platform/plans
       - ./saved:/app/saved
       - ./platform/explore:/app/platform/explore
       - ./platform/memory:/app/platform/memory

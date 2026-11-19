@@ -176,6 +176,8 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   await mkdir(o.runDir, { recursive: true });
   const endCallLogs = useCallLogs(o.runDir);
   const t0 = Date.now();
+  // Declared before done(): an early return (preflight / lease) reads it.
+  let sess: Session | undefined;
   const stats = newStats();
   const calls0 = { ...modelCalls, byPurpose: { ...modelCalls.byPurpose }, tokens: { ...modelCalls.tokens } };
   const locate0 = JSON.parse(JSON.stringify(locateTally)) as typeof locateTally;
@@ -275,7 +277,6 @@ export async function runPlan(o: RunOptions): Promise<RunResult> {
   }
   head(account.id, udid);
 
-  let sess: Session | undefined;
   let afr: AndroidFlightRecorder | undefined;
   let wfr: WebFlightRecorder | undefined;
   const flightDir = join(o.runDir, '.flight');

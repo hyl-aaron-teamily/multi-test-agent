@@ -13,7 +13,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
     AUTOTEST_IN_CONTAINER=1
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ca-certificates curl unzip ffmpeg \
+ && apt-get install -y --no-install-recommends ca-certificates curl unzip ffmpeg socat \
  && curl -fsSL -o /tmp/pt.zip "https://dl.google.com/android/repository/platform-tools_r${ADB_VERSION}-linux.zip" \
  && unzip -q /tmp/pt.zip -d /opt && rm /tmp/pt.zip \
  && /opt/platform-tools/adb version | head -2 \
@@ -29,4 +29,9 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 
 EXPOSE 3210
+# Midscene's adb wrapper runs `adb -P 5037 …`, which ignores ADB_SERVER_SOCKET and would start an empty adb
+# server in here: localhost:5037 is forwarded to the host's server instead (docker/adb-forward.sh).
+COPY docker/adb-forward.sh /usr/local/bin/adb-forward
+RUN chmod +x /usr/local/bin/adb-forward
+ENTRYPOINT ["adb-forward"]
 CMD ["pnpm", "platform"]
