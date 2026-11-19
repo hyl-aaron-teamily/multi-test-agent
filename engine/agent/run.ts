@@ -50,7 +50,7 @@ import { scalePng } from '../recorder/evidence-review';
 import { basename } from 'node:path';
 import { type PageMatch, pageOf, startPageRecording, UNKNOWN_PAGE } from '../pages';
 import { activeExpectations, type Expectation, expectationBlocks, type ExpectationOutcome, outcomeOf, readExpectations, readVerify } from '../explore/expectations';
-import { knownBlock, knownPath, type KnownIssue, readKnown, type TriageVerdict, updateKnown } from '../explore/known';
+import { knownBlock, knownPath, type KnownIssue, normText as knownText, readKnown, type TriageVerdict, updateKnown } from '../explore/known';
 import { FINDING_SOURCE, findingState, judgeFinding } from '../explore/judge';
 export { FINDING_SOURCE };
 
@@ -435,7 +435,8 @@ export async function runAgent(o: AgentOptions): Promise<AgentResult> {
         lastTap = undefined;
         const found: string[] = [];
         for (const h of hits) {
-          const key = `${screen}:${h.kind}:${h.text ?? ''}`;
+          // Once per run per page, kind and text — not per screen: a list that scrolls shows the same rows again.
+          const key = `${page.id}:${h.kind}:${knownText(h.text ?? h.description)}`;
           if (seenHits.has(key)) continue;
           seenHits.add(key);
           found.push(await detectorFinding(h, step, screen));
