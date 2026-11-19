@@ -34,5 +34,5 @@ RUN pip install --no-cache-dir --no-deps /opt/android_world
 WORKDIR /app
 COPY server.py entrypoint.sh ./
 RUN chmod +x entrypoint.sh
-EXPOSE 5055 5056
+EXPOSE 5055 5056-5065
 ENTRYPOINT ["./entrypoint.sh"]

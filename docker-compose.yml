@@ -93,8 +93,9 @@ services:
       - "host.docker.internal:host-gateway"
     ports:
       - "127.0.0.1:5055:5055"
-      # the accessibility forwarder in the emulator dials 10.0.2.2:5056 = the host's loopback → here
-      - "127.0.0.1:5056:5056"
+      # the accessibility forwarder in the emulator dials 10.0.2.2:<port> = the host's loopback → here; a rebuilt
+      # a11y wrapper takes the next port of the range (bench/androidworld/server.py)
+      - "127.0.0.1:5056-5065:5056-5065"
 
   # One-off: the exploration executor runs the pilot set against the service. Reports go straight to ./saved/bench
   # (the bench's 「另存为」: kept across sessions, unlike midscene_run/).

@@ -133,12 +133,16 @@ def main() -> None:
   p.add_argument('--grpc-port', type=int, default=8554)
   p.add_argument('--adb', default=os.environ.get('AW_ADB') or shutil.which('adb'))
   p.add_argument('--host', default='127.0.0.1', help='0.0.0.0 in the container (W3-6 E4)')
+  p.add_argument('--a11y-ports', type=int, default=10, help='size of the published port range starting at --a11y-port')
   p.add_argument('--a11y-port', type=int, default=0, help='fixed port for the accessibility forwarder (container: published to the host, which the emulator reaches as 10.0.2.2); 0 = any free port')
   a = p.parse_args()
   if a.a11y_port:
     # android_env picks a random free port; in a container that port must be known to be published.
     from android_env.wrappers import a11y_grpc_wrapper  # pylint: disable=g-import-not-at-top
-    a11y_grpc_wrapper.portpicker.pick_unused_port = lambda: a.a11y_port
+    # A rebuilt wrapper takes the next port of a small published range (as a random port would on the host): the
+    # forwarder in the emulator reconnects only when told a new port — the same port again left it on a dead link.
+    ports = iter(range(10**9))
+    a11y_grpc_wrapper.portpicker.pick_unused_port = lambda: a.a11y_port + next(ports) % a.a11y_ports
     # Its server takes local credentials (loopback peers only); in a container the emulator's forwarder arrives
     # through Docker's port publishing, i.e. from the gateway, and is refused. Serve the port plain instead: it is
     # published on the host's 127.0.0.1 only (docker-compose.yml), which is what local credentials protected.
