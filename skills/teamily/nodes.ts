@@ -293,8 +293,10 @@ const openSettings: Exec<Record<string, never>> = async ({ context: c }) => {
     }
     throw new RoundDrift(`teamily.openSettings: ${what} not on screen`, 'executor');
   };
-  // W3-7 §4: start from the home list — a chat or sheet left open hides the 我的 entry (at most 3 backs).
-  for (let i = 0; i < 3 && !((await c.findAll?.(['我的', '我', 'Me', '打开设置'])) ?? []).length; i++) {
+  // W3-7 §4: start from the home list — a chat or settings page left open hides the 我的 entry. Back only while
+  // 我的 is missing and the page has the App's own back button (the home list has none: a back there leaves the app).
+  const awayFromHome = async () => !((await c.findAll?.(['我的', 'Me'])) ?? []).length && !!((await c.findAll?.(['返回', 'Back', '关闭设置'])) ?? []).length;
+  for (let i = 0; i < 4 && (await awayFromHome()); i++) {
     await c.driver.back();
     await sleep(1000);
   }

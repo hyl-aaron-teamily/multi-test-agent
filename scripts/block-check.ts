@@ -153,11 +153,36 @@ export async function blockCheck(o: { udid?: string; n: number; only?: string[];
       android,
       token: Date.now().toString(36),
       exec: async (a) => void (await execAction(a, node, sess.profile, node.targets)),
+      // Back only while away from the home list on an App page with a back button; relaunch if the app left.
       home: async () => {
-        for (let i = 0; i < 3; i++) await sess.adapter.recoverHome(sess, i).catch(() => {});
+        const away = async () => {
+          const ns = await dumpTree(udid, '', 2);
+          const has = (t: string[]) => ns.some((n) => t.includes(n.text.trim()) || t.includes(n.desc.trim()));
+          return !has(['我的', 'Me']) && has(['返回', 'Back', '关闭设置']);
+        };
+        for (let i = 0; i < 4 && (await away()); i++) {
+          await sess.d.back();
+          await sleep(1000);
+        }
+        if (!android.foreground) {
+          await sess.d.launch();
+          await sleep(3000);
+        }
       },
       openConv: async () => {
-        const row = ((await node.findAll!([conv])) ?? []).find((x) => x.clickable) ?? ((await node.findAll!([conv])) ?? [])[0];
+        // The row by its title (exact text, or a row description starting with it); scroll the list when it is below.
+        const find = async () => {
+          const ns = await dumpTree(udid, '', 2);
+          const n = ns.find((x) => x.clickable && (x.text.trim() === conv || x.desc.trim().startsWith(conv))) ?? ns.find((x) => x.text.trim() === conv);
+          return n ? { point: { x: Math.round((n.x1 + n.x2) / 2), y: Math.round((n.y1 + n.y2) / 2) } } : undefined;
+        };
+        let row = await find();
+        const { width, height } = sess.profile.viewport;
+        for (let i = 0; i < 4 && !row && width; i++) {
+          await sess.d.scroll({ x: Math.round(width / 2), y: Math.round(height / 2) }, Math.round(height / 3));
+          await sleep(800);
+          row = await find();
+        }
         if (!row) throw new Error(`conversation "${conv}" not on the home list`);
         node.targets.conv = row.point;
         await execAction(step('teamily.openConversation', { target: 'conv' }), node, sess.profile, node.targets);

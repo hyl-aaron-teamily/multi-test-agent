@@ -78,6 +78,10 @@ export async function prepareEmulator(o: PrepareOptions): Promise<string[]> {
     await setAppLocale(serial, e.locale);
     did.push(`App 语言 ${e.locale}`);
   }
+  // W3-7 E5 ②: the emulator has a hardware keyboard, so the soft keyboard never shows and "the composer took
+  // focus" (keyboard up) is never seen. Show it anyway: focus reads the same as on the phone.
+  await adb(['shell', 'settings', 'put', 'secure', 'show_ime_with_hard_keyboard', '1'], serial, 15_000);
+  did.push('软键盘随硬键盘显示');
   const h0 = await a11yHealth(serial);
   if (!h0.installed || h0.outdated) {
     await installA11y(serial);
